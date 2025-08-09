@@ -201,7 +201,7 @@ app.post("/api/update", async (req, res) => {
     // 3.2: Preparar a linha para a planilha de funil
     const idPreCadastro = data[0]; // Vem do array enviado pelo frontend
     const corretor = data[3]; // Vem do array enviado pelo frontend
-    const funnelRow = [idPreCadastro, unitName, corretor];
+    const funnelRow = [idPreCadastro, unitName || "N/A", corretor];
 
     // 3.3: Adicionar a nova linha na planilha de funil
     await sheets.spreadsheets.values.append({

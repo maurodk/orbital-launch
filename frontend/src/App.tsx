@@ -192,6 +192,7 @@ function App() {
     }
 
     const clientName = clientData[1];
+    const unitName = unidades[selectedUnitIndex][3];
 
     // MUDANÇA PRINCIPAL AQUI: Montando o array para as colunas E até J
     const dataToUpdate = [
@@ -233,6 +234,7 @@ function App() {
         data: dataToUpdate,
         clientName: clientName,
         implantacao: selectedImplantationName,
+        unitName: unitName,
       });
     } catch (err) {
       setError("Falha ao salvar a reserva na planilha.");
