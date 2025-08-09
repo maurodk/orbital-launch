@@ -96,7 +96,7 @@ export function MappingSidebar({
               {isOpen && (
                 <div className="group-content">
                   {unitItems.map(({ unidade, originalIndex }) => {
-                    const isMapped = unidade[11] && unidade[11].trim() !== "";
+                    const isMapped = unidade[10] && unidade[10].trim() !== "";
                     const isSelected = originalIndex === selectedUnitIndex;
 
                     return (

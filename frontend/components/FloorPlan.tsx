@@ -153,9 +153,9 @@ export function FloorPlan({
             />
 
             {unidades.map((unidade, index) => {
-              const coordX = unidade[11];
-              const coordY = unidade[12];
-              const status = unidade[10]?.toLowerCase() || "disponível";
+              const coordX = unidade[10];
+              const coordY = unidade[11];
+              const status = unidade[9]?.toLowerCase() || "disponível";
 
               if (!coordX || !coordY) return null;
 
@@ -164,7 +164,7 @@ export function FloorPlan({
                   key={unidade[3] || index}
                   className={`unit-indicator ${status}`}
                   style={{ left: `${coordX}%`, top: `${coordY}%` }}
-                  title={`Unidade: ${unidade[3]}\nStatus: ${unidade[10]}`}
+                  title={`Unidade: ${unidade[3]}\nStatus: ${unidade[9]}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onUnitClick(index);

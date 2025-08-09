@@ -1,11 +1,12 @@
 // src/components/ReservationModal.tsx
+// src/components/ReservationModal.tsx
+
 import { useState, useMemo } from "react";
 import Select, { type SingleValue } from "react-select";
-import { customSelectStyles } from "../styles/selectStyles"; // Importando os estilos do novo local
+import { customSelectStyles } from "../styles/selectStyles";
 
-// O tipo OptionType agora é local para este componente, pois é onde ele é usado
 interface OptionType {
-  value: string;
+  value: string; // MUDANÇA: O valor agora será o ID do pré-cadastro (string)
   label: string;
 }
 
@@ -14,7 +15,7 @@ interface ReservationModalProps {
   onClose: () => void;
   unitData: string[] | null;
   clientes: string[][];
-  onReserve: (selectedClientName: string) => void;
+  onReserve: (selectedClientId: string) => void; // MUDANÇA: Agora passa o ID
 }
 
 export function ReservationModal({
@@ -29,8 +30,8 @@ export function ReservationModal({
   const clientOptions: OptionType[] = useMemo(
     () =>
       clientes.map((cliente) => ({
-        value: cliente[0],
-        label: `${cliente[0]} - (Doc: ${cliente[1]})`,
+        value: cliente[0], // <--- ID PRÉ-CADASTRO da planilha de dados
+        label: `${cliente[1]} - (Doc: ${cliente[2]})`,
       })),
     [clientes]
   );
@@ -48,8 +49,9 @@ export function ReservationModal({
       alert("Por favor, selecione um cliente.");
       return;
     }
+    // MUDANÇA: Passa o 'value', que agora é o ID do cliente
     onReserve(selectedClient.value);
-    setSelectedClient(null); // Limpa o campo após a reserva
+    setSelectedClient(null);
   };
 
   const handleClose = () => {

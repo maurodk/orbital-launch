@@ -636,3 +636,14 @@ h1 {
     font-size: 1.5rem;
   }
 }
+
+.reserve-button-in-table.reserved {
+  background: var(
+    --status-reserved
+  ); /* Cor vermelha para indicar cancelamento/gerenciamento */
+  color: white;
+}
+.reserve-button-in-table.reserved:hover:not(:disabled) {
+  background-color: #c9302c; /* Um vermelho um pouco mais escuro no hover */
+  transform: scale(1.05);
+}

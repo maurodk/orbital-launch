@@ -45,7 +45,7 @@ function App() {
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
 
   const clientesDisponiveis = useMemo(() => {
-    return clientes.filter((c) => c && c[6] === "PODE RESERVAR");
+    return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
   }, [clientes]);
 
   const fetchUnitData = async (implantacaoName: string) => {
@@ -150,8 +150,8 @@ function App() {
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];
+    updatedUnidades[unitIndexToClear][10] = "";
     updatedUnidades[unitIndexToClear][11] = "";
-    updatedUnidades[unitIndexToClear][12] = "";
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
@@ -167,14 +167,14 @@ function App() {
 
   const handleUnitClick = (unitIndex: number) => {
     if (isMappingMode) {
-      const hasCoords = unidades[unitIndex][11] && unidades[unitIndex][12];
+      const hasCoords = unidades[unitIndex][10] && unidades[unitIndex][11];
       if (hasCoords) {
         handleClearCoords(unitIndex);
       }
       return;
     }
     setSelectedUnitIndex(unitIndex);
-    const status = unidades[unitIndex][10]?.toLowerCase();
+    const status = unidades[unitIndex][9]?.toLowerCase();
     if (status === "disponível") {
       setIsReserveModalOpen(true);
     } else if (status === "reservada") {
@@ -182,21 +182,31 @@ function App() {
     }
   };
 
-  const handleReserveUnit = async (selectedClientName: string) => {
+  const handleReserveUnit = async (selectedClientId: string) => {
     if (selectedUnitIndex === null) return;
-    const clientData = clientes.find((c) => c[0] === selectedClientName);
-    if (!clientData) return;
+
+    const clientData = clientes.find((c) => c[0] === selectedClientId);
+    if (!clientData) {
+      console.error("Cliente selecionado não encontrado no estado local.");
+      return;
+    }
+
+    const clientName = clientData[1];
+
+    // MUDANÇA PRINCIPAL AQUI: Montando o array para as colunas E até J
     const dataToUpdate = [
-      selectedClientName,
-      clientData[1],
-      clientData[2],
-      clientData[3],
-      clientData[4],
-      clientData[5],
-      "RESERVADA",
+      clientData[0], // E (4): ID PRÉ-CADASTRO
+      clientData[1], // F (5): Cliente
+      clientData[2], // G (6): Documento cliente
+      clientData[3], // H (7): Corretor
+      clientData[4], // I (8): Imobiliária
+      "RESERVADA", // J (9): SITUAÇÃO UNIDADE
     ];
+
+    // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
     const updatedUnidades = [...unidades];
     const targetUnidade = updatedUnidades[selectedUnitIndex];
+    // MUDANÇA: Atualizando os índices de 4 a 9 com os novos dados
     Object.assign(targetUnidade, {
       4: dataToUpdate[0],
       5: dataToUpdate[1],
@@ -204,20 +214,24 @@ function App() {
       7: dataToUpdate[3],
       8: dataToUpdate[4],
       9: dataToUpdate[5],
-      10: dataToUpdate[6],
     });
     setUnidades(updatedUnidades);
+
+    // Lógica de atualização do cliente (sem mudanças, já correta)
     const updatedClientes = clientes.map((c) =>
-      c[0] === selectedClientName ? [...c.slice(0, 6), "JA RESERVOU"] : c
+      c[0] === selectedClientId ? [...c.slice(0, 5), "JA RESERVOU"] : c
     );
     setClientes(updatedClientes);
+
     handleCloseModals();
+
+    // Envio para o backend (sem mudanças, pois o backend recebe o array e o range corretos)
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/update`, {
         rowIndex: sheetRowIndex,
         data: dataToUpdate,
-        clientName: selectedClientName,
+        clientName: clientName,
         implantacao: selectedImplantationName,
       });
     } catch (err) {
@@ -228,26 +242,35 @@ function App() {
 
   const handleCancelReservation = async () => {
     if (selectedUnitIndex === null) return;
+
     const unidadeAlvo = unidades[selectedUnitIndex];
-    const clientNameToRelease = unidadeAlvo[4];
+    const clientNameToRelease = unidadeAlvo[5]; // Pega o nome do cliente do índice 5
+
+    // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
     const updatedUnidades = [...unidades];
+
+    // Garante que os índices 4 a 9 sejam atualizados corretamente
     Object.assign(updatedUnidades[selectedUnitIndex], {
-      4: "",
-      5: "",
-      6: "",
-      7: "",
-      8: "",
-      9: "",
-      10: "DISPONÍVEL",
+      4: "", // Limpa o ID PRÉ-CADASTRO (índice 4)
+      5: "", // Limpa Cliente
+      6: "", // Limpa Documento
+      7: "", // Limpa Corretor
+      8: "", // Limpa Imobiliária
+      9: "DISPONÍVEL", // Define SITUAÇÃO (índice 9) como DISPONÍVEL
     });
     setUnidades(updatedUnidades);
+
+    // Lógica para atualizar o status do cliente localmente
     if (clientNameToRelease) {
       const updatedClientes = clientes.map((c) =>
-        c[0] === clientNameToRelease ? [...c.slice(0, 6), "PODE RESERVAR"] : c
+        c[1] === clientNameToRelease ? [...c.slice(0, 5), "PODE RESERVAR"] : c
       );
       setClientes(updatedClientes);
     }
+
     handleCloseModals();
+
+    // Envia a requisição para o backend
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/cancel-reservation`, {
@@ -266,8 +289,8 @@ function App() {
     const coordX = x.toFixed(3);
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitToMapIndex][11] = coordX;
-    updatedUnidades[unitToMapIndex][12] = coordY;
+    updatedUnidades[unitToMapIndex][10] = coordX;
+    updatedUnidades[unitToMapIndex][11] = coordY;
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
@@ -365,14 +388,16 @@ function App() {
                   unidades={unidades}
                   isMappingMode={isMappingMode}
                   unitToMapIndex={unitToMapIndex}
-                  onUnitClick={handleUnitClick}
+                  onUnitClick={handleUnitClick} // Já estava correto
                   onMapClick={handleMapClickAndSaveCoords}
                 />
               )}
               {view === "list" && (
                 <ReservationList
                   unidades={unidades}
-                  onReserveClick={handleUnitClick}
+                  // MUDANÇA: Passando a mesma função 'handleUnitClick'
+                  // que o mapa usa. Isso já resolve a lógica do frontend.
+                  onUnitClick={handleUnitClick}
                 />
               )}
             </div>
