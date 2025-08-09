@@ -247,6 +247,7 @@ function App() {
 
     const unidadeAlvo = unidades[selectedUnitIndex];
     const clientNameToRelease = unidadeAlvo[5]; // Pega o nome do cliente do índice 5
+    const idPreCadastro = unidadeAlvo[4];
 
     // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
     const updatedUnidades = [...unidades];
@@ -279,6 +280,7 @@ function App() {
         unitRowIndex: sheetRowIndex,
         clientName: clientNameToRelease,
         implantacao: selectedImplantationName,
+        idPreCadastro: idPreCadastro,
       });
     } catch (err) {
       setError("Falha ao cancelar a reserva.");

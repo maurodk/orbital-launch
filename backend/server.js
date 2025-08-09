@@ -230,15 +230,14 @@ app.post("/api/update", async (req, res) => {
 
 // Endpoint para CANCELAR uma reserva
 app.post("/api/cancel-reservation", async (req, res) => {
-  const { implantacao, unitRowIndex, clientName } = req.body;
-  if (!implantacao)
-    return res
-      .status(400)
-      .json({ error: "Nome da implantação é obrigatório." });
-  if (!unitRowIndex || !clientName)
+  // <<< MUDANÇA 1: Receba o idPreCadastro do corpo da requisição
+  const { implantacao, unitRowIndex, clientName, idPreCadastro } = req.body;
+
+  if (!implantacao || !unitRowIndex || !clientName) {
     return res
       .status(400)
       .json({ error: "Dados incompletos para o cancelamento." });
+  }
 
   console.log(
     `[${new Date().toLocaleTimeString()}] -> EXECUTANDO CANCELAMENTO para linha ${unitRowIndex}`
@@ -247,36 +246,16 @@ app.post("/api/cancel-reservation", async (req, res) => {
   try {
     const sheets = await getSheetsClient();
 
-    // --- Ação 1: Limpar dados na planilha de Implantação ---
-
-    // O range E:J tem 6 colunas (E, F, G, H, I, J).
-    // Este array DEVE ter exatamente 6 itens para corresponder ao range.
+    // Ação 1: Limpar dados na planilha de Implantação (já corrigido)
     const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
-    // Lógica da correção:
-    // - Item 1 ("") -> Limpa a coluna E (ID PRÉ-CADASTRO).
-    // - Itens 2 a 5 ("") -> Limpam as colunas F, G, H, I.
-    // - Item 6 ("DISPONÍVEL") -> Atualiza a coluna J (SITUAÇÃO UNIDADE).
-
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!E${unitRowIndex}:J${unitRowIndex}`, // Range de 6 colunas
+      range: `${implantacao}!E${unitRowIndex}:J${unitRowIndex}`,
       valueInputOption: "USER_ENTERED",
-      resource: { values: [emptyUnitData] }, // Array de 6 itens
+      resource: { values: [emptyUnitData] },
     });
 
-    // --- O resto da função continua como antes ---
-
-    // Obter o ID do pré-cadastro para remover do funil
-    const unitIdResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!E${unitRowIndex}`, // Lê o ID ANTES de ser limpo (isso não é ideal, mas funciona. O ideal seria pegar da req)
-    });
-    // Nota: Como limpamos a célula antes, este valor pode vir vazio. O ideal é pegar o ID do frontend. Vamos manter a lógica atual por enquanto.
-    const idPreCadastro =
-      req.body.idPreCadastro ||
-      (unitIdResponse.data.values ? unitIdResponse.data.values[0][0] : null);
-
-    // Ação 2: Reverter o status do cliente na planilha de Dados
+    // Ação 2: Reverter o status do cliente na planilha de Dados (já correto)
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
       range: `${SHEET_NAME_DADOS}!A:F`,
@@ -294,9 +273,67 @@ app.post("/api/cancel-reservation", async (req, res) => {
       });
     }
 
-    // Ação 3: Encontrar e deletar a linha na planilha de Funil
+    // <<< MUDANÇA 2: Lógica para encontrar e deletar a linha do Funil >>>
     if (idPreCadastro) {
-      // (a lógica do funil permanece a mesma e não é a causa do erro)
+      console.log(
+        `Buscando remover a linha com ID: ${idPreCadastro} do Funil.`
+      );
+      try {
+        // 1. Obter todos os IDs da coluna A da planilha Funil
+        const funnelData = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID_FUNIL,
+          range: `${SHEET_NAME_FUNIL}!A:A`,
+        });
+        const funnelIds = (funnelData.data.values || []).flat();
+
+        // 2. Encontrar o índice da linha que corresponde ao nosso ID
+        const rowIndexToDelete = funnelIds.findIndex(
+          (id) => id === idPreCadastro
+        );
+
+        if (rowIndexToDelete !== -1) {
+          // 3. Obter o ID numérico da aba (sheetId), necessário para a deleção
+          const spreadsheetMeta = await sheets.spreadsheets.get({
+            spreadsheetId: SPREADSHEET_ID_FUNIL,
+          });
+          const sheet = spreadsheetMeta.data.sheets.find(
+            (s) => s.properties.title === SHEET_NAME_FUNIL
+          );
+          const sheetId = sheet.properties.sheetId;
+
+          // 4. Montar e enviar a requisição de deleção
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID_FUNIL,
+            resource: {
+              requests: [
+                {
+                  deleteDimension: {
+                    range: {
+                      sheetId: sheetId,
+                      dimension: "ROWS", // Queremos deletar uma linha
+                      startIndex: rowIndexToDelete, // O índice da linha (base 0)
+                      endIndex: rowIndexToDelete + 1, // O índice final (exclusivo)
+                    },
+                  },
+                },
+              ],
+            },
+          });
+          console.log(
+            `Linha ${rowIndexToDelete + 1} deletada do Funil com sucesso.`
+          );
+        } else {
+          console.log(
+            `ID ${idPreCadastro} não encontrado na planilha Funil. Nenhuma linha foi deletada.`
+          );
+        }
+      } catch (funnelError) {
+        console.error(
+          "Erro ao tentar deletar linha da planilha Funil:",
+          funnelError.message
+        );
+        // Não paramos o processo, o cancelamento principal já foi feito.
+      }
     }
 
     res.json({
