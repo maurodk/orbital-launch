@@ -1,4 +1,4 @@
-// src/App.tsx - VERSÃO COMPLETA COM RESERVA ESPONTÂNEA
+// src/App.tsx - VERSÃO COMPLETA COM CHECKBOX DE FILTRO
 
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
@@ -10,7 +10,7 @@ import { MappingSidebar } from "../components/MappingSidebar";
 import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
 import "./App.css";
 
-const API_URL = "https://simulador-implantacao.onrender.com";
+const API_URL = "http://localhost:3001"; // Usando localhost para desenvolvimento
 
 interface ApiResponse {
   unidades: string[][];
@@ -24,9 +24,9 @@ interface AppConfig {
 interface Implantation {
   nome: string;
   url: string;
+  tamanhoPonto?: number;
 }
 
-// Interface para os dados do formulário de reserva espontânea
 interface ManualData {
   id: string;
   cliente: string;
@@ -50,24 +50,26 @@ function App() {
   );
   const [isMappingMode, setIsMappingMode] = useState(false);
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
+  const [dotSize, setDotSize] = useState<number>(16);
 
-  // NOVO ESTADO PARA O MODAL DE RESERVA
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
     mode: "select" as "select" | "manual",
   });
 
-  // ESTADOS PARA FILTRAGEM DA LISTA
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "disponível" | "reservada"
   >("all");
 
+  // NOVO ESTADO PARA O CHECKBOX
+  const [hideAvailable, setHideAvailable] = useState<boolean>(true);
+
   const clientesDisponiveis = useMemo(() => {
     return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
   }, [clientes]);
 
-  const filteredUnidades = useMemo(() => {
+  const filteredUnidades: [string[], number][] = useMemo(() => {
     return unidades
       .map((unidade, index) => ({ data: unidade, originalIndex: index }))
       .filter(({ data }) => {
@@ -111,7 +113,6 @@ function App() {
 
         const allImplantations = implantacoesRes.data || [];
         setImplantacoes(allImplantations);
-
         const currentImplantationName =
           configRes.data.implantacaoAtual || allImplantations[0]?.nome || "";
         setSelectedImplantationName(currentImplantationName);
@@ -121,9 +122,9 @@ function App() {
         );
         if (currentImplantation) {
           setImageUrl(currentImplantation.url);
+          setDotSize(currentImplantation.tamanhoPonto || 16);
           await fetchUnitData(currentImplantation.nome);
         }
-
         setError(null);
       } catch (err) {
         setError("Falha ao carregar a configuração inicial.");
@@ -141,7 +142,7 @@ function App() {
 
     setSelectedImplantationName(newName);
     setImageUrl(newImplantation.url);
-
+    setDotSize(newImplantation.tamanhoPonto || 16);
     await fetchUnitData(newName);
 
     try {
@@ -167,6 +168,23 @@ function App() {
       alert(
         "Não foi possível salvar a nova imagem. Verifique o link e tente novamente."
       );
+    }
+  };
+
+  const handleSaveDotSize = async () => {
+    if (!selectedImplantationName) return;
+    const newSize = dotSize;
+    try {
+      await axios.post(`${API_URL}/api/update-dot-size`, {
+        implantacaoName: selectedImplantationName,
+        newSize: newSize,
+      });
+      alert(
+        `Tamanho do ponto (${newSize}px) salvo com sucesso para a implantação ${selectedImplantationName}!`
+      );
+    } catch (error) {
+      console.error("Falha ao salvar o tamanho do ponto.", error);
+      alert("Não foi possível salvar a alteração. Tente novamente.");
     }
   };
 
@@ -223,7 +241,6 @@ function App() {
 
   const handleReserveUnit = async (selectedClientId: string) => {
     if (selectedUnitIndex === null) return;
-
     const clientData = clientes.find((c) => c[0] === selectedClientId);
     if (!clientData) {
       console.error("Cliente selecionado não encontrado no estado local.");
@@ -256,7 +273,6 @@ function App() {
       c[0] === selectedClientId ? [...c.slice(0, 5), "JA RESERVOU"] : c
     );
     setClientes(updatedClientes);
-
     handleCloseModals();
 
     try {
@@ -276,7 +292,6 @@ function App() {
 
   const handleSpontaneousReserve = async (manualData: ManualData) => {
     if (selectedUnitIndex === null) return;
-
     const updatedUnidades = [...unidades];
     const targetUnidade = updatedUnidades[selectedUnitIndex];
     Object.assign(targetUnidade, {
@@ -288,7 +303,6 @@ function App() {
       9: "RESERVADA",
     });
     setUnidades(updatedUnidades);
-
     handleCloseModals();
 
     try {
@@ -316,7 +330,6 @@ function App() {
 
   const handleCancelReservation = async () => {
     if (selectedUnitIndex === null) return;
-
     const unidadeAlvo = unidades[selectedUnitIndex];
     const clientNameToRelease = unidadeAlvo[5];
     const idPreCadastro = unidadeAlvo[4];
@@ -399,16 +412,17 @@ function App() {
           selectedUnitIndex={unitToMapIndex}
           currentImageUrl={imageUrl}
           onUpdateImage={handleUpdateImageUrl}
+          dotSize={dotSize}
+          onDotSizeChange={setDotSize}
+          onSaveDotSize={handleSaveDotSize}
         />
       )}
-
       <div className="app-container">
         {switching && (
           <div className="switching-overlay">
             <div className="loading-spinner"></div>
           </div>
         )}
-
         <div>
           <main className="main-content">
             <img
@@ -417,7 +431,6 @@ function App() {
               className="main-logo"
             />
             <h1>Espelho de Implantação Humanizada</h1>
-
             <div className="top-controls">
               <div className="controls-left">
                 <ImplantationSwitcher
@@ -434,22 +447,34 @@ function App() {
                   Modo Mapeamento
                 </button>
               </div>
-              <div className="view-switcher">
-                <button
-                  className={view === "map" ? "active" : ""}
-                  onClick={() => setView("map")}
-                >
-                  Mapa Visual
-                </button>
-                <button
-                  className={view === "list" ? "active" : ""}
-                  onClick={() => setView("list")}
-                >
-                  Lista para Reserva
-                </button>
+              <div className="controls-right">
+                <div className="filter-checkbox-wrapper">
+                  <input
+                    type="checkbox"
+                    id="hide-available-toggle"
+                    checked={hideAvailable}
+                    onChange={(e) => setHideAvailable(e.target.checked)}
+                  />
+                  <label htmlFor="hide-available-toggle">
+                    Ocultar Disponíveis
+                  </label>
+                </div>
+                <div className="view-switcher">
+                  <button
+                    className={view === "map" ? "active" : ""}
+                    onClick={() => setView("map")}
+                  >
+                    Mapa Visual
+                  </button>
+                  <button
+                    className={view === "list" ? "active" : ""}
+                    onClick={() => setView("list")}
+                  >
+                    Lista para Reserva
+                  </button>
+                </div>
               </div>
             </div>
-
             <div className="view-content">
               {view === "map" && imageUrl && (
                 <FloorPlan
@@ -459,11 +484,13 @@ function App() {
                   unitToMapIndex={unitToMapIndex}
                   onUnitClick={handleUnitClick}
                   onMapClick={handleMapClickAndSaveCoords}
+                  dotSize={dotSize}
+                  hideAvailable={hideAvailable}
                 />
               )}
               {view === "list" && (
                 <ReservationList
-                  unidades={filteredUnidades as any}
+                  unidades={filteredUnidades}
                   onUnitClick={handleUnitClick}
                   onSpontaneousClick={handleSpontaneousUnitClick}
                   searchTerm={searchTerm}
@@ -474,7 +501,6 @@ function App() {
                 />
               )}
             </div>
-
             <ReservationModal
               show={reservationModalState.isOpen}
               onClose={handleCloseModals}

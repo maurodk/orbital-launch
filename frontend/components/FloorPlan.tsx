@@ -1,4 +1,4 @@
-// src/components/FloorPlan.tsx - VERSÃO FINAL E COMPLETA
+// src/components/FloorPlan.tsx - VERSÃO COMPLETA COM FILTRO DE PONTOS
 
 import { type MouseEvent, useRef, useState, useEffect } from "react";
 import {
@@ -8,7 +8,7 @@ import {
 } from "react-zoom-pan-pinch";
 import { FiZoomIn, FiZoomOut, FiMaximize, FiRefreshCcw } from "react-icons/fi";
 
-// Interface com a nova prop
+// Interface atualizada com as novas props
 interface FloorPlanProps {
   imageUrl: string;
   unidades: string[][];
@@ -16,6 +16,8 @@ interface FloorPlanProps {
   unitToMapIndex: number | null;
   onMapClick: (x: number, y: number) => void;
   onUnitClick: (unitIndex: number) => void;
+  dotSize: number;
+  hideAvailable: boolean;
 }
 
 const Controls = () => {
@@ -48,12 +50,14 @@ const Controls = () => {
 };
 
 export function FloorPlan({
-  imageUrl, // <<< MUDANÇA 1: Adicionar 'imageUrl' aqui
+  imageUrl,
   unidades,
   isMappingMode,
   unitToMapIndex,
   onMapClick,
   onUnitClick,
+  dotSize,
+  hideAvailable,
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -146,7 +150,6 @@ export function FloorPlan({
             onClick={handleMapClick}
           >
             <img
-              // <<< MUDANÇA 2: Usar a prop 'imageUrl' aqui >>>
               src={imageUrl}
               alt="Planta Humanizada do Empreendimento"
               className="floor-plan-image"
@@ -156,6 +159,11 @@ export function FloorPlan({
               const coordX = unidade[10];
               const coordY = unidade[11];
               const status = unidade[9]?.toLowerCase() || "disponível";
+              const isAvailable = status === "disponível";
+
+              if (isAvailable && hideAvailable) {
+                return null;
+              }
 
               if (!coordX || !coordY) return null;
 
@@ -163,7 +171,12 @@ export function FloorPlan({
                 <div
                   key={unidade[3] || index}
                   className={`unit-indicator ${status}`}
-                  style={{ left: `${coordX}%`, top: `${coordY}%` }}
+                  style={{
+                    left: `${coordX}%`,
+                    top: `${coordY}%`,
+                    width: `${dotSize}px`,
+                    height: `${dotSize}px`,
+                  }}
                   title={`Unidade: ${unidade[3]}\nStatus: ${unidade[9]}`}
                   onClick={(e) => {
                     e.stopPropagation();

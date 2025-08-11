@@ -94,11 +94,12 @@ app.get("/api/implantacoes", async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:B`,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:C`,
     });
     const implantacoes = (response.data.values || []).map((row) => ({
       nome: row[0],
       url: row[1],
+      tamanhoPonto: parseInt(row[2], 10) || 16, // Garantir que o tamanho do ponto seja um número
     }));
     res.json(implantacoes);
   } catch (error) {
@@ -402,6 +403,58 @@ app.post("/api/clear-coords", async (req, res) => {
   } catch (error) {
     console.error("Erro ao limpar coordenadas na planilha:", error);
     res.status(500).json({ error: "Falha ao limpar coordenadas." });
+  }
+});
+
+app.post("/api/update-dot-size", async (req, res) => {
+  const { implantacaoName, newSize } = req.body;
+
+  if (!implantacaoName || newSize === undefined) {
+    return res
+      .status(400)
+      .json({ error: "Nome da implantação e novo tamanho são obrigatórios." });
+  }
+
+  console.log(
+    `[${new Date().toLocaleTimeString()}] -> ATUALIZANDO TAMANHO DO PONTO para '${implantacaoName}' para ${newSize}px`
+  );
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // 1. Encontrar a linha correta na planilha de Implantações
+    const rangeData = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: `${SHEET_NAME_IMPLANTACOES}!A:A`, // Lê apenas a coluna de nomes
+    });
+
+    const allNames = (rangeData.data.values || []).flat();
+    const rowIndex = allNames.findIndex((name) => name === implantacaoName);
+
+    if (rowIndex === -1) {
+      return res
+        .status(404)
+        .json({ error: `Implantação '${implantacaoName}' não encontrada.` });
+    }
+
+    // O índice da planilha é o do array + 1 (por ser 1-based) + 1 (porque pulamos o cabeçalho)
+    const sheetRowIndex = rowIndex + 2;
+
+    // 2. Atualizar a célula na coluna C (TamanhoPonto)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: `${SHEET_NAME_IMPLANTACOES}!C${sheetRowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [[newSize]] },
+    });
+
+    res.json({
+      success: true,
+      message: `Tamanho do ponto para '${implantacaoName}' atualizado.`,
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar o tamanho do ponto:", error);
+    res.status(500).json({ error: "Falha ao atualizar o tamanho do ponto." });
   }
 });
 
