@@ -1,12 +1,12 @@
-// src/components/ReservationList.tsx - VERSÃO CORRIGIDA
+// frontend/components/ReservationList.tsx - VERSÃO COMPLETA E CORRIGIDA
 
 import { FiSearch } from "react-icons/fi";
 
-// <<< CORREÇÃO 1: Definir o tipo de prop 'unidades' corretamente.
-// Ele é um array de tuplas, onde cada tupla contém [dadosDaUnidade, indiceOriginal].
+// A interface de props correta para este componente
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
+  onSpontaneousClick: (unitIndex: number) => void; // Prop para o novo botão
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   statusFilter: "all" | "disponível" | "reservada";
@@ -14,13 +14,15 @@ interface ReservationListProps {
   totalUnidades: number;
 }
 
+// A função que estava faltando, agora completa e exportada
 export function ReservationList({
   unidades,
   onUnitClick,
+  onSpontaneousClick,
   searchTerm,
-  setStatusFilter,
-  statusFilter,
   setSearchTerm,
+  statusFilter,
+  setStatusFilter,
   totalUnidades,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
@@ -82,8 +84,6 @@ export function ReservationList({
           </thead>
           <tbody>
             {unidades.length > 0 ? (
-              // <<< CORREÇÃO 2: Desestruturar a tupla e remover as conversões de tipo ('as').
-              // O TypeScript agora sabe os tipos corretos graças à interface corrigida.
               unidades.map(([unitData, originalIndex]) => {
                 const status = unitData[9]?.toLowerCase() || "disponível";
                 const isAvailable = status === "disponível";
@@ -100,14 +100,29 @@ export function ReservationList({
                     </td>
                     <td>{clientName}</td>
                     <td>
-                      <button
-                        className={`reserve-button-in-table ${
-                          !isAvailable ? "reserved" : ""
-                        }`}
-                        onClick={() => onUnitClick(originalIndex)}
-                      >
-                        {isAvailable ? "Reservar" : "Gerenciar"}
-                      </button>
+                      {isAvailable ? (
+                        <div className="action-buttons-cell">
+                          <button
+                            className="reserve-button-in-table"
+                            onClick={() => onUnitClick(originalIndex)}
+                          >
+                            Reservar
+                          </button>
+                          <button
+                            className="reserve-button-in-table spontaneous"
+                            onClick={() => onSpontaneousClick(originalIndex)}
+                          >
+                            Espontâneo
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="reserve-button-in-table reserved"
+                          onClick={() => onUnitClick(originalIndex)}
+                        >
+                          Gerenciar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

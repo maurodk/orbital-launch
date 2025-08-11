@@ -1,4 +1,4 @@
-// src/App.tsx - VERSÃO COM A CORREÇÃO DO TIPO 'ApiResponse'
+// src/App.tsx - VERSÃO COMPLETA COM RESERVA ESPONTÂNEA
 
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
@@ -10,7 +10,7 @@ import { MappingSidebar } from "../components/MappingSidebar";
 import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
 import "./App.css";
 
-const API_URL = "https://simulador-implantacao.onrender.com";
+const API_URL = "http://localhost:3001";
 
 interface ApiResponse {
   unidades: string[][];
@@ -26,6 +26,14 @@ interface Implantation {
   url: string;
 }
 
+// Interface para os dados do formulário de reserva espontânea
+interface ManualData {
+  id: string;
+  cliente: string;
+  documento: string;
+  corretor: string;
+}
+
 function App() {
   const [unidades, setUnidades] = useState<string[][]>([]);
   const [clientes, setClientes] = useState<string[][]>([]);
@@ -36,7 +44,6 @@ function App() {
   const [switching, setSwitching] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"map" | "list">("map");
-  const [isReserveModalOpen, setIsReserveModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
@@ -44,42 +51,42 @@ function App() {
   const [isMappingMode, setIsMappingMode] = useState(false);
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
 
-  const clientesDisponiveis = useMemo(() => {
-    return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
-  }, [clientes]);
+  // NOVO ESTADO PARA O MODAL DE RESERVA
+  const [reservationModalState, setReservationModalState] = useState({
+    isOpen: false,
+    mode: "select" as "select" | "manual",
+  });
 
+  // ESTADOS PARA FILTRAGEM DA LISTA
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "disponível" | "reservada"
   >("all");
 
+  const clientesDisponiveis = useMemo(() => {
+    return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
+  }, [clientes]);
+
   const filteredUnidades = useMemo(() => {
-    return (
-      unidades
-        .map((unidade, index) => ({ data: unidade, originalIndex: index })) // Anexa o índice original
-        .filter(({ data }) => {
-          const unitStatus = data[9]?.toLowerCase() || "disponível";
-          const unitName = data[3]?.toLowerCase() || "";
-          const blockName = data[2]?.toLowerCase() || "";
-          const term = searchTerm.toLowerCase();
-
-          const statusMatch =
-            statusFilter === "all" || unitStatus === statusFilter;
-          const searchMatch =
-            unitName.includes(term) || blockName.includes(term);
-
-          return statusMatch && searchMatch;
-        })
-        // Transforma de volta para um formato que o componente aceita
-        .map((item) => [item.data, item.originalIndex])
-    );
+    return unidades
+      .map((unidade, index) => ({ data: unidade, originalIndex: index }))
+      .filter(({ data }) => {
+        const unitStatus = data[9]?.toLowerCase() || "disponível";
+        const unitName = data[3]?.toLowerCase() || "";
+        const blockName = data[2]?.toLowerCase() || "";
+        const term = searchTerm.toLowerCase();
+        const statusMatch =
+          statusFilter === "all" || unitStatus === statusFilter;
+        const searchMatch = unitName.includes(term) || blockName.includes(term);
+        return statusMatch && searchMatch;
+      })
+      .map((item) => [item.data, item.originalIndex]);
   }, [unidades, searchTerm, statusFilter]);
 
   const fetchUnitData = async (implantacaoName: string) => {
     if (!implantacaoName) return;
     setSwitching(true);
     try {
-      // <<< CORREÇÃO AQUI: Adicionado o tipo <ApiResponse> >>>
       const response = await axios.get<ApiResponse>(
         `${API_URL}/api/data?implantacao=${implantacaoName}`
       );
@@ -164,7 +171,7 @@ function App() {
   };
 
   const handleCloseModals = () => {
-    setIsReserveModalOpen(false);
+    setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
     setSelectedUnitIndex(null);
   };
@@ -203,10 +210,15 @@ function App() {
     setSelectedUnitIndex(unitIndex);
     const status = unidades[unitIndex][9]?.toLowerCase();
     if (status === "disponível") {
-      setIsReserveModalOpen(true);
+      setReservationModalState({ isOpen: true, mode: "select" });
     } else if (status === "reservada") {
       setIsCancelModalOpen(true);
     }
+  };
+
+  const handleSpontaneousUnitClick = (unitIndex: number) => {
+    setSelectedUnitIndex(unitIndex);
+    setReservationModalState({ isOpen: true, mode: "manual" });
   };
 
   const handleReserveUnit = async (selectedClientId: string) => {
@@ -217,24 +229,19 @@ function App() {
       console.error("Cliente selecionado não encontrado no estado local.");
       return;
     }
-
     const clientName = clientData[1];
     const unitName = unidades[selectedUnitIndex][3];
-
-    // MUDANÇA PRINCIPAL AQUI: Montando o array para as colunas E até J
     const dataToUpdate = [
-      clientData[0], // E (4): ID PRÉ-CADASTRO
-      clientData[1], // F (5): Cliente
-      clientData[2], // G (6): Documento cliente
-      clientData[3], // H (7): Corretor
-      clientData[4], // I (8): Imobiliária
-      "RESERVADA", // J (9): SITUAÇÃO UNIDADE
+      clientData[0],
+      clientData[1],
+      clientData[2],
+      clientData[3],
+      clientData[4],
+      "RESERVADA",
     ];
 
-    // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
     const updatedUnidades = [...unidades];
     const targetUnidade = updatedUnidades[selectedUnitIndex];
-    // MUDANÇA: Atualizando os índices de 4 a 9 com os novos dados
     Object.assign(targetUnidade, {
       4: dataToUpdate[0],
       5: dataToUpdate[1],
@@ -245,7 +252,6 @@ function App() {
     });
     setUnidades(updatedUnidades);
 
-    // Lógica de atualização do cliente (sem mudanças, já correta)
     const updatedClientes = clientes.map((c) =>
       c[0] === selectedClientId ? [...c.slice(0, 5), "JA RESERVOU"] : c
     );
@@ -253,7 +259,6 @@ function App() {
 
     handleCloseModals();
 
-    // Envio para o backend (sem mudanças, pois o backend recebe o array e o range corretos)
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/update`, {
@@ -269,38 +274,72 @@ function App() {
     }
   };
 
+  const handleSpontaneousReserve = async (manualData: ManualData) => {
+    if (selectedUnitIndex === null) return;
+
+    const updatedUnidades = [...unidades];
+    const targetUnidade = updatedUnidades[selectedUnitIndex];
+    Object.assign(targetUnidade, {
+      4: manualData.id,
+      5: manualData.cliente,
+      6: manualData.documento,
+      7: manualData.corretor,
+      8: "",
+      9: "RESERVADA",
+    });
+    setUnidades(updatedUnidades);
+
+    handleCloseModals();
+
+    try {
+      const sheetRowIndex = selectedUnitIndex + 2;
+      const unitName = unidades[selectedUnitIndex][3];
+      await axios.post(`${API_URL}/api/spontaneous-update`, {
+        rowIndex: sheetRowIndex,
+        implantacao: selectedImplantationName,
+        unitName: unitName,
+        manualData: manualData,
+      });
+    } catch (err) {
+      setError("Falha ao salvar a reserva espontânea na planilha.");
+      console.error(err);
+    }
+  };
+
+  const handleReserve = (data: string | ManualData) => {
+    if (typeof data === "string") {
+      handleReserveUnit(data);
+    } else {
+      handleSpontaneousReserve(data);
+    }
+  };
+
   const handleCancelReservation = async () => {
     if (selectedUnitIndex === null) return;
 
     const unidadeAlvo = unidades[selectedUnitIndex];
-    const clientNameToRelease = unidadeAlvo[5]; // Pega o nome do cliente do índice 5
+    const clientNameToRelease = unidadeAlvo[5];
     const idPreCadastro = unidadeAlvo[4];
 
-    // ATUALIZAÇÃO OTIMISTA DO ESTADO LOCAL
     const updatedUnidades = [...unidades];
-
-    // Garante que os índices 4 a 9 sejam atualizados corretamente
     Object.assign(updatedUnidades[selectedUnitIndex], {
-      4: "", // Limpa o ID PRÉ-CADASTRO (índice 4)
-      5: "", // Limpa Cliente
-      6: "", // Limpa Documento
-      7: "", // Limpa Corretor
-      8: "", // Limpa Imobiliária
-      9: "DISPONÍVEL", // Define SITUAÇÃO (índice 9) como DISPONÍVEL
+      4: "",
+      5: "",
+      6: "",
+      7: "",
+      8: "",
+      9: "DISPONÍVEL",
     });
     setUnidades(updatedUnidades);
 
-    // Lógica para atualizar o status do cliente localmente
     if (clientNameToRelease) {
       const updatedClientes = clientes.map((c) =>
         c[1] === clientNameToRelease ? [...c.slice(0, 5), "PODE RESERVAR"] : c
       );
       setClientes(updatedClientes);
     }
-
     handleCloseModals();
 
-    // Envia a requisição para o backend
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/cancel-reservation`, {
@@ -364,7 +403,6 @@ function App() {
       )}
 
       <div className="app-container">
-        {/* <<< CÓDIGO RESTAURADO AQUI >>> */}
         {switching && (
           <div className="switching-overlay">
             <div className="loading-spinner"></div>
@@ -419,32 +457,33 @@ function App() {
                   unidades={unidades}
                   isMappingMode={isMappingMode}
                   unitToMapIndex={unitToMapIndex}
-                  onUnitClick={handleUnitClick} // Já estava correto
+                  onUnitClick={handleUnitClick}
                   onMapClick={handleMapClickAndSaveCoords}
                 />
               )}
               {view === "list" && (
                 <ReservationList
-                  // Passando os dados e estados para o componente da lista
-                  unidades={filteredUnidades as any} // 'as any' para simplificar a tipagem complexa
+                  unidades={filteredUnidades as any}
                   onUnitClick={handleUnitClick}
+                  onSpontaneousClick={handleSpontaneousUnitClick}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                   statusFilter={statusFilter}
                   setStatusFilter={setStatusFilter}
-                  totalUnidades={unidades.length} // Total original
+                  totalUnidades={unidades.length}
                 />
               )}
             </div>
 
             <ReservationModal
-              show={isReserveModalOpen}
+              show={reservationModalState.isOpen}
               onClose={handleCloseModals}
               unitData={
                 selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
               }
               clientes={clientesDisponiveis}
-              onReserve={handleReserveUnit}
+              onReserve={handleReserve}
+              initialMode={reservationModalState.mode}
             />
             <CancelModal
               show={isCancelModalOpen}

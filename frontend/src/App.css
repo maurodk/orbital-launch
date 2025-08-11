@@ -745,3 +745,48 @@ h1 {
     align-items: stretch;
   }
 }
+
+.switch-view-link {
+  display: block;
+  margin-top: -15px;
+  margin-bottom: 25px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.switch-view-link:hover {
+  color: var(--accent-green);
+}
+
+/* Estilos para os inputs do formulário manual */
+.modal-content .form-group input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--bg-dark-tertiary);
+  border: 2px solid var(--bg-dark-tertiary);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.modal-content .form-group input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-green);
+}
+
+/* Estilos para os botões na célula de ação da lista */
+.action-buttons-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.reserve-button-in-table.spontaneous {
+  background-color: #337ab7; /* Um azul para diferenciar */
+  color: white;
+}
+.reserve-button-in-table.spontaneous:hover:not(:disabled) {
+  background-color: #286090;
+}

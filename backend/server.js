@@ -1,4 +1,4 @@
-// backend/server.js - VERSÃO COMPLETA E DINÂMICA
+// backend/server.js - VERSÃO COMPLETA E CORRIGIDA
 
 const express = require("express");
 const { google } = require("googleapis");
@@ -143,33 +143,23 @@ app.post("/api/update-config", async (req, res) => {
 
 // --- ENDPOINTS DE MODIFICAÇÃO (ATUALIZADOS) ---
 
-// Endpoint para RESERVAR uma unidade
-// Endpoint para RESERVAR uma unidade
+// Endpoint para RESERVAR uma unidade (via lista de clientes)
 app.post("/api/update", async (req, res) => {
-  const { implantacao, rowIndex, data, clientName } = req.body;
-  if (!implantacao)
-    return res
-      .status(400)
-      .json({ error: "Nome da implantação é obrigatório." });
-  if (!rowIndex || !data || !clientName)
+  const { implantacao, rowIndex, data, clientName, unitName } = req.body;
+  if (!implantacao || !rowIndex || !data || !clientName) {
     return res.status(400).json({ error: "Dados incompletos para a reserva." });
-
+  }
   console.log(
     `[${new Date().toLocaleTimeString()}] -> POST /api/update para a linha ${rowIndex} em '${implantacao}'`
   );
-
   try {
     const sheets = await getSheetsClient();
-
-    // --- Ação 1: Atualizar a planilha de Implantação (como antes) ---
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `${implantacao}!E${rowIndex}:J${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [data] },
     });
-
-    // --- Ação 2: Atualizar o status do cliente na planilha de Dados (como antes) ---
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
       range: `${SHEET_NAME_DADOS}!A:F`,
@@ -186,40 +176,15 @@ app.post("/api/update", async (req, res) => {
         resource: { values: [["JA RESERVOU"]] },
       });
     }
-
-    // --- MUDANÇA: Ação 3: Adicionar registro na planilha de Funil ---
-
-    // 3.1: Obter o nome da Unidade/Lote (Coluna D) da planilha de implantação
-    const unitDataResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!D${rowIndex}`,
-    });
-    const unitName = unitDataResponse.data.values
-      ? unitDataResponse.data.values[0][0]
-      : "N/A";
-
-    // 3.2: Preparar a linha para a planilha de funil
-    const idPreCadastro = data[0]; // Vem do array enviado pelo frontend
-    const corretor = data[3]; // Vem do array enviado pelo frontend
-    const funnelRow = [idPreCadastro, unitName || "N/A", corretor];
-
-    // 3.3: Adicionar a nova linha na planilha de funil
+    const funnelRow = [data[0], unitName || "N/A", data[3]];
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID_FUNIL,
       range: `${SHEET_NAME_FUNIL}!A:C`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
-      resource: {
-        values: [funnelRow],
-      },
+      resource: { values: [funnelRow] },
     });
-
-    // --- Fim da Ação 3 ---
-
-    res.json({
-      success: true,
-      message: `Reserva na implantação, status do cliente e registro no funil atualizados com sucesso.`,
-    });
+    res.json({ success: true, message: `Reserva e funil atualizados.` });
   } catch (error) {
     console.error("Erro ao processar a reserva completa:", error);
     res
@@ -228,25 +193,69 @@ app.post("/api/update", async (req, res) => {
   }
 });
 
+// Endpoint para RESERVA ESPONTÂNEA
+app.post("/api/spontaneous-update", async (req, res) => {
+  const { implantacao, rowIndex, unitName, manualData } = req.body;
+  if (!implantacao || !rowIndex || !manualData || !manualData.cliente) {
+    return res.status(400).json({
+      error:
+        "Dados incompletos para a reserva espontânea. O nome do cliente é obrigatório.",
+    });
+  }
+  console.log(
+    `[${new Date().toLocaleTimeString()}] -> POST /api/spontaneous-update para a linha ${rowIndex} em '${implantacao}'`
+  );
+  try {
+    const sheets = await getSheetsClient();
+    const dataToUpdate = [
+      manualData.id || "",
+      manualData.cliente,
+      manualData.documento || "",
+      manualData.corretor || "",
+      "",
+      "RESERVADA",
+    ];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `${implantacao}!E${rowIndex}:J${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [dataToUpdate] },
+    });
+    const funnelRow = [
+      manualData.id || "",
+      unitName || "N/A",
+      manualData.corretor || "",
+    ];
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID_FUNIL,
+      range: `${SHEET_NAME_FUNIL}!A:C`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      resource: { values: [funnelRow] },
+    });
+    res.json({
+      success: true,
+      message: "Reserva espontânea realizada com sucesso.",
+    });
+  } catch (error) {
+    console.error("Erro ao processar a reserva espontânea:", error);
+    res.status(500).json({ error: "Falha ao processar a reserva espontânea." });
+  }
+});
+
 // Endpoint para CANCELAR uma reserva
 app.post("/api/cancel-reservation", async (req, res) => {
-  // <<< MUDANÇA 1: Receba o idPreCadastro do corpo da requisição
   const { implantacao, unitRowIndex, clientName, idPreCadastro } = req.body;
-
   if (!implantacao || !unitRowIndex || !clientName) {
     return res
       .status(400)
       .json({ error: "Dados incompletos para o cancelamento." });
   }
-
   console.log(
     `[${new Date().toLocaleTimeString()}] -> EXECUTANDO CANCELAMENTO para linha ${unitRowIndex}`
   );
-
   try {
     const sheets = await getSheetsClient();
-
-    // Ação 1: Limpar dados na planilha de Implantação (já corrigido)
     const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -254,8 +263,6 @@ app.post("/api/cancel-reservation", async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: { values: [emptyUnitData] },
     });
-
-    // Ação 2: Reverter o status do cliente na planilha de Dados (já correto)
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
       range: `${SHEET_NAME_DADOS}!A:F`,
@@ -272,27 +279,20 @@ app.post("/api/cancel-reservation", async (req, res) => {
         resource: { values: [["PODE RESERVAR"]] },
       });
     }
-
-    // <<< MUDANÇA 2: Lógica para encontrar e deletar a linha do Funil >>>
     if (idPreCadastro) {
       console.log(
         `Buscando remover a linha com ID: ${idPreCadastro} do Funil.`
       );
       try {
-        // 1. Obter todos os IDs da coluna A da planilha Funil
         const funnelData = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID_FUNIL,
           range: `${SHEET_NAME_FUNIL}!A:A`,
         });
         const funnelIds = (funnelData.data.values || []).flat();
-
-        // 2. Encontrar o índice da linha que corresponde ao nosso ID
         const rowIndexToDelete = funnelIds.findIndex(
           (id) => id === idPreCadastro
         );
-
         if (rowIndexToDelete !== -1) {
-          // 3. Obter o ID numérico da aba (sheetId), necessário para a deleção
           const spreadsheetMeta = await sheets.spreadsheets.get({
             spreadsheetId: SPREADSHEET_ID_FUNIL,
           });
@@ -300,8 +300,6 @@ app.post("/api/cancel-reservation", async (req, res) => {
             (s) => s.properties.title === SHEET_NAME_FUNIL
           );
           const sheetId = sheet.properties.sheetId;
-
-          // 4. Montar e enviar a requisição de deleção
           await sheets.spreadsheets.batchUpdate({
             spreadsheetId: SPREADSHEET_ID_FUNIL,
             resource: {
@@ -310,9 +308,9 @@ app.post("/api/cancel-reservation", async (req, res) => {
                   deleteDimension: {
                     range: {
                       sheetId: sheetId,
-                      dimension: "ROWS", // Queremos deletar uma linha
-                      startIndex: rowIndexToDelete, // O índice da linha (base 0)
-                      endIndex: rowIndexToDelete + 1, // O índice final (exclusivo)
+                      dimension: "ROWS",
+                      startIndex: rowIndexToDelete,
+                      endIndex: rowIndexToDelete + 1,
                     },
                   },
                 },
@@ -332,10 +330,8 @@ app.post("/api/cancel-reservation", async (req, res) => {
           "Erro ao tentar deletar linha da planilha Funil:",
           funnelError.message
         );
-        // Não paramos o processo, o cancelamento principal já foi feito.
       }
     }
-
     res.json({
       success: true,
       message: "Cancelamento efetuado com sucesso em todas as planilhas.",
@@ -349,20 +345,19 @@ app.post("/api/cancel-reservation", async (req, res) => {
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", async (req, res) => {
   const { implantacao, rowIndex, coordX, coordY } = req.body;
-  if (!implantacao)
-    return res
-      .status(400)
-      .json({ error: "Nome da implantação é obrigatório." });
-  if (!rowIndex || coordX === undefined || coordY === undefined) {
+  if (
+    !implantacao ||
+    !rowIndex ||
+    coordX === undefined ||
+    coordY === undefined
+  ) {
     return res
       .status(400)
       .json({ error: "Índice da linha e coordenadas X e Y são obrigatórios." });
   }
-
   console.log(
     `[${new Date().toLocaleTimeString()}] -> POST /api/update-coords para a linha ${rowIndex} em '${implantacao}'`
   );
-
   try {
     const sheets = await getSheetsClient();
     const range = `${implantacao}!K${rowIndex}:L${rowIndex}`;
@@ -385,17 +380,12 @@ app.post("/api/update-coords", async (req, res) => {
 // Endpoint para LIMPAR COORDENADAS
 app.post("/api/clear-coords", async (req, res) => {
   const { implantacao, rowIndex } = req.body;
-  if (!implantacao)
-    return res
-      .status(400)
-      .json({ error: "Nome da implantação é obrigatório." });
-  if (!rowIndex)
+  if (!implantacao || !rowIndex) {
     return res.status(400).json({ error: "O índice da linha é obrigatório." });
-
+  }
   console.log(
     `[${new Date().toLocaleTimeString()}] -> POST /api/clear-coords para a linha ${rowIndex} em '${implantacao}'`
   );
-
   try {
     const sheets = await getSheetsClient();
     const range = `${implantacao}!K${rowIndex}:L${rowIndex}`;
@@ -415,5 +405,6 @@ app.post("/api/clear-coords", async (req, res) => {
   }
 });
 
+// ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));

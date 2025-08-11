@@ -1,13 +1,19 @@
-// src/components/ReservationModal.tsx
-// src/components/ReservationModal.tsx
+// src/components/ReservationModal.tsx - VERSÃO CORRIGIDA E FINAL
 
-import { useState, useMemo } from "react";
-import Select, { type SingleValue } from "react-select";
+import { useState, useMemo, useEffect } from "react";
+import Select from "react-select";
 import { customSelectStyles } from "../styles/selectStyles";
 
 interface OptionType {
-  value: string; // MUDANÇA: O valor agora será o ID do pré-cadastro (string)
+  value: string;
   label: string;
+}
+
+interface ManualData {
+  id: string;
+  cliente: string;
+  documento: string;
+  corretor: string;
 }
 
 interface ReservationModalProps {
@@ -15,7 +21,8 @@ interface ReservationModalProps {
   onClose: () => void;
   unitData: string[] | null;
   clientes: string[][];
-  onReserve: (selectedClientId: string) => void; // MUDANÇA: Agora passa o ID
+  onReserve: (data: string | ManualData) => void;
+  initialMode: "select" | "manual";
 }
 
 export function ReservationModal({
@@ -24,13 +31,34 @@ export function ReservationModal({
   unitData,
   clientes,
   onReserve,
+  initialMode,
 }: ReservationModalProps) {
+  // <<< Ponto Chave 1: O estado interno que controla qual formulário mostrar.
+  const [view, setView] = useState<"select" | "manual">(initialMode);
+
   const [selectedClient, setSelectedClient] = useState<OptionType | null>(null);
+  const [manualData, setManualData] = useState<ManualData>({
+    id: "",
+    cliente: "",
+    documento: "",
+    corretor: "",
+  });
+
+  // <<< Ponto Chave 2: Este useEffect garante que o estado 'view' seja ATUALIZADO
+  // toda vez que o modal for exibido (prop 'show' muda) ou que o modo inicial seja diferente.
+  // É isso que faz o botão "Espontâneo" funcionar.
+  useEffect(() => {
+    if (show) {
+      setView(initialMode); // Sincroniza o estado interno com a prop vinda do App.tsx
+      setSelectedClient(null);
+      setManualData({ id: "", cliente: "", documento: "", corretor: "" });
+    }
+  }, [show, initialMode]);
 
   const clientOptions: OptionType[] = useMemo(
     () =>
       clientes.map((cliente) => ({
-        value: cliente[0], // <--- ID PRÉ-CADASTRO da planilha de dados
+        value: cliente[0],
         label: `${cliente[1]} - (Doc: ${cliente[2]})`,
       })),
     [clientes]
@@ -40,56 +68,120 @@ export function ReservationModal({
     return null;
   }
 
-  const handleClientChange = (selectedOption: SingleValue<OptionType>) => {
-    setSelectedClient(selectedOption);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setManualData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleReserveClick = () => {
-    if (!selectedClient) {
-      alert("Por favor, selecione um cliente.");
-      return;
+    if (view === "select") {
+      if (selectedClient) onReserve(selectedClient.value);
+    } else {
+      if (!manualData.cliente.trim()) {
+        alert("O nome do Cliente é obrigatório.");
+        return;
+      }
+      onReserve(manualData);
     }
-    // MUDANÇA: Passa o 'value', que agora é o ID do cliente
-    onReserve(selectedClient.value);
-    setSelectedClient(null);
   };
 
-  const handleClose = () => {
-    setSelectedClient(null); // Limpa o campo ao fechar
-    onClose();
-  };
+  const isConfirmDisabled =
+    view === "select" ? !selectedClient : !manualData.cliente.trim();
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-button" onClick={handleClose}>
+        <button className="modal-close-button" onClick={onClose}>
           ×
         </button>
         <h2>
           Reservar Unidade: <strong>{unitData[3]}</strong>
         </h2>
-        <p>
-          <strong>Bloco:</strong> {unitData[2]}
-        </p>
 
-        <div className="form-group">
-          <label htmlFor="client-select">Buscar Cliente</label>
-          <Select<OptionType>
-            id="client-select"
-            options={clientOptions}
-            value={selectedClient}
-            onChange={handleClientChange}
-            placeholder="Digite para buscar um cliente..."
-            noOptionsMessage={() => "Nenhum cliente encontrado"}
-            isClearable
-            styles={customSelectStyles}
-          />
-        </div>
+        {/* O restante do JSX já está correto e vai funcionar com a lógica acima */}
+        {view === "select" ? (
+          <>
+            <div className="form-group">
+              <label htmlFor="client-select">Buscar Cliente na Lista</label>
+              <Select<OptionType>
+                id="client-select"
+                options={clientOptions}
+                value={selectedClient}
+                onChange={(opt) => setSelectedClient(opt)}
+                placeholder="Digite para buscar um cliente..."
+                styles={customSelectStyles}
+                isClearable
+              />
+            </div>
+            <a
+              href="#"
+              className="switch-view-link"
+              onClick={() => setView("manual")}
+            >
+              Cliente não está na lista? Preenchimento manual.
+            </a>
+          </>
+        ) : (
+          <>
+            <div className="form-group">
+              <label htmlFor="id">ID Pré-Cadastro (Opcional)</label>
+              <input
+                type="text"
+                id="id"
+                name="id"
+                value={manualData.id}
+                onChange={handleInputChange}
+                className="modal-input"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="cliente">Cliente</label>
+              <input
+                type="text"
+                id="cliente"
+                name="cliente"
+                value={manualData.cliente}
+                onChange={handleInputChange}
+                required
+                className="modal-input"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="documento">Documento Cliente</label>
+              <input
+                type="text"
+                id="documento"
+                name="documento"
+                value={manualData.documento}
+                onChange={handleInputChange}
+                className="modal-input"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="corretor">Corretor</label>
+              <input
+                type="text"
+                id="corretor"
+                name="corretor"
+                value={manualData.corretor}
+                onChange={handleInputChange}
+                className="modal-input"
+              />
+            </div>
+            <a
+              href="#"
+              className="switch-view-link"
+              onClick={() => setView("select")}
+            >
+              Voltar para a busca na lista.
+            </a>
+          </>
+        )}
 
         <button
           className="modal-reserve-button"
           onClick={handleReserveClick}
-          disabled={!selectedClient}
+          disabled={isConfirmDisabled}
         >
           Confirmar Reserva
         </button>
