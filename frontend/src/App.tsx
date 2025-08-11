@@ -10,7 +10,7 @@ import { MappingSidebar } from "../components/MappingSidebar";
 import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
 import "./App.css";
 
-const API_URL = "http://localhost:3001"; // Usando localhost para desenvolvimento
+const API_URL = "https://simulador-implantacao.onrender.com"; // Usando localhost para desenvolvimento
 
 interface ApiResponse {
   unidades: string[][];
