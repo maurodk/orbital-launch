@@ -48,6 +48,33 @@ function App() {
     return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
   }, [clientes]);
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "disponível" | "reservada"
+  >("all");
+
+  const filteredUnidades = useMemo(() => {
+    return (
+      unidades
+        .map((unidade, index) => ({ data: unidade, originalIndex: index })) // Anexa o índice original
+        .filter(({ data }) => {
+          const unitStatus = data[9]?.toLowerCase() || "disponível";
+          const unitName = data[3]?.toLowerCase() || "";
+          const blockName = data[2]?.toLowerCase() || "";
+          const term = searchTerm.toLowerCase();
+
+          const statusMatch =
+            statusFilter === "all" || unitStatus === statusFilter;
+          const searchMatch =
+            unitName.includes(term) || blockName.includes(term);
+
+          return statusMatch && searchMatch;
+        })
+        // Transforma de volta para um formato que o componente aceita
+        .map((item) => [item.data, item.originalIndex])
+    );
+  }, [unidades, searchTerm, statusFilter]);
+
   const fetchUnitData = async (implantacaoName: string) => {
     if (!implantacaoName) return;
     setSwitching(true);
@@ -398,10 +425,14 @@ function App() {
               )}
               {view === "list" && (
                 <ReservationList
-                  unidades={unidades}
-                  // MUDANÇA: Passando a mesma função 'handleUnitClick'
-                  // que o mapa usa. Isso já resolve a lógica do frontend.
+                  // Passando os dados e estados para o componente da lista
+                  unidades={filteredUnidades as any} // 'as any' para simplificar a tipagem complexa
                   onUnitClick={handleUnitClick}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  statusFilter={statusFilter}
+                  setStatusFilter={setStatusFilter}
+                  totalUnidades={unidades.length} // Total original
                 />
               )}
             </div>
