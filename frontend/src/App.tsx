@@ -10,7 +10,7 @@ import { MappingSidebar } from "../components/MappingSidebar";
 import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
 import "./App.css";
 
-const API_URL = "simulador-implantacao.vercel.app";
+const API_URL = "https://simulador-implantacao.onrender.com";
 
 interface ApiResponse {
   unidades: string[][];
