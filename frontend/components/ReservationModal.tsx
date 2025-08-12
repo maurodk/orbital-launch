@@ -1,4 +1,4 @@
-// src/components/ReservationModal.tsx - VERSÃO CORRIGIDA E FINAL
+// src/components/ReservationModal.tsx
 
 import { useState, useMemo, useEffect } from "react";
 import Select from "react-select";
@@ -23,6 +23,7 @@ interface ReservationModalProps {
   clientes: string[][];
   onReserve: (data: string | ManualData) => void;
   initialMode: "select" | "manual";
+  onBlockClick: () => void; // Prop para o botão de bloquear
 }
 
 export function ReservationModal({
@@ -32,10 +33,9 @@ export function ReservationModal({
   clientes,
   onReserve,
   initialMode,
+  onBlockClick,
 }: ReservationModalProps) {
-  // <<< Ponto Chave 1: O estado interno que controla qual formulário mostrar.
   const [view, setView] = useState<"select" | "manual">(initialMode);
-
   const [selectedClient, setSelectedClient] = useState<OptionType | null>(null);
   const [manualData, setManualData] = useState<ManualData>({
     id: "",
@@ -44,12 +44,9 @@ export function ReservationModal({
     corretor: "",
   });
 
-  // <<< Ponto Chave 2: Este useEffect garante que o estado 'view' seja ATUALIZADO
-  // toda vez que o modal for exibido (prop 'show' muda) ou que o modo inicial seja diferente.
-  // É isso que faz o botão "Espontâneo" funcionar.
   useEffect(() => {
     if (show) {
-      setView(initialMode); // Sincroniza o estado interno com a prop vinda do App.tsx
+      setView(initialMode);
       setSelectedClient(null);
       setManualData({ id: "", cliente: "", documento: "", corretor: "" });
     }
@@ -98,7 +95,6 @@ export function ReservationModal({
           Reservar Unidade: <strong>{unitData[3]}</strong>
         </h2>
 
-        {/* O restante do JSX já está correto e vai funcionar com a lógica acima */}
         {view === "select" ? (
           <>
             <div className="form-group">
@@ -107,7 +103,7 @@ export function ReservationModal({
                 id="client-select"
                 options={clientOptions}
                 value={selectedClient}
-                onChange={(opt) => setSelectedClient(opt)}
+                onChange={(opt) => setSelectedClient(opt as OptionType | null)}
                 placeholder="Digite para buscar um cliente..."
                 styles={customSelectStyles}
                 isClearable
@@ -184,6 +180,10 @@ export function ReservationModal({
           disabled={isConfirmDisabled}
         >
           Confirmar Reserva
+        </button>
+
+        <button className="modal-block-button" onClick={onBlockClick}>
+          Bloquear esta Unidade
         </button>
       </div>
     </div>

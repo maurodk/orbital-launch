@@ -16,6 +16,7 @@ html {
   --text-secondary: #b0b0b0;
   --status-reserved: #d9534f;
   --shadow-color: rgba(0, 0, 0, 0.4);
+  --status-blocked: #d9534f; /* Laranja/Amarelo para atenção */
 }
 
 /* =============================================== */
@@ -301,8 +302,13 @@ h1 {
   flex-shrink: 0;
   background-color: #555;
 }
-.unit-status[data-mapped="false"] {
+
+.unit-status.disponível {
   background-color: var(--accent-green);
+}
+
+.unit-status.reservada {
+  background-color: var(--status-reserved);
 }
 
 .unit-name {
@@ -885,4 +891,51 @@ h1 {
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none; /* Impede que o texto seja selecionado ao clicar */
+}
+
+.unit-indicator.bloqueada,
+.status-pill.bloqueada,
+.unit-status.bloqueada {
+  background-color: var(--status-blocked);
+}
+
+.status-pill.bloqueada {
+  color: var(--bg-dark-primary); /* Texto escuro para melhor contraste */
+}
+
+.block-button-in-table {
+  background-color: var(--status-reserved); /* Vermelho */
+  color: white;
+  border: none;
+  width: 32px; /* Pequeno e quadrado */
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.block-button-in-table:hover {
+  background-color: #c9302c; /* Vermelho mais escuro */
+  transform: scale(1.1);
+}
+
+.modal-block-button {
+  width: 100%;
+  padding: 12px;
+  background-color: transparent;
+  color: var(--status-blocked);
+  border: 2px solid var(--status-blocked);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 10px; /* Espaço entre ele e o botão principal */
+}
+.modal-block-button:hover {
+  background-color: var(--status-blocked);
+  color: var(--bg-dark-primary);
 }

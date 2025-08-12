@@ -1,4 +1,4 @@
-// src/App.tsx - VERSÃO COMPLETA COM CHECKBOX DE FILTRO
+// src/App.tsx - VERSÃO COMPLETA COM FUNCIONALIDADE DE BLOQUEIO
 
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
@@ -6,6 +6,7 @@ import { FloorPlan } from "../components/FloorPlan";
 import { ReservationModal } from "../components/ReservationModal";
 import { ReservationList } from "../components/ReservationList";
 import { CancelModal } from "../components/CancelModal";
+import { BlockModal } from "../components/BlockModal"; // Importa o novo modal
 import { MappingSidebar } from "../components/MappingSidebar";
 import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
 import "./App.css";
@@ -51,19 +52,23 @@ function App() {
   const [isMappingMode, setIsMappingMode] = useState(false);
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
   const [dotSize, setDotSize] = useState<number>(16);
+  const [hideAvailable, setHideAvailable] = useState<boolean>(true);
 
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
     mode: "select" as "select" | "manual",
   });
 
+  // Novo estado para o modal de bloqueio
+  const [blockModalState, setBlockModalState] = useState({
+    isOpen: false,
+    isBlocking: true,
+  });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "disponível" | "reservada"
+    "all" | "disponível" | "reservada" | "bloqueada"
   >("all");
-
-  // NOVO ESTADO PARA O CHECKBOX
-  const [hideAvailable, setHideAvailable] = useState<boolean>(true);
 
   const clientesDisponiveis = useMemo(() => {
     return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
@@ -110,13 +115,11 @@ function App() {
           axios.get<AppConfig>(`${API_URL}/api/config`),
           axios.get<Implantation[]>(`${API_URL}/api/implantacoes`),
         ]);
-
         const allImplantations = implantacoesRes.data || [];
         setImplantacoes(allImplantations);
         const currentImplantationName =
           configRes.data.implantacaoAtual || allImplantations[0]?.nome || "";
         setSelectedImplantationName(currentImplantationName);
-
         const currentImplantation = allImplantations.find(
           (imp) => imp.nome === currentImplantationName
         );
@@ -139,12 +142,10 @@ function App() {
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
     if (!newImplantation || newName === selectedImplantationName) return;
-
     setSelectedImplantationName(newName);
     setImageUrl(newImplantation.url);
     setDotSize(newImplantation.tamanhoPonto || 16);
     await fetchUnitData(newName);
-
     try {
       await axios.post(`${API_URL}/api/update-config`, {
         key: "implantacaoAtual",
@@ -191,6 +192,7 @@ function App() {
   const handleCloseModals = () => {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
+    setBlockModalState({ isOpen: false, isBlocking: true });
     setSelectedUnitIndex(null);
   };
 
@@ -231,6 +233,8 @@ function App() {
       setReservationModalState({ isOpen: true, mode: "select" });
     } else if (status === "reservada") {
       setIsCancelModalOpen(true);
+    } else if (status === "bloqueada") {
+      setBlockModalState({ isOpen: true, isBlocking: false });
     }
   };
 
@@ -239,11 +243,40 @@ function App() {
     setReservationModalState({ isOpen: true, mode: "manual" });
   };
 
+  const handleBlockActionClick = (unitIndex: number) => {
+    setSelectedUnitIndex(unitIndex);
+    setBlockModalState({ isOpen: true, isBlocking: true });
+  };
+
+  const handleToggleBlockUnit = async (
+    newStatus: "BLOQUEADA" | "DISPONÍVEL"
+  ) => {
+    if (selectedUnitIndex === null) return;
+    const updatedUnidades = [...unidades];
+    updatedUnidades[selectedUnitIndex][9] = newStatus;
+    setUnidades(updatedUnidades);
+    handleCloseModals();
+    try {
+      const sheetRowIndex = selectedUnitIndex + 2;
+      await axios.post(`${API_URL}/api/toggle-block-unit`, {
+        rowIndex: sheetRowIndex,
+        implantacao: selectedImplantationName,
+        newStatus: newStatus,
+      });
+    } catch (err) {
+      setError(
+        `Falha ao ${
+          newStatus === "BLOQUEADA" ? "bloquear" : "desbloquear"
+        } a unidade.`
+      );
+      console.error(err);
+    }
+  };
+
   const handleReserveUnit = async (selectedClientId: string) => {
     if (selectedUnitIndex === null) return;
     const clientData = clientes.find((c) => c[0] === selectedClientId);
     if (!clientData) {
-      console.error("Cliente selecionado não encontrado no estado local.");
       return;
     }
     const clientName = clientData[1];
@@ -256,7 +289,6 @@ function App() {
       clientData[4],
       "RESERVADA",
     ];
-
     const updatedUnidades = [...unidades];
     const targetUnidade = updatedUnidades[selectedUnitIndex];
     Object.assign(targetUnidade, {
@@ -268,13 +300,11 @@ function App() {
       9: dataToUpdate[5],
     });
     setUnidades(updatedUnidades);
-
     const updatedClientes = clientes.map((c) =>
       c[0] === selectedClientId ? [...c.slice(0, 5), "JA RESERVOU"] : c
     );
     setClientes(updatedClientes);
     handleCloseModals();
-
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/update`, {
@@ -304,7 +334,6 @@ function App() {
     });
     setUnidades(updatedUnidades);
     handleCloseModals();
-
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       const unitName = unidades[selectedUnitIndex][3];
@@ -333,7 +362,6 @@ function App() {
     const unidadeAlvo = unidades[selectedUnitIndex];
     const clientNameToRelease = unidadeAlvo[5];
     const idPreCadastro = unidadeAlvo[4];
-
     const updatedUnidades = [...unidades];
     Object.assign(updatedUnidades[selectedUnitIndex], {
       4: "",
@@ -344,7 +372,6 @@ function App() {
       9: "DISPONÍVEL",
     });
     setUnidades(updatedUnidades);
-
     if (clientNameToRelease) {
       const updatedClientes = clientes.map((c) =>
         c[1] === clientNameToRelease ? [...c.slice(0, 5), "PODE RESERVAR"] : c
@@ -352,7 +379,6 @@ function App() {
       setClientes(updatedClientes);
     }
     handleCloseModals();
-
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/cancel-reservation`, {
@@ -493,6 +519,7 @@ function App() {
                   unidades={filteredUnidades}
                   onUnitClick={handleUnitClick}
                   onSpontaneousClick={handleSpontaneousUnitClick}
+                  onBlockClick={handleBlockActionClick}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                   statusFilter={statusFilter}
@@ -510,6 +537,14 @@ function App() {
               clientes={clientesDisponiveis}
               onReserve={handleReserve}
               initialMode={reservationModalState.mode}
+              onBlockClick={() => {
+                if (selectedUnitIndex === null) return;
+                handleCloseModals();
+                setTimeout(
+                  () => handleBlockActionClick(selectedUnitIndex),
+                  150
+                );
+              }}
             />
             <CancelModal
               show={isCancelModalOpen}
@@ -518,6 +553,19 @@ function App() {
                 selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
               }
               onConfirmCancel={handleCancelReservation}
+            />
+            <BlockModal
+              show={blockModalState.isOpen}
+              onClose={handleCloseModals}
+              unitData={
+                selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
+              }
+              isBlocking={blockModalState.isBlocking}
+              onConfirm={() =>
+                handleToggleBlockUnit(
+                  blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL"
+                )
+              }
             />
           </main>
         </div>

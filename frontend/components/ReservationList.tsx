@@ -1,24 +1,26 @@
-// frontend/components/ReservationList.tsx - VERSÃO COMPLETA E CORRIGIDA
+// frontend/src/components/ReservationList.tsx
 
-import { FiSearch } from "react-icons/fi";
+import { FiSearch, FiLock } from "react-icons/fi";
 
-// A interface de props correta para este componente
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
-  onSpontaneousClick: (unitIndex: number) => void; // Prop para o novo botão
+  onSpontaneousClick: (unitIndex: number) => void;
+  onBlockClick: (unitIndex: number) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
-  statusFilter: "all" | "disponível" | "reservada";
-  setStatusFilter: (status: "all" | "disponível" | "reservada") => void;
+  statusFilter: "all" | "disponível" | "reservada" | "bloqueada"; // Adicionado 'bloqueada' ao filtro
+  setStatusFilter: (
+    status: "all" | "disponível" | "reservada" | "bloqueada"
+  ) => void;
   totalUnidades: number;
 }
 
-// A função que estava faltando, agora completa e exportada
 export function ReservationList({
   unidades,
   onUnitClick,
   onSpontaneousClick,
+  onBlockClick,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -29,7 +31,6 @@ export function ReservationList({
 
   return (
     <div className="reservation-list-container">
-      {/* --- SEÇÃO DE FILTROS E BUSCA --- */}
       <div className="list-filters-header">
         <div className="search-input-wrapper">
           <FiSearch className="search-icon" />
@@ -60,10 +61,15 @@ export function ReservationList({
           >
             Reservadas
           </button>
+          <button
+            className={statusFilter === "bloqueada" ? "active" : ""}
+            onClick={() => setStatusFilter("bloqueada")}
+          >
+            Bloqueadas
+          </button>
         </div>
       </div>
 
-      {/* --- CONTADOR DE RESULTADOS --- */}
       <div className="results-counter">
         <p>
           Exibindo <strong>{totalEncontrado}</strong> de{" "}
@@ -114,10 +120,21 @@ export function ReservationList({
                           >
                             Espontâneo
                           </button>
+                          <button
+                            className="block-button-in-table"
+                            title="Bloquear Unidade"
+                            onClick={() => onBlockClick(originalIndex)}
+                          >
+                            <FiLock size={16} />
+                          </button>
                         </div>
                       ) : (
                         <button
-                          className="reserve-button-in-table reserved"
+                          className={`reserve-button-in-table ${
+                            status === "reservada" || status === "bloqueada"
+                              ? "reserved"
+                              : ""
+                          }`}
                           onClick={() => onUnitClick(originalIndex)}
                         >
                           Gerenciar

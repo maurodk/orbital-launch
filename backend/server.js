@@ -458,6 +458,44 @@ app.post("/api/update-dot-size", async (req, res) => {
   }
 });
 
+app.post("/api/toggle-block-unit", async (req, res) => {
+  const { implantacao, rowIndex, newStatus } = req.body;
+
+  if (
+    !implantacao ||
+    !rowIndex ||
+    !newStatus ||
+    !["BLOQUEADA", "DISPONÍVEL"].includes(newStatus)
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Dados inválidos para bloquear/desbloquear unidade." });
+  }
+
+  console.log(
+    `[${new Date().toLocaleTimeString()}] -> ATUALIZANDO STATUS para '${newStatus}' na linha ${rowIndex} em '${implantacao}'`
+  );
+
+  try {
+    const sheets = await getSheetsClient();
+    // Atualiza apenas a coluna J (Situação da Unidade)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `${implantacao}!J${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [[newStatus]] },
+    });
+
+    res.json({
+      success: true,
+      message: `Unidade atualizada para ${newStatus}.`,
+    });
+  } catch (error) {
+    console.error("Erro ao bloquear/desbloquear unidade:", error);
+    res.status(500).json({ error: "Falha ao atualizar o status da unidade." });
+  }
+});
+
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));

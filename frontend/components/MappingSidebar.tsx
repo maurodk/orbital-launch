@@ -118,10 +118,11 @@ export function MappingSidebar({
 
                 {isOpen && (
                   <div className="group-content">
-                    {/* Agora o TypeScript sabe o tipo de 'unitItems', então 'unidade' e 'originalIndex' não são mais 'any' */}
                     {unitItems.map(({ unidade, originalIndex }) => {
                       const isMapped = unidade[10] && unidade[10].trim() !== "";
                       const isSelected = originalIndex === selectedUnitIndex;
+                      // <<< MUDANÇA 1: Pega o status da unidade e converte para minúsculas >>>
+                      const status = unidade[9]?.toLowerCase() || "disponível";
 
                       return (
                         <div
@@ -131,10 +132,8 @@ export function MappingSidebar({
                             isSelected ? "selected" : ""
                           }`}
                         >
-                          <span
-                            className="unit-status"
-                            data-mapped={isMapped}
-                          />
+                          {/* <<< MUDANÇA 2: Adiciona a classe de status ao span >>> */}
+                          <span className={`unit-status ${status}`} />
                           <span className="unit-name">{unidade[3]}</span>
                           {!isMapped && (
                             <button
