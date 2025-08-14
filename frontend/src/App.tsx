@@ -1,33 +1,36 @@
-// src/App.tsx - VERSÃO COMPLETA COM FUNCIONALIDADE DE BLOQUEIO
+// src/App.tsx - VERSÃO COM CORREÇÃO FINAL BASEADA NO MANUAL ATUAL
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
+import { useReactToPrint } from "react-to-print";
 import { FloorPlan } from "../components/FloorPlan";
 import { ReservationModal } from "../components/ReservationModal";
 import { ReservationList } from "../components/ReservationList";
 import { CancelModal } from "../components/CancelModal";
-import { BlockModal } from "../components/BlockModal"; // Importa o novo modal
+import { BlockModal } from "../components/BlockModal";
 import { MappingSidebar } from "../components/MappingSidebar";
 import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
+import { TermoDeReserva, type TermoData } from "../components/TermoDeReserva";
 import "./App.css";
+import "../components/TermoDeReserva.css";
 
-const API_URL = "https://simulador-implantacao.onrender.com"; // Usando localhost para desenvolvimento
+const API_URL = "http://localhost:3001"; // URL da API, ajuste conforme necessário
 
+// ... (interfaces permanecem as mesmas)
 interface ApiResponse {
   unidades: string[][];
   clientes: string[][];
 }
-
 interface AppConfig {
   implantacaoAtual?: string;
 }
-
 interface Implantation {
   nome: string;
   url: string;
   tamanhoPonto?: number;
+  endereco?: string;
+  logoUrl?: string; // <-- MUDANÇA AQUI
 }
-
 interface ManualData {
   id: string;
   cliente: string;
@@ -35,7 +38,26 @@ interface ManualData {
   corretor: string;
 }
 
+const formatCPF = (cpf: string | null | undefined): string => {
+  // Se o CPF for nulo, indefinido ou uma string vazia, retorna o placeholder.
+  if (!cpf) {
+    return "XXX.XXX.XXX-XX";
+  }
+
+  // 1. Remove todos os caracteres que não são dígitos
+  const onlyNums = cpf.replace(/[^\d]/g, "");
+
+  // 2. Se a string limpa não tiver 11 dígitos, retorna o que foi limpo (para não quebrar)
+  if (onlyNums.length !== 11) {
+    return onlyNums;
+  }
+
+  // 3. Aplica a máscara de formatação e retorna
+  return onlyNums.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+};
+
 function App() {
+  // ... (todos os states permanecem os mesmos)
   const [unidades, setUnidades] = useState<string[][]>([]);
   const [clientes, setClientes] = useState<string[][]>([]);
   const [implantacoes, setImplantacoes] = useState<Implantation[]>([]);
@@ -53,22 +75,40 @@ function App() {
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(true);
-
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
     mode: "select" as "select" | "manual",
   });
-
-  // Novo estado para o modal de bloqueio
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string>("/logo-uni.png");
   const [blockModalState, setBlockModalState] = useState({
     isOpen: false,
     isBlocking: true,
   });
-
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "disponível" | "reservada" | "bloqueada"
   >("all");
+
+  const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
+    null
+  );
+  const printComponentRef = useRef<HTMLDivElement>(null);
+
+  // --- CORREÇÃO FINAL APLICADA AQUI, SEGUINDO O MANUAL ATUAL ---
+  const handlePrint = useReactToPrint({
+    contentRef: printComponentRef, // A propriedade correta é 'contentRef'
+    onAfterPrint: () => setTermoParaImprimir(null),
+  });
+
+  useEffect(() => {
+    // Quando 'termoParaImprimir' tiver dados, chamamos a função de impressão sem argumentos.
+    if (termoParaImprimir) {
+      handlePrint();
+    }
+  }, [termoParaImprimir, handlePrint]);
+  // --- FIM DA CORREÇÃO ---
+
+  // ... (o resto do componente, que já está correto, continua abaixo)
 
   const clientesDisponiveis = useMemo(() => {
     return clientes.filter((c) => c && c[5] === "PODE RESERVAR");
@@ -78,9 +118,9 @@ function App() {
     return unidades
       .map((unidade, index) => ({ data: unidade, originalIndex: index }))
       .filter(({ data }) => {
-        const unitStatus = data[9]?.toLowerCase() || "disponível";
-        const unitName = data[3]?.toLowerCase() || "";
-        const blockName = data[2]?.toLowerCase() || "";
+        const unitStatus = data[10]?.toLowerCase() || "disponível";
+        const unitName = data[2]?.toLowerCase() || "";
+        const blockName = data[1]?.toLowerCase() || "";
         const term = searchTerm.toLowerCase();
         const statusMatch =
           statusFilter === "all" || unitStatus === statusFilter;
@@ -126,6 +166,7 @@ function App() {
         if (currentImplantation) {
           setImageUrl(currentImplantation.url);
           setDotSize(currentImplantation.tamanhoPonto || 16);
+          setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
           await fetchUnitData(currentImplantation.nome);
         }
         setError(null);
@@ -145,6 +186,7 @@ function App() {
     setSelectedImplantationName(newName);
     setImageUrl(newImplantation.url);
     setDotSize(newImplantation.tamanhoPonto || 16);
+    setCurrentLogoUrl(newImplantation.logoUrl || "/logo-uni.png");
     await fetchUnitData(newName);
     try {
       await axios.post(`${API_URL}/api/update-config`, {
@@ -204,8 +246,8 @@ function App() {
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitIndexToClear][10] = "";
     updatedUnidades[unitIndexToClear][11] = "";
+    updatedUnidades[unitIndexToClear][12] = "";
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
@@ -221,14 +263,14 @@ function App() {
 
   const handleUnitClick = (unitIndex: number) => {
     if (isMappingMode) {
-      const hasCoords = unidades[unitIndex][10] && unidades[unitIndex][11];
+      const hasCoords = unidades[unitIndex][11] && unidades[unitIndex][12];
       if (hasCoords) {
         handleClearCoords(unitIndex);
       }
       return;
     }
     setSelectedUnitIndex(unitIndex);
-    const status = unidades[unitIndex][9]?.toLowerCase();
+    const status = unidades[unitIndex][10]?.toLowerCase();
     if (status === "disponível") {
       setReservationModalState({ isOpen: true, mode: "select" });
     } else if (status === "reservada") {
@@ -253,7 +295,7 @@ function App() {
   ) => {
     if (selectedUnitIndex === null) return;
     const updatedUnidades = [...unidades];
-    updatedUnidades[selectedUnitIndex][9] = newStatus;
+    updatedUnidades[selectedUnitIndex][10] = newStatus;
     setUnidades(updatedUnidades);
     handleCloseModals();
     try {
@@ -280,7 +322,7 @@ function App() {
       return;
     }
     const clientName = clientData[1];
-    const unitName = unidades[selectedUnitIndex][3];
+    const unitName = unidades[selectedUnitIndex][2];
     const dataToUpdate = [
       clientData[0],
       clientData[1],
@@ -360,8 +402,8 @@ function App() {
   const handleCancelReservation = async () => {
     if (selectedUnitIndex === null) return;
     const unidadeAlvo = unidades[selectedUnitIndex];
-    const clientNameToRelease = unidadeAlvo[5];
-    const idPreCadastro = unidadeAlvo[4];
+    const clientNameToRelease = unidadeAlvo[6];
+    const idPreCadastro = unidadeAlvo[5];
     const updatedUnidades = [...unidades];
     Object.assign(updatedUnidades[selectedUnitIndex], {
       4: "",
@@ -398,8 +440,8 @@ function App() {
     const coordX = x.toFixed(3);
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitToMapIndex][10] = coordX;
-    updatedUnidades[unitToMapIndex][11] = coordY;
+    updatedUnidades[unitToMapIndex][11] = coordX;
+    updatedUnidades[unitToMapIndex][12] = coordY;
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
@@ -414,6 +456,42 @@ function App() {
       console.error(err);
     }
     setUnitToMapIndex(null);
+  };
+
+  const handlePrepareAndPrint = (unitIndex: number) => {
+    const unitData = unidades[unitIndex];
+    const impData = implantacoes.find(
+      (imp) => imp.nome === selectedImplantationName
+    );
+
+    if (!unitData || !impData) {
+      alert("Erro: Dados da unidade ou do empreendimento não encontrados.");
+      return;
+    }
+
+    const today = new Date();
+    const formattedDate = `Vitória da Conquista, ${today.toLocaleDateString(
+      "pt-BR",
+      { day: "numeric" }
+    )} de ${today.toLocaleDateString("pt-BR", {
+      month: "long",
+    })} de ${today.toLocaleDateString("pt-BR", { year: "numeric" })}`;
+
+    const termoData: TermoData = {
+      clienteNome: unitData[6] || "N/D",
+      clienteCpf: formatCPF(unitData[7]) || "N/D",
+      unidadeDesc: `${unitData[1]} - ${unitData[2]}`,
+      tipologia: unitData[4] || "N/D",
+      areaPrivativa: unitData[3] || "N/D",
+      etapa: unitData[0] || "N/D",
+      empreendimentoNome: impData.nome,
+      empreendimentoEndereco: impData.endereco || "Endereço não informado",
+      corretorNome: unitData[8] || "N/D",
+      dataAtual: formattedDate,
+      logoEmpreendimentoUrl: currentLogoUrl,
+    };
+
+    setTermoParaImprimir(termoData);
   };
 
   if (loading) {
@@ -520,6 +598,7 @@ function App() {
                   onUnitClick={handleUnitClick}
                   onSpontaneousClick={handleSpontaneousUnitClick}
                   onBlockClick={handleBlockActionClick}
+                  onPrintClick={handlePrepareAndPrint}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                   statusFilter={statusFilter}
@@ -569,6 +648,9 @@ function App() {
             />
           </main>
         </div>
+      </div>
+      <div style={{ display: "none" }}>
+        <TermoDeReserva ref={printComponentRef} data={termoParaImprimir} />
       </div>
     </div>
   );

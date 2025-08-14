@@ -16,8 +16,8 @@ export function CancelModal({
   if (!show || !unitData) return null;
 
   // MUDANÇA AQUI: O nome do cliente agora vem do índice 5
-  const clientName = unitData[5] || "N/A";
-  const unitName = unitData[3] || "N/A"; // Permanece no índice 3
+  const clientName = unitData[6] || "N/A";
+  const unitName = unitData[2] || "N/A"; // Permanece no índice 3
 
   return (
     <div className="modal-overlay" onClick={onClose}>

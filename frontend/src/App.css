@@ -939,3 +939,54 @@ h1 {
   background-color: var(--status-blocked);
   color: var(--bg-dark-primary);
 }
+
+.print-button-in-table {
+  background-color: #5bc0de; /* Azul info */
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.print-button-in-table:hover {
+  background-color: #31b0d5;
+  transform: scale(1.1);
+}
+
+/* =============================================== */
+/* --- MÁGICA DA IMPRESSÃO --- */
+/* =============================================== */
+@media print {
+  /* Esconde tudo da página por padrão */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Mostra APENAS o nosso container de impressão e seu conteúdo */
+  #print-container,
+  #print-container * {
+    visibility: visible;
+  }
+
+  /* Posiciona o container de impressão para ocupar a página inteira */
+  #print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    display: block !important; /* Força a exibição */
+  }
+
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}

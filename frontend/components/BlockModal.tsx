@@ -17,7 +17,7 @@ export function BlockModal({
 }: BlockModalProps) {
   if (!show || !unitData) return null;
 
-  const unitName = unitData[3] || "N/A";
+  const unitName = unitData[2] || "N/A";
   const title = isBlocking ? `Bloquear Unidade` : `Desbloquear Unidade`;
   const message = isBlocking
     ? `Tem certeza que deseja bloquear a unidade "${unitName}"? Ela ficará indisponível para reservas.`

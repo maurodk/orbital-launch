@@ -92,7 +92,7 @@ export function ReservationModal({
           ×
         </button>
         <h2>
-          Reservar Unidade: <strong>{unitData[3]}</strong>
+          Reservar Unidade: <strong>{unitData[2]}</strong>
         </h2>
 
         {view === "select" ? (

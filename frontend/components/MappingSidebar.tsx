@@ -45,7 +45,7 @@ export function MappingSidebar({
   // Agrupamento de unidades
   const groupedUnits = useMemo<GroupedUnits>(() => {
     return unidades.reduce((acc, unidade, index) => {
-      const blockName = unidade[2] || "Sem Bloco";
+      const blockName = unidade[1] || "Sem Bloco";
       if (!acc[blockName]) {
         acc[blockName] = [];
       }
@@ -119,10 +119,10 @@ export function MappingSidebar({
                 {isOpen && (
                   <div className="group-content">
                     {unitItems.map(({ unidade, originalIndex }) => {
-                      const isMapped = unidade[10] && unidade[10].trim() !== "";
+                      const isMapped = unidade[11] && unidade[11].trim() !== "";
                       const isSelected = originalIndex === selectedUnitIndex;
                       // <<< MUDANÇA 1: Pega o status da unidade e converte para minúsculas >>>
-                      const status = unidade[9]?.toLowerCase() || "disponível";
+                      const status = unidade[10]?.toLowerCase() || "disponível";
 
                       return (
                         <div

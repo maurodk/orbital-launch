@@ -45,7 +45,7 @@ app.get("/api/data", async (req, res) => {
     const [implantacaoRes, dadosRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `${implantacao}!A:L`,
+        range: `'${implantacao}'!A:M`, // <-- CORREÇÃO AQUI
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -94,12 +94,15 @@ app.get("/api/implantacoes", async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:C`,
+      // Adicionando a coluna D para o endereço
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:E`,
     });
     const implantacoes = (response.data.values || []).map((row) => ({
       nome: row[0],
       url: row[1],
-      tamanhoPonto: parseInt(row[2], 10) || 16, // Garantir que o tamanho do ponto seja um número
+      tamanhoPonto: parseInt(row[2], 10) || 16,
+      endereco: row[3] || "Endereço não informado",
+      logoUrl: row[4] || "/logo-uni.png",
     }));
     res.json(implantacoes);
   } catch (error) {
@@ -157,7 +160,7 @@ app.post("/api/update", async (req, res) => {
     const sheets = await getSheetsClient();
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!E${rowIndex}:J${rowIndex}`,
+      range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`, // <-- CORREÇÃO AQUI
       valueInputOption: "USER_ENTERED",
       resource: { values: [data] },
     });
@@ -218,7 +221,7 @@ app.post("/api/spontaneous-update", async (req, res) => {
     ];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!E${rowIndex}:J${rowIndex}`,
+      range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`, // <-- CORREÇÃO AQUI
       valueInputOption: "USER_ENTERED",
       resource: { values: [dataToUpdate] },
     });
@@ -260,7 +263,7 @@ app.post("/api/cancel-reservation", async (req, res) => {
     const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!E${unitRowIndex}:J${unitRowIndex}`,
+      range: `'${implantacao}'!F${unitRowIndex}:K${unitRowIndex}`, // <-- CORREÇÃO AQUI
       valueInputOption: "USER_ENTERED",
       resource: { values: [emptyUnitData] },
     });
@@ -361,7 +364,7 @@ app.post("/api/update-coords", async (req, res) => {
   );
   try {
     const sheets = await getSheetsClient();
-    const range = `${implantacao}!K${rowIndex}:L${rowIndex}`;
+    const range = `'${implantacao}'!L${rowIndex}:M${rowIndex}`; // <-- CORREÇÃO AQUI
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: range,
@@ -389,7 +392,7 @@ app.post("/api/clear-coords", async (req, res) => {
   );
   try {
     const sheets = await getSheetsClient();
-    const range = `${implantacao}!K${rowIndex}:L${rowIndex}`;
+    const range = `'${implantacao}'!L${rowIndex}:M${rowIndex}`; // <-- CORREÇÃO AQUI
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: range,
@@ -425,7 +428,7 @@ app.post("/api/update-dot-size", async (req, res) => {
     // 1. Encontrar a linha correta na planilha de Implantações
     const rangeData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A:A`, // Lê apenas a coluna de nomes
+      range: `${SHEET_NAME_IMPLANTACOES}!A:A`,
     });
 
     const allNames = (rangeData.data.values || []).flat();
@@ -437,7 +440,6 @@ app.post("/api/update-dot-size", async (req, res) => {
         .json({ error: `Implantação '${implantacaoName}' não encontrada.` });
     }
 
-    // O índice da planilha é o do array + 1 (por ser 1-based) + 1 (porque pulamos o cabeçalho)
     const sheetRowIndex = rowIndex + 2;
 
     // 2. Atualizar a célula na coluna C (TamanhoPonto)
@@ -481,7 +483,7 @@ app.post("/api/toggle-block-unit", async (req, res) => {
     // Atualiza apenas a coluna J (Situação da Unidade)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `${implantacao}!J${rowIndex}`,
+      range: `'${implantacao}'!K${rowIndex}`, // <-- CORREÇÃO AQUI
       valueInputOption: "USER_ENTERED",
       resource: { values: [[newStatus]] },
     });

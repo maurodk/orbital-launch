@@ -1,15 +1,16 @@
-// frontend/src/components/ReservationList.tsx
+// frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
-import { FiSearch, FiLock } from "react-icons/fi";
+import { FiSearch, FiLock, FiPrinter } from "react-icons/fi";
 
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
+  onPrintClick: (unitIndex: number) => void; // Prop agora será usada
   searchTerm: string;
   setSearchTerm: (term: string) => void;
-  statusFilter: "all" | "disponível" | "reservada" | "bloqueada"; // Adicionado 'bloqueada' ao filtro
+  statusFilter: "all" | "disponível" | "reservada" | "bloqueada";
   setStatusFilter: (
     status: "all" | "disponível" | "reservada" | "bloqueada"
   ) => void;
@@ -21,6 +22,7 @@ export function ReservationList({
   onUnitClick,
   onSpontaneousClick,
   onBlockClick,
+  onPrintClick, // Agora está sendo usado
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -31,6 +33,7 @@ export function ReservationList({
 
   return (
     <div className="reservation-list-container">
+      {/* O cabeçalho e os filtros permanecem os mesmos */}
       <div className="list-filters-header">
         <div className="search-input-wrapper">
           <FiSearch className="search-icon" />
@@ -77,6 +80,7 @@ export function ReservationList({
         </p>
       </div>
 
+      {/* A tabela com a lógica corrigida */}
       <div className="table-wrapper">
         <table className="reservation-table">
           <thead>
@@ -91,55 +95,68 @@ export function ReservationList({
           <tbody>
             {unidades.length > 0 ? (
               unidades.map(([unitData, originalIndex]) => {
-                const status = unitData[9]?.toLowerCase() || "disponível";
+                const status = unitData[10]?.toLowerCase() || "disponível";
                 const isAvailable = status === "disponível";
-                const clientName = unitData[5] || "—";
+                const isReserved = status === "reservada"; // Variável agora será usada
+                const clientName = unitData[6] || "—";
 
                 return (
-                  <tr key={unitData[3] || originalIndex}>
-                    <td>{unitData[3]}</td>
+                  <tr key={unitData[2] || originalIndex}>
                     <td>{unitData[2]}</td>
+                    <td>{unitData[1]}</td>
                     <td>
                       <span className={`status-pill ${status}`}>
-                        {unitData[9]}
+                        {unitData[10]}
                       </span>
                     </td>
                     <td>{clientName}</td>
                     <td>
-                      {isAvailable ? (
-                        <div className="action-buttons-cell">
-                          <button
-                            className="reserve-button-in-table"
-                            onClick={() => onUnitClick(originalIndex)}
-                          >
-                            Reservar
-                          </button>
-                          <button
-                            className="reserve-button-in-table spontaneous"
-                            onClick={() => onSpontaneousClick(originalIndex)}
-                          >
-                            Espontâneo
-                          </button>
-                          <button
-                            className="block-button-in-table"
-                            title="Bloquear Unidade"
-                            onClick={() => onBlockClick(originalIndex)}
-                          >
-                            <FiLock size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          className={`reserve-button-in-table ${
-                            status === "reservada" || status === "bloqueada"
-                              ? "reserved"
-                              : ""
-                          }`}
-                          onClick={() => onUnitClick(originalIndex)}
-                        >
-                          Gerenciar
-                        </button>
-                      )}
+                      <div className="action-buttons-cell">
+                        {isAvailable ? (
+                          // Botões para unidades disponíveis
+                          <>
+                            <button
+                              className="reserve-button-in-table"
+                              onClick={() => onUnitClick(originalIndex)}
+                            >
+                              Reservar
+                            </button>
+                            <button
+                              className="reserve-button-in-table spontaneous"
+                              onClick={() => onSpontaneousClick(originalIndex)}
+                            >
+                              Espontâneo
+                            </button>
+                            <button
+                              className="block-button-in-table"
+                              title="Bloquear Unidade"
+                              onClick={() => onBlockClick(originalIndex)}
+                            >
+                              <FiLock size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          // Botões para unidades não disponíveis (Reservada ou Bloqueada)
+                          <>
+                            <button
+                              className="reserve-button-in-table reserved"
+                              onClick={() => onUnitClick(originalIndex)}
+                            >
+                              Gerenciar
+                            </button>
+                            {/* **CORREÇÃO AQUI**: Mostra o botão de impressão APENAS se estiver reservada */}
+                            {isReserved && (
+                              <button
+                                className="print-button-in-table"
+                                title="Imprimir Termo de Reserva"
+                                onClick={() => onPrintClick(originalIndex)} // **CORREÇÃO AQUI**: Chama a função
+                              >
+                                <FiPrinter size={16} />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
