@@ -14,7 +14,7 @@ import { TermoDeReserva, type TermoData } from "../components/TermoDeReserva";
 import "./App.css";
 import "../components/TermoDeReserva.css";
 
-const API_URL = "http://localhost:3001"; // URL da API, ajuste conforme necessário
+const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
 
 // ... (interfaces permanecem as mesmas)
 interface ApiResponse {
