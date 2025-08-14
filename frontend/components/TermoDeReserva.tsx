@@ -64,7 +64,7 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
               <strong>{data.areaPrivativa} m²</strong>, pertencente à{" "}
               <strong>{data.etapa}</strong>, integrante do empreendimento
               denominado <strong>{data.empreendimentoNome}</strong>, localizado
-              no endereço <strong>{data.empreendimentoEndereco}</strong>; a ser
+              no endereço <strong>{data.empreendimentoEndereco}</strong> a ser
               incorporado.
             </p>
             <p className="termo-paragraph">
