@@ -319,39 +319,51 @@ function App() {
     if (selectedUnitIndex === null) return;
     const clientData = clientes.find((c) => c[0] === selectedClientId);
     if (!clientData) {
+      console.error("Dados do cliente não encontrados!");
       return;
     }
+
     const clientName = clientData[1];
     const unitName = unidades[selectedUnitIndex][2];
-    const dataToUpdate = [
-      clientData[0],
-      clientData[1],
-      clientData[2],
-      clientData[3],
-      clientData[4],
-      "RESERVADA",
+
+    // Dados para enviar ao backend (colunas F até K)
+    const dataToBackend = [
+      clientData[0], // ID Pré-Cadastro
+      clientData[1], // Cliente
+      clientData[2], // Documento
+      clientData[3], // Corretor
+      clientData[4] || "", // Imobiliária (garante que seja string)
+      "RESERVADA", // Situação
     ];
-    const updatedUnidades = [...unidades];
-    const targetUnidade = updatedUnidades[selectedUnitIndex];
-    Object.assign(targetUnidade, {
-      4: dataToUpdate[0],
-      5: dataToUpdate[1],
-      6: dataToUpdate[2],
-      7: dataToUpdate[3],
-      8: dataToUpdate[4],
-      9: dataToUpdate[5],
-    });
-    setUnidades(updatedUnidades);
+
+    // ATUALIZAÇÃO DE ESTADO (Forma correta e imutável)
+    setUnidades(
+      unidades.map((unidade, index) => {
+        if (index === selectedUnitIndex) {
+          const newUnit = [...unidade];
+          newUnit[5] = dataToBackend[0];
+          newUnit[6] = dataToBackend[1];
+          newUnit[7] = dataToBackend[2];
+          newUnit[8] = dataToBackend[3];
+          newUnit[9] = dataToBackend[4];
+          newUnit[10] = dataToBackend[5];
+          return newUnit;
+        }
+        return unidade;
+      })
+    );
+
     const updatedClientes = clientes.map((c) =>
       c[0] === selectedClientId ? [...c.slice(0, 5), "JA RESERVOU"] : c
     );
     setClientes(updatedClientes);
     handleCloseModals();
+
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${API_URL}/api/update`, {
         rowIndex: sheetRowIndex,
-        data: dataToUpdate,
+        data: dataToBackend, // Usa a variável correta
         clientName: clientName,
         implantacao: selectedImplantationName,
         unitName: unitName,
@@ -364,21 +376,28 @@ function App() {
 
   const handleSpontaneousReserve = async (manualData: ManualData) => {
     if (selectedUnitIndex === null) return;
-    const updatedUnidades = [...unidades];
-    const targetUnidade = updatedUnidades[selectedUnitIndex];
-    Object.assign(targetUnidade, {
-      4: manualData.id,
-      5: manualData.cliente,
-      6: manualData.documento,
-      7: manualData.corretor,
-      8: "",
-      9: "RESERVADA",
-    });
-    setUnidades(updatedUnidades);
+
+    // FORMA CORRETA (IMUTÁVEL)
+    setUnidades(
+      unidades.map((unidade, index) => {
+        if (index === selectedUnitIndex) {
+          const newUnit = [...unidade];
+          newUnit[5] = manualData.id;
+          newUnit[6] = manualData.cliente;
+          newUnit[7] = manualData.documento;
+          newUnit[8] = manualData.corretor;
+          newUnit[9] = ""; // Imobiliária
+          newUnit[10] = "RESERVADA";
+          return newUnit;
+        }
+        return unidade;
+      })
+    );
     handleCloseModals();
+
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
-      const unitName = unidades[selectedUnitIndex][3];
+      const unitName = unidades[selectedUnitIndex][2];
       await axios.post(`${API_URL}/api/spontaneous-update`, {
         rowIndex: sheetRowIndex,
         implantacao: selectedImplantationName,
@@ -404,16 +423,24 @@ function App() {
     const unidadeAlvo = unidades[selectedUnitIndex];
     const clientNameToRelease = unidadeAlvo[6];
     const idPreCadastro = unidadeAlvo[5];
-    const updatedUnidades = [...unidades];
-    Object.assign(updatedUnidades[selectedUnitIndex], {
-      4: "",
-      5: "",
-      6: "",
-      7: "",
-      8: "",
-      9: "DISPONÍVEL",
-    });
-    setUnidades(updatedUnidades);
+
+    // FORMA CORRETA (IMUTÁVEL)
+    setUnidades(
+      unidades.map((unidade, index) => {
+        if (index === selectedUnitIndex) {
+          const newUnit = [...unidade];
+          newUnit[5] = "";
+          newUnit[6] = "";
+          newUnit[7] = "";
+          newUnit[8] = "";
+          newUnit[9] = "";
+          newUnit[10] = "DISPONÍVEL";
+          return newUnit;
+        }
+        return unidade;
+      })
+    );
+
     if (clientNameToRelease) {
       const updatedClientes = clientes.map((c) =>
         c[1] === clientNameToRelease ? [...c.slice(0, 5), "PODE RESERVAR"] : c
