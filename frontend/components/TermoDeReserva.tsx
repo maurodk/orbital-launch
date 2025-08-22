@@ -61,7 +61,7 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
               COMPRADOR(A), declara estar ciente e de acordo com a reserva da
               unidade <strong>{data.unidadeDesc}</strong>, de tipologia{" "}
               <strong>{data.tipologia}</strong>, com área privativa de{" "}
-              <strong>{data.areaPrivativa} m²</strong>, pertencente à{" "}
+              <strong>{data.areaPrivativa}</strong>, pertencente à{" "}
               <strong>{data.etapa}</strong>, integrante do empreendimento
               denominado <strong>{data.empreendimentoNome}</strong>, localizado
               no endereço <strong>{data.empreendimentoEndereco}</strong> a ser
