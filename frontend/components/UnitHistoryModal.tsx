@@ -34,7 +34,8 @@ export function UnitHistoryModal({
                 <tr>
                   <th>Data e Hora</th>
                   <th>Ação</th>
-                  <th>Detalhes</th>
+                  <th>Cliente</th>
+                  <th>Corretor</th>
                 </tr>
               </thead>
               <tbody>
@@ -52,6 +53,7 @@ export function UnitHistoryModal({
                       </span>
                     </td>
                     <td>{entry[4]}</td>
+                    <td>{entry[5]}</td>
                   </tr>
                 ))}
               </tbody>

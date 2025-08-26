@@ -6,7 +6,30 @@ const cors = require("cors");
 require("dotenv").config(); // Garante que as variáveis de ambiente sejam carregadas
 
 const app = express();
-app.use(cors());
+
+// 1. Defina os domínios (origens) permitidos
+const allowedOrigins = [
+  "https://simulador-implantacao.vercel.app", // Seu frontend em produção
+  "http://localhost:5173", // Seu frontend em desenvolvimento local (ajuste a porta se for diferente)
+  "http://localhost:3000", // Outra porta comum para desenvolvimento local
+];
+
+// 2. Configure as opções do CORS
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permite requisições sem 'origin' (como apps mobile ou Postman) ou se a origem estiver na lista
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  optionsSuccessStatus: 200, // Para compatibilidade com navegadores mais antigos
+};
+
+// 3. Aplique o middleware CORS com as opções configuradas
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // --- CONFIGURAÇÕES ---
@@ -29,21 +52,40 @@ async function getSheetsClient() {
   return google.sheets({ version: "v4", auth: client });
 }
 
-async function addHistoryEntry(sheets, implantacao, unidade, acao, detalhes) {
+async function addHistoryEntry(
+  sheets,
+  implantacao,
+  unidade,
+  acao,
+  cliente,
+  corretor
+) {
   try {
     const now = new Date();
-    const timestamp = now.toISOString();
-    const dataFormatada = now.toLocaleString("pt-BR", {
+
+    // Formatação customizada da data e hora
+    const options = {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
       timeZone: "America/Sao_Paulo",
-    });
+    };
+    const formatter = new Intl.DateTimeFormat("pt-BR", options);
+    const parts = formatter.formatToParts(now);
+    const dateParts = {};
+    parts.forEach((p) => (dateParts[p.type] = p.value));
+    const dataFormatada = `'${dateParts.day}/${dateParts.month}/${dateParts.year} às ${dateParts.hour}:${dateParts.minute}`;
 
     const historyRow = [
-      timestamp,
+      now.toISOString(), // Mantemos o timestamp ISO para ordenação futura, se necessário
       dataFormatada,
       unidade,
       acao,
-      detalhes,
-      "Sistema", // Usuário (pode ser melhorado no futuro)
+      cliente || "N/A", // Coluna de Cliente
+      corretor || "N/A", // Coluna de Corretor
+      "Sistema",
     ];
 
     // Verifica se a aba com o nome da implantação existe, se não, cria.
@@ -61,19 +103,20 @@ async function addHistoryEntry(sheets, implantacao, unidade, acao, detalhes) {
           requests: [{ addSheet: { properties: { title: implantacao } } }],
         },
       });
-      // Adiciona o cabeçalho na nova aba
+      // Adiciona o cabeçalho na nova aba (com as novas colunas)
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID_HISTORICO,
-        range: `'${implantacao}'!A1`,
+        range: `'${implantacao}'!A:G`,
         valueInputOption: "USER_ENTERED",
         resource: {
           values: [
             [
               "Timestamp",
-              "Data_Formatada",
+              "Data e Hora",
               "Unidade",
               "Ação",
-              "Detalhes",
+              "Cliente",
+              "Corretor",
               "Usuário",
             ],
           ],
@@ -84,9 +127,9 @@ async function addHistoryEntry(sheets, implantacao, unidade, acao, detalhes) {
     // Adiciona o novo registro de histórico
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID_HISTORICO,
-      range: `'${implantacao}'!A:F`,
+      range: `'${implantacao}'!A:G`, // Aumentamos o range para a coluna G
       valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS", // Insere na primeira linha
+      insertDataOption: "INSERT_ROWS",
       resource: { values: [historyRow] },
     });
     console.log(
@@ -94,7 +137,6 @@ async function addHistoryEntry(sheets, implantacao, unidade, acao, detalhes) {
     );
   } catch (error) {
     console.error("### ERRO AO REGISTRAR HISTÓRICO ###:", error.message);
-    // Não paramos a execução principal por causa do histórico
   }
 }
 
@@ -268,9 +310,10 @@ app.post("/api/update", async (req, res) => {
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName, // Agora usa o nome completo
+      unitFullName,
       "Reservada",
-      `Cliente: ${clientName}, Corretor: ${data[3]}`
+      clientName, // Passando o cliente
+      data[3] // Passando o corretor
     );
 
     res.json({ success: true, message: `Reserva e funil atualizados.` });
@@ -331,9 +374,10 @@ app.post("/api/spontaneous-update", async (req, res) => {
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName, // Agora usa o nome completo
+      unitFullName,
       "Reservada (Espontânea)",
-      `Cliente: ${manualData.cliente}, Corretor: ${manualData.corretor}`
+      manualData.cliente, // Passando o cliente
+      manualData.corretor // Passando o corretor
     );
 
     res.json({
@@ -444,9 +488,10 @@ app.post("/api/cancel-reservation", async (req, res) => {
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName, // Agora usa o nome completo
+      unitFullName,
       "Cancelada",
-      `Cliente anterior: ${clientName}`
+      clientName, // Cliente anterior
+      null // Sem corretor relevante aqui
     );
 
     res.json({
@@ -610,9 +655,10 @@ app.post("/api/toggle-block-unit", async (req, res) => {
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName, // Agora usa o nome completo
-      acao,
-      "Alteração de status manual."
+      unitFullName,
+      acao, // "Bloqueada" ou "Desbloqueada"
+      null, // Sem cliente
+      null // Sem corretor
     );
 
     res.json({
@@ -636,13 +682,13 @@ app.post("/api/log-print", async (req, res) => {
     `[HISTÓRICO] Registrando impressão para '${unitName}' em '${implantacao}'`
   );
   try {
-    const sheets = await getSheetsClient();
     await addHistoryEntry(
       sheets,
       implantacao,
       unitName,
       "Termo Impresso",
-      `Termo para o cliente: ${clientName || "N/D"}`
+      clientName, // Cliente do termo
+      null // Corretor poderia ser adicionado se necessário
     );
     res.json({ success: true });
   } catch (error) {
@@ -660,7 +706,7 @@ app.get("/api/history/:implantacao", async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_HISTORICO,
-      range: `'${implantacao}'!A:F`,
+      range: `'${implantacao}'!A:G`,
       valueRenderOption: "FORMATTED_VALUE",
     });
 

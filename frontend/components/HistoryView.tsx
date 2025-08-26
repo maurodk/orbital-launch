@@ -21,14 +21,15 @@ export function HistoryView({ history }: HistoryViewProps) {
               <th>Data e Hora</th>
               <th>Unidade</th>
               <th>Ação</th>
-              <th>Detalhes</th>
+              <th>Cliente</th>
+              <th>Corretor</th>
             </tr>
           </thead>
           <tbody>
             {history.map((entry, index) => (
               <tr key={index}>
-                <td>{entry[1]}</td>
-                <td>{entry[2]}</td>
+                <td>{entry[1]}</td> {/* Data e Hora */}
+                <td>{entry[2]}</td> {/* Unidade */}
                 <td>
                   <span
                     className={`action-pill action-${entry[3]
@@ -40,6 +41,7 @@ export function HistoryView({ history }: HistoryViewProps) {
                   </span>
                 </td>
                 <td>{entry[4]}</td>
+                <td>{entry[5]}</td>
               </tr>
             ))}
           </tbody>
