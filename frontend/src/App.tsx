@@ -15,6 +15,9 @@ import "./App.css";
 import "../components/TermoDeReserva.css";
 import { HistoryView } from "../components/HistoryView";
 import { UnitHistoryModal } from "../components/UnitHistoryModal";
+import { type User, onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "../firebaseConfig";
+import { Login } from "../components/Login";
 
 const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
 
@@ -60,6 +63,8 @@ const formatCPF = (cpf: string | null | undefined): string => {
 
 function App() {
   // ... (todos os states permanecem os mesmos)
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [unidades, setUnidades] = useState<string[][]>([]);
   const [clientes, setClientes] = useState<string[][]>([]);
   const [implantacoes, setImplantacoes] = useState<Implantation[]>([]);
@@ -205,6 +210,23 @@ function App() {
       }
     };
     fetchInitialData();
+  }, []);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+
+      if (currentUser) {
+        // **NOVO: Configura o Axios para enviar o token em todas as requisições**
+        const token = await currentUser.getIdToken();
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      } else {
+        delete axios.defaults.headers.common["Authorization"];
+      }
+    });
+
+    // Limpa o listener quando o componente é desmontado
+    return () => unsubscribe();
   }, []);
 
   const handleImplantationChange = async (newName: string) => {
@@ -582,6 +604,19 @@ function App() {
     return <p style={{ color: "#d9534f", textAlign: "center" }}>{error}</p>;
   }
 
+  if (authLoading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Verificando autenticação...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>
       {isMappingMode && (
@@ -627,6 +662,9 @@ function App() {
                 </button>
               </div>
               <div className="controls-right">
+                <div className="user-greeting">
+                  Logado como: <strong>{user.email}</strong>
+                </div>
                 <div className="filter-checkbox-wrapper">
                   <input
                     type="checkbox"
@@ -657,6 +695,12 @@ function App() {
                     onClick={() => setView("history")}
                   >
                     Histórico Geral
+                  </button>
+                  <button
+                    onClick={() => signOut(auth)}
+                    className="logout-button"
+                  >
+                    Sair
                   </button>
                 </div>
               </div>

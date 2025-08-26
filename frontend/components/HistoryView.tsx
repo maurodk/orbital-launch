@@ -23,6 +23,7 @@ export function HistoryView({ history }: HistoryViewProps) {
               <th>Ação</th>
               <th>Cliente</th>
               <th>Corretor</th>
+              <th>Usuário</th>
             </tr>
           </thead>
           <tbody>
@@ -42,6 +43,7 @@ export function HistoryView({ history }: HistoryViewProps) {
                 </td>
                 <td>{entry[4]}</td>
                 <td>{entry[5]}</td>
+                <td>{entry[6]}</td>
               </tr>
             ))}
           </tbody>
