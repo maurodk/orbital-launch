@@ -262,13 +262,13 @@ app.post("/api/update", async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:D${rowIndex}`,
+      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName,
+      unitFullName, // Agora usa o nome completo
       "Reservada",
       `Cliente: ${clientName}, Corretor: ${data[3]}`
     );
@@ -325,13 +325,13 @@ app.post("/api/spontaneous-update", async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:D${rowIndex}`,
+      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName,
+      unitFullName, // Agora usa o nome completo
       "Reservada (Espontânea)",
       `Cliente: ${manualData.cliente}, Corretor: ${manualData.corretor}`
     );
@@ -438,13 +438,13 @@ app.post("/api/cancel-reservation", async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${unitRowIndex}:D${unitRowIndex}`,
+      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName,
+      unitFullName, // Agora usa o nome completo
       "Cancelada",
       `Cliente anterior: ${clientName}`
     );
@@ -603,14 +603,14 @@ app.post("/api/toggle-block-unit", async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:D${rowIndex}`,
+      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
     const acao = newStatus === "BLOQUEADA" ? "Bloqueada" : "Desbloqueada";
     await addHistoryEntry(
       sheets,
       implantacao,
-      unitFullName,
+      unitFullName, // Agora usa o nome completo
       acao,
       "Alteração de status manual."
     );
@@ -661,6 +661,7 @@ app.get("/api/history/:implantacao", async (req, res) => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_HISTORICO,
       range: `'${implantacao}'!A:F`,
+      valueRenderOption: "FORMATTED_VALUE",
     });
 
     // Remove o cabeçalho e inverte a ordem para ter o mais recente primeiro

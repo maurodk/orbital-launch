@@ -737,9 +737,7 @@ function App() {
               historyForUnit={history.filter(
                 (entry) =>
                   unitForHistory &&
-                  entry[2]?.startsWith(
-                    `${unitForHistory[1]} - ${unitForHistory[2]}`
-                  )
+                  entry[2] === `${unitForHistory[1]} - ${unitForHistory[2]}`
               )}
             />
           </main>
