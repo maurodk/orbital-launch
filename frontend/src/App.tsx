@@ -70,7 +70,6 @@ function App() {
   const [implantacoes, setImplantacoes] = useState<Implantation[]>([]);
   const [selectedImplantationName, setSelectedImplantationName] = useState("");
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(true);
   const [switching, setSwitching] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"map" | "list" | "history">("map");
@@ -177,21 +176,15 @@ function App() {
       setSwitching(false);
     }
   };
-
+  // Este useEffect agora gerencia a autenticação E o carregamento de dados
   useEffect(() => {
-    // Este useEffect agora gerencia a autenticação E o carregamento de dados
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser); // Define o usuário (ou null se deslogado)
+      setUser(currentUser);
 
       if (currentUser) {
-        // --- O USUÁRIO ESTÁ LOGADO ---
-        setLoading(true); // Inicia o loading da aplicação
-
-        // Configura o Axios para enviar o token em todas as requisições futuras
         const token = await currentUser.getIdToken();
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-        // Agora que estamos autenticados, buscamos os dados iniciais
         try {
           const [configRes, implantacoesRes] = await Promise.all([
             axios.get<AppConfig>(`${API_URL}/api/config`),
@@ -214,33 +207,30 @@ function App() {
             setDotSize(currentImplantation.tamanhoPonto || 16);
             setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
 
-            // Busca os dados da unidade e o histórico
             await fetchUnitData(currentImplantation.nome);
             await fetchHistory(currentImplantation.nome);
           }
           setError(null);
         } catch (err) {
-          setError("Falha ao carregar os dados da aplicação.");
+          setError(
+            "Falha ao carregar os dados da aplicação. Tente recarregar a página."
+          );
           console.error(err);
-        } finally {
-          setLoading(false); // Finaliza o loading da aplicação
         }
       } else {
-        // --- O USUÁRIO NÃO ESTÁ LOGADO (OU DESLOGOU) ---
         delete axios.defaults.headers.common["Authorization"];
-        // Limpa os estados para não vazar dados da sessão anterior
         setUnidades([]);
         setClientes([]);
         setHistory([]);
         setImplantacoes([]);
       }
 
-      setAuthLoading(false); // Finaliza o loading da autenticação
+      // Esta é a linha mais importante. Ela só roda depois de tudo.
+      setAuthLoading(false);
     });
 
-    // Limpa o listener quando o componente é desmontado
     return () => unsubscribe();
-  }, []); // Este array vazio é importante, garante que o listener seja criado apenas uma vez
+  }, []);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
@@ -603,15 +593,6 @@ function App() {
 
     setTermoParaImprimir(termoData);
   };
-
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Carregando dados...</p>
-      </div>
-    );
-  }
 
   if (error) {
     return <p style={{ color: "#d9534f", textAlign: "center" }}>{error}</p>;
