@@ -16,7 +16,7 @@ import "../components/TermoDeReserva.css";
 import { HistoryView } from "../components/HistoryView";
 import { UnitHistoryModal } from "../components/UnitHistoryModal";
 
-const API_URL = "http://localhost:3001"; // URL da API, ajuste conforme necessário
+const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
 
 // ... (interfaces permanecem as mesmas)
 interface ApiResponse {
