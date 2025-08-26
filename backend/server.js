@@ -438,7 +438,7 @@ app.post("/api/cancel-reservation", async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
+      range: `'${implantacao}'!B${unitRowIndex}:C${unitRowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
     await addHistoryEntry(
