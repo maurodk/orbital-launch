@@ -179,55 +179,68 @@ function App() {
   };
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        setLoading(true);
-        const [configRes, implantacoesRes] = await Promise.all([
-          axios.get<AppConfig>(`${API_URL}/api/config`),
-          axios.get<Implantation[]>(`${API_URL}/api/implantacoes`),
-        ]);
-        const allImplantations = implantacoesRes.data || [];
-        setImplantacoes(allImplantations);
-        const currentImplantationName =
-          configRes.data.implantacaoAtual || allImplantations[0]?.nome || "";
-        setSelectedImplantationName(currentImplantationName);
-        const currentImplantation = allImplantations.find(
-          (imp) => imp.nome === currentImplantationName
-        );
-        if (currentImplantation) {
-          setImageUrl(currentImplantation.url);
-          setDotSize(currentImplantation.tamanhoPonto || 16);
-          setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
-          await fetchUnitData(currentImplantation.nome);
-          await fetchHistory(currentImplantation.nome);
-        }
-        setError(null);
-      } catch (err) {
-        setError("Falha ao carregar a configuração inicial.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInitialData();
-  }, []);
-  useEffect(() => {
+    // Este useEffect agora gerencia a autenticação E o carregamento de dados
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
+      setUser(currentUser); // Define o usuário (ou null se deslogado)
 
       if (currentUser) {
-        // **NOVO: Configura o Axios para enviar o token em todas as requisições**
+        // --- O USUÁRIO ESTÁ LOGADO ---
+        setLoading(true); // Inicia o loading da aplicação
+
+        // Configura o Axios para enviar o token em todas as requisições futuras
         const token = await currentUser.getIdToken();
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        // Agora que estamos autenticados, buscamos os dados iniciais
+        try {
+          const [configRes, implantacoesRes] = await Promise.all([
+            axios.get<AppConfig>(`${API_URL}/api/config`),
+            axios.get<Implantation[]>(`${API_URL}/api/implantacoes`),
+          ]);
+
+          const allImplantations = implantacoesRes.data || [];
+          setImplantacoes(allImplantations);
+
+          const currentImplantationName =
+            configRes.data.implantacaoAtual || allImplantations[0]?.nome || "";
+          setSelectedImplantationName(currentImplantationName);
+
+          const currentImplantation = allImplantations.find(
+            (imp) => imp.nome === currentImplantationName
+          );
+
+          if (currentImplantation) {
+            setImageUrl(currentImplantation.url);
+            setDotSize(currentImplantation.tamanhoPonto || 16);
+            setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
+
+            // Busca os dados da unidade e o histórico
+            await fetchUnitData(currentImplantation.nome);
+            await fetchHistory(currentImplantation.nome);
+          }
+          setError(null);
+        } catch (err) {
+          setError("Falha ao carregar os dados da aplicação.");
+          console.error(err);
+        } finally {
+          setLoading(false); // Finaliza o loading da aplicação
+        }
       } else {
+        // --- O USUÁRIO NÃO ESTÁ LOGADO (OU DESLOGOU) ---
         delete axios.defaults.headers.common["Authorization"];
+        // Limpa os estados para não vazar dados da sessão anterior
+        setUnidades([]);
+        setClientes([]);
+        setHistory([]);
+        setImplantacoes([]);
       }
+
+      setAuthLoading(false); // Finaliza o loading da autenticação
     });
 
     // Limpa o listener quando o componente é desmontado
     return () => unsubscribe();
-  }, []);
+  }, []); // Este array vazio é importante, garante que o listener seja criado apenas uma vez
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
