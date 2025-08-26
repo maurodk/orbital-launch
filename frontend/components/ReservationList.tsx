@@ -1,10 +1,11 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
-import { FiSearch, FiLock, FiPrinter } from "react-icons/fi";
+import { FiSearch, FiLock, FiPrinter, FiClock } from "react-icons/fi";
 
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
+  onHistoryClick: (unitIndex: number) => void;
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
   onPrintClick: (unitIndex: number) => void; // Prop agora será usada
@@ -22,6 +23,7 @@ export function ReservationList({
   onUnitClick,
   onSpontaneousClick,
   onBlockClick,
+  onHistoryClick,
   onPrintClick, // Agora está sendo usado
   searchTerm,
   setSearchTerm,
@@ -112,8 +114,17 @@ export function ReservationList({
                     <td>{clientName}</td>
                     <td>
                       <div className="action-buttons-cell">
+                        {/* --- Botão de Histórico (SEMPRE VISÍVEL) --- */}
+                        <button
+                          className="history-button-in-table"
+                          title="Ver Histórico da Unidade"
+                          onClick={() => onHistoryClick(originalIndex)}
+                        >
+                          <FiClock size={16} />
+                        </button>
+
+                        {/* --- Botões Condicionais (Reservar, Gerenciar, etc.) --- */}
                         {isAvailable ? (
-                          // Botões para unidades disponíveis
                           <>
                             <button
                               className="reserve-button-in-table"
@@ -136,7 +147,6 @@ export function ReservationList({
                             </button>
                           </>
                         ) : (
-                          // Botões para unidades não disponíveis (Reservada ou Bloqueada)
                           <>
                             <button
                               className="reserve-button-in-table reserved"
@@ -144,12 +154,11 @@ export function ReservationList({
                             >
                               Gerenciar
                             </button>
-                            {/* **CORREÇÃO AQUI**: Mostra o botão de impressão APENAS se estiver reservada */}
                             {isReserved && (
                               <button
                                 className="print-button-in-table"
                                 title="Imprimir Termo de Reserva"
-                                onClick={() => onPrintClick(originalIndex)} // **CORREÇÃO AQUI**: Chama a função
+                                onClick={() => onPrintClick(originalIndex)}
                               >
                                 <FiPrinter size={16} />
                               </button>

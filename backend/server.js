@@ -18,6 +18,7 @@ const SHEET_NAME_CONFIG = "Config";
 const SHEET_NAME_IMPLANTACOES = "Implantacoes";
 const SPREADSHEET_ID_FUNIL = "1v1S__nsKFCYbbpO36PP0MPQqBWgKcP1utuLYByAhca0";
 const SHEET_NAME_FUNIL = "Página1";
+const SPREADSHEET_ID_HISTORICO = "1LiDhvO1wJg8WZFpmMKUFE2DkzIxzouch_7aHjwlQPfI";
 
 async function getSheetsClient() {
   const auth = new google.auth.GoogleAuth({
@@ -26,6 +27,75 @@ async function getSheetsClient() {
   });
   const client = await auth.getClient();
   return google.sheets({ version: "v4", auth: client });
+}
+
+async function addHistoryEntry(sheets, implantacao, unidade, acao, detalhes) {
+  try {
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const dataFormatada = now.toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+    });
+
+    const historyRow = [
+      timestamp,
+      dataFormatada,
+      unidade,
+      acao,
+      detalhes,
+      "Sistema", // Usuário (pode ser melhorado no futuro)
+    ];
+
+    // Verifica se a aba com o nome da implantação existe, se não, cria.
+    const spreadsheetMeta = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID_HISTORICO,
+    });
+    const sheetExists = spreadsheetMeta.data.sheets.some(
+      (s) => s.properties.title === implantacao
+    );
+
+    if (!sheetExists) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID_HISTORICO,
+        resource: {
+          requests: [{ addSheet: { properties: { title: implantacao } } }],
+        },
+      });
+      // Adiciona o cabeçalho na nova aba
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID_HISTORICO,
+        range: `'${implantacao}'!A1`,
+        valueInputOption: "USER_ENTERED",
+        resource: {
+          values: [
+            [
+              "Timestamp",
+              "Data_Formatada",
+              "Unidade",
+              "Ação",
+              "Detalhes",
+              "Usuário",
+            ],
+          ],
+        },
+      });
+    }
+
+    // Adiciona o novo registro de histórico
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID_HISTORICO,
+      range: `'${implantacao}'!A:F`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS", // Insere na primeira linha
+      resource: { values: [historyRow] },
+    });
+    console.log(
+      `[HISTÓRICO] Evento '${acao}' para a unidade '${unidade}' registrado em '${implantacao}'.`
+    );
+  } catch (error) {
+    console.error("### ERRO AO REGISTRAR HISTÓRICO ###:", error.message);
+    // Não paramos a execução principal por causa do histórico
+  }
 }
 
 // Endpoint para buscar dados de unidades de uma implantação específica
@@ -164,6 +234,7 @@ app.post("/api/update", async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: { values: [data] },
     });
+
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
       range: `${SHEET_NAME_DADOS}!A:F`,
@@ -188,6 +259,20 @@ app.post("/api/update", async (req, res) => {
       insertDataOption: "INSERT_ROWS",
       resource: { values: [funnelRow] },
     });
+
+    const unidadeInfo = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!C${rowIndex}:D${rowIndex}`,
+    });
+    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitFullName,
+      "Reservada",
+      `Cliente: ${clientName}, Corretor: ${data[3]}`
+    );
+
     res.json({ success: true, message: `Reserva e funil atualizados.` });
   } catch (error) {
     console.error("Erro ao processar a reserva completa:", error);
@@ -237,6 +322,20 @@ app.post("/api/spontaneous-update", async (req, res) => {
       insertDataOption: "INSERT_ROWS",
       resource: { values: [funnelRow] },
     });
+
+    const unidadeInfo = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!C${rowIndex}:D${rowIndex}`,
+    });
+    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitFullName,
+      "Reservada (Espontânea)",
+      `Cliente: ${manualData.cliente}, Corretor: ${manualData.corretor}`
+    );
+
     res.json({
       success: true,
       message: "Reserva espontânea realizada com sucesso.",
@@ -336,6 +435,20 @@ app.post("/api/cancel-reservation", async (req, res) => {
         );
       }
     }
+
+    const unidadeInfo = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!C${unitRowIndex}:D${unitRowIndex}`,
+    });
+    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitFullName,
+      "Cancelada",
+      `Cliente anterior: ${clientName}`
+    );
+
     res.json({
       success: true,
       message: "Cancelamento efetuado com sucesso em todas as planilhas.",
@@ -488,6 +601,20 @@ app.post("/api/toggle-block-unit", async (req, res) => {
       resource: { values: [[newStatus]] },
     });
 
+    const unidadeInfo = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!C${rowIndex}:D${rowIndex}`,
+    });
+    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const acao = newStatus === "BLOQUEADA" ? "Bloqueada" : "Desbloqueada";
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitFullName,
+      acao,
+      "Alteração de status manual."
+    );
+
     res.json({
       success: true,
       message: `Unidade atualizada para ${newStatus}.`,
@@ -495,6 +622,58 @@ app.post("/api/toggle-block-unit", async (req, res) => {
   } catch (error) {
     console.error("Erro ao bloquear/desbloquear unidade:", error);
     res.status(500).json({ error: "Falha ao atualizar o status da unidade." });
+  }
+});
+
+app.post("/api/log-print", async (req, res) => {
+  const { implantacao, unitName, clientName } = req.body;
+  if (!implantacao || !unitName) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para log de impressão." });
+  }
+  console.log(
+    `[HISTÓRICO] Registrando impressão para '${unitName}' em '${implantacao}'`
+  );
+  try {
+    const sheets = await getSheetsClient();
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitName,
+      "Termo Impresso",
+      `Termo para o cliente: ${clientName || "N/D"}`
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Erro ao registrar impressão no histórico:", error);
+    res.status(500).json({ error: "Falha ao registrar a impressão." });
+  }
+});
+
+app.get("/api/history/:implantacao", async (req, res) => {
+  const { implantacao } = req.params;
+  console.log(
+    `[${new Date().toLocaleTimeString()}] -> GET /api/history para: ${implantacao}`
+  );
+  try {
+    const sheets = await getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_HISTORICO,
+      range: `'${implantacao}'!A:F`,
+    });
+
+    // Remove o cabeçalho e inverte a ordem para ter o mais recente primeiro
+    const historyData = (response.data.values || []).slice(1).reverse();
+
+    res.json(historyData);
+  } catch (error) {
+    // Se a aba não existir, retorna um array vazio em vez de um erro
+    if (error.code === 400 && error.message.includes("Unable to parse range")) {
+      return res.json([]);
+    }
+    console.error(`Erro ao buscar histórico para ${implantacao}:`, error);
+    res.status(500).json({ error: "Falha ao buscar histórico." });
   }
 });
 

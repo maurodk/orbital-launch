@@ -13,8 +13,10 @@ import { ImplantationSwitcher } from "../components/ImplantationSwitcher";
 import { TermoDeReserva, type TermoData } from "../components/TermoDeReserva";
 import "./App.css";
 import "../components/TermoDeReserva.css";
+import { HistoryView } from "../components/HistoryView";
+import { UnitHistoryModal } from "../components/UnitHistoryModal";
 
-const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
+const API_URL = "http://localhost:3001"; // URL da API, ajuste conforme necessário
 
 // ... (interfaces permanecem as mesmas)
 interface ApiResponse {
@@ -66,7 +68,7 @@ function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [switching, setSwitching] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"map" | "list">("map");
+  const [view, setView] = useState<"map" | "list" | "history">("map");
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
@@ -93,6 +95,9 @@ function App() {
     null
   );
   const printComponentRef = useRef<HTMLDivElement>(null);
+  const [history, setHistory] = useState<string[][]>([]); // Para o histórico geral
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [unitForHistory, setUnitForHistory] = useState<string[] | null>(null);
 
   // --- CORREÇÃO FINAL APLICADA AQUI, SEGUINDO O MANUAL ATUAL ---
   const handlePrint = useReactToPrint({
@@ -107,6 +112,27 @@ function App() {
     }
   }, [termoParaImprimir, handlePrint]);
   // --- FIM DA CORREÇÃO ---
+
+  const fetchHistory = async (implantacaoName: string) => {
+    if (!implantacaoName) return;
+    try {
+      const response = await axios.get<string[][]>(
+        `${API_URL}/api/history/${implantacaoName}`
+      );
+      setHistory(response.data || []);
+    } catch (err) {
+      console.error(`Erro ao carregar histórico para ${implantacaoName}`, err);
+      setHistory([]); // Limpa o histórico em caso de erro
+    }
+  };
+
+  const handleOpenUnitHistory = (unitIndex: number) => {
+    const unitData = unidades[unitIndex];
+    if (unitData) {
+      setUnitForHistory(unitData);
+      setIsHistoryModalOpen(true);
+    }
+  };
 
   // ... (o resto do componente, que já está correto, continua abaixo)
 
@@ -168,6 +194,7 @@ function App() {
           setDotSize(currentImplantation.tamanhoPonto || 16);
           setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
           await fetchUnitData(currentImplantation.nome);
+          await fetchHistory(currentImplantation.nome);
         }
         setError(null);
       } catch (err) {
@@ -188,6 +215,7 @@ function App() {
     setDotSize(newImplantation.tamanhoPonto || 16);
     setCurrentLogoUrl(newImplantation.logoUrl || "/logo-uni.png");
     await fetchUnitData(newName);
+    await fetchHistory(newName);
     try {
       await axios.post(`${API_URL}/api/update-config`, {
         key: "implantacaoAtual",
@@ -313,6 +341,7 @@ function App() {
       );
       console.error(err);
     }
+    await fetchHistory(selectedImplantationName);
   };
 
   const handleReserveUnit = async (selectedClientId: string) => {
@@ -372,6 +401,7 @@ function App() {
       setError("Falha ao salvar a reserva na planilha.");
       console.error(err);
     }
+    await fetchHistory(selectedImplantationName);
   };
 
   const handleSpontaneousReserve = async (manualData: ManualData) => {
@@ -408,6 +438,7 @@ function App() {
       setError("Falha ao salvar a reserva espontânea na planilha.");
       console.error(err);
     }
+    await fetchHistory(selectedImplantationName);
   };
 
   const handleReserve = (data: string | ManualData) => {
@@ -460,6 +491,7 @@ function App() {
       setError("Falha ao cancelar a reserva.");
       console.error(err);
     }
+    await fetchHistory(selectedImplantationName);
   };
 
   const handleMapClickAndSaveCoords = async (x: number, y: number) => {
@@ -485,7 +517,8 @@ function App() {
     setUnitToMapIndex(null);
   };
 
-  const handlePrepareAndPrint = (unitIndex: number) => {
+  const handlePrepareAndPrint = async (unitIndex: number) => {
+    // <-- MUDANÇA AQUI (async)
     const unitData = unidades[unitIndex];
     const impData = implantacoes.find(
       (imp) => imp.nome === selectedImplantationName
@@ -494,6 +527,21 @@ function App() {
     if (!unitData || !impData) {
       alert("Erro: Dados da unidade ou do empreendimento não encontrados.");
       return;
+    }
+
+    const unitFullName = `${unitData[1]} - ${unitData[2]}`;
+
+    // <-- LÓGICA NOVA COMEÇA AQUI -->
+    try {
+      // Registra o evento de impressão no backend (sem esperar a conclusão)
+      axios.post(`${API_URL}/api/log-print`, {
+        implantacao: selectedImplantationName,
+        unitName: unitFullName,
+        clientName: unitData[6] || "N/D",
+      });
+      await fetchHistory(selectedImplantationName); // E ADICIONE ESTA LINHA
+    } catch (error) {
+      console.error("Falha ao registrar a impressão no histórico.", error);
     }
 
     const today = new Date();
@@ -603,6 +651,13 @@ function App() {
                   >
                     Lista para Reserva
                   </button>
+                  {/* ADICIONE O BOTÃO ABAIXO */}
+                  <button
+                    className={view === "history" ? "active" : ""}
+                    onClick={() => setView("history")}
+                  >
+                    Histórico Geral
+                  </button>
                 </div>
               </div>
             </div>
@@ -626,6 +681,7 @@ function App() {
                   onSpontaneousClick={handleSpontaneousUnitClick}
                   onBlockClick={handleBlockActionClick}
                   onPrintClick={handlePrepareAndPrint}
+                  onHistoryClick={handleOpenUnitHistory}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                   statusFilter={statusFilter}
@@ -633,6 +689,7 @@ function App() {
                   totalUnidades={unidades.length}
                 />
               )}
+              {view === "history" && <HistoryView history={history} />}
             </div>
             <ReservationModal
               show={reservationModalState.isOpen}
@@ -672,6 +729,18 @@ function App() {
                   blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL"
                 )
               }
+            />
+            <UnitHistoryModal
+              show={isHistoryModalOpen}
+              onClose={() => setIsHistoryModalOpen(false)}
+              unitData={unitForHistory}
+              historyForUnit={history.filter(
+                (entry) =>
+                  unitForHistory &&
+                  entry[2]?.startsWith(
+                    `${unitForHistory[1]} - ${unitForHistory[2]}`
+                  )
+              )}
             />
           </main>
         </div>
