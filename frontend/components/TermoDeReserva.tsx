@@ -186,9 +186,6 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
           </main>
 
           <footer className="termo-footer">
-            <div className="termo-print-timestamp">
-              Impresso em: {data.dataHoraImpressao}
-            </div>
             <div className="termo-footer-signatures">
               <div className="signature-line">
                 <p>Assinatura do Comprador:</p>
@@ -196,6 +193,9 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
               <div className="signature-line">
                 <p>Assinatura do Corretor:</p>
               </div>
+            </div>
+            <div className="termo-print-timestamp">
+              Impresso em: {data.dataHoraImpressao}
             </div>
           </footer>
         </div>
