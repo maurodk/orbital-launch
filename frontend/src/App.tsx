@@ -646,7 +646,7 @@ function App() {
     const termoData: TermoData = {
       clienteNome: unitData[6] || "N/D",
       clienteCpf: formatCPF(unitData[7]) || "N/D",
-      unidadeDesc: `${unitData[1]} - ${unitData[2]}`,
+      unidadeDesc: `${unitData[2]}`,
       tipologia: unitData[4] || "N/D",
       areaPrivativa: unitData[3] || "N/D",
       etapa: unitData[0] || "N/D",

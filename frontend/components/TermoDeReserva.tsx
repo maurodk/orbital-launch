@@ -195,7 +195,7 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
               </div>
             </div>
             <div className="termo-print-timestamp">
-              Impresso em: {data.dataHoraImpressao}
+              Termo gerado em: {data.dataHoraImpressao}
             </div>
           </footer>
         </div>
