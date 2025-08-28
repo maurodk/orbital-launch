@@ -15,7 +15,7 @@ export function UnitHistoryModal({
 }: UnitHistoryModalProps) {
   if (!show || !unitData) return null;
 
-  const unitFullName = `${unitData[1]} - ${unitData[2]}`;
+  const unitFullName = `${unitData[2]}`;
 
   return (
     <div className="modal-overlay" onClick={onClose}>

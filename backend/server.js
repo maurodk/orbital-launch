@@ -331,9 +331,9 @@ app.post("/api/update", verifyToken, async (req, res) => {
     });
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
+      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
     });
-    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     await addHistoryEntry(
       sheets,
       implantacao,
@@ -388,9 +388,9 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     });
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
+      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
     });
-    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     await addHistoryEntry(
       sheets,
       implantacao,
@@ -436,9 +436,9 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${unitRowIndex}:C${unitRowIndex}`,
+      range: `'${implantacao}'!C${unitRowIndex}:C${unitRowIndex}`,
     });
-    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
     await addHistoryEntry(
       sheets,
@@ -481,9 +481,9 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     });
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
+      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
     });
-    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     await addHistoryEntry(
       sheets,
       implantacao,
@@ -528,9 +528,9 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     // Ação Secundária: Registrar no histórico
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
+      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
     });
-    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
     await addHistoryEntry(
       sheets,
@@ -625,9 +625,9 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!B${rowIndex}:C${rowIndex}`,
+      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
     });
-    const unitFullName = `${unidadeInfo.data.values[0][0]} - ${unidadeInfo.data.values[0][1]}`;
+    const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     const acao = newStatus === "BLOQUEADA" ? "Bloqueada" : "Desbloqueada";
 
     await addHistoryEntry(
@@ -661,7 +661,7 @@ app.post("/api/log-print", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient(); // Precisa do 'sheets' para passar para a função
+    const sheets = await getSheetsClient();
     await addHistoryEntry(
       sheets,
       implantacao,

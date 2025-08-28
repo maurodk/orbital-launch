@@ -1,6 +1,6 @@
 // src/App.tsx - VERSÃO COM CORREÇÃO FINAL BASEADA NO MANUAL ATUAL
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import { useReactToPrint } from "react-to-print";
 import { FloorPlan } from "../components/FloorPlan";
@@ -18,6 +18,7 @@ import { UnitHistoryModal } from "../components/UnitHistoryModal";
 import { type User, onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import { Login } from "../components/Login";
+import { IdleTimeoutModal } from "../components/IdleTimeoutModal"; // Importe o novo modal
 
 const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
 
@@ -102,6 +103,7 @@ function App() {
   const [history, setHistory] = useState<string[][]>([]); // Para o histórico geral
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [unitForHistory, setUnitForHistory] = useState<string[] | null>(null);
+  const [isIdleModalOpen, setIsIdleModalOpen] = useState(false);
 
   // --- CORREÇÃO FINAL APLICADA AQUI, SEGUINDO O MANUAL ATUAL ---
   const handlePrint = useReactToPrint({
@@ -231,6 +233,61 @@ function App() {
 
     return () => unsubscribe();
   }, []);
+
+  const idleTimer = useRef<NodeJS.Timeout | null>(null);
+  const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutos em milissegundos
+
+  const handleLogout = useCallback(() => {
+    signOut(auth).then(() => {
+      console.log("Usuário deslogado.");
+      setIsIdleModalOpen(false);
+    });
+  }, []);
+
+  const resetIdleTimer = useCallback(() => {
+    // Limpa o cronômetro anterior
+    if (idleTimer.current) {
+      clearTimeout(idleTimer.current);
+    }
+    // Limpa o modal de aviso se estiver aberto
+    setIsIdleModalOpen(false);
+
+    // Inicia um novo cronômetro
+    idleTimer.current = setTimeout(() => {
+      // Quando o tempo esgotar, abre o modal de aviso
+      setIsIdleModalOpen(true);
+    }, INACTIVITY_TIMEOUT);
+  }, [INACTIVITY_TIMEOUT]);
+
+  // useEffect para adicionar e remover os event listeners de atividade
+  useEffect(() => {
+    // Lista de eventos que contam como atividade
+    const activityEvents = [
+      "mousemove",
+      "mousedown",
+      "keypress",
+      "touchstart",
+      "scroll",
+    ];
+
+    // Inicia o cronômetro quando o componente monta
+    resetIdleTimer();
+
+    // Adiciona os listeners para reiniciar o cronômetro em qualquer atividade
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, resetIdleTimer);
+    });
+
+    // Função de limpeza para remover os listeners quando o componente desmonta
+    return () => {
+      if (idleTimer.current) {
+        clearTimeout(idleTimer.current);
+      }
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, resetIdleTimer);
+      });
+    };
+  }, [resetIdleTimer]);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
@@ -777,6 +834,11 @@ function App() {
                   unitForHistory &&
                   entry[2] === `${unitForHistory[1]} - ${unitForHistory[2]}`
               )}
+            />
+            <IdleTimeoutModal
+              show={isIdleModalOpen}
+              onContinue={resetIdleTimer} // "Continuar" simplesmente reinicia o cronômetro
+              onLogout={handleLogout} // "Sair" chama a função de deslogar
             />
           </main>
         </div>
