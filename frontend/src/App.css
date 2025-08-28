@@ -1156,3 +1156,11 @@ h1 {
   color: var(--text-primary);
   font-weight: 600;
 }
+
+.termo-print-timestamp {
+  width: 100%;
+  text-align: right; /* Alinha à direita */
+  font-size: 8pt; /* Texto pequeno */
+  color: #888; /* Cor cinza */
+  margin-bottom: 20px; /* Espaço antes das linhas de assinatura */
+}

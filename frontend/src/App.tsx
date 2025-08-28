@@ -611,7 +611,16 @@ function App() {
       return;
     }
 
-    const unitFullName = `${unitData[1]} - ${unitData[2]}`;
+    const unitFullName = `${unitData[2]}`;
+
+    const dataHoraImpressao = new Date().toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
 
     // <-- LÓGICA NOVA COMEÇA AQUI -->
     try {
@@ -646,6 +655,7 @@ function App() {
       corretorNome: unitData[8] || "N/D",
       dataAtual: formattedDate,
       logoEmpreendimentoUrl: currentLogoUrl,
+      dataHoraImpressao: dataHoraImpressao, // <-- ADICIONE ESTA LINHA
     };
 
     setTermoParaImprimir(termoData);

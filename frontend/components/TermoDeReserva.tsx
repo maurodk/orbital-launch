@@ -18,6 +18,7 @@ export interface TermoData {
   corretorNome: string;
   dataAtual: string; // Ex: "Vitória da Conquista, 26 de Julho de 2024"
   logoEmpreendimentoUrl: string;
+  dataHoraImpressao: string; // <-- ADICIONE ESTA LINHA
 }
 
 interface TermoDeReservaProps {
@@ -185,6 +186,9 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
           </main>
 
           <footer className="termo-footer">
+            <div className="termo-print-timestamp">
+              Impresso em: {data.dataHoraImpressao}
+            </div>
             <div className="termo-footer-signatures">
               <div className="signature-line">
                 <p>Assinatura do Comprador:</p>
