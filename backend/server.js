@@ -411,7 +411,8 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
 
 // Endpoint para CANCELAR uma reserva
 app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
-  const { implantacao, unitRowIndex, clientName, idPreCadastro } = req.body;
+  const { implantacao, unitRowIndex, clientName, idPreCadastro, brokerName } =
+    req.body;
   const userEmail = req.user.email; // Declaração no escopo principal da função
 
   if (!implantacao || !unitRowIndex || !clientName) {
@@ -446,7 +447,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       unitFullName,
       "Cancelada",
       clientName,
-      null,
+      brokerName, // <-- SUBSTITUA 'null' por 'brokerName'
       userEmail
     );
 
@@ -651,7 +652,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
 });
 
 app.post("/api/log-print", verifyToken, async (req, res) => {
-  const { implantacao, unitName, clientName } = req.body;
+  const { implantacao, unitName, clientName, brokerName } = req.body;
   const userEmail = req.user.email; // Declaração no escopo principal
 
   if (!implantacao || !unitName) {
@@ -668,7 +669,7 @@ app.post("/api/log-print", verifyToken, async (req, res) => {
       unitName,
       "Termo Impresso",
       clientName,
-      null,
+      brokerName, // <-- SUBSTITUA 'null' por 'brokerName'
       userEmail
     );
     res.json({ success: true });

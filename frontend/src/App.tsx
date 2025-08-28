@@ -536,6 +536,7 @@ function App() {
     const unidadeAlvo = unidades[selectedUnitIndex];
     const clientNameToRelease = unidadeAlvo[6];
     const idPreCadastro = unidadeAlvo[5];
+    const brokerNameToLog = unidadeAlvo[8] || "N/A"; // <-- ADICIONE ESTA LINHA para pegar o nome do corretor
 
     // FORMA CORRETA (IMUTÁVEL)
     setUnidades(
@@ -568,6 +569,7 @@ function App() {
         clientName: clientNameToRelease,
         implantacao: selectedImplantationName,
         idPreCadastro: idPreCadastro,
+        brokerName: brokerNameToLog,
       });
     } catch (err) {
       setError("Falha ao cancelar a reserva.");
@@ -612,6 +614,7 @@ function App() {
     }
 
     const unitFullName = `${unitData[2]}`;
+    const brokerName = unitData[8] || "N/A"; // <-- ADICIONE ESTA LINHA
 
     const dataHoraImpressao = new Date().toLocaleString("pt-BR", {
       day: "2-digit",
@@ -629,6 +632,7 @@ function App() {
         implantacao: selectedImplantationName,
         unitName: unitFullName,
         clientName: unitData[6] || "N/D",
+        brokerName: brokerName,
       });
       await fetchHistory(selectedImplantationName); // E ADICIONE ESTA LINHA
     } catch (error) {
