@@ -33,7 +33,7 @@ export function MappingTool({
   // Adapta os dados para o formato que o react-select precisa
   const unitOptions: MappedUnitOption[] = unidadesNaoMapeadas.map((item) => ({
     value: item.originalIndex,
-    label: item.unidade[3], // Nome da unidade
+    label: item.unidade[2], // Nome da unidade (Coluna C)
   }));
 
   const handleSelectChange = (

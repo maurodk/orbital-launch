@@ -352,7 +352,7 @@ function App() {
     const unit = unidades[unitIndexToClear];
     if (!unit) return;
     const isConfirmed = window.confirm(
-      `Tem certeza que deseja remover o mapeamento da unidade "${unit[3]}"?`
+      `Tem certeza que deseja remover o mapeamento da unidade "${unit[2]}"?`
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];

@@ -134,7 +134,7 @@ export function MappingSidebar({
                         >
                           {/* <<< MUDANÇA 2: Adiciona a classe de status ao span >>> */}
                           <span className={`unit-status ${status}`} />
-                          <span className="unit-name">{unidade[3]}</span>
+                          <span className="unit-name">{unidade[2]}</span>
                           {!isMapped && (
                             <button
                               className="select-unit-button"
