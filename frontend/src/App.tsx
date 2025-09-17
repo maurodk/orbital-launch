@@ -21,7 +21,8 @@ import { Login } from "../components/Login";
 import { IdleTimeoutModal } from "../components/IdleTimeoutModal"; // Importe o novo modal
 
 const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
-
+const localApiUrl = "http://localhost:3001"; // URL do seu backend local
+const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
 // ... (interfaces permanecem as mesmas)
 interface ApiResponse {
   unidades: string[][];
@@ -122,8 +123,8 @@ function App() {
   const fetchHistory = async (implantacaoName: string) => {
     if (!implantacaoName) return;
     try {
-      const response = await axios.get<string[][]>(
-        `${API_URL}/api/history/${implantacaoName}`
+      const response = await axios.get<string[][]>( // eslint-disable-line no-unused-vars
+        `${apiUrl}/api/history/${implantacaoName}`
       );
       setHistory(response.data || []);
     } catch (err) {
@@ -167,7 +168,7 @@ function App() {
     setSwitching(true);
     try {
       const response = await axios.get<ApiResponse>(
-        `${API_URL}/api/data?implantacao=${implantacaoName}`
+        `${apiUrl}/api/data?implantacao=${implantacaoName}`
       );
       setUnidades(response.data.unidades.slice(1) || []);
       setClientes(response.data.clientes.slice(1) || []);
@@ -189,8 +190,8 @@ function App() {
 
         try {
           const [configRes, implantacoesRes] = await Promise.all([
-            axios.get<AppConfig>(`${API_URL}/api/config`),
-            axios.get<Implantation[]>(`${API_URL}/api/implantacoes`),
+            axios.get<AppConfig>(`${apiUrl}/api/config`),
+            axios.get<Implantation[]>(`${apiUrl}/api/implantacoes`),
           ]);
 
           const allImplantations = implantacoesRes.data || [];
@@ -233,6 +234,51 @@ function App() {
 
     return () => unsubscribe();
   }, []);
+
+  // Efeito para conectar aos Server-Sent Events (SSE) para atualizações em tempo real
+  useEffect(() => {
+    // Só conecta se tivermos uma implantação selecionada
+    if (!selectedImplantationName) {
+      return;
+    }
+
+    // Cria a conexão com o endpoint de eventos do backend
+    const eventSource = new EventSource(
+      `${apiUrl}/api/events?implantacao=${selectedImplantationName}`
+    );
+
+    // Handler para a mensagem 'unit-updated' enviada pelo servidor
+    const handleUnitUpdate = async (event: MessageEvent) => {
+      try {
+        const { unitData, rowIndex } = JSON.parse(event.data);
+        console.log("SSE Recebido:", { unitData, rowIndex });
+
+        // Atualiza o estado local da unidade específica de forma imutável
+        setUnidades((currentUnidades) =>
+          currentUnidades.map((unidade, index) => {
+            // O rowIndex do backend é baseado em 1 e a planilha começa na linha 1.
+            // O array de unidades começa em 0, então subtraímos 2 (1 pelo cabeçalho, 1 pelo índice 0).
+            if (index === rowIndex - 2) {
+              return unitData;
+            }
+            return unidade;
+          })
+        );
+      } catch (e) {
+        console.error("Erro ao processar evento SSE:", e);
+      }
+    };
+
+    // Adiciona o listener para o evento específico 'unit-updated'
+    eventSource.addEventListener("unit-updated", handleUnitUpdate);
+
+    // Função de limpeza: fecha a conexão SSE quando o componente desmonta
+    // ou quando a implantação selecionada muda.
+    return () => {
+      eventSource.removeEventListener("unit-updated", handleUnitUpdate);
+      eventSource.close();
+    }; // Roda este efeito sempre que a implantação selecionada mudar
+  }, [selectedImplantationName]);
 
   const idleTimer = useRef<NodeJS.Timeout | null>(null);
   const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutos em milissegundos
@@ -299,7 +345,7 @@ function App() {
     await fetchUnitData(newName);
     await fetchHistory(newName);
     try {
-      await axios.post(`${API_URL}/api/update-config`, {
+      await axios.post(`${apiUrl}/api/update-config`, {
         key: "implantacaoAtual",
         value: newName,
       });
@@ -312,7 +358,7 @@ function App() {
   const handleUpdateImageUrl = async (newUrl: string) => {
     setImageUrl(newUrl);
     try {
-      await axios.post(`${API_URL}/api/update-config`, {
+      await axios.post(`${apiUrl}/api/update-config`, {
         key: "imagemPlantaAtual",
         value: newUrl,
       });
@@ -328,7 +374,7 @@ function App() {
     if (!selectedImplantationName) return;
     const newSize = dotSize;
     try {
-      await axios.post(`${API_URL}/api/update-dot-size`, {
+      await axios.post(`${apiUrl}/api/update-dot-size`, {
         implantacaoName: selectedImplantationName,
         newSize: newSize,
       });
@@ -361,7 +407,7 @@ function App() {
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
-      await axios.post(`${API_URL}/api/clear-coords`, {
+      await axios.post(`${apiUrl}/api/clear-coords`, {
         rowIndex: sheetRowIndex,
         implantacao: selectedImplantationName,
       });
@@ -410,10 +456,11 @@ function App() {
     handleCloseModals();
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
-      await axios.post(`${API_URL}/api/toggle-block-unit`, {
+      await axios.post(`${apiUrl}/api/toggle-block-unit`, {
         rowIndex: sheetRowIndex,
         implantacao: selectedImplantationName,
         newStatus: newStatus,
+        hideAvailable: hideAvailable, // Envia o estado do filtro
       });
     } catch (err) {
       setError(
@@ -426,98 +473,93 @@ function App() {
     await fetchHistory(selectedImplantationName);
   };
 
-  const handleReserveUnit = async (selectedClientId: string) => {
+  const handleReserveUnit = async (
+    selectedClientIdOrManualData: string | ManualData
+  ) => {
     if (selectedUnitIndex === null) return;
-    const clientData = clientes.find((c) => c[0] === selectedClientId);
-    if (!clientData) {
-      console.error("Dados do cliente não encontrados!");
-      return;
+
+    let clientData: string[] | undefined;
+    let manualData: ManualData | undefined;
+
+    if (typeof selectedClientIdOrManualData === "string") {
+      clientData = clientes.find((c) => c[0] === selectedClientIdOrManualData);
+      if (!clientData) {
+        console.error("Dados do cliente não encontrados!");
+        return;
+      }
+    } else {
+      manualData = selectedClientIdOrManualData;
     }
 
-    const clientName = clientData[1];
     const unitName = unidades[selectedUnitIndex][2];
 
-    // Dados para enviar ao backend (colunas F até K)
-    const dataToBackend = [
-      clientData[0], // ID Pré-Cadastro
-      clientData[1], // Cliente
-      clientData[2], // Documento
-      clientData[3], // Corretor
-      clientData[4] || "", // Imobiliária (garante que seja string)
-      "RESERVADA", // Situação
-    ];
-
-    // ATUALIZAÇÃO DE ESTADO (Forma correta e imutável)
+    // Atualiza o estado local das unidades de forma imutável
     setUnidades(
       unidades.map((unidade, index) => {
         if (index === selectedUnitIndex) {
           const newUnit = [...unidade];
-          newUnit[5] = dataToBackend[0];
-          newUnit[6] = dataToBackend[1];
-          newUnit[7] = dataToBackend[2];
-          newUnit[8] = dataToBackend[3];
-          newUnit[9] = dataToBackend[4];
-          newUnit[10] = dataToBackend[5];
+          if (clientData) {
+            newUnit[5] = clientData[0]; // ID Pré-Cadastro
+            newUnit[6] = clientData[1]; // Cliente
+            newUnit[7] = clientData[2]; // Documento
+            newUnit[8] = clientData[3]; // Corretor
+            newUnit[9] = clientData[4] || ""; // Imobiliária
+            newUnit[10] = "RESERVADA";
+          } else if (manualData) {
+            newUnit[5] = manualData.id;
+            newUnit[6] = manualData.cliente;
+            newUnit[7] = manualData.documento;
+            newUnit[8] = manualData.corretor;
+            newUnit[9] = ""; // Imobiliária (vazio para espontâneo)
+            newUnit[10] = "RESERVADA";
+          }
           return newUnit;
         }
         return unidade;
       })
     );
 
-    const updatedClientes = clientes.map((c) =>
-      c[0] === selectedClientId ? [...c.slice(0, 5), "JA RESERVOU"] : c
-    );
-    setClientes(updatedClientes);
+    if (clientData) {
+      const updatedClientes = clientes.map((c) =>
+        c[0] === selectedClientIdOrManualData
+          ? [...c.slice(0, 5), "JA RESERVOU"]
+          : c
+      );
+      setClientes(updatedClientes);
+    }
+
     handleCloseModals();
 
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
-      await axios.post(`${API_URL}/api/update`, {
-        rowIndex: sheetRowIndex,
-        data: dataToBackend, // Usa a variável correta
-        clientName: clientName,
-        implantacao: selectedImplantationName,
-        unitName: unitName,
-      });
+      if (clientData) {
+        const dataToBackend = [
+          clientData[0],
+          clientData[1],
+          clientData[2],
+          clientData[3],
+          clientData[4] || "",
+          "RESERVADA",
+        ];
+        await axios.post(`${apiUrl}/api/update`, {
+          implantacao: selectedImplantationName,
+          rowIndex: sheetRowIndex,
+          data: dataToBackend,
+          clientName: clientData[1],
+          unitName,
+          hideAvailable,
+        });
+      } else if (manualData) {
+        await axios.post(`${apiUrl}/api/spontaneous-update`, {
+          rowIndex: sheetRowIndex,
+          implantacao: selectedImplantationName,
+          unitName,
+          manualData,
+          hideAvailable,
+        });
+      }
     } catch (err) {
       setError("Falha ao salvar a reserva na planilha.");
-      console.error(err);
-    }
-    await fetchHistory(selectedImplantationName);
-  };
-
-  const handleSpontaneousReserve = async (manualData: ManualData) => {
-    if (selectedUnitIndex === null) return;
-
-    // FORMA CORRETA (IMUTÁVEL)
-    setUnidades(
-      unidades.map((unidade, index) => {
-        if (index === selectedUnitIndex) {
-          const newUnit = [...unidade];
-          newUnit[5] = manualData.id;
-          newUnit[6] = manualData.cliente;
-          newUnit[7] = manualData.documento;
-          newUnit[8] = manualData.corretor;
-          newUnit[9] = ""; // Imobiliária
-          newUnit[10] = "RESERVADA";
-          return newUnit;
-        }
-        return unidade;
-      })
-    );
-    handleCloseModals();
-
-    try {
-      const sheetRowIndex = selectedUnitIndex + 2;
-      const unitName = unidades[selectedUnitIndex][2];
-      await axios.post(`${API_URL}/api/spontaneous-update`, {
-        rowIndex: sheetRowIndex,
-        implantacao: selectedImplantationName,
-        unitName: unitName,
-        manualData: manualData,
-      });
-    } catch (err) {
-      setError("Falha ao salvar a reserva espontânea na planilha.");
       console.error(err);
     }
     await fetchHistory(selectedImplantationName);
@@ -527,7 +569,7 @@ function App() {
     if (typeof data === "string") {
       handleReserveUnit(data);
     } else {
-      handleSpontaneousReserve(data);
+      handleReserveUnit(data);
     }
   };
 
@@ -564,12 +606,13 @@ function App() {
     handleCloseModals();
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
-      await axios.post(`${API_URL}/api/cancel-reservation`, {
+      await axios.post(`${apiUrl}/api/cancel-reservation`, {
         unitRowIndex: sheetRowIndex,
         clientName: clientNameToRelease,
         implantacao: selectedImplantationName,
         idPreCadastro: idPreCadastro,
         brokerName: brokerNameToLog,
+        hideAvailable: hideAvailable,
       });
     } catch (err) {
       setError("Falha ao cancelar a reserva.");
@@ -588,7 +631,7 @@ function App() {
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
-      await axios.post(`${API_URL}/api/update-coords`, {
+      await axios.post(`${apiUrl}/api/update-coords`, {
         rowIndex: sheetRowIndex,
         coordX,
         coordY,
@@ -628,7 +671,7 @@ function App() {
     // <-- LÓGICA NOVA COMEÇA AQUI -->
     try {
       // Registra o evento de impressão no backend (sem esperar a conclusão)
-      axios.post(`${API_URL}/api/log-print`, {
+      axios.post(`${apiUrl}/api/log-print`, {
         implantacao: selectedImplantationName,
         unitName: unitFullName,
         clientName: unitData[6] || "N/D",

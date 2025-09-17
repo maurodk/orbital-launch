@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Espelho de Implantação - VCA</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: #111;
+        color: #fff;
+      }
+      .topbar {
+        padding: 10px 16px;
+        background: #0b0b0b;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border-bottom: 1px solid #333;
+      }
+      .title {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .logo {
+        height: 30px;
+      }
+      .floor-plan-wrapper {
+        position: relative;
+        width: 100%;
+        height: calc(100vh - 51px); /* Altura da tela menos o topbar */
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #1a1a1a;
+      }
+      .floor-plan-container {
+        position: relative;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      .floor-plan-image {
+        display: block;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+        opacity: 0.9;
+      }
+      .unit-indicator {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 16px; /* Tamanho padrão, será sobrescrito */
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        transition: transform 0.2s ease, background-color 0.3s ease;
+        cursor: help;
+      }
+      .status-RESERVADA {
+        background: #d9534f;
+      }
+      .status-DISPONÍVEL {
+        background: #6ad700;
+      }
+      .status-BLOQUEADA {
+        background: #d9534f; /* Usando a mesma cor de reservada */
+      }
+      .status-other {
+        background: #6c757d;
+      }
+      .small {
+        font-size: 14px;
+        color: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <img src="/logo.png" alt="Logo VCA" class="logo" />
+      <div class="title" id="empreendimento-title">Espelho de Implantação</div>
+      <div id="implantacaoName" class="small"></div>
+      <div style="flex: 1"></div>
+      <div id="status" class="small">Conectando...</div>
+    </div>
+    <div id="floor-plan-wrapper">
+      <!-- A imagem e os pontos serão inseridos aqui via script -->
+    </div>
+
+    <script>
+      // IIFE para encapsular a lógica e evitar poluir o escopo global
+      (function () {
+        const wrapper = document.getElementById("floor-plan-wrapper");
+        const statusEl = document.getElementById("status");
+        const implantacaoNameEl = document.getElementById("implantacaoName");
+        const empreendimentoTitleEl = document.getElementById(
+          "empreendimento-title"
+        );
+
+        const urlParams = new URLSearchParams(location.search);
+        const implantacao = urlParams.get("implantacao");
+
+        if (!implantacao) {
+          wrapper.innerHTML =
+            '<p style="padding:20px">Parâmetro "implantacao" não encontrado na URL.</p>';
+          statusEl.textContent = "Erro";
+          return;
+        }
+
+        implantacaoNameEl.textContent = implantacao;
+        empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
+
+        // Função para buscar os dados da API
+        async function fetchData(hideAvailable = "false") {
+          try {
+            const url = `/api/public-data?implantacao=${encodeURIComponent(
+              implantacao
+            )}&hideAvailable=${hideAvailable}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              throw new Error(`Falha ao buscar dados: ${res.statusText}`);
+            }
+            const json = await res.json();
+            return json; // Retorna o objeto completo
+          } catch (e) {
+            console.error("Erro em fetchData:", e);
+            statusEl.textContent = "Erro ao carregar dados.";
+            return { unidades: [], imageUrl: "", dotSize: 16 };
+          }
+        }
+
+        // Função para renderizar as unidades na tela
+        function render(data) {
+          const { unidades, imageUrl, dotSize } = data;
+          wrapper.innerHTML = ""; // Limpa o conteúdo anterior
+
+          // Armazena o dotSize globalmente para uso em atualizações
+          window.currentDotSize = dotSize;
+
+          if (!imageUrl) {
+            wrapper.innerHTML =
+              '<p style="padding:20px">Imagem da planta não configurada.</p>';
+            return;
+          }
+
+          // Cria um contêiner para a imagem e os pontos, para manter a proporção
+          const container = document.createElement("div");
+          container.className = "floor-plan-container";
+
+          const img = document.createElement("img");
+          img.src = imageUrl;
+          img.className = "floor-plan-image";
+
+          // Adiciona a imagem ao contêiner
+          container.appendChild(img);
+
+          // Adiciona o contêiner principal ao wrapper da página
+          wrapper.appendChild(container);
+
+          // Pula o cabeçalho se a primeira linha parecer um
+          const rows =
+            unidades.length > 0 &&
+            unidades[0][0]?.toString().toLowerCase().includes("etapa")
+              ? unidades.slice(1)
+              : unidades;
+
+          rows.forEach((u, index) => {
+            const coordX = u[11];
+            const coordY = u[12];
+            const status = (u[10] || "DISPONÍVEL").toString().toUpperCase();
+
+            if (!coordX || !coordY) {
+              return; // Pula unidades não mapeadas
+            }
+
+            const indicator = document.createElement("div");
+            // Adiciona ID único para cada indicador baseado no índice da linha
+            const unitIndex = index;
+            indicator.id = `unit-indicator-${unitIndex}`;
+            indicator.className = `unit-indicator status-${status}`;
+            indicator.style.left = `${coordX}%`;
+            indicator.style.top = `${coordY}%`;
+            indicator.style.width = `${dotSize}px`;
+            indicator.style.height = `${dotSize}px`;
+            indicator.title = `Unidade: ${u[2]}
+Status: ${status}`;
+
+            container.appendChild(indicator); // Adiciona o ponto ao contêiner da imagem
+          });
+        }
+
+        // Função para recarregar e renderizar os dados
+        async function reloadAndRender(hideAvailable = "false") {
+          statusEl.textContent = "Atualizando...";
+          const data = await fetchData(hideAvailable);
+          render(data);
+          statusEl.textContent = "Conectado";
+        }
+
+        // Conexão com Server-Sent Events (SSE)
+        let es;
+        function connectSse() {
+          if (es) es.close();
+
+          es = new EventSource(
+            `/api/events?implantacao=${encodeURIComponent(implantacao)}`
+          );
+
+          es.onopen = () => {
+            statusEl.textContent = "Conectado em tempo real";
+          };
+
+          es.onerror = () => {
+            statusEl.textContent = "Erro na conexão. Reconectando...";
+            // Tenta reconectar após um tempo
+            setTimeout(connectSse, 5000);
+          };
+
+          es.addEventListener("unit-updated", async (ev) => {
+            try {
+              const { unitData, rowIndex } = JSON.parse(ev.data);
+              console.log("Evento 'unit-updated' recebido:", {
+                unitData,
+                rowIndex,
+              });
+              updateSingleUnit(unitData, rowIndex);
+            } catch (e) {
+              console.error("Erro ao processar evento SSE:", e);
+            }
+          });
+        }
+
+        // Nova função para atualizar uma única unidade
+        function updateSingleUnit(unitData, rowIndex) {
+          const container = document.querySelector(".floor-plan-container");
+          if (!container) return;
+
+          // O índice do array é rowIndex - 2
+          // O array de unidades no frontend começa na linha 2 da planilha (índice 0)
+          const unitIndex = rowIndex - 2;
+          const unitId = `unit-indicator-${unitIndex}`;
+          let indicator = document.getElementById(unitId);
+
+          const coordX = unitData[11];
+          const coordY = unitData[12];
+          const status = (unitData[10] || "DISPONÍVEL")
+            .toString()
+            .toUpperCase();
+
+          // Se não há coordenadas, remove o indicador se existir
+          if (!coordX || !coordY) {
+            if (indicator) {
+              indicator.remove();
+            }
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            indicator.className = "unit-indicator";
+            container.appendChild(indicator);
+          }
+
+          // Atualiza as propriedades do indicador
+          indicator.className = `unit-indicator status-${status}`;
+          indicator.style.left = `${coordX}%`;
+          indicator.style.top = `${coordY}%`;
+          indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
+
+          // Aplica o tamanho do ponto se disponível
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+
+          console.log(
+            `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
+          );
+        }
+
+        // Carga inicial e início da conexão em tempo real
+        reloadAndRender(urlParams.get("hideAvailable") || "false");
+        connectSse();
+      })();
+    </script>
+  </body>
+</html>
