@@ -20,6 +20,9 @@ import { auth } from "../firebaseConfig";
 import { Login } from "../components/Login";
 import { IdleTimeoutModal } from "../components/IdleTimeoutModal"; // Importe o novo modal
 
+import { VerifyingModal } from "../components/VerifyingModal";
+import { ReservationFailedModal } from "../components/ReservationFailedModal";
+import { ReservationSuccessModal } from "../components/ReservationSuccessModal";
 const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
 const localApiUrl = "http://localhost:3001"; // URL do seu backend local
 const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
@@ -105,6 +108,12 @@ function App() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [unitForHistory, setUnitForHistory] = useState<string[] | null>(null);
   const [isIdleModalOpen, setIsIdleModalOpen] = useState(false);
+  const [isVerifyingModalOpen, setIsVerifyingModalOpen] = useState(false);
+  const [isReservationFailedModalOpen, setIsReservationFailedModalOpen] =
+    useState(false);
+  const [reservationFailedMessage, setReservationFailedMessage] = useState("");
+  const [isReservationSuccessModalOpen, setIsReservationSuccessModalOpen] =
+    useState(false);
 
   // --- CORREÇÃO FINAL APLICADA AQUI, SEGUINDO O MANUAL ATUAL ---
   const handlePrint = useReactToPrint({
@@ -452,6 +461,7 @@ function App() {
     if (selectedUnitIndex === null) return;
     const updatedUnidades = [...unidades];
     updatedUnidades[selectedUnitIndex][10] = newStatus;
+    // Não atualiza o estado local ainda, espera a resposta do backend
     setUnidades(updatedUnidades);
     handleCloseModals();
     try {
@@ -478,6 +488,10 @@ function App() {
   ) => {
     if (selectedUnitIndex === null) return;
 
+    // 1. Fecha todos os modais e abre o de verificação
+    handleCloseModals();
+    setIsVerifyingModalOpen(true);
+
     let clientData: string[] | undefined;
     let manualData: ManualData | undefined;
 
@@ -492,77 +506,86 @@ function App() {
     }
 
     const unitName = unidades[selectedUnitIndex][2];
+    const sheetRowIndex = selectedUnitIndex + 2;
 
-    // Atualiza o estado local das unidades de forma imutável
-    setUnidades(
-      unidades.map((unidade, index) => {
-        if (index === selectedUnitIndex) {
-          const newUnit = [...unidade];
-          if (clientData) {
-            newUnit[5] = clientData[0]; // ID Pré-Cadastro
-            newUnit[6] = clientData[1]; // Cliente
-            newUnit[7] = clientData[2]; // Documento
-            newUnit[8] = clientData[3]; // Corretor
-            newUnit[9] = clientData[4] || ""; // Imobiliária
-            newUnit[10] = "RESERVADA";
-          } else if (manualData) {
-            newUnit[5] = manualData.id;
-            newUnit[6] = manualData.cliente;
-            newUnit[7] = manualData.documento;
-            newUnit[8] = manualData.corretor;
-            newUnit[9] = ""; // Imobiliária (vazio para espontâneo)
-            newUnit[10] = "RESERVADA";
-          }
-          return newUnit;
+    // 2. Adiciona o delay de 5 segundos
+    setTimeout(async () => {
+      try {
+        // 3. Tenta fazer a reserva no backend
+        if (clientData) {
+          const dataToBackend = [
+            clientData[0],
+            clientData[1],
+            clientData[2],
+            clientData[3],
+            clientData[4] || "",
+            "RESERVADA",
+          ];
+          await axios.post(`${apiUrl}/api/update`, {
+            implantacao: selectedImplantationName,
+            rowIndex: sheetRowIndex,
+            data: dataToBackend,
+            clientName: clientData[1],
+            unitName,
+            hideAvailable,
+          });
+        } else if (manualData) {
+          await axios.post(`${apiUrl}/api/spontaneous-update`, {
+            rowIndex: sheetRowIndex,
+            implantacao: selectedImplantationName,
+            unitName,
+            manualData,
+            hideAvailable,
+          });
         }
-        return unidade;
-      })
-    );
 
-    if (clientData) {
-      const updatedClientes = clientes.map((c) =>
-        c[0] === selectedClientIdOrManualData
-          ? [...c.slice(0, 5), "JA RESERVOU"]
-          : c
-      );
-      setClientes(updatedClientes);
-    }
+        // 4. Se a reserva foi bem-sucedida (sem erro 409), atualiza o estado local
+        // e abre o modal de sucesso.
+        setIsVerifyingModalOpen(false); // Fecha o de verificação primeiro
+        setIsReservationSuccessModalOpen(true);
+        setUnidades(
+          unidades.map((unidade, index) => {
+            if (index === selectedUnitIndex) {
+              const newUnit = [...unidade];
+              if (clientData) {
+                newUnit[5] = clientData[0];
+                newUnit[6] = clientData[1];
+                newUnit[7] = clientData[2];
+                newUnit[8] = clientData[3];
+                newUnit[9] = clientData[4] || "";
+                newUnit[10] = "RESERVADA";
+              } else if (manualData) {
+                newUnit[5] = manualData.id;
+                newUnit[6] = manualData.cliente;
+                newUnit[7] = manualData.documento;
+                newUnit[8] = manualData.corretor;
+                newUnit[9] = "";
+                newUnit[10] = "RESERVADA";
+              }
+              return newUnit;
+            }
+            return unidade;
+          })
+        );
 
-    handleCloseModals();
-
-    try {
-      const sheetRowIndex = selectedUnitIndex + 2;
-      if (clientData) {
-        const dataToBackend = [
-          clientData[0],
-          clientData[1],
-          clientData[2],
-          clientData[3],
-          clientData[4] || "",
-          "RESERVADA",
-        ];
-        await axios.post(`${apiUrl}/api/update`, {
-          implantacao: selectedImplantationName,
-          rowIndex: sheetRowIndex,
-          data: dataToBackend,
-          clientName: clientData[1],
-          unitName,
-          hideAvailable,
-        });
-      } else if (manualData) {
-        await axios.post(`${apiUrl}/api/spontaneous-update`, {
-          rowIndex: sheetRowIndex,
-          implantacao: selectedImplantationName,
-          unitName,
-          manualData,
-          hideAvailable,
-        });
+        await fetchHistory(selectedImplantationName);
+      } catch (err: any) {
+        // 5. Se a reserva falhou (ex: unidade já reservada)
+        if (err.response && err.response.status === 409) {
+          setReservationFailedMessage(err.response.data.error);
+          setIsReservationFailedModalOpen(true);
+        } else {
+          setError("Falha ao salvar a reserva na planilha.");
+          console.error(err);
+        }
+        // Recarrega os dados para garantir que o frontend está sincronizado
+        await fetchUnitData(selectedImplantationName);
+      } finally {
+        // 6. Fecha o modal de verificação em qualquer caso
+        // Movido para dentro do bloco try/catch para uma melhor experiência
+        if (isVerifyingModalOpen) setIsVerifyingModalOpen(false);
       }
-    } catch (err) {
-      setError("Falha ao salvar a reserva na planilha.");
-      console.error(err);
-    }
-    await fetchHistory(selectedImplantationName);
+    }, 5000); // Delay de 5 segundos
   };
 
   const handleReserve = (data: string | ManualData) => {
@@ -896,6 +919,24 @@ function App() {
               show={isIdleModalOpen}
               onContinue={resetIdleTimer} // "Continuar" simplesmente reinicia o cronômetro
               onLogout={handleLogout} // "Sair" chama a função de deslogar
+            />
+            <VerifyingModal show={isVerifyingModalOpen} />
+            <ReservationFailedModal
+              show={isReservationFailedModalOpen}
+              onClose={() => setIsReservationFailedModalOpen(false)}
+              message={reservationFailedMessage}
+              unitData={
+                selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
+              }
+            />
+            <ReservationSuccessModal
+              show={isReservationSuccessModalOpen}
+              onClose={() => setIsReservationSuccessModalOpen(false)}
+              unitName={
+                selectedUnitIndex !== null
+                  ? unidades[selectedUnitIndex]?.[2]
+                  : null
+              }
             />
           </main>
         </div>

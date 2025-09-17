@@ -670,6 +670,24 @@ app.post("/api/update", verifyToken, async (req, res) => {
   try {
     const sheets = await getSheetsClient();
 
+    // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
+    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckResult = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitCheckRange,
+    });
+
+    const currentStatus =
+      unitCheckResult.data.values?.[0]?.[0]?.toUpperCase() || "DISPONÍVEL";
+
+    if (currentStatus !== "DISPONÍVEL") {
+      return res.status(409).json({
+        error: `Esta unidade não está mais disponível. Status atual: ${
+          unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
+        }.`,
+      });
+    }
+
     // Primary: persist directly into Supabase
     let supabaseOk = false;
     let unitFullName = unitName || null;
@@ -807,7 +825,10 @@ app.post("/api/update", verifyToken, async (req, res) => {
             resource: { values: [data] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
+          await broadcastEvent(implantacao, "unitUpdated", {
+            rowIndex,
+            unitName,
+          });
 
           const funnelRow = [data[0], unitName || "N/A", data[3]];
           await sheets.spreadsheets.values.append({
@@ -888,6 +909,24 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
+
+    // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
+    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckResult = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitCheckRange,
+    });
+
+    const currentStatus =
+      unitCheckResult.data.values?.[0]?.[0]?.toUpperCase() || "DISPONÍVEL";
+
+    if (currentStatus !== "DISPONÍVEL") {
+      return res.status(409).json({
+        error: `Esta unidade não está mais disponível. Status atual: ${
+          unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
+        }.`,
+      });
+    }
     let supabaseOk = false;
     let unitFullName = unitName || null;
     if (supabase) {
@@ -1027,7 +1066,10 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
             resource: { values: [dataToUpdate] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
+          await broadcastEvent(implantacao, "unitUpdated", {
+            rowIndex,
+            unitName,
+          });
 
           const funnelRow = [
             manualData.id || "",
@@ -1074,7 +1116,10 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     });
     unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
-    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
+    await broadcastEvent(implantacao, "unitUpdated", {
+      rowIndex,
+      unitName: unitFullName,
+    });
 
     const funnelRow = [
       manualData.id || "",
@@ -1192,7 +1237,10 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             resource: { values: [emptyUnitData] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", { rowIndex: unitRowIndex, unitName: unitFullName });
+          await broadcastEvent(implantacao, "unitUpdated", {
+            rowIndex: unitRowIndex,
+            unitName: unitFullName,
+          });
 
           // Libera o cliente na planilha de DADOS (Funil)
           const allClientsData = await sheets.spreadsheets.values.get({
@@ -1233,7 +1281,10 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       });
       unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
-      await broadcastEvent(implantacao, "unitUpdated", { rowIndex: unitRowIndex, unitName: unitFullName });
+      await broadcastEvent(implantacao, "unitUpdated", {
+        rowIndex: unitRowIndex,
+        unitName: unitFullName,
+      });
 
       // Libera o cliente na planilha de DADOS (Funil)
       const allClientsData = await sheets.spreadsheets.values.get({
@@ -1338,7 +1389,10 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
+    await broadcastEvent(implantacao, "unitUpdated", {
+      rowIndex,
+      unitName: unitFullName,
+    });
 
     res.json({
       success: true,
@@ -1389,7 +1443,10 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
+    await broadcastEvent(implantacao, "unitUpdated", {
+      rowIndex,
+      unitName: unitFullName,
+    });
 
     res.json({
       success: true,
@@ -1489,7 +1546,10 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
+    await broadcastEvent(implantacao, "unitUpdated", {
+      rowIndex,
+      unitName: unitFullName,
+    });
 
     res.json({
       success: true,

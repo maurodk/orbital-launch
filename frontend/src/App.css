@@ -1164,3 +1164,70 @@ h1 {
   color: #888; /* Cor cinza */
   margin-bottom: 20px; /* Espaço antes das linhas de assinatura */
 }
+
+/* =============================================== */
+/* --- ANIMAÇÃO DE SUCESSO (CHECKMARK) --- */
+/* =============================================== */
+
+.success-checkmark {
+  width: 80px;
+  height: 80px;
+  margin: 20px auto;
+}
+
+.check-icon {
+  width: 80px;
+  height: 80px;
+  position: relative;
+  border-radius: 50%;
+  box-sizing: content-box;
+  border: 4px solid var(--accent-green);
+  animation: fill-circle 0.4s ease-in-out 0.4s forwards;
+}
+
+.check-icon::before,
+.check-icon::after {
+  content: "";
+  position: absolute;
+  background: var(--accent-green);
+  border-radius: 2px;
+  transform-origin: left top;
+}
+
+.check-icon::before {
+  top: 40px;
+  left: 23px;
+  width: 0;
+  height: 4px;
+  transform: rotate(45deg);
+  animation: draw-check-left 0.2s ease-in-out 0.8s forwards;
+}
+
+.check-icon::after {
+  top: 54px;
+  left: 38px;
+  width: 0;
+  height: 4px;
+  transform: rotate(-45deg);
+  animation: draw-check-right 0.2s ease-in-out 1s forwards;
+}
+
+@keyframes fill-circle {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes draw-check-left {
+  to {
+    width: 25px;
+  }
+}
+@keyframes draw-check-right {
+  to {
+    width: 40px;
+  }
+}
