@@ -378,7 +378,7 @@ async function addHistoryEntry(
         );
       } catch (e) {
         console.error(
-          "Supabase: Falha ao gravar no histórico (non-blocking):",
+          "Supabase: Falha ao gravar no histórico (non-blocking)",
           e.message || e
         );
         console.log(
@@ -532,7 +532,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:E`, // Assumindo que os dados começam na linha 2
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:E`,
     });
     const implantacoes = (response.data.values || []).map((row) => ({
       nome: row[0],
@@ -675,7 +675,7 @@ app.post("/api/update", verifyToken, async (req, res) => {
     let unitFullName = unitName || null;
     if (supabase) {
       try {
-        const { data: implData } = await supabase
+        const { data: implData, error: implDataError } = await supabase
           .from("implantacoes")
           .select("id")
           .eq("nome", implantacao)
@@ -786,7 +786,7 @@ app.post("/api/update", verifyToken, async (req, res) => {
         supabaseOk = true;
       } catch (e) {
         console.error(
-          "Supabase: erro ao persistir reserva (update):",
+          "Supabase: erro ao persistir reserva (update)",
           e.message || e
         );
         supabaseOk = false;
@@ -798,37 +798,33 @@ app.post("/api/update", verifyToken, async (req, res) => {
       res.json({ success: true, message: `Reserva e funil atualizados.` });
 
       // Tenta sincronizar com o Sheets em background (best-effort)
-      sheets.spreadsheets.values
-        .update({
-          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
-          valueInputOption: "USER_ENTERED",
-          resource: { values: [data] },
-        })
-        .catch((e) =>
-          console.warn(
-            "Sync to Sheets (update) failed after Supabase write:",
-            e.message
-          )
-        );
+      (async () => {
+        try {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+            range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+            valueInputOption: "USER_ENTERED",
+            resource: { values: [data] },
+          });
 
-      const funnelRow = [data[0], unitName || "N/A", data[3]];
-      sheets.spreadsheets.values
-        .append({
-          spreadsheetId: SPREADSHEET_ID_FUNIL,
-          range: `${SHEET_NAME_FUNIL}!A:C`,
-          valueInputOption: "USER_ENTERED",
-          insertDataOption: "INSERT_ROWS",
-          resource: { values: [funnelRow] },
-        })
-        .catch((e) =>
-          console.warn(
-            "Sync to Sheets (funnel) failed after Supabase write:",
-            e.message
-          )
-        );
+          await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
 
-      // O restante do código não será executado porque a resposta já foi enviada.
+          const funnelRow = [data[0], unitName || "N/A", data[3]];
+          await sheets.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID_FUNIL,
+            range: `${SHEET_NAME_FUNIL}!A:C`,
+            valueInputOption: "USER_ENTERED",
+            insertDataOption: "INSERT_ROWS",
+            resource: { values: [funnelRow] },
+          });
+        } catch (e) {
+          console.warn(
+            "Sync to Sheets or broadcast failed after Supabase write:",
+            e.message
+          );
+        }
+      })();
+
       return;
     }
 
@@ -839,6 +835,9 @@ app.post("/api/update", verifyToken, async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: { values: [data] },
     });
+
+    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
+
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
       range: `${SHEET_NAME_DADOS}!A:F`,
@@ -996,7 +995,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
         supabaseOk = true;
       } catch (e) {
         console.error(
-          "Supabase: erro ao persistir reserva espontânea:",
+          "Supabase: erro ao persistir reserva espontânea",
           e.message || e
         );
         supabaseOk = false;
@@ -1028,6 +1027,8 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
             resource: { values: [dataToUpdate] },
           });
 
+          await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
+
           const funnelRow = [
             manualData.id || "",
             unitName || "N/A",
@@ -1042,56 +1043,12 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
           });
         } catch (e) {
           console.warn(
-            "Sync to Sheets (spontaneous) failed after Supabase write (non-blocking):",
+            "Sync to Sheets (spontaneous) failed after Supabase write (non-blocking)",
             e.message
           );
         }
       })();
 
-      // Tenta sincronizar com o Sheets em background (best-effort)
-      const dataToUpdate = [
-        manualData.id || "",
-        manualData.cliente,
-        manualData.documento || "",
-        manualData.corretor || "",
-        "", // imobiliaria
-        "RESERVADA",
-      ];
-      sheets.spreadsheets.values
-        .update({
-          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
-          valueInputOption: "USER_ENTERED",
-          resource: { values: [dataToUpdate] },
-        })
-        .catch((e) =>
-          console.warn(
-            "Sync to Sheets (spontaneous update) failed after Supabase write:",
-            e.message
-          )
-        );
-
-      const funnelRow = [
-        manualData.id || "",
-        unitName || "N/A",
-        manualData.corretor || "",
-      ];
-      sheets.spreadsheets.values
-        .append({
-          spreadsheetId: SPREADSHEET_ID_FUNIL,
-          range: `${SHEET_NAME_FUNIL}!A:C`,
-          valueInputOption: "USER_ENTERED",
-          insertDataOption: "INSERT_ROWS",
-          resource: { values: [funnelRow] },
-        })
-        .catch((e) =>
-          console.warn(
-            "Sync to Sheets (spontaneous funnel) failed after Supabase write:",
-            e.message
-          )
-        );
-
-      // O restante do código não será executado porque a resposta já foi enviada.
       return;
     }
 
@@ -1110,6 +1067,15 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: { values: [dataToUpdate] },
     });
+
+    const unidadeInfo = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+    });
+    unitFullName = `${unidadeInfo.data.values[0][0]}`;
+
+    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
+
     const funnelRow = [
       manualData.id || "",
       unitName || "N/A",
@@ -1122,11 +1088,6 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
       insertDataOption: "INSERT_ROWS",
       resource: { values: [funnelRow] },
     });
-    const unidadeInfo = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
-    });
-    unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
     res.json({
       success: true,
@@ -1231,6 +1192,8 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             resource: { values: [emptyUnitData] },
           });
 
+          await broadcastEvent(implantacao, "unitUpdated", { rowIndex: unitRowIndex, unitName: unitFullName });
+
           // Libera o cliente na planilha de DADOS (Funil)
           const allClientsData = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -1250,7 +1213,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           }
         } catch (e) {
           console.warn(
-            "Sync to Sheets failed after Supabase cancel (non-blocking):",
+            "Sync to Sheets failed after Supabase cancel (non-blocking)",
             e.message || e
           );
         }
@@ -1269,6 +1232,8 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
         range: `'${implantacao}'!C${unitRowIndex}:C${unitRowIndex}`,
       });
       unitFullName = `${unidadeInfo.data.values[0][0]}`;
+
+      await broadcastEvent(implantacao, "unitUpdated", { rowIndex: unitRowIndex, unitName: unitFullName });
 
       // Libera o cliente na planilha de DADOS (Funil)
       const allClientsData = await sheets.spreadsheets.values.get({
@@ -1294,7 +1259,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
         success: true,
         message: `Cancelamento efetuado com sucesso${
           !supabaseOk ? " (via fallback)" : ""
-        }.`,
+        }`,
       });
     }
   } catch (error) {
@@ -1372,6 +1337,9 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       null,
       userEmail
     );
+
+    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
+
     res.json({
       success: true,
       message: `Coordenadas atualizadas e histórico registrado para '${unitFullName}'.`,
@@ -1420,6 +1388,8 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       null,
       userEmail
     );
+
+    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
 
     res.json({
       success: true,
@@ -1518,6 +1488,8 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       null,
       userEmail
     );
+
+    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName: unitFullName });
 
     res.json({
       success: true,

@@ -269,13 +269,13 @@ function App() {
       }
     };
 
-    // Adiciona o listener para o evento específico 'unit-updated'
-    eventSource.addEventListener("unit-updated", handleUnitUpdate);
+    // Adiciona o listener para o evento específico 'unitUpdated'
+    eventSource.addEventListener("unitUpdated", handleUnitUpdate);
 
     // Função de limpeza: fecha a conexão SSE quando o componente desmonta
     // ou quando a implantação selecionada muda.
     return () => {
-      eventSource.removeEventListener("unit-updated", handleUnitUpdate);
+      eventSource.removeEventListener("unitUpdated", handleUnitUpdate);
       eventSource.close();
     }; // Roda este efeito sempre que a implantação selecionada mudar
   }, [selectedImplantationName]);

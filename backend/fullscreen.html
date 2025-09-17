@@ -220,7 +220,7 @@ Status: ${status}`;
             setTimeout(connectSse, 5000);
           };
 
-          es.addEventListener("unit-updated", async (ev) => {
+          es.addEventListener("unitUpdated", async (ev) => {
             try {
               const { unitData, rowIndex } = JSON.parse(ev.data);
               console.log("Evento 'unit-updated' recebido:", {
