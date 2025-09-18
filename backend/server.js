@@ -667,6 +667,7 @@ app.get("/api/debug/spreadsheet-meta", async (req, res) => {
 
 app.post("/api/update", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, data, clientName, unitName } = req.body;
+  const userEmail = req.user.email;
   try {
     const sheets = await getSheetsClient();
 
@@ -810,6 +811,16 @@ app.post("/api/update", verifyToken, async (req, res) => {
         supabaseOk = false;
       }
     }
+    // Adiciona ao histórico DEPOIS da operação principal
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitName,
+      "Reservada",
+      clientName,
+      data[3], // Corretor
+      userEmail
+    );
 
     // Se o Supabase funcionou, já podemos responder e fazer o sync com Sheets em background
     if (supabaseOk) {
@@ -902,6 +913,7 @@ app.post("/api/update", verifyToken, async (req, res) => {
 app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, unitName, manualData, hideAvailable } =
     req.body;
+  const userEmail = req.user.email;
   if (!implantacao || !rowIndex || !manualData || !manualData.cliente) {
     return res
       .status(400)
@@ -1040,6 +1052,17 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
         supabaseOk = false;
       }
     }
+
+    // Adiciona ao histórico DEPOIS da operação principal
+    await addHistoryEntry(
+      sheets,
+      implantacao,
+      unitName,
+      "Reservada (Espontânea)",
+      manualData.cliente,
+      manualData.corretor,
+      userEmail
+    );
 
     // Se o Supabase funcionou, já podemos responder e fazer o sync com Sheets em background
     if (supabaseOk) {
@@ -1204,6 +1227,16 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             // Define supabaseOk como false para garantir que o fallback seja executado
             supabaseOk = false;
           }
+          // Adiciona ao histórico DEPOIS da operação principal
+          await addHistoryEntry(
+            sheets,
+            implantacao,
+            unitFullName || `Unidade na linha ${unitRowIndex}`,
+            "Cancelada",
+            clientName,
+            brokerName,
+            userEmail
+          );
 
           // Libera o cliente no Supabase para poder reservar novamente
           if (clientName) {
@@ -1528,6 +1561,42 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: { values: [[newStatus]] },
     });
+
+    // --- ADIÇÃO DA LÓGICA SUPABASE ---
+    if (supabase) {
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", implantacao)
+          .limit(1)
+          .single();
+
+        const implantacao_id = implData ? implData.id : null;
+
+        if (implantacao_id) {
+          // Atualiza a unidade existente com base no implantacao_id e rowIndex
+          const { error: updateError } = await supabase
+            .from("unidades")
+            .update({ situacao: newStatus })
+            .eq("implantacao_id", implantacao_id)
+            .eq("row_index", parseInt(rowIndex, 10));
+
+          if (updateError) {
+            console.error(
+              "Supabase: Erro ao atualizar status da unidade para BLOQUEADA/DISPONÍVEL:",
+              updateError
+            );
+          }
+        }
+      } catch (e) {
+        console.error(
+          "Supabase: Exceção ao tentar bloquear/desbloquear unidade:",
+          e.message || e
+        );
+        // A operação continua mesmo se o Supabase falhar, pois o Sheets é a fonte primária aqui.
+      }
+    }
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,

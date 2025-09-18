@@ -91,6 +91,7 @@ export function ReservationList({
               <th>Bloco</th>
               <th>Status</th>
               <th>Cliente</th>
+              <th>Corretor</th>
               <th>Ação</th>
             </tr>
           </thead>
@@ -101,6 +102,7 @@ export function ReservationList({
                 const isAvailable = status === "disponível";
                 const isReserved = status === "reservada"; // Variável agora será usada
                 const clientName = unitData[6] || "—";
+                const brokerName = unitData[8] || "—";
 
                 return (
                   <tr key={unitData[2] || originalIndex}>
@@ -112,6 +114,7 @@ export function ReservationList({
                       </span>
                     </td>
                     <td>{clientName}</td>
+                    <td>{brokerName}</td>
                     <td>
                       <div className="action-buttons-cell">
                         {/* --- Botão de Histórico (SEMPRE VISÍVEL) --- */}
@@ -172,7 +175,7 @@ export function ReservationList({
               })
             ) : (
               <tr>
-                <td colSpan={5} className="no-results-message">
+                <td colSpan={6} className="no-results-message">
                   Nenhuma unidade encontrada com os filtros aplicados.
                 </td>
               </tr>
