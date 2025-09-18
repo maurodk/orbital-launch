@@ -5,7 +5,7 @@ import { FiSearch, FiLock, FiPrinter, FiClock } from "react-icons/fi";
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
-  onHistoryClick: (unitIndex: number, unitName: string) => void; // <-- MUDANÇA AQUI
+  onHistoryClick: (unitName: string) => void;
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
   onPrintClick: (unitIndex: number) => void; // Prop agora será usada
@@ -122,9 +122,7 @@ export function ReservationList({
                           className="history-button-in-table"
                           title="Ver Histórico da Unidade"
                           // MUDANÇA: Passa o nome da unidade (unitData[2]) para a função
-                          onClick={() =>
-                            onHistoryClick(originalIndex, unitData[2])
-                          }
+                          onClick={() => onHistoryClick(unitData[2])}
                         >
                           <FiClock size={16} />
                         </button>

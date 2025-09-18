@@ -145,7 +145,7 @@ function App() {
   };
 
   // <-- FUNÇÃO ATUALIZADA
-  const handleOpenUnitHistory = (unitIndex: number, unitName: string) => {
+  const handleOpenUnitHistory = (unitName: string) => {
     setSelectedUnitForHistory(unitName); // Armazena o nome da unidade
     setShowHistoryModal(true); // Abre o modal
   };
