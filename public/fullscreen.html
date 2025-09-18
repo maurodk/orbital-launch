@@ -15,6 +15,7 @@
           "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         background: #111;
         color: #fff;
+        overflow: hidden; /* Remove barra de rolagem vertical */
       }
       .topbar {
         padding: 10px 16px;
@@ -96,6 +97,152 @@
       .fullscreen-button:hover {
         background: #444;
       }
+
+      /* Controles de Zoom */
+      .zoom-controls {
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .zoom-controls.visible {
+        opacity: 1;
+      }
+
+      .zoom-button {
+        background: rgba(0, 0, 0, 0.8);
+        border: 1px solid #555;
+        color: #fff;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: bold;
+        transition: all 0.2s ease;
+        backdrop-filter: blur(10px);
+      }
+
+      .zoom-button:hover {
+        background: rgba(0, 0, 0, 0.9);
+        border-color: #777;
+        transform: scale(1.05);
+      }
+
+      .zoom-button:active {
+        transform: scale(0.95);
+      }
+
+      .zoom-reset {
+        background: rgba(46, 213, 115, 0.2);
+        border-color: #2ed573;
+        font-size: 14px;
+      }
+
+      .zoom-reset:hover {
+        background: rgba(46, 213, 115, 0.3);
+      }
+
+      /* Container da imagem com zoom */
+      .floor-plan-container {
+        position: relative;
+        max-width: 100%;
+        max-height: 100%;
+        transform-origin: center center;
+        transition: transform 0.3s ease;
+        cursor: grab;
+      }
+
+      .floor-plan-container.dragging {
+        cursor: grabbing;
+      }
+
+      .floor-plan-container.zoomed {
+        cursor: grab;
+      }
+
+      /* Indicador de zoom */
+      .zoom-indicator {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid #333;
+        z-index: 1000;
+      }
+
+      .zoom-indicator.visible {
+        opacity: 1;
+      }
+
+      /* Instruções de uso */
+      .zoom-instructions {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: #ccc;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid #333;
+        z-index: 1000;
+        text-align: center;
+        max-width: 300px;
+      }
+
+      .zoom-instructions.visible {
+        opacity: 1;
+      }
+
+      /* Responsividade para mobile */
+      @media (max-width: 768px) {
+        .zoom-controls {
+          top: 60px;
+          right: 10px;
+        }
+
+        .zoom-button {
+          width: 36px;
+          height: 36px;
+          font-size: 16px;
+        }
+
+        .zoom-indicator {
+          top: 15px;
+          font-size: 12px;
+          padding: 6px 12px;
+        }
+
+        .zoom-instructions {
+          bottom: 15px;
+          font-size: 11px;
+          padding: 10px 15px;
+          max-width: 250px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -129,6 +276,49 @@
       <!-- A imagem e os pontos serão inseridos aqui via script -->
     </div>
 
+    <!-- Controles de Zoom -->
+    <div class="zoom-controls" id="zoom-controls">
+      <button
+        class="zoom-button"
+        id="zoom-in"
+        title="Zoom In (+)"
+        data-action="zoom-in"
+      >
+        +
+      </button>
+      <button
+        class="zoom-button"
+        id="zoom-out"
+        title="Zoom Out (-)"
+        data-action="zoom-out"
+      >
+        −
+      </button>
+      <button
+        class="zoom-button zoom-reset"
+        id="zoom-reset"
+        title="Reset Zoom"
+        data-action="zoom-reset"
+      >
+        ⌂
+      </button>
+    </div>
+
+    <!-- Indicador de Zoom -->
+    <div class="zoom-indicator" id="zoom-indicator">
+      Zoom: <span id="zoom-level">100%</span>
+    </div>
+
+    <!-- Instruções de Uso -->
+    <div class="zoom-instructions" id="zoom-instructions">
+      <div>
+        🖱️ <strong>Mouse:</strong> Scroll para zoom | Arrastar para mover
+      </div>
+      <div>
+        📱 <strong>Touch:</strong> Pinch para zoom | Toque e arraste para mover
+      </div>
+    </div>
+
     <script>
       // IIFE para encapsular a lógica e evitar poluir o escopo global
       (function () {
@@ -139,6 +329,19 @@
           "empreendimento-title"
         );
         const fullscreenBtn = document.getElementById("fullscreen-btn");
+
+        // Elementos de zoom
+        const zoomControls = document.getElementById("zoom-controls");
+        const zoomIndicator = document.getElementById("zoom-indicator");
+        const zoomLevel = document.getElementById("zoom-level");
+        const zoomInstructions = document.getElementById("zoom-instructions");
+
+        // Variáveis de zoom
+        let currentZoom = 1;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let currentTranslate = { x: 0, y: 0 };
+        let container = null;
 
         const urlParams = new URLSearchParams(location.search);
         const implantacao = urlParams.get("implantacao");
@@ -172,6 +375,135 @@
           }
         }
 
+        // Funções de Zoom e Arrastar
+        function updateZoomDisplay() {
+          zoomLevel.textContent = Math.round(currentZoom * 100) + "%";
+          if (currentZoom > 1) {
+            zoomIndicator.classList.add("visible");
+            zoomControls.classList.add("visible");
+            zoomInstructions.classList.add("visible");
+          } else {
+            zoomIndicator.classList.remove("visible");
+            zoomControls.classList.remove("visible");
+            zoomInstructions.classList.remove("visible");
+          }
+        }
+
+        function applyTransform() {
+          if (!container) return;
+          container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
+          container.classList.toggle("zoomed", currentZoom > 1);
+        }
+
+        function zoomIn() {
+          currentZoom = Math.min(currentZoom * 1.2, 5);
+          updateZoomDisplay();
+          applyTransform();
+        }
+
+        function zoomOut() {
+          currentZoom = Math.max(currentZoom / 1.2, 0.5);
+          updateZoomDisplay();
+          applyTransform();
+        }
+
+        function resetZoom() {
+          currentZoom = 1;
+          currentTranslate = { x: 0, y: 0 };
+          updateZoomDisplay();
+          applyTransform();
+        }
+
+        function handleWheel(e) {
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? 0.9 : 1.1;
+          currentZoom = Math.max(0.5, Math.min(5, currentZoom * delta));
+          updateZoomDisplay();
+          applyTransform();
+        }
+
+        function handleMouseDown(e) {
+          if (currentZoom <= 1) return;
+          isDragging = true;
+          dragStart = {
+            x: e.clientX - currentTranslate.x,
+            y: e.clientY - currentTranslate.y,
+          };
+          container.classList.add("dragging");
+          e.preventDefault();
+        }
+
+        function handleMouseMove(e) {
+          if (!isDragging || currentZoom <= 1) return;
+          currentTranslate.x = e.clientX - dragStart.x;
+          currentTranslate.y = e.clientY - dragStart.y;
+          applyTransform();
+        }
+
+        function handleMouseUp() {
+          isDragging = false;
+          if (container) container.classList.remove("dragging");
+        }
+
+        function handleTouchStart(e) {
+          if (e.touches.length === 1 && currentZoom > 1) {
+            isDragging = true;
+            dragStart = {
+              x: e.touches[0].clientX - currentTranslate.x,
+              y: e.touches[0].clientY - currentTranslate.y,
+            };
+            container.classList.add("dragging");
+          }
+        }
+
+        function handleTouchMove(e) {
+          if (e.touches.length === 1 && isDragging && currentZoom > 1) {
+            e.preventDefault();
+            currentTranslate.x = e.touches[0].clientX - dragStart.x;
+            currentTranslate.y = e.touches[0].clientY - dragStart.y;
+            applyTransform();
+          }
+        }
+
+        function handleTouchEnd() {
+          isDragging = false;
+          if (container) container.classList.remove("dragging");
+        }
+
+        function setupZoomControls() {
+          // Event listeners para botões de zoom
+          document.getElementById("zoom-in").addEventListener("click", zoomIn);
+          document
+            .getElementById("zoom-out")
+            .addEventListener("click", zoomOut);
+          document
+            .getElementById("zoom-reset")
+            .addEventListener("click", resetZoom);
+
+          // Event listeners para mouse
+          document.addEventListener("wheel", handleWheel, { passive: false });
+          document.addEventListener("mousedown", handleMouseDown);
+          document.addEventListener("mousemove", handleMouseMove);
+          document.addEventListener("mouseup", handleMouseUp);
+
+          // Event listeners para touch
+          document.addEventListener("touchstart", handleTouchStart, {
+            passive: false,
+          });
+          document.addEventListener("touchmove", handleTouchMove, {
+            passive: false,
+          });
+          document.addEventListener("touchend", handleTouchEnd);
+
+          // Mostrar controles após 3 segundos
+          setTimeout(() => {
+            zoomControls.classList.add("visible");
+            setTimeout(() => {
+              zoomControls.classList.remove("visible");
+            }, 5000);
+          }, 3000);
+        }
+
         // Função para renderizar as unidades na tela
         function render(data) {
           const { unidades, imageUrl, dotSize } = data;
@@ -187,7 +519,7 @@
           }
 
           // Cria um contêiner para a imagem e os pontos, para manter a proporção
-          const container = document.createElement("div");
+          container = document.createElement("div");
           container.className = "floor-plan-container";
 
           const img = document.createElement("img");
@@ -199,6 +531,9 @@
 
           // Adiciona o contêiner principal ao wrapper da página
           wrapper.appendChild(container);
+
+          // Inicializa os controles de zoom
+          setupZoomControls();
 
           // Pula o cabeçalho se a primeira linha parecer um
           const rows =
@@ -275,7 +610,6 @@ Status: ${status}`;
 
         // Nova função para atualizar uma única unidade
         function updateSingleUnit(unitData, rowIndex) {
-          const container = document.querySelector(".floor-plan-container");
           if (!container) return;
 
           // O índice do array é rowIndex - 2
@@ -337,6 +671,31 @@ Status: ${status}`;
             if (document.exitFullscreen) {
               document.exitFullscreen();
             }
+          }
+        });
+
+        // Detectar mudanças no modo tela cheia
+        document.addEventListener("fullscreenchange", () => {
+          if (document.fullscreenElement) {
+            // Entrou em tela cheia - mostrar controles de zoom
+            zoomControls.classList.add("visible");
+            zoomInstructions.classList.add("visible");
+            fullscreenBtn.innerHTML = `
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+              </svg>
+            `;
+            fullscreenBtn.title = "Sair da Tela Cheia";
+          } else {
+            // Saiu da tela cheia - ocultar controles de zoom
+            zoomControls.classList.remove("visible");
+            zoomInstructions.classList.remove("visible");
+            fullscreenBtn.innerHTML = `
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+              </svg>
+            `;
+            fullscreenBtn.title = "Ativar Tela Cheia";
           }
         });
       })();

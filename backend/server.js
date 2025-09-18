@@ -69,6 +69,25 @@ app.use(express.json());
 // ==========================================================
 const sseClients = new Map(); // chave: implantacao, valor: Set de response objects
 
+// ==========================================================
+// Sistema de Reservas Temporárias
+// ==========================================================
+const tempReservations = new Map(); // chave: "implantacao_rowIndex", valor: { token, userEmail, unitName, timestamp, expiresAt }
+
+// Função para limpar reservas expiradas
+function cleanupExpiredReservations() {
+  const now = Date.now();
+  for (const [key, reservation] of tempReservations.entries()) {
+    if (now > reservation.expiresAt) {
+      tempReservations.delete(key);
+      console.log(`[CLEANUP] Reserva temporária expirada removida: ${key}`);
+    }
+  }
+}
+
+// Limpa reservas expiradas a cada 30 segundos
+setInterval(cleanupExpiredReservations, 30000);
+
 function addSseClient(implantacao, res) {
   if (!sseClients.has(implantacao)) sseClients.set(implantacao, new Set());
   sseClients.get(implantacao).add(res);
@@ -604,14 +623,7 @@ app.get("/api/events", (req, res) => {
 
 // Serve a página fullscreen estática
 app.get("/fullscreen", (req, res) => {
-  // MUDANÇA: Aponta para a pasta 'public' na raiz do projeto, um nível acima de __dirname
-  const publicPath = require("path").resolve(
-    __dirname,
-    "..",
-    "public",
-    "fullscreen.html"
-  );
-  res.sendFile(publicPath);
+  res.sendFile(require("path").resolve(__dirname, "../public/fullscreen.html"));
 });
 
 // Rota útil: redireciona para a fullscreen da implantação atual definida em Config
@@ -672,9 +684,17 @@ app.get("/api/debug/spreadsheet-meta", async (req, res) => {
   }
 });
 
-app.post("/api/update", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, data, clientName, unitName } = req.body;
+// Endpoint para criar uma reserva temporária (lock)
+app.post("/api/reserve-temp", verifyToken, async (req, res) => {
+  const { implantacao, rowIndex, unitName, reservationToken } = req.body;
   const userEmail = req.user.email;
+
+  if (!implantacao || !rowIndex || !reservationToken) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para reserva temporária." });
+  }
+
   try {
     const sheets = await getSheetsClient();
 
@@ -693,6 +713,99 @@ app.post("/api/update", verifyToken, async (req, res) => {
         error: `Esta unidade não está mais disponível. Status atual: ${
           unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
         }.`,
+        code: "UNIT_NOT_AVAILABLE",
+      });
+    }
+
+    // Marca a unidade como "RESERVANDO" temporariamente
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!K${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [["RESERVANDO"]] },
+    });
+
+    // Armazena o token de reserva temporária (em memória por 30 segundos)
+    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    tempReservations.set(tempReservationKey, {
+      token: reservationToken,
+      userEmail,
+      unitName,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + 30000, // 30 segundos
+    });
+
+    // Limpa reservas expiradas
+    cleanupExpiredReservations();
+
+    res.json({
+      success: true,
+      message: "Reserva temporária criada com sucesso.",
+      reservationToken,
+      expiresIn: 30000,
+    });
+  } catch (error) {
+    console.error("Erro ao criar reserva temporária:", error);
+    res.status(500).json({ error: "Falha ao criar reserva temporária." });
+  }
+});
+
+// Endpoint para confirmar a reserva definitiva
+app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
+  const {
+    implantacao,
+    rowIndex,
+    data,
+    clientName,
+    unitName,
+    reservationToken,
+  } = req.body;
+  const userEmail = req.user.email;
+
+  if (!implantacao || !rowIndex || !reservationToken) {
+    return res.status(400).json({ error: "Token de reserva é obrigatório." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // Verifica se a reserva temporária ainda é válida
+    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const tempReservation = tempReservations.get(tempReservationKey);
+
+    if (!tempReservation || tempReservation.token !== reservationToken) {
+      return res.status(409).json({
+        error: "Reserva temporária expirada ou inválida. Tente novamente.",
+        code: "TEMP_RESERVATION_EXPIRED",
+      });
+    }
+
+    if (tempReservation.userEmail !== userEmail) {
+      return res.status(403).json({
+        error: "Você não tem permissão para confirmar esta reserva.",
+        code: "UNAUTHORIZED_CONFIRMATION",
+      });
+    }
+
+    // Remove a reserva temporária
+    tempReservations.delete(tempReservationKey);
+
+    // Verifica novamente se a unidade ainda está disponível
+    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckResult = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitCheckRange,
+    });
+
+    const currentStatus =
+      unitCheckResult.data.values?.[0]?.[0]?.toUpperCase() || "DISPONÍVEL";
+
+    if (currentStatus !== "RESERVANDO" && currentStatus !== "DISPONÍVEL") {
+      return res.status(409).json({
+        error: `Esta unidade não está mais disponível. Status atual: ${
+          unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
+        }.`,
+        code: "UNIT_NOT_AVAILABLE",
       });
     }
 
@@ -913,6 +1026,63 @@ app.post("/api/update", verifyToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Falha ao processar a reserva." });
+  }
+});
+
+// Endpoint para cancelar uma reserva temporária
+app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
+  const { implantacao, rowIndex, reservationToken } = req.body;
+  const userEmail = req.user.email;
+
+  if (!implantacao || !rowIndex || !reservationToken) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para cancelar reserva temporária." });
+  }
+
+  try {
+    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const tempReservation = tempReservations.get(tempReservationKey);
+
+    if (!tempReservation || tempReservation.token !== reservationToken) {
+      return res.status(404).json({
+        error: "Reserva temporária não encontrada ou já expirada.",
+        code: "TEMP_RESERVATION_NOT_FOUND",
+      });
+    }
+
+    if (tempReservation.userEmail !== userEmail) {
+      return res.status(403).json({
+        error: "Você não tem permissão para cancelar esta reserva.",
+        code: "UNAUTHORIZED_CANCELLATION",
+      });
+    }
+
+    // Remove a reserva temporária
+    tempReservations.delete(tempReservationKey);
+
+    // Restaura o status da unidade para DISPONÍVEL
+    const sheets = await getSheetsClient();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!K${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [["DISPONÍVEL"]] },
+    });
+
+    // Notifica outros clientes sobre a mudança
+    await broadcastEvent(implantacao, "unitUpdated", {
+      rowIndex,
+      unitName: tempReservation.unitName,
+    });
+
+    res.json({
+      success: true,
+      message: "Reserva temporária cancelada com sucesso.",
+    });
+  } catch (error) {
+    console.error("Erro ao cancelar reserva temporária:", error);
+    res.status(500).json({ error: "Falha ao cancelar reserva temporária." });
   }
 });
 

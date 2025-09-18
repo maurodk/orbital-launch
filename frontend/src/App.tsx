@@ -24,6 +24,7 @@ import { IdleTimeoutModal } from "../components/IdleTimeoutModal"; // Importe o 
 import { VerifyingModal } from "../components/VerifyingModal";
 import { ReservationFailedModal } from "../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../components/ReservationSuccessModal";
+import { useReservationManager } from "./hooks/useReservationManager";
 const API_URL = "https://simulador-implantacao.onrender.com"; // URL da API, ajuste conforme necessário
 const localApiUrl = "http://localhost:3001"; // URL do seu backend local
 const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
@@ -117,6 +118,9 @@ function App() {
   const [reservationFailedMessage, setReservationFailedMessage] = useState("");
   const [isReservationSuccessModalOpen, setIsReservationSuccessModalOpen] =
     useState(false);
+
+  // Hook para gerenciar reservas temporárias
+  const reservationManager = useReservationManager(apiUrl);
 
   // --- CORREÇÃO FINAL APLICADA AQUI, SEGUINDO O MANUAL ATUAL ---
   const handlePrint = useReactToPrint({
@@ -500,6 +504,7 @@ function App() {
       clientData = clientes.find((c) => c[0] === selectedClientIdOrManualData);
       if (!clientData) {
         console.error("Dados do cliente não encontrados!");
+        setIsVerifyingModalOpen(false);
         return;
       }
     } else {
@@ -509,40 +514,69 @@ function App() {
     const unitName = unidades[selectedUnitIndex][2];
     const sheetRowIndex = selectedUnitIndex + 2;
 
-    // 2. Adiciona o delay de 5 segundos
-    setTimeout(async () => {
-      try {
-        // 3. Tenta fazer a reserva no backend
-        if (clientData) {
-          const dataToBackend = [
-            clientData[0],
-            clientData[1],
-            clientData[2],
-            clientData[3],
-            clientData[4] || "",
-            "RESERVADA",
-          ];
-          await axios.post(`${apiUrl}/api/update`, {
-            implantacao: selectedImplantationName,
-            rowIndex: sheetRowIndex,
-            data: dataToBackend,
-            clientName: clientData[1],
-            unitName,
-            hideAvailable,
-          });
-        } else if (manualData) {
-          await axios.post(`${apiUrl}/api/spontaneous-update`, {
-            rowIndex: sheetRowIndex,
-            implantacao: selectedImplantationName,
-            unitName,
-            manualData,
-            hideAvailable,
-          });
-        }
+    try {
+      // 2. Cria uma reserva temporária (lock)
+      const tempReservationResult =
+        await reservationManager.createTempReservation(
+          selectedImplantationName,
+          sheetRowIndex,
+          unitName
+        );
 
-        // 4. Se a reserva foi bem-sucedida (sem erro 409), atualiza o estado local
-        // e abre o modal de sucesso.
-        setIsVerifyingModalOpen(false); // Fecha o de verificação primeiro
+      if (!tempReservationResult.success || !tempReservationResult.token) {
+        // Se falhou ao criar reserva temporária, mostra erro
+        setReservationFailedMessage(
+          reservationManager.reservationState.error ||
+            "Erro ao criar reserva temporária. Tente novamente."
+        );
+        setIsReservationFailedModalOpen(true);
+        setIsVerifyingModalOpen(false);
+        return;
+      }
+
+      // 3. Aguarda um tempo para o usuário ver o modal de verificação
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // 4. Confirma a reserva definitiva
+      let dataToBackend: string[];
+      let clientName: string;
+
+      if (clientData) {
+        dataToBackend = [
+          clientData[0],
+          clientData[1],
+          clientData[2],
+          clientData[3],
+          clientData[4] || "",
+          "RESERVADA",
+        ];
+        clientName = clientData[1];
+      } else if (manualData) {
+        dataToBackend = [
+          manualData.id,
+          manualData.cliente,
+          manualData.documento,
+          manualData.corretor,
+          "",
+          "RESERVADA",
+        ];
+        clientName = manualData.cliente;
+      } else {
+        throw new Error("Dados do cliente não encontrados");
+      }
+
+      const confirmSuccess = await reservationManager.confirmReservation(
+        selectedImplantationName,
+        sheetRowIndex,
+        dataToBackend,
+        clientName,
+        unitName,
+        tempReservationResult.token!
+      );
+
+      if (confirmSuccess) {
+        // 5. Se a reserva foi bem-sucedida, atualiza o estado local
+        setIsVerifyingModalOpen(false);
         setIsReservationSuccessModalOpen(true);
         setUnidades(
           unidades.map((unidade, index) => {
@@ -570,23 +604,36 @@ function App() {
         );
 
         await fetchHistory(selectedImplantationName);
-      } catch (err: any) {
-        // 5. Se a reserva falhou (ex: unidade já reservada)
-        if (err.response && err.response.status === 409) {
-          setReservationFailedMessage(err.response.data.error);
-          setIsReservationFailedModalOpen(true);
-        } else {
-          setError("Falha ao salvar a reserva na planilha.");
-          console.error(err);
-        }
-        // Recarrega os dados para garantir que o frontend está sincronizado
+      } else {
+        // 6. Se a confirmação falhou, mostra erro
+        setReservationFailedMessage(
+          reservationManager.reservationState.error ||
+            "Erro ao confirmar reserva. Tente novamente."
+        );
+        setIsReservationFailedModalOpen(true);
+        setIsVerifyingModalOpen(false);
+
+        // Recarrega os dados para garantir sincronização
         await fetchUnitData(selectedImplantationName);
-      } finally {
-        // 6. Fecha o modal de verificação em qualquer caso
-        // Movido para dentro do bloco try/catch para uma melhor experiência
-        if (isVerifyingModalOpen) setIsVerifyingModalOpen(false);
       }
-    }, 5000); // Delay de 5 segundos
+    } catch (error: any) {
+      console.error("Erro durante o processo de reserva:", error);
+
+      // Cancela a reserva temporária se existir
+      await reservationManager.cancelTempReservation(
+        selectedImplantationName,
+        sheetRowIndex
+      );
+
+      setReservationFailedMessage(
+        "Erro inesperado durante a reserva. Tente novamente."
+      );
+      setIsReservationFailedModalOpen(true);
+      setIsVerifyingModalOpen(false);
+
+      // Recarrega os dados
+      await fetchUnitData(selectedImplantationName);
+    }
   };
 
   const handleReserve = (data: string | ManualData) => {
@@ -930,7 +977,10 @@ function App() {
                 onContinue={resetIdleTimer} // "Continuar" simplesmente reinicia o cronômetro
                 onLogout={handleLogout} // "Sair" chama a função de deslogar
               />
-              <VerifyingModal show={isVerifyingModalOpen} />
+              <VerifyingModal
+                show={isVerifyingModalOpen}
+                reservationState={reservationManager.reservationState}
+              />
               <ReservationFailedModal
                 show={isReservationFailedModalOpen}
                 onClose={() => setIsReservationFailedModalOpen(false)}

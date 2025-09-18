@@ -1,0 +1,236 @@
+/* VerifyingModal.css - Estilos para o modal de verificação de reserva */
+
+.verifying-modal-overlay {
+  backdrop-filter: blur(8px) !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+}
+
+.verifying-modal-content {
+  max-width: 450px !important;
+  padding: 40px 30px !important;
+  text-align: center !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.verifying-modal-content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent-green),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+.verifying-header {
+  margin-bottom: 30px;
+}
+
+.verifying-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  margin: 0 auto 20px;
+  color: white;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.verifying-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.progress-container {
+  margin: 30px 0;
+  position: relative;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-dark-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-green), #2ed573);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: progressShimmer 1.5s infinite;
+}
+
+.progress-text {
+  position: absolute;
+  top: -25px;
+  right: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-green);
+}
+
+.current-step {
+  margin: 25px 0;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: 500;
+}
+
+.reservation-info {
+  margin: 25px 0;
+}
+
+.success-info,
+.error-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item,
+.error-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: var(--bg-dark-tertiary);
+  border: 1px solid var(--bg-dark-tertiary);
+}
+
+.info-icon,
+.error-icon {
+  font-size: 1.2rem;
+}
+
+.info-text {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.error-message {
+  background: rgba(255, 71, 87, 0.1) !important;
+  border-color: rgba(255, 71, 87, 0.3) !important;
+}
+
+.error-text {
+  color: #ff4757;
+  font-weight: 500;
+}
+
+.user-tips {
+  margin-top: 25px;
+  padding: 15px;
+  background: rgba(46, 213, 115, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(46, 213, 115, 0.2);
+}
+
+.tip-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Animações */
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes progressShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+  .verifying-modal-content {
+    margin: 20px !important;
+    padding: 30px 20px !important;
+  }
+
+  .verifying-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 2rem;
+  }
+
+  .verifying-title {
+    font-size: 1.3rem;
+  }
+}
