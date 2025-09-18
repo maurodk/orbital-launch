@@ -604,7 +604,14 @@ app.get("/api/events", (req, res) => {
 
 // Serve a página fullscreen estática
 app.get("/fullscreen", (req, res) => {
-  res.sendFile(require("path").resolve(__dirname, "fullscreen.html"));
+  // MUDANÇA: Aponta para a pasta 'public' na raiz do projeto, um nível acima de __dirname
+  const publicPath = require("path").resolve(
+    __dirname,
+    "..",
+    "public",
+    "fullscreen.html"
+  );
+  res.sendFile(publicPath);
 });
 
 // Rota útil: redireciona para a fullscreen da implantação atual definida em Config
@@ -1678,8 +1685,5 @@ app.get("/api/history/:implantacao", verifyToken, async (req, res) => {
 });
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 3001;
-  app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-}
-module.exports = app;
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
