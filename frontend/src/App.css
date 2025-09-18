@@ -1087,6 +1087,11 @@ h1 {
   color: var(--text-secondary);
 }
 
+/* Aumenta a largura máxima especificamente para o modal de histórico */
+.history-modal-content {
+  max-width: 900px;
+}
+
 /* frontend/src/App.css */
 
 .login-container {

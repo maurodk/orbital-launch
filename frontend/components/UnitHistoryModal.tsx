@@ -1,30 +1,40 @@
 // frontend/src/components/UnitHistoryModal.tsx
 
+import { useMemo } from "react";
+
 interface UnitHistoryModalProps {
   show: boolean;
   onClose: () => void;
-  unitData: string[] | null;
-  historyForUnit: string[][];
+  unitName: string | null; // <-- MUDANÇA: Recebe o nome da unidade para filtrar
+  fullHistory: string[][]; // <-- MUDANÇA: Recebe o histórico completo
 }
 
 export function UnitHistoryModal({
   show,
   onClose,
-  unitData,
-  historyForUnit,
+  unitName,
+  fullHistory,
 }: UnitHistoryModalProps) {
-  if (!show || !unitData) return null;
+  // Filtra o histórico para mostrar apenas as entradas da unidade selecionada
+  const historyForUnit = useMemo(() => {
+    if (!unitName) return [];
+    // A coluna 2 (índice 2) no histórico contém o nome da unidade
+    return fullHistory.filter((entry) => entry[2] === unitName);
+  }, [fullHistory, unitName]);
 
-  const unitFullName = `${unitData[2]}`;
+  if (!show || !unitName) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content history-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button className="modal-close-button" onClick={onClose}>
           ×
         </button>
         <h2>
-          Histórico da Unidade: <strong>{unitFullName}</strong>
+          Histórico da Unidade: <strong>{unitName}</strong>
         </h2>
 
         <div className="history-modal-body">

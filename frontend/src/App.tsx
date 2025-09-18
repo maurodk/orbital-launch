@@ -105,8 +105,10 @@ function App() {
   );
   const printComponentRef = useRef<HTMLDivElement>(null);
   const [history, setHistory] = useState<string[][]>([]); // Para o histórico geral
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [unitForHistory, setUnitForHistory] = useState<string[] | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false); // Renomeado para clareza
+  const [selectedUnitForHistory, setSelectedUnitForHistory] = useState<
+    string | null
+  >(null); // <-- NOVO ESTADO
   const [isIdleModalOpen, setIsIdleModalOpen] = useState(false);
   const [isVerifyingModalOpen, setIsVerifyingModalOpen] = useState(false);
   const [isReservationFailedModalOpen, setIsReservationFailedModalOpen] =
@@ -142,12 +144,10 @@ function App() {
     }
   };
 
-  const handleOpenUnitHistory = (unitIndex: number) => {
-    const unitData = unidades[unitIndex];
-    if (unitData) {
-      setUnitForHistory(unitData);
-      setIsHistoryModalOpen(true);
-    }
+  // <-- FUNÇÃO ATUALIZADA
+  const handleOpenUnitHistory = (unitIndex: number, unitName: string) => {
+    setSelectedUnitForHistory(unitName); // Armazena o nome da unidade
+    setShowHistoryModal(true); // Abre o modal
   };
 
   // ... (o resto do componente, que já está correto, continua abaixo)
@@ -905,15 +905,12 @@ function App() {
                 )
               }
             />
+            {/* CHAMADA DO MODAL CORRIGIDA */}
             <UnitHistoryModal
-              show={isHistoryModalOpen}
-              onClose={() => setIsHistoryModalOpen(false)}
-              unitData={unitForHistory}
-              historyForUnit={history.filter(
-                (entry) =>
-                  unitForHistory &&
-                  entry[2] === `${unitForHistory[1]} - ${unitForHistory[2]}`
-              )}
+              show={showHistoryModal}
+              onClose={() => setShowHistoryModal(false)}
+              unitName={selectedUnitForHistory}
+              fullHistory={history}
             />
             <IdleTimeoutModal
               show={isIdleModalOpen}
