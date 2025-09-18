@@ -24,6 +24,12 @@
         align-items: center;
         gap: 16px;
         border-bottom: 1px solid #333;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .topbar.hidden {
+        opacity: 0;
+        transform: translateY(-100%);
+        pointer-events: none;
       }
       .title {
         font-size: 18px;
@@ -42,6 +48,13 @@
         justify-content: center;
         align-items: center;
         background-color: #1a1a1a;
+        transition: height 0.3s ease;
+        margin: 0;
+        padding: 0;
+      }
+      .floor-plan-wrapper.fullscreen {
+        height: 100vh; /* Altura total da tela quando topbar está oculto */
+        background-color: #111; /* Mesma cor do body para evitar área preta */
       }
       .floor-plan-container {
         position: relative;
@@ -54,6 +67,17 @@
         height: auto;
         object-fit: contain;
         opacity: 0.9;
+        transition: all 0.3s ease;
+      }
+
+      .floor-plan-image.fullscreen-mode {
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 10;
       }
       .unit-indicator {
         position: absolute;
@@ -65,6 +89,12 @@
         box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
         transition: transform 0.2s ease, background-color 0.3s ease;
         cursor: help;
+        z-index: 11; /* Garantir que os pontos fiquem acima da imagem */
+      }
+
+      .unit-indicator.fullscreen-mode {
+        position: fixed; /* Mesmo posicionamento da imagem */
+        z-index: 12; /* Acima da imagem em fullscreen */
       }
       .status-RESERVADA {
         background: #d9534f;
@@ -155,11 +185,14 @@
       /* Container da imagem com zoom */
       .floor-plan-container {
         position: relative;
-        max-width: 100%;
-        max-height: 100%;
+        width: 100%;
+        height: 100%;
         transform-origin: center center;
         transition: transform 0.3s ease;
         cursor: grab;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .floor-plan-container.dragging {
@@ -168,6 +201,15 @@
 
       .floor-plan-container.zoomed {
         cursor: grab;
+      }
+
+      .floor-plan-container.fullscreen-mode {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 10;
       }
 
       /* Indicador de zoom */
@@ -698,6 +740,75 @@ Status: ${status}`;
             fullscreenBtn.title = "Ativar Tela Cheia";
           }
         });
+
+        // Lógica de auto-ocultação do header
+        const topbar = document.querySelector(".topbar");
+        let hideTimeout;
+        const HIDE_DELAY = 5000; // 5 segundos de inatividade
+
+        function showTopbar() {
+          topbar.classList.remove("hidden");
+          wrapper.classList.remove("fullscreen");
+
+          // Remover modo fullscreen da imagem, container e pontos
+          if (container) {
+            container.classList.remove("fullscreen-mode");
+          }
+          const img = document.querySelector(".floor-plan-image");
+          if (img) {
+            img.classList.remove("fullscreen-mode");
+          }
+          // Remover fullscreen-mode de todos os pontos
+          const indicators = document.querySelectorAll(".unit-indicator");
+          indicators.forEach((indicator) => {
+            indicator.classList.remove("fullscreen-mode");
+          });
+        }
+
+        function hideTopbar() {
+          topbar.classList.add("hidden");
+          wrapper.classList.add("fullscreen");
+
+          // Aplicar modo fullscreen à imagem, container e pontos
+          if (container) {
+            container.classList.add("fullscreen-mode");
+          }
+          const img = document.querySelector(".floor-plan-image");
+          if (img) {
+            img.classList.add("fullscreen-mode");
+          }
+          // Aplicar fullscreen-mode a todos os pontos
+          const indicators = document.querySelectorAll(".unit-indicator");
+          indicators.forEach((indicator) => {
+            indicator.classList.add("fullscreen-mode");
+          });
+        }
+
+        function resetHideTimer() {
+          clearTimeout(hideTimeout);
+          showTopbar();
+          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
+        }
+
+        // Event listeners para detectar atividade do usuário
+        document.addEventListener("mousemove", resetHideTimer);
+        document.addEventListener("mousedown", resetHideTimer);
+        document.addEventListener("keydown", resetHideTimer);
+        document.addEventListener("touchstart", resetHideTimer);
+        document.addEventListener("touchmove", resetHideTimer);
+
+        // Mostrar header ao passar o mouse sobre a área do header
+        topbar.addEventListener("mouseenter", () => {
+          clearTimeout(hideTimeout);
+          showTopbar();
+        });
+
+        topbar.addEventListener("mouseleave", () => {
+          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
+        });
+
+        // Iniciar o timer de ocultação automática
+        resetHideTimer();
       })();
     </script>
   </body>

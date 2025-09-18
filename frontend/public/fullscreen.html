@@ -23,6 +23,12 @@
         align-items: center;
         gap: 16px;
         border-bottom: 1px solid #333;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .topbar.hidden {
+        opacity: 0;
+        transform: translateY(-100%);
+        pointer-events: none;
       }
       .title {
         font-size: 18px;
@@ -41,6 +47,10 @@
         justify-content: center;
         align-items: center;
         background-color: #1a1a1a;
+        transition: height 0.3s ease;
+      }
+      .floor-plan-wrapper.fullscreen {
+        height: 100vh; /* Altura total da tela quando topbar está oculto */
       }
       .floor-plan-container {
         position: relative;
@@ -339,6 +349,47 @@ Status: ${status}`;
             }
           }
         });
+
+        // Lógica de auto-ocultação do header
+        const topbar = document.querySelector(".topbar");
+        let hideTimeout;
+        const HIDE_DELAY = 5000; // 5 segundos de inatividade
+
+        function showTopbar() {
+          topbar.classList.remove("hidden");
+          wrapper.classList.remove("fullscreen");
+        }
+
+        function hideTopbar() {
+          topbar.classList.add("hidden");
+          wrapper.classList.add("fullscreen");
+        }
+
+        function resetHideTimer() {
+          clearTimeout(hideTimeout);
+          showTopbar();
+          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
+        }
+
+        // Event listeners para detectar atividade do usuário
+        document.addEventListener("mousemove", resetHideTimer);
+        document.addEventListener("mousedown", resetHideTimer);
+        document.addEventListener("keydown", resetHideTimer);
+        document.addEventListener("touchstart", resetHideTimer);
+        document.addEventListener("touchmove", resetHideTimer);
+
+        // Mostrar header ao passar o mouse sobre a área do header
+        topbar.addEventListener("mouseenter", () => {
+          clearTimeout(hideTimeout);
+          showTopbar();
+        });
+
+        topbar.addEventListener("mouseleave", () => {
+          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
+        });
+
+        // Iniciar o timer de ocultação automática
+        resetHideTimer();
       })();
     </script>
   </body>
