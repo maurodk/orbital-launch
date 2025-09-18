@@ -1,8 +1,14 @@
 {
-  "rewrites": [
+  "version": 2,
+  "builds": [{ "src": "backend/server.js", "use": "@vercel/node" }],
+  "routes": [
     {
-      "source": "/espelho/:implantacao",
-      "destination": "https://simulador-implantacao.onrender.com/fullscreen?implantacao=:implantacao"
+      "src": "/fullscreen",
+      "dest": "/backend/fullscreen.html"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/backend/server.js"
     }
   ]
 }
