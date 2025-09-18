@@ -77,14 +77,48 @@
         font-size: 14px;
         color: #ccc;
       }
+      .fullscreen-button {
+        background: #333;
+        border: 1px solid #555;
+        color: #fff;
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .fullscreen-button:hover {
+        background: #444;
+      }
     </style>
   </head>
   <body>
     <div class="topbar">
-      <img src="/logo.png" alt="Logo VCA" class="logo" />
       <div class="title" id="empreendimento-title">Espelho de Implantação</div>
       <div id="implantacaoName" class="small"></div>
       <div style="flex: 1"></div>
+      <button
+        id="fullscreen-btn"
+        class="fullscreen-button"
+        title="Ativar Tela Cheia"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+          ></path>
+        </svg>
+      </button>
       <div id="status" class="small">Conectando...</div>
     </div>
     <div id="floor-plan-wrapper">
@@ -100,6 +134,7 @@
         const empreendimentoTitleEl = document.getElementById(
           "empreendimento-title"
         );
+        const fullscreenBtn = document.getElementById("fullscreen-btn");
 
         const urlParams = new URLSearchParams(location.search);
         const implantacao = urlParams.get("implantacao");
@@ -285,6 +320,21 @@ Status: ${status}`;
         // Carga inicial e início da conexão em tempo real
         reloadAndRender(urlParams.get("hideAvailable") || "false");
         connectSse();
+
+        // Lógica do botão de Tela Cheia
+        fullscreenBtn.addEventListener("click", () => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((err) => {
+              alert(
+                `Erro ao tentar ativar tela cheia: ${err.message} (${err.name})`
+              );
+            });
+          } else {
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            }
+          }
+        });
       })();
     </script>
   </body>

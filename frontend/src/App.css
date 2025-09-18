@@ -66,8 +66,10 @@ body {
   border-radius: 16px;
   padding: 20px 40px;
   max-width: 1400px;
-  min-width: 0;
+  width: 100%; /* Garante que ele tente ocupar o espaço disponível */
+  min-width: 0; /* Permite que o container encolha abaixo do seu conteúdo mínimo */
   /* margin: 0 auto;  <<< REMOVA ESTA LINHA >>> */
+  box-sizing: border-box; /* Garante que o padding não aumente o tamanho total */
 }
 
 h1 {
@@ -622,12 +624,6 @@ h1 {
 /* =============================================== */
 
 @media (max-width: 960px) {
-  .page-wrapper {
-    flex-direction: column;
-    padding: 20px;
-    gap: 20px;
-  }
-
   .mapping-sidebar {
     width: 100%;
     height: auto;
@@ -636,7 +632,7 @@ h1 {
 
   .app-container {
     width: 100%;
-    padding: 20px;
+    padding: 15px; /* Padding ainda menor para telas bem pequenas */
   }
 }
 
@@ -644,6 +640,12 @@ h1 {
   .top-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .page-wrapper {
+    flex-direction: column;
+    padding: 10px; /* Padding mínimo para telas de celular */
+    gap: 15px;
   }
 
   h1 {
@@ -993,267 +995,41 @@ h1 {
   }
 }
 
-/* =============================================== */
-/* --- ESTILOS DO HISTÓRICO --- */
-/* =============================================== */
+/* --- AJUSTES DE RESPONSIVIDADE --- */
 
-.history-container {
-  padding: 10px;
-}
-
-.empty-history {
-  text-align: center;
-  padding: 50px;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.history-table thead {
-  position: sticky;
-  top: 0;
-  background-color: var(--bg-dark-secondary);
-}
-
-.history-table th,
-.history-table td {
-  padding: 15px;
-  border-bottom: 1px solid var(--bg-dark-tertiary);
-  white-space: nowrap;
-}
-
-.history-table th {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background-color: var(--bg-dark-secondary); /* Garante fundo sólido */
-}
-
-.action-pill {
-  padding: 5px 12px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: white;
-  white-space: nowrap;
-}
-
-.action-pill.action-reservada,
-.action-pill.action-reservada-espontânea {
-  background-color: #337ab7; /* Azul */
-}
-
-.action-pill.action-cancelada {
-  background-color: var(--status-reserved); /* Vermelho */
-}
-
-.action-pill.action-bloqueada {
-  background-color: #f0ad4e; /* Laranja */
-}
-
-.action-pill.action-desbloqueada {
-  background-color: var(--accent-green); /* Verde */
-}
-
-.action-pill.action-termo-impresso {
-  background-color: #5bc0de; /* Azul Info */
-}
-
-.history-button-in-table {
-  background-color: #777; /* Cinza */
-  color: white;
-  border: none;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-.history-button-in-table:hover {
-  background-color: #555;
-  transform: scale(1.1);
-}
-
-.history-modal-body {
-  margin-top: 25px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.no-history-message {
-  text-align: center;
-  padding: 30px;
-  color: var(--text-secondary);
-}
-
-/* Aumenta a largura máxima especificamente para o modal de histórico */
-.history-modal-content {
-  max-width: 900px;
-}
-
-/* Estilos para a barra de busca dentro do modal de histórico */
-.history-search-wrapper {
-  position: relative;
-  margin-top: 20px;
-  margin-bottom: 10px;
-}
-
-.history-search-wrapper .search-input {
-  width: 100%; /* Ocupa toda a largura do modal */
-  box-sizing: border-box; /* Garante que o padding não quebre o layout */
-}
-
-/* frontend/src/App.css */
-
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-}
-.login-form {
-  background-color: var(--bg-dark-secondary);
-  padding: 40px;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-}
-.login-form h2 {
-  color: var(--accent-green);
-  margin-bottom: 30px;
-}
-.login-form input {
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 20px;
-  background-color: var(--bg-dark-tertiary);
-  border: 2px solid #444;
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 1rem;
-  box-sizing: border-box;
-}
-.login-form button {
-  width: 100%;
-  padding: 14px;
-  background-color: var(--accent-green);
-  color: var(--bg-dark-primary);
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.login-error {
-  color: var(--status-reserved);
-  margin-bottom: 15px;
-}
-
-.logout-button {
-  background: #555;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.logout-button:hover {
-  background: #777;
-}
-
-.user-greeting {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  white-space: nowrap; /* Impede que o nome quebre em duas linhas */
-}
-
-.user-greeting strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.termo-print-timestamp {
-  width: 100%;
-  text-align: right; /* Alinha à direita */
-  font-size: 8pt; /* Texto pequeno */
-  color: #888; /* Cor cinza */
-  margin-bottom: 20px; /* Espaço antes das linhas de assinatura */
-}
-
-/* =============================================== */
-/* --- ANIMAÇÃO DE SUCESSO (CHECKMARK) --- */
-/* =============================================== */
-
-.success-checkmark {
-  width: 80px;
-  height: 80px;
-  margin: 20px auto;
-}
-
-.check-icon {
-  width: 80px;
-  height: 80px;
-  position: relative;
-  border-radius: 50%;
-  box-sizing: content-box;
-  border: 4px solid var(--accent-green);
-  animation: fill-circle 0.4s ease-in-out 0.4s forwards;
-}
-
-.check-icon::before,
-.check-icon::after {
-  content: "";
-  position: absolute;
-  background: var(--accent-green);
-  border-radius: 2px;
-  transform-origin: left top;
-}
-
-.check-icon::before {
-  top: 40px;
-  left: 23px;
-  width: 0;
-  height: 4px;
-  transform: rotate(45deg);
-  animation: draw-check-left 0.2s ease-in-out 0.8s forwards;
-}
-
-.check-icon::after {
-  top: 54px;
-  left: 38px;
-  width: 0;
-  height: 4px;
-  transform: rotate(-45deg);
-  animation: draw-check-right 0.2s ease-in-out 1s forwards;
-}
-
-@keyframes fill-circle {
-  from {
-    transform: scale(0);
+/* Para Tablets e telas menores */
+@media (max-width: 960px) {
+  .page-wrapper {
+    flex-direction: column;
+    padding: 20px;
+    gap: 20px;
   }
-  to {
-    transform: scale(1);
+  .app-container {
+    padding: 20px;
+  }
+  .top-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .controls-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .filter-checkbox-wrapper {
+    margin-left: 0;
   }
 }
 
-@keyframes draw-check-left {
-  to {
-    width: 25px;
+/* Para Celulares */
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 10px;
+    gap: 15px;
   }
-}
-@keyframes draw-check-right {
-  to {
-    width: 40px;
+  .app-container {
+    padding: 15px;
+  }
+  h1 {
+    font-size: 1.5rem;
   }
 }

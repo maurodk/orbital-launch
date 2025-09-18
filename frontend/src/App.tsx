@@ -1,5 +1,6 @@
 // src/App.tsx - VERSÃO COM CORREÇÃO FINAL BASEADA NO MANUAL ATUAL
 
+import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import { useReactToPrint } from "react-to-print";
@@ -749,199 +750,214 @@ function App() {
   }
 
   return (
-    <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>
-      {isMappingMode && (
-        <MappingSidebar
-          unidades={unidades}
-          onSelectUnit={setUnitToMapIndex}
-          selectedUnitIndex={unitToMapIndex}
-          currentImageUrl={imageUrl}
-          onUpdateImage={handleUpdateImageUrl}
-          dotSize={dotSize}
-          onDotSizeChange={setDotSize}
-          onSaveDotSize={handleSaveDotSize}
-        />
-      )}
-      <div className="app-container">
-        {switching && (
-          <div className="switching-overlay">
-            <div className="loading-spinner"></div>
-          </div>
+    <HelmetProvider>
+      <Helmet>
+        <title>Implantação Digital - VCA CONSTRUTORA</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </Helmet>
+
+      <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>
+        {isMappingMode && (
+          <MappingSidebar
+            unidades={unidades}
+            onSelectUnit={setUnitToMapIndex}
+            selectedUnitIndex={unitToMapIndex}
+            currentImageUrl={imageUrl}
+            onUpdateImage={handleUpdateImageUrl}
+            dotSize={dotSize}
+            onDotSizeChange={setDotSize}
+            onSaveDotSize={handleSaveDotSize}
+          />
         )}
-        <div>
-          <main className="main-content">
-            <img
-              src="/logo.png"
-              alt="Logo da VCA Construtora"
-              className="main-logo"
-            />
-            <h1>Espelho de Implantação Humanizada</h1>
-            <div className="top-controls">
-              <div className="controls-left">
-                <ImplantationSwitcher
-                  implantacoes={implantacoes}
-                  selected={selectedImplantationName}
-                  onChange={handleImplantationChange}
-                />
-                <button
-                  className={`toggle-mapping-button ${
-                    isMappingMode ? "active" : ""
-                  }`}
-                  onClick={() => setIsMappingMode(!isMappingMode)}
-                >
-                  Modo Mapeamento
-                </button>
-              </div>
-              <div className="controls-right">
-                <div className="user-greeting">
-                  Logado como: <strong>{user.email}</strong>
-                </div>
-                <div className="filter-checkbox-wrapper">
-                  <input
-                    type="checkbox"
-                    id="hide-available-toggle"
-                    checked={hideAvailable}
-                    onChange={(e) => setHideAvailable(e.target.checked)}
+        <div className="app-container">
+          {switching && (
+            <div className="switching-overlay">
+              <div className="loading-spinner"></div>
+            </div>
+          )}
+          <div>
+            <main className="main-content">
+              <img
+                src="/logo.png"
+                alt="Logo da VCA Construtora"
+                className="main-logo"
+              />
+              <h1>Espelho de Implantação Humanizada</h1>
+              <div className="top-controls">
+                <div className="controls-left">
+                  <ImplantationSwitcher
+                    implantacoes={implantacoes}
+                    selected={selectedImplantationName}
+                    onChange={handleImplantationChange}
                   />
-                  <label htmlFor="hide-available-toggle">
-                    Ocultar Disponíveis
-                  </label>
+                  <button
+                    className={`toggle-mapping-button ${
+                      isMappingMode ? "active" : ""
+                    }`}
+                    onClick={() => setIsMappingMode(!isMappingMode)}
+                  >
+                    Modo Mapeamento
+                  </button>
                 </div>
-                <div className="view-switcher">
-                  <button
-                    className={view === "map" ? "active" : ""}
-                    onClick={() => setView("map")}
-                  >
-                    Mapa Visual
-                  </button>
-                  <button
-                    className={view === "list" ? "active" : ""}
-                    onClick={() => setView("list")}
-                  >
-                    Lista para Reserva
-                  </button>
-                  {/* ADICIONE O BOTÃO ABAIXO */}
-                  <button
-                    className={view === "history" ? "active" : ""}
-                    onClick={() => setView("history")}
-                  >
-                    Histórico Geral
-                  </button>
-                  <button
-                    onClick={() => signOut(auth)}
-                    className="logout-button"
-                  >
-                    Sair
-                  </button>
+                <div className="controls-right">
+                  <div className="user-greeting">
+                    Logado como: <strong>{user.email}</strong>
+                  </div>
+                  <div className="filter-checkbox-wrapper">
+                    <input
+                      type="checkbox"
+                      id="hide-available-toggle"
+                      checked={hideAvailable}
+                      onChange={(e) => setHideAvailable(e.target.checked)}
+                    />
+                    <label htmlFor="hide-available-toggle">
+                      Ocultar Disponíveis
+                    </label>
+                  </div>
+                  <div className="view-switcher">
+                    <button
+                      className={view === "map" ? "active" : ""}
+                      onClick={() => setView("map")}
+                    >
+                      Mapa Visual
+                    </button>
+                    <button
+                      className={view === "list" ? "active" : ""}
+                      onClick={() => setView("list")}
+                    >
+                      Lista para Reserva
+                    </button>
+                    {/* ADICIONE O BOTÃO ABAIXO */}
+                    <button
+                      className={view === "history" ? "active" : ""}
+                      onClick={() => setView("history")}
+                    >
+                      Histórico Geral
+                    </button>
+                    <button
+                      onClick={() => signOut(auth)}
+                      className="logout-button"
+                    >
+                      Sair
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="view-content">
-              {view === "map" && imageUrl && (
-                <FloorPlan
-                  imageUrl={imageUrl}
-                  unidades={unidades}
-                  isMappingMode={isMappingMode}
-                  unitToMapIndex={unitToMapIndex}
-                  onUnitClick={handleUnitClick}
-                  onMapClick={handleMapClickAndSaveCoords}
-                  dotSize={dotSize}
-                  hideAvailable={hideAvailable}
-                />
-              )}
-              {view === "list" && (
-                <ReservationList
-                  unidades={filteredUnidades}
-                  onUnitClick={handleUnitClick}
-                  onSpontaneousClick={handleSpontaneousUnitClick}
-                  onBlockClick={handleBlockActionClick}
-                  onPrintClick={handlePrepareAndPrint}
-                  onHistoryClick={handleOpenUnitHistory}
-                  searchTerm={searchTerm}
-                  setSearchTerm={setSearchTerm}
-                  statusFilter={statusFilter}
-                  setStatusFilter={setStatusFilter}
-                  totalUnidades={unidades.length}
-                />
-              )}
-              {view === "history" && <HistoryView history={history} />}
-            </div>
-            <ReservationModal
-              show={reservationModalState.isOpen}
-              onClose={handleCloseModals}
-              unitData={
-                selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
-              }
-              clientes={clientesDisponiveis}
-              onReserve={handleReserve}
-              initialMode={reservationModalState.mode}
-              onBlockClick={() => {
-                if (selectedUnitIndex === null) return;
-                handleCloseModals();
-                setTimeout(
-                  () => handleBlockActionClick(selectedUnitIndex),
-                  150
-                );
-              }}
-            />
-            <CancelModal
-              show={isCancelModalOpen}
-              onClose={handleCloseModals}
-              unitData={
-                selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
-              }
-              onConfirmCancel={handleCancelReservation}
-            />
-            <BlockModal
-              show={blockModalState.isOpen}
-              onClose={handleCloseModals}
-              unitData={
-                selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
-              }
-              isBlocking={blockModalState.isBlocking}
-              onConfirm={() =>
-                handleToggleBlockUnit(
-                  blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL"
-                )
-              }
-            />
-            {/* CHAMADA DO MODAL CORRIGIDA */}
-            <UnitHistoryModal
-              show={showHistoryModal}
-              onClose={() => setShowHistoryModal(false)}
-              unitName={selectedUnitForHistory}
-              fullHistory={history}
-            />
-            <IdleTimeoutModal
-              show={isIdleModalOpen}
-              onContinue={resetIdleTimer} // "Continuar" simplesmente reinicia o cronômetro
-              onLogout={handleLogout} // "Sair" chama a função de deslogar
-            />
-            <VerifyingModal show={isVerifyingModalOpen} />
-            <ReservationFailedModal
-              show={isReservationFailedModalOpen}
-              onClose={() => setIsReservationFailedModalOpen(false)}
-              message={reservationFailedMessage}
-              unitData={
-                selectedUnitIndex !== null ? unidades[selectedUnitIndex] : null
-              }
-            />
-            <ReservationSuccessModal
-              show={isReservationSuccessModalOpen}
-              onClose={() => setIsReservationSuccessModalOpen(false)}
-              unitName={
-                selectedUnitIndex !== null
-                  ? unidades[selectedUnitIndex]?.[2]
-                  : null
-              }
-            />
-          </main>
+              <div className="view-content">
+                {view === "map" && imageUrl && (
+                  <FloorPlan
+                    imageUrl={imageUrl}
+                    unidades={unidades}
+                    isMappingMode={isMappingMode}
+                    unitToMapIndex={unitToMapIndex}
+                    onUnitClick={handleUnitClick}
+                    onMapClick={handleMapClickAndSaveCoords}
+                    dotSize={dotSize}
+                    hideAvailable={hideAvailable}
+                  />
+                )}
+                {view === "list" && (
+                  <ReservationList
+                    unidades={filteredUnidades}
+                    onUnitClick={handleUnitClick}
+                    onSpontaneousClick={handleSpontaneousUnitClick}
+                    onBlockClick={handleBlockActionClick}
+                    onPrintClick={handlePrepareAndPrint}
+                    onHistoryClick={handleOpenUnitHistory}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    statusFilter={statusFilter}
+                    setStatusFilter={setStatusFilter}
+                    totalUnidades={unidades.length}
+                  />
+                )}
+                {view === "history" && <HistoryView history={history} />}
+              </div>
+              <ReservationModal
+                show={reservationModalState.isOpen}
+                onClose={handleCloseModals}
+                unitData={
+                  selectedUnitIndex !== null
+                    ? unidades[selectedUnitIndex]
+                    : null
+                }
+                clientes={clientesDisponiveis}
+                onReserve={handleReserve}
+                initialMode={reservationModalState.mode}
+                onBlockClick={() => {
+                  if (selectedUnitIndex === null) return;
+                  handleCloseModals();
+                  setTimeout(
+                    () => handleBlockActionClick(selectedUnitIndex),
+                    150
+                  );
+                }}
+              />
+              <CancelModal
+                show={isCancelModalOpen}
+                onClose={handleCloseModals}
+                unitData={
+                  selectedUnitIndex !== null
+                    ? unidades[selectedUnitIndex]
+                    : null
+                }
+                onConfirmCancel={handleCancelReservation}
+              />
+              <BlockModal
+                show={blockModalState.isOpen}
+                onClose={handleCloseModals}
+                unitData={
+                  selectedUnitIndex !== null
+                    ? unidades[selectedUnitIndex]
+                    : null
+                }
+                isBlocking={blockModalState.isBlocking}
+                onConfirm={() =>
+                  handleToggleBlockUnit(
+                    blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL"
+                  )
+                }
+              />
+              {/* CHAMADA DO MODAL CORRIGIDA */}
+              <UnitHistoryModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                unitName={selectedUnitForHistory}
+                fullHistory={history}
+              />
+              <IdleTimeoutModal
+                show={isIdleModalOpen}
+                onContinue={resetIdleTimer} // "Continuar" simplesmente reinicia o cronômetro
+                onLogout={handleLogout} // "Sair" chama a função de deslogar
+              />
+              <VerifyingModal show={isVerifyingModalOpen} />
+              <ReservationFailedModal
+                show={isReservationFailedModalOpen}
+                onClose={() => setIsReservationFailedModalOpen(false)}
+                message={reservationFailedMessage}
+                unitData={
+                  selectedUnitIndex !== null
+                    ? unidades[selectedUnitIndex]
+                    : null
+                }
+              />
+              <ReservationSuccessModal
+                show={isReservationSuccessModalOpen}
+                onClose={() => setIsReservationSuccessModalOpen(false)}
+                unitName={
+                  selectedUnitIndex !== null
+                    ? unidades[selectedUnitIndex]?.[2]
+                    : null
+                }
+              />
+            </main>
+          </div>
+        </div>
+        <div style={{ display: "none" }}>
+          <TermoDeReserva ref={printComponentRef} data={termoParaImprimir} />
         </div>
       </div>
-      <div style={{ display: "none" }}>
-        <TermoDeReserva ref={printComponentRef} data={termoParaImprimir} />
-      </div>
-    </div>
+    </HelmetProvider>
   );
 }
 
