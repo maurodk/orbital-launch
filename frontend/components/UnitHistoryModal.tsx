@@ -1,6 +1,7 @@
 // frontend/src/components/UnitHistoryModal.tsx
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { FiSearch } from "react-icons/fi";
 
 interface UnitHistoryModalProps {
   show: boolean;
@@ -15,12 +16,26 @@ export function UnitHistoryModal({
   unitName,
   fullHistory,
 }: UnitHistoryModalProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Filtra o histórico para mostrar apenas as entradas da unidade selecionada
   const historyForUnit = useMemo(() => {
     if (!unitName) return [];
-    // A coluna 2 (índice 2) no histórico contém o nome da unidade
-    return fullHistory.filter((entry) => entry[2] === unitName);
-  }, [fullHistory, unitName]);
+
+    const unitHistory = fullHistory.filter((entry) => entry[2] === unitName);
+
+    if (!searchTerm.trim()) {
+      return unitHistory;
+    }
+
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return unitHistory.filter((entry) =>
+      // Busca na Ação (3), Cliente (4), Corretor (5), e Usuário (6)
+      [entry[3], entry[4], entry[5], entry[6]].some((field) =>
+        field?.toLowerCase().includes(lowercasedTerm)
+      )
+    );
+  }, [fullHistory, unitName, searchTerm]);
 
   if (!show || !unitName) return null;
 
@@ -36,6 +51,17 @@ export function UnitHistoryModal({
         <h2>
           Histórico da Unidade: <strong>{unitName}</strong>
         </h2>
+
+        <div className="history-search-wrapper">
+          <FiSearch className="search-icon" />
+          <input
+            type="text"
+            placeholder="Filtrar por ação, cliente, corretor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
 
         <div className="history-modal-body">
           {historyForUnit.length > 0 ? (

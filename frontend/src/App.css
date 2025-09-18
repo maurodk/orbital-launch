@@ -1014,16 +1014,25 @@ h1 {
   text-align: left;
 }
 
+.history-table thead {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-dark-secondary);
+}
+
 .history-table th,
 .history-table td {
   padding: 15px;
   border-bottom: 1px solid var(--bg-dark-tertiary);
+  white-space: nowrap;
 }
 
 .history-table th {
   color: var(--text-secondary);
   text-transform: uppercase;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: var(--bg-dark-secondary); /* Garante fundo sólido */
 }
 
 .action-pill {
@@ -1090,6 +1099,18 @@ h1 {
 /* Aumenta a largura máxima especificamente para o modal de histórico */
 .history-modal-content {
   max-width: 900px;
+}
+
+/* Estilos para a barra de busca dentro do modal de histórico */
+.history-search-wrapper {
+  position: relative;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.history-search-wrapper .search-input {
+  width: 100%; /* Ocupa toda a largura do modal */
+  box-sizing: border-box; /* Garante que o padding não quebre o layout */
 }
 
 /* frontend/src/App.css */
