@@ -46,6 +46,12 @@ body {
   overflow-x: hidden;
 }
 
+@media (max-width: 768px) {
+  body {
+    overflow-x: auto; /* Permite a rolagem horizontal no corpo da página em telas pequenas */
+  }
+}
+
 .page-wrapper {
   display: flex;
   align-items: flex-start;
