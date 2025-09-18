@@ -753,7 +753,10 @@ function App() {
     <HelmetProvider>
       <Helmet>
         <title>Implantação Digital - VCA CONSTRUTORA</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"
+        />
       </Helmet>
 
       <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>

@@ -43,6 +43,7 @@ body {
   color: var(--text-primary);
   font-family: "Inter", sans-serif;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .page-wrapper {
@@ -624,32 +625,76 @@ h1 {
 /* =============================================== */
 
 @media (max-width: 960px) {
-  .mapping-sidebar {
+  .page-wrapper {
+    /* MUDANÇA PRINCIPAL: Força os itens a empilharem verticalmente */
+    flex-direction: column;
+    padding: 20px;
+    gap: 20px;
+    /* Garante que o wrapper não seja maior que a tela */
     width: 100%;
-    height: auto;
-    max-height: 40vh;
+    box-sizing: border-box; /* Garante que padding não adicione largura */
   }
 
   .app-container {
+    padding: 20px;
+    /* Garante que ele ocupe 100% da nova largura do pai */
     width: 100%;
-    padding: 15px; /* Padding ainda menor para telas bem pequenas */
+  }
+
+  .mapping-sidebar {
+    /* A sidebar agora também ocupa a largura total */
+    width: 100%;
+    /* Remove a altura máxima fixa em VH para que o conteúdo possa crescer */
+    max-height: none;
+    /* Reduz um pouco o tamanho máximo em telas médias */
+    order: -1; /* Opcional: Joga a sidebar para cima do conteúdo principal */
+  }
+
+  .top-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .controls-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filter-checkbox-wrapper {
+    margin-left: 0;
   }
 }
 
 @media (max-width: 768px) {
-  .top-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .page-wrapper {
-    flex-direction: column;
-    padding: 10px; /* Padding mínimo para telas de celular */
+    padding: 10px; /* Menos padding em telas bem pequenas */
     gap: 15px;
   }
 
+  .app-container {
+    padding: 15px; /* Menos padding em telas bem pequenas */
+  }
+
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.5rem; /* Título um pouco menor */
+  }
+
+  /* Corrige o layout dos botões/filtros em telas de celular */
+  .list-filters-header {
+    flex-direction: column;
+    align-items: stretch; /* Faz os itens ocuparem 100% da largura */
+  }
+
+  .search-input-wrapper,
+  .search-input {
+    width: 100%; /* Garante que o input de busca ocupe todo o espaço */
+  }
+
+  /* Garante que a lista de reserva não seja cortada em telas pequenas */
+  .reservation-list-container {
+    width: 100%;
+    margin-left: 0; /* Remove a margem negativa que pode causar overflow */
+    margin-right: 0;
   }
 }
 
@@ -745,6 +790,10 @@ h1 {
 
 .table-wrapper {
   overflow-x: auto;
+  /* Adiciona um leve preenchimento interno para que a sombra não seja cortada */
+  padding-bottom: 5px;
+  /* Garante que a rolagem funcione bem em dispositivos de toque */
+  -webkit-overflow-scrolling: touch;
 }
 
 .no-results-message {
