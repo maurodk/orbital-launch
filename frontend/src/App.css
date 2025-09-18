@@ -698,6 +698,126 @@ h1 {
   }
 }
 
+/* =============================================== */
+/* --- ESTILOS DO HISTÓRICO --- */
+/* =============================================== */
+
+.history-container {
+  padding: 10px;
+}
+
+.empty-history {
+  text-align: center;
+  padding: 50px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.history-table thead {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-dark-secondary);
+}
+
+.history-table th,
+.history-table td {
+  padding: 15px;
+  border-bottom: 1px solid var(--bg-dark-tertiary);
+  white-space: nowrap;
+}
+
+.history-table th {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: var(--bg-dark-secondary); /* Garante fundo sólido */
+}
+
+.action-pill {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+}
+
+.action-pill.action-reservada,
+.action-pill.action-reservada-espontânea {
+  background-color: #337ab7; /* Azul */
+}
+
+.action-pill.action-cancelada {
+  background-color: var(--status-reserved); /* Vermelho */
+}
+
+.action-pill.action-bloqueada {
+  background-color: #f0ad4e; /* Laranja */
+}
+
+.action-pill.action-desbloqueada {
+  background-color: var(--accent-green); /* Verde */
+}
+
+.action-pill.action-termo-impresso {
+  background-color: #5bc0de; /* Azul Info */
+}
+
+.history-button-in-table {
+  background-color: #777; /* Cinza */
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.history-button-in-table:hover {
+  background-color: #555;
+  transform: scale(1.1);
+}
+
+.history-modal-body {
+  margin-top: 25px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.no-history-message {
+  text-align: center;
+  padding: 30px;
+  color: var(--text-secondary);
+}
+
+/* Aumenta a largura máxima especificamente para o modal de histórico */
+.history-modal-content {
+  max-width: 900px;
+}
+
+/* Estilos para a barra de busca dentro do modal de histórico */
+.history-search-wrapper {
+  position: relative;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.history-search-wrapper .search-input {
+  width: 100%; /* Ocupa toda a largura do modal */
+  box-sizing: border-box; /* Garante que o padding não quebre o layout */
+}
+
 .reserve-button-in-table.reserved {
   background: var(
     --status-reserved
