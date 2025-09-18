@@ -1256,4 +1256,98 @@ h1 {
   h1 {
     font-size: 1.5rem;
   }
+
+  /* Ajustes para a tabela de reserva */
+  .reservation-table th,
+  .reservation-table td {
+    padding: 8px 4px; /* Reduz padding */
+    font-size: 0.8rem; /* Fonte menor */
+  }
+
+  .reservation-table th:nth-child(4),
+  .reservation-table td:nth-child(4),
+  .reservation-table th:nth-child(5),
+  .reservation-table td:nth-child(5) {
+    display: none; /* Esconde Cliente e Corretor em telas pequenas */
+  }
+
+  .action-buttons-cell {
+    display: flex;
+    flex-direction: column; /* Empilha botões verticalmente */
+    gap: 4px;
+  }
+
+  .reserve-button-in-table,
+  .block-button-in-table,
+  .print-button-in-table,
+  .history-button-in-table {
+    width: 100%; /* Botões ocupam toda largura */
+    padding: 6px;
+    font-size: 0.7rem;
+  }
+
+  /* Ajustes para controles superiores */
+  .top-controls {
+    gap: 10px;
+  }
+
+  .controls-left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .controls-right {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .view-switcher {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .view-switcher button {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+
+  .user-greeting {
+    font-size: 0.9rem;
+  }
+
+  .filter-checkbox-wrapper {
+    justify-content: center;
+  }
+
+  /* Ajustes para a tabela de histórico */
+  .history-table th,
+  .history-table td {
+    padding: 8px 4px;
+    font-size: 0.8rem;
+  }
+
+  .history-table th:nth-child(4),
+  .history-table td:nth-child(4),
+  .history-table th:nth-child(5),
+  .history-table td:nth-child(5),
+  .history-table th:nth-child(6),
+  .history-table td:nth-child(6) {
+    display: none; /* Esconde Cliente, Corretor e Usuário em telas pequenas */
+  }
+
+  .action-pill {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+  }
+
+  /* Ajustes para o container de histórico */
+  .history-container {
+    padding: 5px;
+  }
+
+  .history-search-wrapper .search-input {
+    width: 100%;
+  }
 }
