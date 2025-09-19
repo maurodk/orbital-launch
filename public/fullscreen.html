@@ -768,8 +768,15 @@ Status: ${status}`;
 
         // Detectar mudanças no modo tela cheia
         document.addEventListener("fullscreenchange", () => {
+          console.log("[FULLSCREEN] fullscreenchange event fired");
+          console.log(
+            "[FULLSCREEN] document.fullscreenElement:",
+            document.fullscreenElement
+          );
+
           if (document.fullscreenElement) {
             // Entrou em tela cheia - ocultar header e mostrar controles de zoom
+            console.log("[FULLSCREEN] Entering fullscreen mode");
             hideTopbar();
             zoomControls.classList.add("visible");
             zoomInstructions.classList.add("visible");
@@ -781,6 +788,7 @@ Status: ${status}`;
             fullscreenBtn.title = "Sair da Tela Cheia";
           } else {
             // Saiu da tela cheia - mostrar header e ocultar controles de zoom
+            console.log("[FULLSCREEN] Exiting fullscreen mode");
             showTopbar();
             zoomControls.classList.remove("visible");
             zoomInstructions.classList.remove("visible");
@@ -796,8 +804,21 @@ Status: ${status}`;
         // Lógica de controle do header (só oculta quando fullscreen é ativado)
         const topbar = document.querySelector(".topbar");
         let isFullscreenMode = false;
+        let lastHideTime = 0;
+        const HIDE_COOLDOWN = 500; // 500ms cooldown após hideTopbar()
 
         function showTopbar() {
+          console.log("[FULLSCREEN] showTopbar() called");
+
+          // Verificar se estamos no cooldown após hideTopbar()
+          const timeSinceHide = Date.now() - lastHideTime;
+          if (timeSinceHide < HIDE_COOLDOWN) {
+            console.log(
+              `[FULLSCREEN] Blocking showTopbar() - cooldown active (${timeSinceHide}ms)`
+            );
+            return;
+          }
+
           topbar.classList.remove("hidden");
           wrapper.classList.remove("fullscreen");
           isFullscreenMode = false;
@@ -818,6 +839,10 @@ Status: ${status}`;
         }
 
         function hideTopbar() {
+          console.log("[FULLSCREEN] hideTopbar() called");
+          console.log("[FULLSCREEN] topbar element:", topbar);
+
+          lastHideTime = Date.now();
           topbar.classList.add("hidden");
           wrapper.classList.add("fullscreen");
           isFullscreenMode = true;
@@ -837,9 +862,11 @@ Status: ${status}`;
           });
         }
 
-        // Event listeners para mostrar header quando houver interação
-        function showHeaderOnInteraction() {
-          if (isFullscreenMode) {
+        // Event listeners para mostrar header quando houver interação (apenas fora do fullscreen)
+        function showHeaderOnInteraction(event) {
+          console.log("[FULLSCREEN] Interaction event:", event.type);
+          if (!isFullscreenMode) {
+            console.log("[FULLSCREEN] Showing header due to interaction");
             showTopbar();
           }
         }
@@ -850,9 +877,10 @@ Status: ${status}`;
         document.addEventListener("touchstart", showHeaderOnInteraction);
         document.addEventListener("touchmove", showHeaderOnInteraction);
 
-        // Mostrar header ao passar o mouse sobre a área do header
+        // Mostrar header ao passar o mouse sobre a área do header (apenas fora do fullscreen)
         topbar.addEventListener("mouseenter", () => {
-          if (isFullscreenMode) {
+          if (!isFullscreenMode) {
+            console.log("[FULLSCREEN] Showing header due to mouseenter");
             showTopbar();
           }
         });
