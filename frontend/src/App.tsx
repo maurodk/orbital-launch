@@ -458,6 +458,7 @@ function App() {
 
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
+    // Abre o modal de confirmação para bloqueio
     setBlockModalState({ isOpen: true, isBlocking: true, apiError: "" });
   };
 
@@ -466,6 +467,17 @@ function App() {
     password?: string
   ) => {
     if (selectedUnitIndex === null) return;
+    // Se for um bloqueio, a senha não é necessária.
+    // O modal de confirmação chama onConfirm sem senha.
+    if (newStatus === "BLOQUEADA") {
+      password = undefined;
+    }
+
+    // Limpa o erro da API antes de tentar a operação
+    setBlockModalState((prev) => ({
+      ...prev,
+      apiError: "",
+    }));
 
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
@@ -483,6 +495,8 @@ function App() {
       setUnidades(updatedUnidades);
 
       handleCloseModals();
+      // Limpa a senha do modal após o sucesso
+      // (O componente BlockModal não tem acesso a `setPassword`, então fazemos aqui indiretamente)
       await fetchHistory(selectedImplantationName);
     } catch (err: any) {
       // Melhoria: Exibir a mensagem de erro específica do backend (ex: "Senha incorreta") no modal
@@ -973,7 +987,12 @@ function App() {
                 }
                 isBlocking={blockModalState.isBlocking}
                 apiError={blockModalState.apiError}
-                onConfirm={(password) =>
+                clearApiError={() =>
+                  setBlockModalState((prev) => ({ ...prev, apiError: "" }))
+                }
+                onConfirm={(
+                  password = "" // Garante que a senha seja opcional na chamada
+                ) =>
                   handleToggleBlockUnit(
                     blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL",
                     password

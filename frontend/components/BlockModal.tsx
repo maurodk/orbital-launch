@@ -1,6 +1,6 @@
 // frontend/src/components/BlockModal.tsx
 
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 
 interface BlockModalProps {
   show: boolean;
@@ -8,7 +8,7 @@ interface BlockModalProps {
   unitData: string[] | null;
   onConfirm: (password: string) => void;
   isBlocking: boolean;
-  apiError?: string; // Prop opcional para receber o erro da API
+  apiError?: string;
 }
 
 export function BlockModal({
@@ -17,45 +17,38 @@ export function BlockModal({
   unitData,
   onConfirm,
   isBlocking,
-  apiError, // Recebe a prop
+  apiError,
 }: BlockModalProps) {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [internalApiError, setInternalApiError] = useState(apiError || "");
-
-  // Sincroniza o erro da API vindo das props com o estado interno
-  useEffect(() => {
-    setInternalApiError(apiError || "");
-  }, [apiError]);
 
   if (!show || !unitData) return null;
 
   const unitName = unitData[2] || "N/A";
   const title = isBlocking ? `Bloquear Unidade` : `Desbloquear Unidade`;
   const message = isBlocking
-    ? `Para bloquear a unidade "${unitName}", digite a senha de acesso:`
-    : `Esta unidade está bloqueada. Para desbloqueá-la, digite a senha de acesso:`;
-  const buttonText = isBlocking ? "Bloquear Unidade" : "Desbloquear Unidade";
+    ? `Tem certeza que deseja bloquear a unidade "${unitName}"? Ela ficará indisponível para reservas.`
+    : `Para desbloquear a unidade "${unitName}", digite a senha de acesso:`;
+  const buttonText = isBlocking
+    ? "Sim, Bloquear Unidade"
+    : "Desbloquear Unidade";
 
   // Usando classes condicionais para reutilizar estilos ou aplicar novos
   const confirmButtonClass = isBlocking
-    ? "modal-block-button"
+    ? "modal-cancel-button" // Usando a classe do botão de cancelar (vermelho) para a ação de bloqueio
     : "modal-reserve-button";
 
   const handleConfirm = () => {
-    if (!password.trim()) {
+    if (!isBlocking && !password.trim()) {
       setPasswordError("Senha é obrigatória para esta operação.");
       return;
     }
     setPasswordError("");
-    setInternalApiError(""); // Limpa o erro da API ao tentar novamente
     onConfirm(password);
-    setPassword("");
   };
 
   const handleClose = () => {
     setPassword("");
-    setInternalApiError("");
     setPasswordError("");
     onClose();
   };
@@ -75,64 +68,80 @@ export function BlockModal({
           {message}
         </p>
 
-        <div style={{ marginBottom: "20px" }}>
-          <input
-            type="password"
-            placeholder="Digite a senha de acesso"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (internalApiError) setInternalApiError("");
-              if (passwordError) setPasswordError("");
-            }}
+        {!isBlocking && (
+          <div style={{ marginBottom: "20px" }}>
+            <input
+              type="password"
+              placeholder="Digite a senha de acesso"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                // Limpa o erro de validação local ao digitar
+                if (passwordError) setPasswordError("");
+              }}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: passwordError ? "2px solid #d9534f" : "1px solid #ccc",
+                borderRadius: "4px",
+                fontSize: "14px",
+                boxSizing: "border-box",
+              }}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  handleConfirm();
+                }
+              }}
+            />
+            {passwordError && (
+              <p
+                style={{
+                  color: "#d9534f",
+                  fontSize: "12px",
+                  marginTop: "5px",
+                  marginBottom: "0",
+                }}
+              >
+                {passwordError}
+              </p>
+            )}
+            {/* Exibe o erro vindo da API diretamente da prop */}
+            {apiError && (
+              <p
+                style={{
+                  color: "#d9534f",
+                  fontSize: "12px",
+                  marginTop: "5px",
+                  marginBottom: "0",
+                }}
+              >
+                {apiError}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+          <button
+            className="modal-block-button" // Botão de cancelar (estilo cinza/borda)
+            onClick={handleClose}
             style={{
               width: "100%",
-              padding: "10px",
-              border: passwordError ? "2px solid #d9534f" : "1px solid #ccc",
-              borderRadius: "4px",
-              fontSize: "14px",
-              boxSizing: "border-box",
+              margin: 0,
+              color: "#ccc",
+              borderColor: "#555",
             }}
-            onKeyPress={(e) => {
-              if (e.key === "Enter") {
-                handleConfirm();
-              }
-            }}
-          />
-          {passwordError && (
-            <p
-              style={{
-                color: "#d9534f",
-                fontSize: "12px",
-                marginTop: "5px",
-                marginBottom: "0",
-              }}
-            >
-              {passwordError}
-            </p>
-          )}
-          {/* Exibe o erro vindo da API */}
-          {internalApiError && (
-            <p
-              style={{
-                color: "#d9534f",
-                fontSize: "12px",
-                marginTop: "5px",
-                marginBottom: "0",
-              }}
-            >
-              {internalApiError}
-            </p>
-          )}
+          >
+            Cancelar
+          </button>
+          <button
+            className={confirmButtonClass}
+            onClick={handleConfirm}
+            style={{ width: "100%", margin: 0 }}
+          >
+            {buttonText}
+          </button>
         </div>
-
-        <button
-          className={confirmButtonClass}
-          onClick={handleConfirm}
-          style={{ width: "100%" }}
-        >
-          {buttonText}
-        </button>
       </div>
     </div>
   );
