@@ -917,6 +917,13 @@ Status: ${status}`;
           indicators.forEach((indicator) => {
             indicator.classList.remove("fullscreen-mode");
           });
+
+          // Ajustar posições dos indicadores de volta para o tamanho normal do container
+          const scaleY = (window.innerHeight - 51) / window.innerHeight;
+          indicators.forEach((indicator) => {
+            const coordY = parseFloat(indicator.style.top);
+            indicator.style.top = coordY * scaleY + "%";
+          });
         }
 
         function hideTopbar() {
@@ -940,6 +947,13 @@ Status: ${status}`;
           const indicators = document.querySelectorAll(".unit-indicator");
           indicators.forEach((indicator) => {
             indicator.classList.add("fullscreen-mode");
+          });
+
+          // Ajustar posições dos indicadores para o novo tamanho do container
+          const scaleY = window.innerHeight / (window.innerHeight - 51);
+          indicators.forEach((indicator) => {
+            const coordY = parseFloat(indicator.style.top);
+            indicator.style.top = coordY * scaleY + "%";
           });
         }
 
