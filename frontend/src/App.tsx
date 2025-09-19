@@ -96,6 +96,7 @@ function App() {
   const [blockModalState, setBlockModalState] = useState({
     isOpen: false,
     isBlocking: true,
+    apiError: "", // Adiciona um campo para o erro da API
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -404,7 +405,7 @@ function App() {
   const handleCloseModals = () => {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
-    setBlockModalState({ isOpen: false, isBlocking: true });
+    setBlockModalState({ isOpen: false, isBlocking: true, apiError: "" });
     setSelectedUnitIndex(null);
   };
 
@@ -446,7 +447,7 @@ function App() {
     } else if (status === "reservada") {
       setIsCancelModalOpen(true);
     } else if (status === "bloqueada") {
-      setBlockModalState({ isOpen: true, isBlocking: false });
+      setBlockModalState({ isOpen: true, isBlocking: false, apiError: "" });
     }
   };
 
@@ -457,35 +458,47 @@ function App() {
 
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
-    setBlockModalState({ isOpen: true, isBlocking: true });
+    setBlockModalState({ isOpen: true, isBlocking: true, apiError: "" });
   };
 
   const handleToggleBlockUnit = async (
-    newStatus: "BLOQUEADA" | "DISPONÍVEL"
+    newStatus: "BLOQUEADA" | "DISPONÍVEL",
+    password?: string
   ) => {
     if (selectedUnitIndex === null) return;
-    const updatedUnidades = [...unidades];
-    updatedUnidades[selectedUnitIndex][10] = newStatus;
-    // Não atualiza o estado local ainda, espera a resposta do backend
-    setUnidades(updatedUnidades);
-    handleCloseModals();
+
     try {
       const sheetRowIndex = selectedUnitIndex + 2;
       await axios.post(`${apiUrl}/api/toggle-block-unit`, {
         rowIndex: sheetRowIndex,
         implantacao: selectedImplantationName,
         newStatus: newStatus,
+        password: password,
         hideAvailable: hideAvailable, // Envia o estado do filtro
       });
-    } catch (err) {
-      setError(
+
+      // Só atualiza o estado local APÓS a resposta bem-sucedida do backend
+      const updatedUnidades = [...unidades];
+      updatedUnidades[selectedUnitIndex][10] = newStatus;
+      setUnidades(updatedUnidades);
+
+      handleCloseModals();
+      await fetchHistory(selectedImplantationName);
+    } catch (err: any) {
+      // Melhoria: Exibir a mensagem de erro específica do backend (ex: "Senha incorreta") no modal
+      const errorMessage =
+        err.response?.data?.error ||
         `Falha ao ${
           newStatus === "BLOQUEADA" ? "bloquear" : "desbloquear"
-        } a unidade.`
-      );
+        } a unidade.`;
+      // Em vez de usar alert() e setError(), passamos o erro para o estado do modal
+      setBlockModalState((prevState) => ({
+        ...prevState,
+        apiError: errorMessage,
+      }));
+      // Não definimos o erro global para evitar a quebra da página
       console.error(err);
     }
-    await fetchHistory(selectedImplantationName);
   };
 
   const handleReserveUnit = async (
@@ -959,9 +972,11 @@ function App() {
                     : null
                 }
                 isBlocking={blockModalState.isBlocking}
-                onConfirm={() =>
+                apiError={blockModalState.apiError}
+                onConfirm={(password) =>
                   handleToggleBlockUnit(
-                    blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL"
+                    blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL",
+                    password
                   )
                 }
               />

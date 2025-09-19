@@ -1716,7 +1716,7 @@ app.post("/api/update-dot-size", verifyToken, async (req, res) => {
 });
 
 app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, newStatus } = req.body;
+  const { implantacao, rowIndex, newStatus, password } = req.body;
   const userEmail = req.user.email; // Declaração no escopo principal
 
   if (
@@ -1729,6 +1729,36 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       .status(400)
       .json({ error: "Dados inválidos para bloquear/desbloquear unidade." });
   }
+
+  // Validação de senha obrigatória
+  console.log("[VALIDAÇÃO SENHA] Recebida:", {
+    password,
+    hasPassword: !!password,
+    trimmed: password?.trim(),
+  });
+  if (!password || password.trim() === "") {
+    console.log("[VALIDAÇÃO SENHA] Senha vazia ou não fornecida");
+    return res.status(400).json({
+      error: "Senha é obrigatória para bloquear/desbloquear unidades.",
+    });
+  }
+
+  // Validação simples da senha (pode ser configurada para uma senha específica)
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "vcadmin123"; // Configure no .env
+  console.log("[VALIDAÇÃO SENHA] Comparando:", {
+    received: password,
+    expected: ADMIN_PASSWORD,
+    match: password === ADMIN_PASSWORD,
+  });
+  if (password !== ADMIN_PASSWORD) {
+    console.log("[VALIDAÇÃO SENHA] Senha incorreta");
+    res
+      .status(403)
+      .json({ error: "Senha incorreta. Operação não autorizada." });
+    // ADICIONAR ESTE RETURN PARA INTERROMPER A EXECUÇÃO
+    return;
+  }
+  console.log("[VALIDAÇÃO SENHA] Senha válida, prosseguindo...");
 
   try {
     const sheets = await getSheetsClient();
