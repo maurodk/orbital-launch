@@ -935,6 +935,11 @@ Status: ${status}`;
           indicators.forEach((indicator) => {
             indicator.classList.remove("fullscreen-mode");
           });
+
+          // Forçar recálculo das posições após mudança de modo
+          setTimeout(() => {
+            updateUnitPositions();
+          }, 100);
         }
 
         function hideTopbar() {
@@ -959,6 +964,11 @@ Status: ${status}`;
           indicators.forEach((indicator) => {
             indicator.classList.add("fullscreen-mode");
           });
+
+          // Forçar recálculo das posições após mudança de modo
+          setTimeout(() => {
+            updateUnitPositions();
+          }, 100);
         }
 
         // Event listeners para mostrar header quando houver interação (apenas fora do fullscreen)
@@ -986,6 +996,23 @@ Status: ${status}`;
 
         // Header sempre visível por padrão
         showTopbar();
+
+        // Listener para mudanças de orientação/orientação da tela (mobile)
+        window.addEventListener("orientationchange", () => {
+          console.log(
+            "[FULLSCREEN] Orientation changed, recalculating positions"
+          );
+          // Pequeno delay para garantir que as dimensões da tela foram atualizadas
+          setTimeout(() => {
+            updateUnitPositions();
+          }, 200);
+        });
+
+        // Listener para resize da janela (desktop)
+        window.addEventListener("resize", () => {
+          console.log("[FULLSCREEN] Window resized, recalculating positions");
+          updateUnitPositions();
+        });
       })();
     </script>
   </body>
