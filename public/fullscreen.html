@@ -441,6 +441,33 @@
           if (!container) return;
           container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
           container.classList.toggle("zoomed", currentZoom > 1);
+
+          // Ajustar posições dos pontos baseado no zoom atual
+          updateUnitPositions();
+        }
+
+        // Função para atualizar as posições dos pontos baseado no zoom
+        function updateUnitPositions() {
+          const indicators = document.querySelectorAll(".unit-indicator");
+          indicators.forEach((indicator) => {
+            // Obter as coordenadas originais do atributo data
+            const originalX = parseFloat(
+              indicator.getAttribute("data-original-x") || indicator.style.left
+            );
+            const originalY = parseFloat(
+              indicator.getAttribute("data-original-y") || indicator.style.top
+            );
+
+            // Salvar coordenadas originais se ainda não foram salvas
+            if (!indicator.hasAttribute("data-original-x")) {
+              indicator.setAttribute("data-original-x", originalX);
+              indicator.setAttribute("data-original-y", originalY);
+            }
+
+            // Manter as posições originais - os pontos devem ficar fixos na imagem
+            indicator.style.left = `${originalX}%`;
+            indicator.style.top = `${originalY}%`;
+          });
         }
 
         function zoomIn() {
@@ -697,6 +724,11 @@
             const unitIndex = index;
             indicator.id = `unit-indicator-${unitIndex}`;
             indicator.className = `unit-indicator status-${status}`;
+
+            // Armazenar coordenadas originais nos atributos data
+            indicator.setAttribute("data-original-x", coordX);
+            indicator.setAttribute("data-original-y", coordY);
+
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
 
@@ -789,6 +821,13 @@ Status: ${status}`;
 
           // Atualiza as propriedades do indicador
           indicator.className = `unit-indicator status-${status}`;
+
+          // Armazenar coordenadas originais se ainda não foram salvas
+          if (!indicator.hasAttribute("data-original-x")) {
+            indicator.setAttribute("data-original-x", coordX);
+            indicator.setAttribute("data-original-y", coordY);
+          }
+
           indicator.style.left = `${coordX}%`;
           indicator.style.top = `${coordY}%`;
           indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
