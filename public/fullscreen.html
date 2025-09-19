@@ -73,7 +73,7 @@
       .floor-plan-image.fullscreen-mode {
         width: 100vw;
         height: 100vh;
-        object-fit: contain;
+        object-fit: cover;
         position: fixed;
         top: 0;
         left: 0;
@@ -193,12 +193,6 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        /* Otimizações de performance para mobile */
-        will-change: transform;
-        backface-visibility: hidden;
-        -webkit-backface-visibility: hidden;
-        transform-style: preserve-3d;
-        -webkit-transform-style: preserve-3d;
       }
 
       .floor-plan-container.dragging {
@@ -390,7 +384,6 @@
         let dragStart = { x: 0, y: 0 };
         let currentTranslate = { x: 0, y: 0 };
         let container = null;
-        let maxZoom = 1; // Será calculado baseado no tamanho real da imagem
 
         // Variáveis para pinch-to-zoom
         let initialPinchDistance = 0;
@@ -447,91 +440,16 @@
           if (!container) return;
           container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
           container.classList.toggle("zoomed", currentZoom > 1);
-
-          // Ajustar posições dos pontos baseado no zoom atual
-          updateUnitPositions();
-        }
-
-        // Função para atualizar as posições dos pontos baseado no zoom e modo
-        function updateUnitPositions() {
-          const indicators = document.querySelectorAll(".unit-indicator");
-          const isFullscreen = document.fullscreenElement !== null;
-
-          indicators.forEach((indicator) => {
-            // Obter as coordenadas originais do atributo data
-            const originalX = parseFloat(
-              indicator.getAttribute("data-original-x") || indicator.style.left
-            );
-            const originalY = parseFloat(
-              indicator.getAttribute("data-original-y") || indicator.style.top
-            );
-
-            // Salvar coordenadas originais se ainda não foram salvas
-            if (!indicator.hasAttribute("data-original-x")) {
-              indicator.setAttribute("data-original-x", originalX);
-              indicator.setAttribute("data-original-y", originalY);
-            }
-
-            // Calcular posições baseadas no modo atual
-            if (
-              isFullscreen &&
-              container &&
-              container.classList.contains("fullscreen-mode")
-            ) {
-              // No fullscreen, ajustar baseado na proporção da imagem
-              const img = document.querySelector(".floor-plan-image");
-              if (img) {
-                const imgRect = img.getBoundingClientRect();
-                const containerRect = container.getBoundingClientRect();
-
-                // Calcular offsets para centralizar a imagem no container
-                const offsetX = (containerRect.width - imgRect.width) / 2;
-                const offsetY = (containerRect.height - imgRect.height) / 2;
-
-                // Converter coordenadas percentuais para pixels baseadas no tamanho real da imagem
-                const pixelX = (originalX / 100) * imgRect.width + offsetX;
-                const pixelY = (originalY / 100) * imgRect.height + offsetY;
-
-                // Converter para porcentagem do container
-                const containerX = (pixelX / containerRect.width) * 100;
-                const containerY = (pixelY / containerRect.height) * 100;
-
-                indicator.style.left = `${Math.max(
-                  0,
-                  Math.min(100, containerX)
-                )}%`;
-                indicator.style.top = `${Math.max(
-                  0,
-                  Math.min(100, containerY)
-                )}%`;
-              } else {
-                // Fallback para coordenadas originais
-                indicator.style.left = `${originalX}%`;
-                indicator.style.top = `${originalY}%`;
-              }
-            } else {
-              // Modo normal - usar coordenadas originais
-              indicator.style.left = `${originalX}%`;
-              indicator.style.top = `${originalY}%`;
-            }
-          });
         }
 
         function zoomIn() {
-          currentZoom = Math.min(currentZoom * 1.2, maxZoom);
+          currentZoom = Math.min(currentZoom * 1.2, 5);
           updateZoomDisplay();
           applyTransform();
         }
 
         function zoomOut() {
-          const newZoom = Math.max(currentZoom / 1.2, 1); // Zoom mínimo é 1 (tamanho responsivo)
-
-          // Se estamos voltando para o zoom 1, resetar a posição também
-          if (newZoom === 1) {
-            currentTranslate = { x: 0, y: 0 };
-          }
-
-          currentZoom = newZoom;
+          currentZoom = Math.max(currentZoom / 1.2, 0.5);
           updateZoomDisplay();
           applyTransform();
         }
@@ -541,24 +459,6 @@
           currentTranslate = { x: 0, y: 0 };
           updateZoomDisplay();
           applyTransform();
-        }
-
-        // Função para calcular o zoom máximo baseado no tamanho real da imagem
-        function calculateMaxZoom(img) {
-          if (!img) return 3; // Fallback
-
-          const containerRect = container.getBoundingClientRect();
-          const imgRect = img.getBoundingClientRect();
-
-          // Calcula quanto a imagem pode ser ampliada para atingir seu tamanho real
-          const scaleX = img.naturalWidth / imgRect.width;
-          const scaleY = img.naturalHeight / imgRect.height;
-
-          // Usa o menor dos dois para evitar distorção
-          const naturalScale = Math.min(scaleX, scaleY);
-
-          // Limita o zoom máximo para não ser muito grande
-          return Math.min(naturalScale, 5);
         }
 
         // Funções auxiliares para pinch-to-zoom
@@ -578,14 +478,7 @@
         function handleWheel(e) {
           e.preventDefault();
           const delta = e.deltaY > 0 ? 0.9 : 1.1;
-          const newZoom = Math.max(1, Math.min(maxZoom, currentZoom * delta)); // Zoom mínimo é 1
-
-          // Se estamos voltando para o zoom 1, resetar a posição também
-          if (newZoom === 1) {
-            currentTranslate = { x: 0, y: 0 };
-          }
-
-          currentZoom = newZoom;
+          currentZoom = Math.max(0.5, Math.min(5, currentZoom * delta));
           updateZoomDisplay();
           applyTransform();
         }
@@ -637,17 +530,7 @@
             e.preventDefault();
             const currentDistance = getTouchDistance(e.touches);
             const scale = currentDistance / initialPinchDistance;
-            const newZoom = Math.max(
-              1,
-              Math.min(maxZoom, initialPinchZoom * scale)
-            ); // Zoom mínimo é 1
-
-            // Se estamos voltando para o zoom 1, resetar a posição também
-            if (newZoom === 1) {
-              currentTranslate = { x: 0, y: 0 };
-            }
-
-            currentZoom = newZoom;
+            currentZoom = Math.max(0.5, Math.min(5, initialPinchZoom * scale));
             updateZoomDisplay();
             applyTransform();
           } else if (e.touches.length === 1 && isDragging && currentZoom > 1) {
@@ -735,12 +618,6 @@
           img.src = imageUrl;
           img.className = "floor-plan-image";
 
-          // Calcular maxZoom quando a imagem carregar
-          img.onload = function () {
-            maxZoom = calculateMaxZoom(img);
-            console.log("[FULLSCREEN] Max zoom calculated:", maxZoom);
-          };
-
           // Adiciona a imagem ao contêiner
           container.appendChild(img);
 
@@ -771,22 +648,10 @@
             const unitIndex = index;
             indicator.id = `unit-indicator-${unitIndex}`;
             indicator.className = `unit-indicator status-${status}`;
-
-            // Armazenar coordenadas originais nos atributos data
-            indicator.setAttribute("data-original-x", coordX);
-            indicator.setAttribute("data-original-y", coordY);
-
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
-
-            // Tamanho responsivo dos pontos baseado na tela
-            const screenWidth = window.innerWidth;
-            const screenHeight = window.innerHeight;
-            const baseSize = Math.min(screenWidth, screenHeight) / 50; // Baseado em 2% da menor dimensão da tela
-            const responsiveDotSize = Math.max(8, Math.min(24, baseSize)); // Entre 8px e 24px
-
-            indicator.style.width = `${responsiveDotSize}px`;
-            indicator.style.height = `${responsiveDotSize}px`;
+            indicator.style.width = `${dotSize}px`;
+            indicator.style.height = `${dotSize}px`;
             indicator.title = `Unidade: ${u[2]}
 Status: ${status}`;
 
@@ -868,25 +733,14 @@ Status: ${status}`;
 
           // Atualiza as propriedades do indicador
           indicator.className = `unit-indicator status-${status}`;
-
-          // Armazenar coordenadas originais se ainda não foram salvas
-          if (!indicator.hasAttribute("data-original-x")) {
-            indicator.setAttribute("data-original-x", coordX);
-            indicator.setAttribute("data-original-y", coordY);
-          }
-
           indicator.style.left = `${coordX}%`;
           indicator.style.top = `${coordY}%`;
           indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
 
-          // Tamanho responsivo dos pontos baseado na tela
-          const screenWidth = window.innerWidth;
-          const screenHeight = window.innerHeight;
-          const baseSize = Math.min(screenWidth, screenHeight) / 50; // Baseado em 2% da menor dimensão da tela
-          const responsiveDotSize = Math.max(8, Math.min(24, baseSize)); // Entre 8px e 24px
-
-          indicator.style.width = `${responsiveDotSize}px`;
-          indicator.style.height = `${responsiveDotSize}px`;
+          // Aplica o tamanho do ponto se disponível
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
 
           console.log(
             `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
@@ -982,11 +836,6 @@ Status: ${status}`;
           indicators.forEach((indicator) => {
             indicator.classList.remove("fullscreen-mode");
           });
-
-          // Forçar recálculo das posições após mudança de modo
-          setTimeout(() => {
-            updateUnitPositions();
-          }, 100);
         }
 
         function hideTopbar() {
@@ -1011,11 +860,6 @@ Status: ${status}`;
           indicators.forEach((indicator) => {
             indicator.classList.add("fullscreen-mode");
           });
-
-          // Forçar recálculo das posições após mudança de modo
-          setTimeout(() => {
-            updateUnitPositions();
-          }, 100);
         }
 
         // Event listeners para mostrar header quando houver interação (apenas fora do fullscreen)
@@ -1043,87 +887,6 @@ Status: ${status}`;
 
         // Header sempre visível por padrão
         showTopbar();
-
-        // Otimizações de desempenho para mobile
-        let resizeTimeout;
-        let orientationTimeout;
-        let animationFrameId = null;
-
-        // Função de debouncing para otimizar performance
-        function debounce(func, wait) {
-          return function executedFunction(...args) {
-            const later = () => {
-              clearTimeout(resizeTimeout);
-              func(...args);
-            };
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(later, wait);
-          };
-        }
-
-        // Função otimizada para usar requestAnimationFrame
-        function requestAnimationFrameUpdate(callback) {
-          if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-          }
-          animationFrameId = requestAnimationFrame(callback);
-        }
-
-        // Função otimizada para atualizar posições com performance
-        function optimizedUpdateUnitPositions() {
-          requestAnimationFrameUpdate(() => {
-            updateUnitPositions();
-          });
-        }
-
-        // Listener para mudanças de orientação/orientação da tela (mobile) - com debouncing
-        window.addEventListener("orientationchange", () => {
-          console.log(
-            "[FULLSCREEN] Orientation changed, recalculating positions"
-          );
-          clearTimeout(orientationTimeout);
-          orientationTimeout = setTimeout(() => {
-            optimizedUpdateUnitPositions();
-          }, 300); // Delay maior para garantir que a orientação foi completamente aplicada
-        });
-
-        // Listener para resize da janela (desktop) - com debouncing
-        const debouncedResize = debounce(() => {
-          console.log("[FULLSCREEN] Window resized, recalculating positions");
-          optimizedUpdateUnitPositions();
-        }, 150);
-
-        window.addEventListener("resize", debouncedResize);
-
-        // Otimização para touch events - reduzir frequência de processamento
-        let touchThrottleTimeout;
-        function throttleTouchEvents(callback, delay = 16) {
-          // ~60fps
-          if (!touchThrottleTimeout) {
-            touchThrottleTimeout = setTimeout(() => {
-              callback();
-              touchThrottleTimeout = null;
-            }, delay);
-          }
-        }
-
-        // Otimizar transformações aplicadas durante drag
-        function optimizedApplyTransform() {
-          if (!container) return;
-
-          requestAnimationFrameUpdate(() => {
-            container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
-            container.classList.toggle("zoomed", currentZoom > 1);
-
-            // Só atualizar posições dos pontos se não estiver arrastando (para performance)
-            if (!isDragging) {
-              updateUnitPositions();
-            }
-          });
-        }
-
-        // Substituir applyTransform pela versão otimizada
-        applyTransform = optimizedApplyTransform;
       })();
     </script>
   </body>
