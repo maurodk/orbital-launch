@@ -1,6 +1,6 @@
 // src/components/ReservationSuccessModal.tsx
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface ReservationSuccessModalProps {
   show: boolean;
