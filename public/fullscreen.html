@@ -918,11 +918,12 @@ Status: ${status}`;
             indicator.classList.remove("fullscreen-mode");
           });
 
-          // Ajustar posições dos indicadores de volta para o tamanho normal do container
-          const scaleY = (window.innerHeight - 51) / window.innerHeight;
+          // Restaurar posições originais dos indicadores
           indicators.forEach((indicator) => {
-            const coordY = parseFloat(indicator.style.top);
-            indicator.style.top = coordY * scaleY + "%";
+            if (indicator.dataset.originalLeft) {
+              indicator.style.left = indicator.dataset.originalLeft;
+              indicator.style.top = indicator.dataset.originalTop;
+            }
           });
         }
 
@@ -949,12 +950,34 @@ Status: ${status}`;
             indicator.classList.add("fullscreen-mode");
           });
 
-          // Ajustar posições dos indicadores para o novo tamanho do container
-          const scaleY = window.innerHeight / (window.innerHeight - 51);
-          indicators.forEach((indicator) => {
-            const coordY = parseFloat(indicator.style.top);
-            indicator.style.top = coordY * scaleY + "%";
-          });
+          // Ajustar posições dos indicadores para o dimensionamento da imagem em fullscreen
+          if (window.imageNaturalWidth && window.imageNaturalHeight) {
+            // Calcular dimensões e posição da imagem exibida
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const scale = Math.min(
+              viewportWidth / window.imageNaturalWidth,
+              viewportHeight / window.imageNaturalHeight
+            );
+            const displayedWidth = window.imageNaturalWidth * scale;
+            const displayedHeight = window.imageNaturalHeight * scale;
+            const offsetX = (viewportWidth - displayedWidth) / 2;
+            const offsetY = (viewportHeight - displayedHeight) / 2;
+
+            // Converter posições percentuais para pixels relativos à imagem exibida
+            indicators.forEach((indicator) => {
+              // Armazenar posições originais
+              indicator.dataset.originalLeft = indicator.style.left;
+              indicator.dataset.originalTop = indicator.style.top;
+
+              const coordX = parseFloat(indicator.style.left);
+              const coordY = parseFloat(indicator.style.top);
+              const pixelX = offsetX + (coordX / 100) * displayedWidth;
+              const pixelY = offsetY + (coordY / 100) * displayedHeight;
+              indicator.style.left = pixelX + "px";
+              indicator.style.top = pixelY + "px";
+            });
+          }
         }
 
         // Event listeners para mostrar header quando houver interação (apenas fora do fullscreen)
