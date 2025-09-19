@@ -193,6 +193,12 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* Otimizações de performance para mobile */
+        will-change: transform;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        transform-style: preserve-3d;
+        -webkit-transform-style: preserve-3d;
       }
 
       .floor-plan-container.dragging {
@@ -446,9 +452,11 @@
           updateUnitPositions();
         }
 
-        // Função para atualizar as posições dos pontos baseado no zoom
+        // Função para atualizar as posições dos pontos baseado no zoom e modo
         function updateUnitPositions() {
           const indicators = document.querySelectorAll(".unit-indicator");
+          const isFullscreen = document.fullscreenElement !== null;
+
           indicators.forEach((indicator) => {
             // Obter as coordenadas originais do atributo data
             const originalX = parseFloat(
@@ -464,9 +472,48 @@
               indicator.setAttribute("data-original-y", originalY);
             }
 
-            // Manter as posições originais - os pontos devem ficar fixos na imagem
-            indicator.style.left = `${originalX}%`;
-            indicator.style.top = `${originalY}%`;
+            // Calcular posições baseadas no modo atual
+            if (
+              isFullscreen &&
+              container &&
+              container.classList.contains("fullscreen-mode")
+            ) {
+              // No fullscreen, ajustar baseado na proporção da imagem
+              const img = document.querySelector(".floor-plan-image");
+              if (img) {
+                const imgRect = img.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+
+                // Calcular offsets para centralizar a imagem no container
+                const offsetX = (containerRect.width - imgRect.width) / 2;
+                const offsetY = (containerRect.height - imgRect.height) / 2;
+
+                // Converter coordenadas percentuais para pixels baseadas no tamanho real da imagem
+                const pixelX = (originalX / 100) * imgRect.width + offsetX;
+                const pixelY = (originalY / 100) * imgRect.height + offsetY;
+
+                // Converter para porcentagem do container
+                const containerX = (pixelX / containerRect.width) * 100;
+                const containerY = (pixelY / containerRect.height) * 100;
+
+                indicator.style.left = `${Math.max(
+                  0,
+                  Math.min(100, containerX)
+                )}%`;
+                indicator.style.top = `${Math.max(
+                  0,
+                  Math.min(100, containerY)
+                )}%`;
+              } else {
+                // Fallback para coordenadas originais
+                indicator.style.left = `${originalX}%`;
+                indicator.style.top = `${originalY}%`;
+              }
+            } else {
+              // Modo normal - usar coordenadas originais
+              indicator.style.left = `${originalX}%`;
+              indicator.style.top = `${originalY}%`;
+            }
           });
         }
 
@@ -997,22 +1044,86 @@ Status: ${status}`;
         // Header sempre visível por padrão
         showTopbar();
 
-        // Listener para mudanças de orientação/orientação da tela (mobile)
+        // Otimizações de desempenho para mobile
+        let resizeTimeout;
+        let orientationTimeout;
+        let animationFrameId = null;
+
+        // Função de debouncing para otimizar performance
+        function debounce(func, wait) {
+          return function executedFunction(...args) {
+            const later = () => {
+              clearTimeout(resizeTimeout);
+              func(...args);
+            };
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(later, wait);
+          };
+        }
+
+        // Função otimizada para usar requestAnimationFrame
+        function requestAnimationFrameUpdate(callback) {
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+          }
+          animationFrameId = requestAnimationFrame(callback);
+        }
+
+        // Função otimizada para atualizar posições com performance
+        function optimizedUpdateUnitPositions() {
+          requestAnimationFrameUpdate(() => {
+            updateUnitPositions();
+          });
+        }
+
+        // Listener para mudanças de orientação/orientação da tela (mobile) - com debouncing
         window.addEventListener("orientationchange", () => {
           console.log(
             "[FULLSCREEN] Orientation changed, recalculating positions"
           );
-          // Pequeno delay para garantir que as dimensões da tela foram atualizadas
-          setTimeout(() => {
-            updateUnitPositions();
-          }, 200);
+          clearTimeout(orientationTimeout);
+          orientationTimeout = setTimeout(() => {
+            optimizedUpdateUnitPositions();
+          }, 300); // Delay maior para garantir que a orientação foi completamente aplicada
         });
 
-        // Listener para resize da janela (desktop)
-        window.addEventListener("resize", () => {
+        // Listener para resize da janela (desktop) - com debouncing
+        const debouncedResize = debounce(() => {
           console.log("[FULLSCREEN] Window resized, recalculating positions");
-          updateUnitPositions();
-        });
+          optimizedUpdateUnitPositions();
+        }, 150);
+
+        window.addEventListener("resize", debouncedResize);
+
+        // Otimização para touch events - reduzir frequência de processamento
+        let touchThrottleTimeout;
+        function throttleTouchEvents(callback, delay = 16) {
+          // ~60fps
+          if (!touchThrottleTimeout) {
+            touchThrottleTimeout = setTimeout(() => {
+              callback();
+              touchThrottleTimeout = null;
+            }, delay);
+          }
+        }
+
+        // Otimizar transformações aplicadas durante drag
+        function optimizedApplyTransform() {
+          if (!container) return;
+
+          requestAnimationFrameUpdate(() => {
+            container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
+            container.classList.toggle("zoomed", currentZoom > 1);
+
+            // Só atualizar posições dos pontos se não estiver arrastando (para performance)
+            if (!isDragging) {
+              updateUnitPositions();
+            }
+          });
+        }
+
+        // Substituir applyTransform pela versão otimizada
+        applyTransform = optimizedApplyTransform;
       })();
     </script>
   </body>
