@@ -554,7 +554,10 @@
         }
 
         function updateSingleUnit(unitData, rowIndex) {
-          if (!container) return;
+          const currentContainer = document.querySelector(
+            ".floor-plan-container"
+          );
+          if (!currentContainer) return;
           const unitIndex = rowIndex - 2;
           const unitId = `unit-indicator-${unitIndex}`;
           let indicator = document.getElementById(unitId);
@@ -570,7 +573,7 @@
           if (!indicator) {
             indicator = document.createElement("div");
             indicator.id = unitId;
-            container.appendChild(indicator);
+            currentContainer.appendChild(indicator);
           }
           indicator.className = `unit-indicator status-${status}`;
           indicator.style.left = `${coordX}%`;
