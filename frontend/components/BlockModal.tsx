@@ -9,6 +9,7 @@ interface BlockModalProps {
   onConfirm: (password: string) => void;
   isBlocking: boolean;
   apiError?: string;
+  // A prop clearApiError não é mais necessária aqui
 }
 
 export function BlockModal({
@@ -44,12 +45,13 @@ export function BlockModal({
       return;
     }
     setPasswordError("");
-    onConfirm(password);
+    onConfirm(password); // A limpeza do erro agora é feita no App.tsx antes da chamada
   };
 
   const handleClose = () => {
     setPassword("");
     setPasswordError("");
+    // A limpeza do erro da API também é tratada no App.tsx ao fechar o modal
     onClose();
   };
 
@@ -77,6 +79,7 @@ export function BlockModal({
               onChange={(e) => {
                 setPassword(e.target.value);
                 // Limpa o erro de validação local ao digitar
+                // O erro da API será limpo no App.tsx na próxima tentativa de submissão
                 if (passwordError) setPasswordError("");
               }}
               style={{

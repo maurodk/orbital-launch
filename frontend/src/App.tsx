@@ -987,9 +987,6 @@ function App() {
                 }
                 isBlocking={blockModalState.isBlocking}
                 apiError={blockModalState.apiError}
-                clearApiError={() =>
-                  setBlockModalState((prev) => ({ ...prev, apiError: "" }))
-                }
                 onConfirm={(
                   password = "" // Garante que a senha seja opcional na chamada
                 ) =>
