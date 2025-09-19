@@ -998,10 +998,11 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     const clientRowIndex = allClients.findIndex(
       (row) => row && row[1] === clientName
     );
+    // CORREÇÃO: Atualiza o status do cliente para "JA RESERVOU" na coluna F.
     if (clientRowIndex !== -1) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_DADOS,
-        range: `${SHEET_NAME_DADOS}!F${clientRowIndex + 1}`,
+        range: `${SHEET_NAME_DADOS}!F${clientRowIndex + 1}`, // CORREÇÃO: Atualiza a coluna F (índice 5)
         valueInputOption: "USER_ENTERED",
         resource: { values: [["JA RESERVOU"]] },
       });

@@ -630,6 +630,20 @@ function App() {
           })
         );
 
+        if (clientData) {
+          const reservedClientId = clientData[0]; // O ID do cliente está na coluna 0
+          setClientes((currentClientes) =>
+            currentClientes.map((cliente) => {
+              if (cliente[0] === reservedClientId) {
+                const updatedCliente = [...cliente];
+                updatedCliente[5] = "JA RESERVOU"; // Atualiza o status na coluna F (índice 5)
+                return updatedCliente;
+              }
+              return cliente;
+            })
+          );
+        }
+
         await fetchHistory(selectedImplantationName);
       } else {
         // 6. Se a confirmação falhou, mostra erro
