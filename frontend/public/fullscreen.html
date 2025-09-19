@@ -350,46 +350,44 @@ Status: ${status}`;
           }
         });
 
-        // Lógica de auto-ocultação do header
+        // Lógica de controle do header (só oculta quando fullscreen é ativado)
         const topbar = document.querySelector(".topbar");
-        let hideTimeout;
-        const HIDE_DELAY = 5000; // 5 segundos de inatividade
+        let isFullscreenMode = false;
 
         function showTopbar() {
           topbar.classList.remove("hidden");
           wrapper.classList.remove("fullscreen");
+          isFullscreenMode = false;
         }
 
         function hideTopbar() {
           topbar.classList.add("hidden");
           wrapper.classList.add("fullscreen");
+          isFullscreenMode = true;
         }
 
-        function resetHideTimer() {
-          clearTimeout(hideTimeout);
-          showTopbar();
-          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
+        // Event listeners para mostrar header quando houver interação
+        function showHeaderOnInteraction() {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
         }
 
-        // Event listeners para detectar atividade do usuário
-        document.addEventListener("mousemove", resetHideTimer);
-        document.addEventListener("mousedown", resetHideTimer);
-        document.addEventListener("keydown", resetHideTimer);
-        document.addEventListener("touchstart", resetHideTimer);
-        document.addEventListener("touchmove", resetHideTimer);
+        document.addEventListener("mousemove", showHeaderOnInteraction);
+        document.addEventListener("mousedown", showHeaderOnInteraction);
+        document.addEventListener("keydown", showHeaderOnInteraction);
+        document.addEventListener("touchstart", showHeaderOnInteraction);
+        document.addEventListener("touchmove", showHeaderOnInteraction);
 
         // Mostrar header ao passar o mouse sobre a área do header
         topbar.addEventListener("mouseenter", () => {
-          clearTimeout(hideTimeout);
-          showTopbar();
+          if (isFullscreenMode) {
+            showTopbar();
+          }
         });
 
-        topbar.addEventListener("mouseleave", () => {
-          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
-        });
-
-        // Iniciar o timer de ocultação automática
-        resetHideTimer();
+        // Header sempre visível por padrão
+        showTopbar();
       })();
     </script>
   </body>

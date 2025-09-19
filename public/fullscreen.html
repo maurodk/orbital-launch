@@ -385,6 +385,11 @@
         let currentTranslate = { x: 0, y: 0 };
         let container = null;
 
+        // Variáveis para pinch-to-zoom
+        let initialPinchDistance = 0;
+        let initialPinchZoom = 1;
+        let isPinching = false;
+
         const urlParams = new URLSearchParams(location.search);
         const implantacao = urlParams.get("implantacao");
 
@@ -456,6 +461,20 @@
           applyTransform();
         }
 
+        // Funções auxiliares para pinch-to-zoom
+        function getTouchDistance(touches) {
+          const dx = touches[0].clientX - touches[1].clientX;
+          const dy = touches[0].clientY - touches[1].clientY;
+          return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function getTouchCenter(touches) {
+          return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2,
+          };
+        }
+
         function handleWheel(e) {
           e.preventDefault();
           const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -488,7 +507,14 @@
         }
 
         function handleTouchStart(e) {
-          if (e.touches.length === 1 && currentZoom > 1) {
+          if (e.touches.length === 2) {
+            // Iniciar pinch-to-zoom
+            e.preventDefault();
+            isPinching = true;
+            initialPinchDistance = getTouchDistance(e.touches);
+            initialPinchZoom = currentZoom;
+          } else if (e.touches.length === 1 && currentZoom > 1) {
+            // Iniciar arrastar com um dedo
             isDragging = true;
             dragStart = {
               x: e.touches[0].clientX - currentTranslate.x,
@@ -499,7 +525,16 @@
         }
 
         function handleTouchMove(e) {
-          if (e.touches.length === 1 && isDragging && currentZoom > 1) {
+          if (e.touches.length === 2 && isPinching) {
+            // Pinch-to-zoom
+            e.preventDefault();
+            const currentDistance = getTouchDistance(e.touches);
+            const scale = currentDistance / initialPinchDistance;
+            currentZoom = Math.max(0.5, Math.min(5, initialPinchZoom * scale));
+            updateZoomDisplay();
+            applyTransform();
+          } else if (e.touches.length === 1 && isDragging && currentZoom > 1) {
+            // Arrastar com um dedo
             e.preventDefault();
             currentTranslate.x = e.touches[0].clientX - dragStart.x;
             currentTranslate.y = e.touches[0].clientY - dragStart.y;
@@ -507,9 +542,24 @@
           }
         }
 
-        function handleTouchEnd() {
-          isDragging = false;
-          if (container) container.classList.remove("dragging");
+        function handleTouchEnd(e) {
+          if (e.touches.length === 0) {
+            // Todos os dedos foram removidos
+            isDragging = false;
+            isPinching = false;
+            if (container) container.classList.remove("dragging");
+          } else if (e.touches.length === 1 && isPinching) {
+            // Um dedo foi removido durante pinch, voltar para arrastar
+            isPinching = false;
+            if (currentZoom > 1) {
+              isDragging = true;
+              dragStart = {
+                x: e.touches[0].clientX - currentTranslate.x,
+                y: e.touches[0].clientY - currentTranslate.y,
+              };
+              container.classList.add("dragging");
+            }
+          }
         }
 
         function setupZoomControls() {
@@ -719,7 +769,8 @@ Status: ${status}`;
         // Detectar mudanças no modo tela cheia
         document.addEventListener("fullscreenchange", () => {
           if (document.fullscreenElement) {
-            // Entrou em tela cheia - mostrar controles de zoom
+            // Entrou em tela cheia - ocultar header e mostrar controles de zoom
+            hideTopbar();
             zoomControls.classList.add("visible");
             zoomInstructions.classList.add("visible");
             fullscreenBtn.innerHTML = `
@@ -729,7 +780,8 @@ Status: ${status}`;
             `;
             fullscreenBtn.title = "Sair da Tela Cheia";
           } else {
-            // Saiu da tela cheia - ocultar controles de zoom
+            // Saiu da tela cheia - mostrar header e ocultar controles de zoom
+            showTopbar();
             zoomControls.classList.remove("visible");
             zoomInstructions.classList.remove("visible");
             fullscreenBtn.innerHTML = `
@@ -741,14 +793,14 @@ Status: ${status}`;
           }
         });
 
-        // Lógica de auto-ocultação do header
+        // Lógica de controle do header (só oculta quando fullscreen é ativado)
         const topbar = document.querySelector(".topbar");
-        let hideTimeout;
-        const HIDE_DELAY = 5000; // 5 segundos de inatividade
+        let isFullscreenMode = false;
 
         function showTopbar() {
           topbar.classList.remove("hidden");
           wrapper.classList.remove("fullscreen");
+          isFullscreenMode = false;
 
           // Remover modo fullscreen da imagem, container e pontos
           if (container) {
@@ -768,6 +820,7 @@ Status: ${status}`;
         function hideTopbar() {
           topbar.classList.add("hidden");
           wrapper.classList.add("fullscreen");
+          isFullscreenMode = true;
 
           // Aplicar modo fullscreen à imagem, container e pontos
           if (container) {
@@ -784,31 +837,28 @@ Status: ${status}`;
           });
         }
 
-        function resetHideTimer() {
-          clearTimeout(hideTimeout);
-          showTopbar();
-          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
+        // Event listeners para mostrar header quando houver interação
+        function showHeaderOnInteraction() {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
         }
 
-        // Event listeners para detectar atividade do usuário
-        document.addEventListener("mousemove", resetHideTimer);
-        document.addEventListener("mousedown", resetHideTimer);
-        document.addEventListener("keydown", resetHideTimer);
-        document.addEventListener("touchstart", resetHideTimer);
-        document.addEventListener("touchmove", resetHideTimer);
+        document.addEventListener("mousemove", showHeaderOnInteraction);
+        document.addEventListener("mousedown", showHeaderOnInteraction);
+        document.addEventListener("keydown", showHeaderOnInteraction);
+        document.addEventListener("touchstart", showHeaderOnInteraction);
+        document.addEventListener("touchmove", showHeaderOnInteraction);
 
         // Mostrar header ao passar o mouse sobre a área do header
         topbar.addEventListener("mouseenter", () => {
-          clearTimeout(hideTimeout);
-          showTopbar();
+          if (isFullscreenMode) {
+            showTopbar();
+          }
         });
 
-        topbar.addEventListener("mouseleave", () => {
-          hideTimeout = setTimeout(hideTopbar, HIDE_DELAY);
-        });
-
-        // Iniciar o timer de ocultação automática
-        resetHideTimer();
+        // Header sempre visível por padrão
+        showTopbar();
       })();
     </script>
   </body>
