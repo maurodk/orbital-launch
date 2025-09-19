@@ -961,6 +961,48 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             unitName,
           });
 
+          if (clientName) {
+            try {
+              const allClientsData = await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID_DADOS,
+                range: `${SHEET_NAME_DADOS}!A:F`, // Busca todas as colunas para encontrar o cliente
+              });
+              const allClients = allClientsData.data.values || [];
+
+              // Encontra o índice da linha do cliente pelo nome (na coluna B, índice 1)
+              const clientRowIndex = allClients.findIndex(
+                (row) => row && row[1] && row[1].trim() === clientName.trim()
+              );
+
+              // Se encontrou o cliente, atualiza a coluna F (índice 5) da linha correspondente
+              if (clientRowIndex !== -1) {
+                // O índice da planilha é baseado em 1, e o array em 0. Se o array não tem cabeçalho, é +1.
+                // Como a sua planilha de DADOS tem cabeçalho, e o slice(1) foi removido, a linha da planilha é o índice do array + 1.
+                const sheetRowToUpdate = clientRowIndex + 1;
+
+                await sheets.spreadsheets.values.update({
+                  spreadsheetId: SPREADSHEET_ID_DADOS,
+                  range: `${SHEET_NAME_DADOS}!F${sheetRowToUpdate}`, // Alvo: Coluna F da linha encontrada
+                  valueInputOption: "USER_ENTERED",
+                  resource: { values: [["JA RESERVOU"]] },
+                });
+                console.log(
+                  `[SHEETS] Status do cliente '${clientName}' atualizado para 'JA RESERVOU'.`
+                );
+              } else {
+                console.warn(
+                  `[SHEETS] Cliente '${clientName}' não encontrado na planilha de dados para atualização de status.`
+                );
+              }
+            } catch (error) {
+              console.error(
+                `[SHEETS] Erro ao tentar atualizar o status do cliente '${clientName}':`,
+                error.message
+              );
+              // Não paramos a execução, pois a reserva da unidade é mais crítica.
+            }
+          }
+
           const funnelRow = [data[0], unitName || "N/A", data[3]];
           await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID_FUNIL,
