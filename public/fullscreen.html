@@ -53,22 +53,47 @@
         padding: 0;
       }
       .floor-plan-wrapper.fullscreen {
-        height: 100vh; /* Altura total da tela quando topbar está oculto */
-        background-color: #111; /* Mesma cor do body para evitar área preta */
+        height: 100vh;
+        background-color: #111;
       }
+
+      /* --- AJUSTES PARA O ALINHAMENTO PERFEITO --- */
+
       .floor-plan-container {
         position: relative;
+        width: 100%;
         max-width: 100%;
-        max-height: 100%;
+        /* A altura será controlada pelo padding-bottom via JS para manter o aspect ratio */
+        transform-origin: center center;
+        transition: transform 0.3s ease;
+        cursor: grab;
       }
       .floor-plan-image {
-        display: block;
+        /* A imagem agora preenche o contêiner de aspect ratio perfeitamente */
+        position: absolute;
+        top: 0;
+        left: 0;
         width: 100%;
-        height: auto;
-        object-fit: contain;
+        height: 100%;
+        display: block;
         opacity: 0.9;
         transition: all 0.3s ease;
       }
+
+      .unit-indicator {
+        position: absolute; /* Posição relativa ao .floor-plan-container */
+        transform: translate(-50%, -50%);
+        width: 16px; /* Tamanho padrão, será sobrescrito */
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        transition: transform 0.2s ease, background-color 0.3s ease;
+        cursor: help;
+        z-index: 11; /* Garante que os pontos fiquem acima da imagem */
+      }
+
+      /* --- FIM DOS AJUSTES --- */
 
       .floor-plan-image.fullscreen-mode {
         width: 100vw;
@@ -79,22 +104,9 @@
         left: 0;
         z-index: 10;
       }
-      .unit-indicator {
-        position: absolute;
-        transform: translate(-50%, -50%);
-        width: 16px; /* Tamanho padrão, será sobrescrito */
-        height: 16px;
-        border-radius: 50%;
-        border: 2px solid rgba(255, 255, 255, 0.8);
-        box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
-        transition: transform 0.2s ease, background-color 0.3s ease;
-        cursor: help;
-        z-index: 11; /* Garantir que os pontos fiquem acima da imagem */
-      }
-
       .unit-indicator.fullscreen-mode {
-        position: fixed; /* Mesmo posicionamento da imagem */
-        z-index: 12; /* Acima da imagem em fullscreen */
+        position: fixed;
+        z-index: 12;
       }
       .status-RESERVADA {
         background: #d9534f;
@@ -128,7 +140,6 @@
         background: #444;
       }
 
-      /* Controles de Zoom */
       .zoom-controls {
         position: fixed;
         top: 70px;
@@ -140,11 +151,9 @@
         opacity: 0;
         transition: opacity 0.3s ease;
       }
-
       .zoom-controls.visible {
         opacity: 1;
       }
-
       .zoom-button {
         background: rgba(0, 0, 0, 0.8);
         border: 1px solid #555;
@@ -161,48 +170,28 @@
         transition: all 0.2s ease;
         backdrop-filter: blur(10px);
       }
-
       .zoom-button:hover {
         background: rgba(0, 0, 0, 0.9);
         border-color: #777;
         transform: scale(1.05);
       }
-
       .zoom-button:active {
         transform: scale(0.95);
       }
-
       .zoom-reset {
         background: rgba(46, 213, 115, 0.2);
         border-color: #2ed573;
         font-size: 14px;
       }
-
       .zoom-reset:hover {
         background: rgba(46, 213, 115, 0.3);
       }
-
-      /* Container da imagem com zoom */
-      .floor-plan-container {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        transform-origin: center center;
-        transition: transform 0.3s ease;
-        cursor: grab;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
       .floor-plan-container.dragging {
         cursor: grabbing;
       }
-
       .floor-plan-container.zoomed {
         cursor: grab;
       }
-
       .floor-plan-container.fullscreen-mode {
         position: fixed;
         top: 0;
@@ -211,8 +200,6 @@
         height: 100vh;
         z-index: 10;
       }
-
-      /* Indicador de zoom */
       .zoom-indicator {
         position: fixed;
         top: 20px;
@@ -230,12 +217,9 @@
         border: 1px solid #333;
         z-index: 1000;
       }
-
       .zoom-indicator.visible {
         opacity: 1;
       }
-
-      /* Instruções de uso */
       .zoom-instructions {
         position: fixed;
         bottom: 20px;
@@ -254,30 +238,24 @@
         text-align: center;
         max-width: 300px;
       }
-
       .zoom-instructions.visible {
         opacity: 1;
       }
-
-      /* Responsividade para mobile */
       @media (max-width: 768px) {
         .zoom-controls {
           top: 60px;
           right: 10px;
         }
-
         .zoom-button {
           width: 36px;
           height: 36px;
           font-size: 16px;
         }
-
         .zoom-indicator {
           top: 15px;
           font-size: 12px;
           padding: 6px 12px;
         }
-
         .zoom-instructions {
           bottom: 15px;
           font-size: 11px;
@@ -318,7 +296,6 @@
       <!-- A imagem e os pontos serão inseridos aqui via script -->
     </div>
 
-    <!-- Controles de Zoom -->
     <div class="zoom-controls" id="zoom-controls">
       <button
         class="zoom-button"
@@ -346,12 +323,9 @@
       </button>
     </div>
 
-    <!-- Indicador de Zoom -->
     <div class="zoom-indicator" id="zoom-indicator">
       Zoom: <span id="zoom-level">100%</span>
     </div>
-
-    <!-- Instruções de Uso -->
     <div class="zoom-instructions" id="zoom-instructions">
       <div>
         🖱️ <strong>Mouse:</strong> Scroll para zoom | Arrastar para mover
@@ -362,7 +336,7 @@
     </div>
 
     <script>
-      // IIFE para encapsular a lógica e evitar poluir o escopo global
+      // IIFE para encapsular a lógica
       (function () {
         const wrapper = document.getElementById("floor-plan-wrapper");
         const statusEl = document.getElementById("status");
@@ -371,21 +345,16 @@
           "empreendimento-title"
         );
         const fullscreenBtn = document.getElementById("fullscreen-btn");
-
-        // Elementos de zoom
         const zoomControls = document.getElementById("zoom-controls");
         const zoomIndicator = document.getElementById("zoom-indicator");
         const zoomLevel = document.getElementById("zoom-level");
         const zoomInstructions = document.getElementById("zoom-instructions");
 
-        // Variáveis de zoom
         let currentZoom = 1;
         let isDragging = false;
         let dragStart = { x: 0, y: 0 };
         let currentTranslate = { x: 0, y: 0 };
         let container = null;
-
-        // Variáveis para pinch-to-zoom
         let initialPinchDistance = 0;
         let initialPinchZoom = 1;
         let isPinching = false;
@@ -403,18 +372,15 @@
         implantacaoNameEl.textContent = implantacao;
         empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
 
-        // Função para buscar os dados da API
         async function fetchData(hideAvailable = "false") {
           try {
             const url = `/api/public-data?implantacao=${encodeURIComponent(
               implantacao
             )}&hideAvailable=${hideAvailable}`;
             const res = await fetch(url);
-            if (!res.ok) {
+            if (!res.ok)
               throw new Error(`Falha ao buscar dados: ${res.statusText}`);
-            }
-            const json = await res.json();
-            return json; // Retorna o objeto completo
+            return await res.json();
           } catch (e) {
             console.error("Erro em fetchData:", e);
             statusEl.textContent = "Erro ao carregar dados.";
@@ -422,37 +388,107 @@
           }
         }
 
-        // Funções de Zoom e Arrastar
-        function updateZoomDisplay() {
-          zoomLevel.textContent = Math.round(currentZoom * 100) + "%";
-          if (currentZoom > 1) {
-            zoomIndicator.classList.add("visible");
-            zoomControls.classList.add("visible");
-            zoomInstructions.classList.add("visible");
-          } else {
-            zoomIndicator.classList.remove("visible");
-            zoomControls.classList.remove("visible");
-            zoomInstructions.classList.remove("visible");
+        // --- FUNÇÃO RENDER ATUALIZADA ---
+        function render(data) {
+          const { unidades, imageUrl, dotSize } = data;
+          wrapper.innerHTML = ""; // Limpa o conteúdo anterior
+
+          window.currentDotSize = dotSize;
+
+          if (!imageUrl) {
+            wrapper.innerHTML =
+              '<p style="padding:20px">Imagem da planta não configurada.</p>';
+            return;
           }
+
+          container = document.createElement("div");
+          container.className = "floor-plan-container";
+
+          const img = document.createElement("img");
+          img.className = "floor-plan-image";
+
+          img.onload = () => {
+            // 1. Calcula o aspect ratio da imagem
+            const aspectRatio = (img.naturalHeight / img.naturalWidth) * 100;
+
+            // 2. Define a altura do contêiner usando padding-bottom para manter o aspect ratio
+            container.style.paddingBottom = `${aspectRatio}%`;
+
+            // 3. Adiciona os pontos agora que o contêiner tem a proporção correta
+            const rows =
+              unidades.length > 0 &&
+              unidades[0][0]?.toString().toLowerCase().includes("etapa")
+                ? unidades.slice(1)
+                : unidades;
+            rows.forEach((u, index) => {
+              const coordX = u[11];
+              const coordY = u[12];
+              const status = (u[10] || "DISPONÍVEL").toString().toUpperCase();
+
+              if (!coordX || !coordY) return;
+
+              const indicator = document.createElement("div");
+              const unitIndex = index;
+              indicator.id = `unit-indicator-${unitIndex}`;
+              indicator.className = `unit-indicator status-${status}`;
+              indicator.style.left = `${coordX}%`;
+              indicator.style.top = `${coordY}%`;
+              indicator.style.width = `${dotSize}px`;
+              indicator.style.height = `${dotSize}px`;
+              indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
+
+              container.appendChild(indicator);
+            });
+
+            container.insertBefore(img, container.firstChild);
+            wrapper.appendChild(container);
+
+            setupZoomControls();
+          };
+
+          img.onerror = () => {
+            wrapper.innerHTML =
+              '<p style="padding:20px">Erro ao carregar a imagem da planta.</p>';
+          };
+
+          img.src = imageUrl; // Inicia o carregamento da imagem
         }
 
+        // As outras funções JavaScript permanecem as mesmas
+        function updateZoomDisplay() {
+          zoomLevel.textContent = Math.round(currentZoom * 100) + "%";
+          const visible = currentZoom > 1;
+          zoomIndicator.classList.toggle("visible", visible);
+          zoomControls.classList.toggle("visible", visible);
+          zoomInstructions.classList.toggle("visible", visible);
+        }
         function applyTransform() {
           if (!container) return;
           container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
           container.classList.toggle("zoomed", currentZoom > 1);
         }
-
         function zoomIn() {
           currentZoom = Math.min(currentZoom * 1.2, 5);
           updateZoomDisplay();
           applyTransform();
         }
-
         function zoomOut() {
           currentZoom = Math.max(currentZoom / 1.2, 1);
-          // Adjust translation bounds after zoom change
-          const viewportWidth = window.innerWidth;
-          const viewportHeight = window.innerHeight;
+          clampTranslation();
+          updateZoomDisplay();
+          applyTransform();
+        }
+        function resetZoom() {
+          currentZoom = 1;
+          currentTranslate = { x: 0, y: 0 };
+          updateZoomDisplay();
+          applyTransform();
+        }
+
+        function clampTranslation() {
+          if (!wrapper) return;
+          const viewportWidth = wrapper.clientWidth;
+          const viewportHeight = wrapper.clientHeight;
           const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
           const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
           currentTranslate.x = Math.max(
@@ -463,29 +499,11 @@
             -maxTranslateY,
             Math.min(maxTranslateY, currentTranslate.y)
           );
-          updateZoomDisplay();
-          applyTransform();
         }
-
-        function resetZoom() {
-          currentZoom = 1;
-          currentTranslate = { x: 0, y: 0 };
-          updateZoomDisplay();
-          applyTransform();
-        }
-
-        // Funções auxiliares para pinch-to-zoom
         function getTouchDistance(touches) {
           const dx = touches[0].clientX - touches[1].clientX;
           const dy = touches[0].clientY - touches[1].clientY;
           return Math.sqrt(dx * dx + dy * dy);
-        }
-
-        function getTouchCenter(touches) {
-          return {
-            x: (touches[0].clientX + touches[1].clientX) / 2,
-            y: (touches[0].clientY + touches[1].clientY) / 2,
-          };
         }
 
         function handleWheel(e) {
@@ -493,158 +511,84 @@
           const delta = e.deltaY > 0 ? 0.9 : 1.1;
           const oldZoom = currentZoom;
           currentZoom = Math.max(1, Math.min(5, currentZoom * delta));
-
-          // If zooming out, adjust translation bounds
           if (currentZoom < oldZoom) {
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
-            const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
-            currentTranslate.x = Math.max(
-              -maxTranslateX,
-              Math.min(maxTranslateX, currentTranslate.x)
-            );
-            currentTranslate.y = Math.max(
-              -maxTranslateY,
-              Math.min(maxTranslateY, currentTranslate.y)
-            );
+            clampTranslation();
           }
-
           updateZoomDisplay();
           applyTransform();
         }
-
         function handleMouseDown(e) {
-          if (currentZoom <= 1) return;
+          if (currentZoom <= 1 || e.button !== 0) return;
           isDragging = true;
           dragStart = {
             x: e.clientX - currentTranslate.x,
             y: e.clientY - currentTranslate.y,
           };
-          container.classList.add("dragging");
+          if (container) container.classList.add("dragging");
           e.preventDefault();
         }
-
         function handleMouseMove(e) {
           if (!isDragging || currentZoom <= 1) return;
           let newTranslateX = e.clientX - dragStart.x;
           let newTranslateY = e.clientY - dragStart.y;
-
-          // Clamp translation to prevent black spaces
-          const viewportWidth = window.innerWidth;
-          const viewportHeight = window.innerHeight;
-          const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
-          const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
-
-          currentTranslate.x = Math.max(
-            -maxTranslateX,
-            Math.min(maxTranslateX, newTranslateX)
-          );
-          currentTranslate.y = Math.max(
-            -maxTranslateY,
-            Math.min(maxTranslateY, newTranslateY)
-          );
-
+          currentTranslate.x = newTranslateX;
+          currentTranslate.y = newTranslateY;
+          clampTranslation();
           applyTransform();
         }
-
         function handleMouseUp() {
           isDragging = false;
           if (container) container.classList.remove("dragging");
         }
-
         function handleTouchStart(e) {
           if (e.touches.length === 2) {
-            // Iniciar pinch-to-zoom
             e.preventDefault();
             isPinching = true;
             initialPinchDistance = getTouchDistance(e.touches);
             initialPinchZoom = currentZoom;
           } else if (e.touches.length === 1 && currentZoom > 1) {
-            // Iniciar arrastar com um dedo
             isDragging = true;
             dragStart = {
               x: e.touches[0].clientX - currentTranslate.x,
               y: e.touches[0].clientY - currentTranslate.y,
             };
-            container.classList.add("dragging");
+            if (container) container.classList.add("dragging");
           }
         }
-
         function handleTouchMove(e) {
           if (e.touches.length === 2 && isPinching) {
-            // Pinch-to-zoom
             e.preventDefault();
             const currentDistance = getTouchDistance(e.touches);
             const scale = currentDistance / initialPinchDistance;
             const oldZoom = currentZoom;
             currentZoom = Math.max(1, Math.min(5, initialPinchZoom * scale));
-
-            // If zooming out, adjust translation bounds
             if (currentZoom < oldZoom) {
-              const viewportWidth = window.innerWidth;
-              const viewportHeight = window.innerHeight;
-              const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
-              const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
-              currentTranslate.x = Math.max(
-                -maxTranslateX,
-                Math.min(maxTranslateX, currentTranslate.x)
-              );
-              currentTranslate.y = Math.max(
-                -maxTranslateY,
-                Math.min(maxTranslateY, currentTranslate.y)
-              );
+              clampTranslation();
             }
-
             updateZoomDisplay();
             applyTransform();
           } else if (e.touches.length === 1 && isDragging && currentZoom > 1) {
-            // Arrastar com um dedo
             e.preventDefault();
-            let newTranslateX = e.touches[0].clientX - dragStart.x;
-            let newTranslateY = e.touches[0].clientY - dragStart.y;
-
-            // Clamp translation to prevent black spaces
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
-            const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
-
-            currentTranslate.x = Math.max(
-              -maxTranslateX,
-              Math.min(maxTranslateX, newTranslateX)
-            );
-            currentTranslate.y = Math.max(
-              -maxTranslateY,
-              Math.min(maxTranslateY, newTranslateY)
-            );
-
+            currentTranslate.x = e.touches[0].clientX - dragStart.x;
+            currentTranslate.y = e.touches[0].clientY - dragStart.y;
+            clampTranslation();
             applyTransform();
           }
         }
-
         function handleTouchEnd(e) {
-          if (e.touches.length === 0) {
-            // Todos os dedos foram removidos
+          if (e.touches.length < 2) isPinching = false;
+          if (e.touches.length < 1) {
             isDragging = false;
-            isPinching = false;
             if (container) container.classList.remove("dragging");
-          } else if (e.touches.length === 1 && isPinching) {
-            // Um dedo foi removido durante pinch, voltar para arrastar
-            isPinching = false;
-            if (currentZoom > 1) {
-              isDragging = true;
-              dragStart = {
-                x: e.touches[0].clientX - currentTranslate.x,
-                y: e.touches[0].clientY - currentTranslate.y,
-              };
-              container.classList.add("dragging");
-            }
+          } else if (isPinching === false) {
+            isDragging = true;
+            dragStart = {
+              x: e.touches[0].clientX - currentTranslate.x,
+              y: e.touches[0].clientY - currentTranslate.y,
+            };
           }
         }
-
         function setupZoomControls() {
-          // Event listeners para botões de zoom
           document.getElementById("zoom-in").addEventListener("click", zoomIn);
           document
             .getElementById("zoom-out")
@@ -652,95 +596,24 @@
           document
             .getElementById("zoom-reset")
             .addEventListener("click", resetZoom);
-
-          // Event listeners para mouse
-          document.addEventListener("wheel", handleWheel, { passive: false });
-          document.addEventListener("mousedown", handleMouseDown);
+          wrapper.addEventListener("wheel", handleWheel, { passive: false });
+          wrapper.addEventListener("mousedown", handleMouseDown);
           document.addEventListener("mousemove", handleMouseMove);
           document.addEventListener("mouseup", handleMouseUp);
-
-          // Event listeners para touch
-          document.addEventListener("touchstart", handleTouchStart, {
+          wrapper.addEventListener("touchstart", handleTouchStart, {
             passive: false,
           });
           document.addEventListener("touchmove", handleTouchMove, {
             passive: false,
           });
           document.addEventListener("touchend", handleTouchEnd);
-
-          // Mostrar controles após 3 segundos
           setTimeout(() => {
-            zoomControls.classList.add("visible");
-            setTimeout(() => {
-              zoomControls.classList.remove("visible");
-            }, 5000);
+            if (currentZoom <= 1) {
+              zoomControls.classList.add("visible");
+              setTimeout(() => zoomControls.classList.remove("visible"), 5000);
+            }
           }, 3000);
         }
-
-        // Função para renderizar as unidades na tela
-        function render(data) {
-          const { unidades, imageUrl, dotSize } = data;
-          wrapper.innerHTML = ""; // Limpa o conteúdo anterior
-
-          // Armazena o dotSize globalmente para uso em atualizações
-          window.currentDotSize = dotSize;
-
-          if (!imageUrl) {
-            wrapper.innerHTML =
-              '<p style="padding:20px">Imagem da planta não configurada.</p>';
-            return;
-          }
-
-          // Cria um contêiner para a imagem e os pontos, para manter a proporção
-          container = document.createElement("div");
-          container.className = "floor-plan-container";
-
-          const img = document.createElement("img");
-          img.src = imageUrl;
-          img.className = "floor-plan-image";
-
-          // Adiciona a imagem ao contêiner
-          container.appendChild(img);
-
-          // Adiciona o contêiner principal ao wrapper da página
-          wrapper.appendChild(container);
-
-          // Inicializa os controles de zoom
-          setupZoomControls();
-
-          // Pula o cabeçalho se a primeira linha parecer um
-          const rows =
-            unidades.length > 0 &&
-            unidades[0][0]?.toString().toLowerCase().includes("etapa")
-              ? unidades.slice(1)
-              : unidades;
-
-          rows.forEach((u, index) => {
-            const coordX = u[11];
-            const coordY = u[12];
-            const status = (u[10] || "DISPONÍVEL").toString().toUpperCase();
-
-            if (!coordX || !coordY) {
-              return; // Pula unidades não mapeadas
-            }
-
-            const indicator = document.createElement("div");
-            // Adiciona ID único para cada indicador baseado no índice da linha
-            const unitIndex = index;
-            indicator.id = `unit-indicator-${unitIndex}`;
-            indicator.className = `unit-indicator status-${status}`;
-            indicator.style.left = `${coordX}%`;
-            indicator.style.top = `${coordY}%`;
-            indicator.style.width = `${dotSize}px`;
-            indicator.style.height = `${dotSize}px`;
-            indicator.title = `Unidade: ${u[2]}
-Status: ${status}`;
-
-            container.appendChild(indicator); // Adiciona o ponto ao contêiner da imagem
-          });
-        }
-
-        // Função para recarregar e renderizar os dados
         async function reloadAndRender(hideAvailable = "false") {
           statusEl.textContent = "Atualizando...";
           const data = await fetchData(hideAvailable);
@@ -748,32 +621,20 @@ Status: ${status}`;
           statusEl.textContent = "Conectado";
         }
 
-        // Conexão com Server-Sent Events (SSE)
         let es;
         function connectSse() {
           if (es) es.close();
-
           es = new EventSource(
             `/api/events?implantacao=${encodeURIComponent(implantacao)}`
           );
-
-          es.onopen = () => {
-            statusEl.textContent = "Conectado em tempo real";
-          };
-
+          es.onopen = () => (statusEl.textContent = "Conectado em tempo real");
           es.onerror = () => {
-            statusEl.textContent = "Erro na conexão. Reconectando...";
-            // Tenta reconectar após um tempo
+            statusEl.textContent = "Reconectando...";
             setTimeout(connectSse, 5000);
           };
-
-          es.addEventListener("unitUpdated", async (ev) => {
+          es.addEventListener("unitUpdated", (ev) => {
             try {
               const { unitData, rowIndex } = JSON.parse(ev.data);
-              console.log("Evento 'unit-updated' recebido:", {
-                unitData,
-                rowIndex,
-              });
               updateSingleUnit(unitData, rowIndex);
             } catch (e) {
               console.error("Erro ao processar evento SSE:", e);
@@ -781,230 +642,62 @@ Status: ${status}`;
           });
         }
 
-        // Nova função para atualizar uma única unidade
         function updateSingleUnit(unitData, rowIndex) {
           if (!container) return;
-
-          // O índice do array é rowIndex - 2
-          // O array de unidades no frontend começa na linha 2 da planilha (índice 0)
           const unitIndex = rowIndex - 2;
           const unitId = `unit-indicator-${unitIndex}`;
           let indicator = document.getElementById(unitId);
-
           const coordX = unitData[11];
           const coordY = unitData[12];
           const status = (unitData[10] || "DISPONÍVEL")
             .toString()
             .toUpperCase();
-
-          // Se não há coordenadas, remove o indicador se existir
           if (!coordX || !coordY) {
-            if (indicator) {
-              indicator.remove();
-            }
+            if (indicator) indicator.remove();
             return;
           }
-
           if (!indicator) {
             indicator = document.createElement("div");
             indicator.id = unitId;
-            indicator.className = "unit-indicator";
             container.appendChild(indicator);
           }
-
-          // Atualiza as propriedades do indicador
           indicator.className = `unit-indicator status-${status}`;
           indicator.style.left = `${coordX}%`;
           indicator.style.top = `${coordY}%`;
           indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
-
-          // Aplica o tamanho do ponto se disponível
           const dotSize = window.currentDotSize || 16;
           indicator.style.width = `${dotSize}px`;
           indicator.style.height = `${dotSize}px`;
-
-          console.log(
-            `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
-          );
         }
 
-        // Carga inicial e início da conexão em tempo real
         reloadAndRender(urlParams.get("hideAvailable") || "false");
         connectSse();
 
-        // Lógica do botão de Tela Cheia
         fullscreenBtn.addEventListener("click", () => {
           if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch((err) => {
-              alert(
-                `Erro ao tentar ativar tela cheia: ${err.message} (${err.name})`
-              );
-            });
-          } else {
-            if (document.exitFullscreen) {
-              document.exitFullscreen();
-            }
+            document.documentElement
+              .requestFullscreen()
+              .catch((err) => alert(`Erro: ${err.message}`));
+          } else if (document.exitFullscreen) {
+            document.exitFullscreen();
           }
         });
-
-        // Detectar mudanças no modo tela cheia
         document.addEventListener("fullscreenchange", () => {
-          console.log("[FULLSCREEN] fullscreenchange event fired");
-          console.log(
-            "[FULLSCREEN] document.fullscreenElement:",
-            document.fullscreenElement
-          );
+          const topbar = document.querySelector(".topbar");
+          const wrapper = document.getElementById("floor-plan-wrapper");
+          const isInFullscreen = !!document.fullscreenElement;
 
-          if (document.fullscreenElement) {
-            // Entrou em tela cheia - ocultar header e mostrar controles de zoom
-            console.log("[FULLSCREEN] Entering fullscreen mode");
-            hideTopbar();
-            zoomControls.classList.add("visible");
-            zoomInstructions.classList.add("visible");
-            fullscreenBtn.innerHTML = `
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-              </svg>
-            `;
+          topbar.classList.toggle("hidden", isInFullscreen);
+          wrapper.classList.toggle("fullscreen", isInFullscreen);
+          if (isInFullscreen) {
+            fullscreenBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
             fullscreenBtn.title = "Sair da Tela Cheia";
           } else {
-            // Saiu da tela cheia - mostrar header e ocultar controles de zoom
-            console.log("[FULLSCREEN] Exiting fullscreen mode");
-            showTopbar();
-            zoomControls.classList.remove("visible");
-            zoomInstructions.classList.remove("visible");
-            fullscreenBtn.innerHTML = `
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-              </svg>
-            `;
+            fullscreenBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
             fullscreenBtn.title = "Ativar Tela Cheia";
+            resetZoom();
           }
         });
-
-        // Lógica de controle do header (só oculta quando fullscreen é ativado)
-        const topbar = document.querySelector(".topbar");
-        let isFullscreenMode = false;
-        let lastHideTime = 0;
-        const HIDE_COOLDOWN = 500; // 500ms cooldown após hideTopbar()
-
-        function showTopbar() {
-          console.log("[FULLSCREEN] showTopbar() called");
-
-          // Verificar se estamos no cooldown após hideTopbar()
-          const timeSinceHide = Date.now() - lastHideTime;
-          if (timeSinceHide < HIDE_COOLDOWN) {
-            console.log(
-              `[FULLSCREEN] Blocking showTopbar() - cooldown active (${timeSinceHide}ms)`
-            );
-            return;
-          }
-
-          topbar.classList.remove("hidden");
-          wrapper.classList.remove("fullscreen");
-          isFullscreenMode = false;
-
-          // Remover modo fullscreen da imagem, container e pontos
-          if (container) {
-            container.classList.remove("fullscreen-mode");
-          }
-          const img = document.querySelector(".floor-plan-image");
-          if (img) {
-            img.classList.remove("fullscreen-mode");
-          }
-          // Remover fullscreen-mode de todos os pontos
-          const indicators = document.querySelectorAll(".unit-indicator");
-          indicators.forEach((indicator) => {
-            indicator.classList.remove("fullscreen-mode");
-          });
-
-          // Restaurar posições originais dos indicadores
-          indicators.forEach((indicator) => {
-            if (indicator.dataset.originalLeft) {
-              indicator.style.left = indicator.dataset.originalLeft;
-              indicator.style.top = indicator.dataset.originalTop;
-            }
-          });
-        }
-
-        function hideTopbar() {
-          console.log("[FULLSCREEN] hideTopbar() called");
-          console.log("[FULLSCREEN] topbar element:", topbar);
-
-          lastHideTime = Date.now();
-          topbar.classList.add("hidden");
-          wrapper.classList.add("fullscreen");
-          isFullscreenMode = true;
-
-          // Aplicar modo fullscreen à imagem, container e pontos
-          if (container) {
-            container.classList.add("fullscreen-mode");
-          }
-          const img = document.querySelector(".floor-plan-image");
-          if (img) {
-            img.classList.add("fullscreen-mode");
-          }
-          // Aplicar fullscreen-mode a todos os pontos
-          const indicators = document.querySelectorAll(".unit-indicator");
-          indicators.forEach((indicator) => {
-            indicator.classList.add("fullscreen-mode");
-          });
-
-          // Ajustar posições dos indicadores para o dimensionamento da imagem em fullscreen
-          if (window.imageNaturalWidth && window.imageNaturalHeight) {
-            // Calcular dimensões e posição da imagem exibida
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const scale = Math.min(
-              viewportWidth / window.imageNaturalWidth,
-              viewportHeight / window.imageNaturalHeight
-            );
-            const displayedWidth = window.imageNaturalWidth * scale;
-            const displayedHeight = window.imageNaturalHeight * scale;
-            const offsetX = (viewportWidth - displayedWidth) / 2;
-            const offsetY = (viewportHeight - displayedHeight) / 2;
-
-            // Converter posições percentuais para pixels relativos à imagem exibida
-            indicators.forEach((indicator) => {
-              // Armazenar posições originais
-              indicator.dataset.originalLeft = indicator.style.left;
-              indicator.dataset.originalTop = indicator.style.top;
-
-              const coordX = parseFloat(indicator.style.left);
-              const coordY = parseFloat(indicator.style.top);
-              const pixelX = offsetX + (coordX / 100) * displayedWidth;
-              const pixelY = offsetY + (coordY / 100) * displayedHeight;
-              indicator.style.left = pixelX + "px";
-              indicator.style.top = pixelY + "px";
-            });
-          }
-        }
-
-        // Event listeners para mostrar header quando houver interação (apenas fora do fullscreen)
-        function showHeaderOnInteraction(event) {
-          console.log("[FULLSCREEN] Interaction event:", event.type);
-          if (!isFullscreenMode) {
-            console.log("[FULLSCREEN] Showing header due to interaction");
-            showTopbar();
-          }
-        }
-
-        document.addEventListener("mousemove", showHeaderOnInteraction);
-        document.addEventListener("mousedown", showHeaderOnInteraction);
-        document.addEventListener("keydown", showHeaderOnInteraction);
-        document.addEventListener("touchstart", showHeaderOnInteraction);
-        document.addEventListener("touchmove", showHeaderOnInteraction);
-
-        // Mostrar header ao passar o mouse sobre a área do header (apenas fora do fullscreen)
-        topbar.addEventListener("mouseenter", () => {
-          if (!isFullscreenMode) {
-            console.log("[FULLSCREEN] Showing header due to mouseenter");
-            showTopbar();
-          }
-        });
-
-        // Header sempre visível por padrão
-        showTopbar();
       })();
     </script>
   </body>
