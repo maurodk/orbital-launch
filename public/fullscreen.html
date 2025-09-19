@@ -17,44 +17,19 @@
         color: #fff;
         overflow: hidden; /* Remove barra de rolagem vertical */
       }
-      .topbar {
-        padding: 10px 16px;
-        background: #0b0b0b;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        border-bottom: 1px solid #333;
-        transition: opacity 0.3s ease, transform 0.3s ease;
-      }
-      .topbar.hidden {
-        opacity: 0;
-        transform: translateY(-100%);
-        pointer-events: none;
-      }
-      .title {
-        font-size: 18px;
-        font-weight: 600;
-      }
-      .logo {
-        height: 30px;
-      }
+
       .floor-plan-wrapper {
         position: relative;
         width: 100%;
-        height: calc(100vh - 51px); /* Altura da tela menos o topbar */
+        height: 100vh;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         background-color: #1a1a1a;
-        transition: height 0.3s ease;
         margin: 0;
         padding: 0;
-      }
-      .floor-plan-wrapper.fullscreen {
-        height: 100vh;
-        background-color: #111;
       }
 
       /* --- AJUSTES PARA O ALINHAMENTO PERFEITO --- */
@@ -120,29 +95,9 @@
       .status-other {
         background: #6c757d;
       }
-      .small {
-        font-size: 14px;
-        color: #ccc;
-      }
-      .fullscreen-button {
-        background: #333;
-        border: 1px solid #555;
-        color: #fff;
-        width: 36px;
-        height: 36px;
-        border-radius: 6px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .fullscreen-button:hover {
-        background: #444;
-      }
-
       .zoom-controls {
         position: fixed;
-        top: 70px;
+        top: 20px;
         right: 20px;
         display: flex;
         flex-direction: column;
@@ -243,7 +198,7 @@
       }
       @media (max-width: 768px) {
         .zoom-controls {
-          top: 60px;
+          top: 20px;
           right: 10px;
         }
         .zoom-button {
@@ -266,32 +221,6 @@
     </style>
   </head>
   <body>
-    <div class="topbar">
-      <div class="title" id="empreendimento-title">Espelho de Implantação</div>
-      <div id="implantacaoName" class="small"></div>
-      <div style="flex: 1"></div>
-      <button
-        id="fullscreen-btn"
-        class="fullscreen-button"
-        title="Ativar Tela Cheia"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-          ></path>
-        </svg>
-      </button>
-      <div id="status" class="small">Conectando...</div>
-    </div>
     <div id="floor-plan-wrapper">
       <!-- A imagem e os pontos serão inseridos aqui via script -->
     </div>
@@ -339,12 +268,6 @@
       // IIFE para encapsular a lógica
       (function () {
         const wrapper = document.getElementById("floor-plan-wrapper");
-        const statusEl = document.getElementById("status");
-        const implantacaoNameEl = document.getElementById("implantacaoName");
-        const empreendimentoTitleEl = document.getElementById(
-          "empreendimento-title"
-        );
-        const fullscreenBtn = document.getElementById("fullscreen-btn");
         const zoomControls = document.getElementById("zoom-controls");
         const zoomIndicator = document.getElementById("zoom-indicator");
         const zoomLevel = document.getElementById("zoom-level");
@@ -365,12 +288,8 @@
         if (!implantacao) {
           wrapper.innerHTML =
             '<p style="padding:20px">Parâmetro "implantacao" não encontrado na URL.</p>';
-          statusEl.textContent = "Erro";
           return;
         }
-
-        implantacaoNameEl.textContent = implantacao;
-        empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
 
         async function fetchData(hideAvailable = "false") {
           try {
@@ -383,7 +302,6 @@
             return await res.json();
           } catch (e) {
             console.error("Erro em fetchData:", e);
-            statusEl.textContent = "Erro ao carregar dados.";
             return { unidades: [], imageUrl: "", dotSize: 16 };
           }
         }
@@ -615,10 +533,8 @@
           }, 3000);
         }
         async function reloadAndRender(hideAvailable = "false") {
-          statusEl.textContent = "Atualizando...";
           const data = await fetchData(hideAvailable);
           render(data);
-          statusEl.textContent = "Conectado";
         }
 
         let es;
@@ -627,11 +543,6 @@
           es = new EventSource(
             `/api/events?implantacao=${encodeURIComponent(implantacao)}`
           );
-          es.onopen = () => (statusEl.textContent = "Conectado em tempo real");
-          es.onerror = () => {
-            statusEl.textContent = "Reconectando...";
-            setTimeout(connectSse, 5000);
-          };
           es.addEventListener("unitUpdated", (ev) => {
             try {
               const { unitData, rowIndex } = JSON.parse(ev.data);
@@ -672,32 +583,6 @@
 
         reloadAndRender(urlParams.get("hideAvailable") || "false");
         connectSse();
-
-        fullscreenBtn.addEventListener("click", () => {
-          if (!document.fullscreenElement) {
-            document.documentElement
-              .requestFullscreen()
-              .catch((err) => alert(`Erro: ${err.message}`));
-          } else if (document.exitFullscreen) {
-            document.exitFullscreen();
-          }
-        });
-        document.addEventListener("fullscreenchange", () => {
-          const topbar = document.querySelector(".topbar");
-          const wrapper = document.getElementById("floor-plan-wrapper");
-          const isInFullscreen = !!document.fullscreenElement;
-
-          topbar.classList.toggle("hidden", isInFullscreen);
-          wrapper.classList.toggle("fullscreen", isInFullscreen);
-          if (isInFullscreen) {
-            fullscreenBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
-            fullscreenBtn.title = "Sair da Tela Cheia";
-          } else {
-            fullscreenBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
-            fullscreenBtn.title = "Ativar Tela Cheia";
-            resetZoom();
-          }
-        });
       })();
     </script>
   </body>
