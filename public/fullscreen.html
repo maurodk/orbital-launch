@@ -73,7 +73,7 @@
       .floor-plan-image.fullscreen-mode {
         width: 100vw;
         height: 100vh;
-        object-fit: cover;
+        object-fit: contain;
         position: fixed;
         top: 0;
         left: 0;
@@ -384,6 +384,7 @@
         let dragStart = { x: 0, y: 0 };
         let currentTranslate = { x: 0, y: 0 };
         let container = null;
+        let maxZoom = 1; // Será calculado baseado no tamanho real da imagem
 
         // Variáveis para pinch-to-zoom
         let initialPinchDistance = 0;
@@ -443,13 +444,20 @@
         }
 
         function zoomIn() {
-          currentZoom = Math.min(currentZoom * 1.2, 5);
+          currentZoom = Math.min(currentZoom * 1.2, maxZoom);
           updateZoomDisplay();
           applyTransform();
         }
 
         function zoomOut() {
-          currentZoom = Math.max(currentZoom / 1.2, 0.5);
+          const newZoom = Math.max(currentZoom / 1.2, 1); // Zoom mínimo é 1 (tamanho responsivo)
+
+          // Se estamos voltando para o zoom 1, resetar a posição também
+          if (newZoom === 1) {
+            currentTranslate = { x: 0, y: 0 };
+          }
+
+          currentZoom = newZoom;
           updateZoomDisplay();
           applyTransform();
         }
@@ -459,6 +467,24 @@
           currentTranslate = { x: 0, y: 0 };
           updateZoomDisplay();
           applyTransform();
+        }
+
+        // Função para calcular o zoom máximo baseado no tamanho real da imagem
+        function calculateMaxZoom(img) {
+          if (!img) return 3; // Fallback
+
+          const containerRect = container.getBoundingClientRect();
+          const imgRect = img.getBoundingClientRect();
+
+          // Calcula quanto a imagem pode ser ampliada para atingir seu tamanho real
+          const scaleX = img.naturalWidth / imgRect.width;
+          const scaleY = img.naturalHeight / imgRect.height;
+
+          // Usa o menor dos dois para evitar distorção
+          const naturalScale = Math.min(scaleX, scaleY);
+
+          // Limita o zoom máximo para não ser muito grande
+          return Math.min(naturalScale, 5);
         }
 
         // Funções auxiliares para pinch-to-zoom
@@ -478,7 +504,14 @@
         function handleWheel(e) {
           e.preventDefault();
           const delta = e.deltaY > 0 ? 0.9 : 1.1;
-          currentZoom = Math.max(0.5, Math.min(5, currentZoom * delta));
+          const newZoom = Math.max(1, Math.min(maxZoom, currentZoom * delta)); // Zoom mínimo é 1
+
+          // Se estamos voltando para o zoom 1, resetar a posição também
+          if (newZoom === 1) {
+            currentTranslate = { x: 0, y: 0 };
+          }
+
+          currentZoom = newZoom;
           updateZoomDisplay();
           applyTransform();
         }
@@ -530,7 +563,17 @@
             e.preventDefault();
             const currentDistance = getTouchDistance(e.touches);
             const scale = currentDistance / initialPinchDistance;
-            currentZoom = Math.max(0.5, Math.min(5, initialPinchZoom * scale));
+            const newZoom = Math.max(
+              1,
+              Math.min(maxZoom, initialPinchZoom * scale)
+            ); // Zoom mínimo é 1
+
+            // Se estamos voltando para o zoom 1, resetar a posição também
+            if (newZoom === 1) {
+              currentTranslate = { x: 0, y: 0 };
+            }
+
+            currentZoom = newZoom;
             updateZoomDisplay();
             applyTransform();
           } else if (e.touches.length === 1 && isDragging && currentZoom > 1) {
@@ -618,6 +661,12 @@
           img.src = imageUrl;
           img.className = "floor-plan-image";
 
+          // Calcular maxZoom quando a imagem carregar
+          img.onload = function () {
+            maxZoom = calculateMaxZoom(img);
+            console.log("[FULLSCREEN] Max zoom calculated:", maxZoom);
+          };
+
           // Adiciona a imagem ao contêiner
           container.appendChild(img);
 
@@ -650,8 +699,15 @@
             indicator.className = `unit-indicator status-${status}`;
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
-            indicator.style.width = `${dotSize}px`;
-            indicator.style.height = `${dotSize}px`;
+
+            // Tamanho responsivo dos pontos baseado na tela
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const baseSize = Math.min(screenWidth, screenHeight) / 50; // Baseado em 2% da menor dimensão da tela
+            const responsiveDotSize = Math.max(8, Math.min(24, baseSize)); // Entre 8px e 24px
+
+            indicator.style.width = `${responsiveDotSize}px`;
+            indicator.style.height = `${responsiveDotSize}px`;
             indicator.title = `Unidade: ${u[2]}
 Status: ${status}`;
 
@@ -737,10 +793,14 @@ Status: ${status}`;
           indicator.style.top = `${coordY}%`;
           indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
 
-          // Aplica o tamanho do ponto se disponível
-          const dotSize = window.currentDotSize || 16;
-          indicator.style.width = `${dotSize}px`;
-          indicator.style.height = `${dotSize}px`;
+          // Tamanho responsivo dos pontos baseado na tela
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          const baseSize = Math.min(screenWidth, screenHeight) / 50; // Baseado em 2% da menor dimensão da tela
+          const responsiveDotSize = Math.max(8, Math.min(24, baseSize)); // Entre 8px e 24px
+
+          indicator.style.width = `${responsiveDotSize}px`;
+          indicator.style.height = `${responsiveDotSize}px`;
 
           console.log(
             `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
