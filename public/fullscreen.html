@@ -73,7 +73,7 @@
       .floor-plan-image.fullscreen-mode {
         width: 100vw;
         height: 100vh;
-        object-fit: cover;
+        object-fit: contain;
         position: fixed;
         top: 0;
         left: 0;
@@ -449,7 +449,20 @@
         }
 
         function zoomOut() {
-          currentZoom = Math.max(currentZoom / 1.2, 0.5);
+          currentZoom = Math.max(currentZoom / 1.2, 1);
+          // Adjust translation bounds after zoom change
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
+          const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
+          currentTranslate.x = Math.max(
+            -maxTranslateX,
+            Math.min(maxTranslateX, currentTranslate.x)
+          );
+          currentTranslate.y = Math.max(
+            -maxTranslateY,
+            Math.min(maxTranslateY, currentTranslate.y)
+          );
           updateZoomDisplay();
           applyTransform();
         }
@@ -478,7 +491,25 @@
         function handleWheel(e) {
           e.preventDefault();
           const delta = e.deltaY > 0 ? 0.9 : 1.1;
-          currentZoom = Math.max(0.5, Math.min(5, currentZoom * delta));
+          const oldZoom = currentZoom;
+          currentZoom = Math.max(1, Math.min(5, currentZoom * delta));
+
+          // If zooming out, adjust translation bounds
+          if (currentZoom < oldZoom) {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
+            const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
+            currentTranslate.x = Math.max(
+              -maxTranslateX,
+              Math.min(maxTranslateX, currentTranslate.x)
+            );
+            currentTranslate.y = Math.max(
+              -maxTranslateY,
+              Math.min(maxTranslateY, currentTranslate.y)
+            );
+          }
+
           updateZoomDisplay();
           applyTransform();
         }
@@ -496,8 +527,24 @@
 
         function handleMouseMove(e) {
           if (!isDragging || currentZoom <= 1) return;
-          currentTranslate.x = e.clientX - dragStart.x;
-          currentTranslate.y = e.clientY - dragStart.y;
+          let newTranslateX = e.clientX - dragStart.x;
+          let newTranslateY = e.clientY - dragStart.y;
+
+          // Clamp translation to prevent black spaces
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
+          const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
+
+          currentTranslate.x = Math.max(
+            -maxTranslateX,
+            Math.min(maxTranslateX, newTranslateX)
+          );
+          currentTranslate.y = Math.max(
+            -maxTranslateY,
+            Math.min(maxTranslateY, newTranslateY)
+          );
+
           applyTransform();
         }
 
@@ -530,14 +577,48 @@
             e.preventDefault();
             const currentDistance = getTouchDistance(e.touches);
             const scale = currentDistance / initialPinchDistance;
-            currentZoom = Math.max(0.5, Math.min(5, initialPinchZoom * scale));
+            const oldZoom = currentZoom;
+            currentZoom = Math.max(1, Math.min(5, initialPinchZoom * scale));
+
+            // If zooming out, adjust translation bounds
+            if (currentZoom < oldZoom) {
+              const viewportWidth = window.innerWidth;
+              const viewportHeight = window.innerHeight;
+              const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
+              const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
+              currentTranslate.x = Math.max(
+                -maxTranslateX,
+                Math.min(maxTranslateX, currentTranslate.x)
+              );
+              currentTranslate.y = Math.max(
+                -maxTranslateY,
+                Math.min(maxTranslateY, currentTranslate.y)
+              );
+            }
+
             updateZoomDisplay();
             applyTransform();
           } else if (e.touches.length === 1 && isDragging && currentZoom > 1) {
             // Arrastar com um dedo
             e.preventDefault();
-            currentTranslate.x = e.touches[0].clientX - dragStart.x;
-            currentTranslate.y = e.touches[0].clientY - dragStart.y;
+            let newTranslateX = e.touches[0].clientX - dragStart.x;
+            let newTranslateY = e.touches[0].clientY - dragStart.y;
+
+            // Clamp translation to prevent black spaces
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
+            const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
+
+            currentTranslate.x = Math.max(
+              -maxTranslateX,
+              Math.min(maxTranslateX, newTranslateX)
+            );
+            currentTranslate.y = Math.max(
+              -maxTranslateY,
+              Math.min(maxTranslateY, newTranslateY)
+            );
+
             applyTransform();
           }
         }
