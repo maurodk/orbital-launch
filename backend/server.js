@@ -8,6 +8,8 @@ const { google } = require("googleapis");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const { createClient } = require("@supabase/supabase-js");
+
+// Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
 
 // Carrega a chave de serviço do Firebase Admin
@@ -75,13 +77,59 @@ const sseClients = new Map(); // chave: implantacao, valor: Set de response obje
 const tempReservations = new Map(); // chave: "implantacao_rowIndex", valor: { token, userEmail, unitName, timestamp, expiresAt }
 
 // Função para limpar reservas expiradas
-function cleanupExpiredReservations() {
+async function cleanupExpiredReservations() {
   const now = Date.now();
+  const expiredKeys = [];
+
   for (const [key, reservation] of tempReservations.entries()) {
     if (now > reservation.expiresAt) {
-      tempReservations.delete(key);
-      console.log(`[CLEANUP] Reserva temporária expirada removida: ${key}`);
+      expiredKeys.push(key);
     }
+  }
+
+  if (expiredKeys.length > 0) {
+    console.log(
+      `[CLEANUP] Encontradas ${expiredKeys.length} reservas temporárias expiradas. Iniciando limpeza...`
+    );
+    const sheets = await getSheetsClient();
+
+    for (const key of expiredKeys) {
+      const reservation = tempReservations.get(key);
+      if (!reservation) continue;
+
+      const [implantacao, rowIndex] = key.split("_");
+
+      try {
+        // Reverte o status na planilha para "DISPONÍVEL"
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: `'${implantacao}'!K${rowIndex}`,
+          valueInputOption: "USER_ENTERED",
+          resource: { values: [["DISPONÍVEL"]] },
+        });
+
+        // Adiciona um registro no histórico
+        await addHistoryEntry(
+          sheets,
+          implantacao,
+          reservation.unitName,
+          "Reserva Expirada",
+          null,
+          null,
+          `Sistema (Usuário: ${reservation.userEmail})`
+        );
+        console.log(`[CLEANUP] Unidade ${key} revertida para DISPONÍVEL.`);
+      } catch (error) {
+        console.error(
+          `[CLEANUP] Falha ao reverter status para a unidade ${key}:`,
+          error
+        );
+      } finally {
+        // Remove da memória independentemente do sucesso na planilha
+        tempReservations.delete(key);
+      }
+    }
+    console.log("[CLEANUP] Limpeza de reservas expiradas concluída.");
   }
 }
 
@@ -143,6 +191,8 @@ const SPREADSHEET_ID_IMPLANTACAO =
 const SPREADSHEET_ID_DADOS = "1CyXDp_RpSApsh-QjJPuWUzHnQV1MZFy2W3u7jIhFPbY";
 const SPREADSHEET_ID_FUNIL = "1v1S__nsKFCYbbpO36PP0MPQqBWgKcP1utuLYByAhca0";
 const SPREADSHEET_ID_HISTORICO = "1LiDhvO1wJg8WZFpmMKUFE2DkzIxzouch_7aHjwlQPfI";
+const SPREADSHEET_ID_CVCRM_COORDS =
+  "1IZD98W5-pQvOrSdw5Lg5NJL-NkSLjc3M91hAZnEc0VU";
 
 const SHEET_NAME_DADOS = "Página1";
 const SHEET_NAME_CONFIG = "Config";
@@ -551,7 +601,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:E`,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:F`, // Coluna F para o ID do CVCRM
     });
     const implantacoes = (response.data.values || []).map((row) => ({
       nome: row[0],
@@ -559,6 +609,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
       tamanhoPonto: parseInt(row[2], 10) || 16,
       endereco: row[3] || "Endereço não informado",
       logoUrl: row[4] || "/logo-uni.png",
+      cvcrmId: row[5] || null, // Adiciona o ID do CVCRM
     }));
     res.json(implantacoes);
   } catch (error) {
@@ -570,27 +621,143 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
   }
 });
 
+app.get("/api/public-data-cvcrm", async (req, res) => {
+  const { implantacao, hideAvailable } = req.query;
+  if (!implantacao) {
+    return res
+      .status(400)
+      .json({ error: "O nome da implantação é obrigatório." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // 1. Busca os dados da implantação (imagem, dotSize, cvcrmId)
+    const implantacoesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:F`,
+    });
+
+    const implantacaoData = (implantacoesRes.data.values || []).find(
+      (row) => row[0] === implantacao
+    );
+
+    if (!implantacaoData || !implantacaoData[5]) {
+      return res.status(404).json({
+        error: `Implantação '${implantacao}' ou seu ID do CVCRM não foram encontrados.`,
+      });
+    }
+
+    const imageUrl = implantacaoData[1] || "";
+    const dotSize = parseInt(implantacaoData[2], 10) || 16;
+    const cvcrmId = implantacaoData[5];
+
+    // 2. Busca as unidades da API do CVCRM
+    const baseUrl = process.env.CVCRM_API_BASE_URL;
+    const email = process.env.CVCRM_API_EMAIL;
+    const token = process.env.CVCRM_API_TOKEN;
+    const finalUrl = `${baseUrl}/${cvcrmId}`;
+    let cvcrmUnits = await fetchAllCvcrmUnitPages(finalUrl, email, token);
+
+    // Filtra as unidades se o parâmetro for verdadeiro
+    if (hideAvailable === "true") {
+      cvcrmUnits = cvcrmUnits.filter(
+        (unit) => unit.situacao.toUpperCase() !== "DISPONIVEL"
+      );
+    }
+
+    // 3. Busca as coordenadas salvas
+    const coordsRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
+      range: "A:E",
+    });
+    const savedCoords = (coordsRes.data.values || [])
+      .slice(1)
+      .filter((row) => row[4] === implantacao)
+      .reduce((acc, row) => {
+        if (row[0]) acc[row[0]] = { coord_x: row[2], coord_y: row[3] };
+        return acc;
+      }, {});
+
+    // 4. Mescla os dados
+    const unidades = cvcrmUnits.map((unit) => ({
+      ...unit,
+      ...savedCoords[unit.idunidade],
+    }));
+
+    res.json({ unidades, imageUrl, dotSize });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao buscar dados públicos do CVCRM." });
+  }
+});
+
+// CORREÇÃO: Este endpoint agora lê a aba 'Config' corretamente.
 app.get("/api/config", verifyToken, async (req, res) => {
   try {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:E`,
+      range: `${SHEET_NAME_CONFIG}!A2:B`, // Lê da aba de configuração
     });
-    const implantacoes = (response.data.values || []).map((row) => ({
-      nome: row[0],
-      url: row[1],
-      tamanhoPonto: parseInt(row[2], 10) || 16,
-      endereco: row[3] || "Endereço não informado",
-      logoUrl: row[4] || "/logo-uni.png",
-    }));
-    res.json(implantacoes);
+    const configRows = response.data.values || [];
+    const config = configRows.reduce((acc, row) => {
+      if (row[0]) {
+        // se a chave existe
+        acc[row[0]] = row[1];
+      }
+      return acc;
+    }, {});
+    res.json(config);
   } catch (error) {
     console.error(
       "Erro ao buscar config:",
       error && error.message ? error.message : error
     );
     res.status(500).json({ error: "Falha ao buscar configurações." });
+  }
+});
+
+// NOVO: Endpoint para ATUALIZAR um valor na aba de Config
+app.post("/api/update-config", verifyToken, async (req, res) => {
+  const { key, value } = req.body;
+  if (!key || value === undefined) {
+    return res.status(400).json({ error: "Chave e valor são obrigatórios." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const range = `${SHEET_NAME_CONFIG}!A:B`;
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: range,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex((row) => row[0] === key);
+
+    if (rowIndex === -1) {
+      return res
+        .status(404)
+        .json({ error: `Chave '${key}' não encontrada na configuração.` });
+    }
+
+    const sheetRowIndex = rowIndex + 1;
+    const updateRange = `${SHEET_NAME_CONFIG}!B${sheetRowIndex}`;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: updateRange,
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: [[value]],
+      },
+    });
+
+    res.json({ success: true, message: `Configuração '${key}' atualizada.` });
+  } catch (error) {
+    console.error("Erro ao atualizar configuração:", error);
+    res.status(500).json({ error: "Falha ao atualizar configuração." });
   }
 });
 
@@ -624,6 +791,16 @@ app.get("/api/events", (req, res) => {
 // Serve a página fullscreen estática
 app.get("/fullscreen", (req, res) => {
   res.sendFile(require("path").resolve(__dirname, "../public/fullscreen.html"));
+});
+
+// NOVO: Serve a página fullscreen do CVCRM
+app.get("/fullscreen-cvcrm", (req, res) => {
+  res.sendFile(
+    require("path").resolve(
+      __dirname,
+      "../frontend/public/fullscreen-cvcrm.html"
+    )
+  );
 });
 
 // Rota útil: redireciona para a fullscreen da implantação atual definida em Config
@@ -684,6 +861,233 @@ app.get("/api/debug/spreadsheet-meta", async (req, res) => {
   }
 });
 
+// =================================================================
+// 6.1. ENDPOINTS DA API - CVCRM
+// =================================================================
+
+/**
+ * Busca todas as páginas de unidades da API do CVCRM.
+ * @param {string} baseUrl
+ * @param {string} email
+ * @param {string} token
+ * @returns {Promise<any[]>}
+ */
+async function fetchAllCvcrmUnitPages(baseUrl, email, token) {
+  let currentPage = 1;
+  let totalPages = 1;
+  const allUnits = [];
+  const limitPerPage = 100;
+
+  do {
+    const urlWithParams = `${baseUrl}?limitePagina=${limitPerPage}&pagina=${currentPage}`;
+
+    console.log(`[CVCRM Fetch] Buscando URL: ${urlWithParams}`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.log(
+        `[CVCRM Fetch] Timeout de 20s atingido para: ${urlWithParams}`
+      );
+      controller.abort();
+    }, 20000); // 20 segundos de timeout
+
+    try {
+      const response = await fetch(urlWithParams, {
+        headers: {
+          accept: "application/json",
+          email: email,
+          token: token.trim(),
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Erro na API do CVCRM na página ${currentPage}: ${response.status} ${
+            response.statusText
+          } - ${errorText.substring(0, 200)}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.dados && Array.isArray(data.dados) && data.dados.length > 0) {
+        allUnits.push(...data.dados);
+      } else {
+        console.log(
+          `[CVCRM Fetch] Página ${currentPage} não retornou dados. Finalizando busca.`
+        );
+        break;
+      }
+
+      if (data.paginacao && data.paginacao.total_de_paginas) {
+        totalPages = data.paginacao.total_de_paginas;
+      } else {
+        console.warn(
+          `[CVCRM Fetch] Objeto 'paginacao' não encontrado na resposta da página ${currentPage}.`
+        );
+        break;
+      }
+
+      console.log(
+        `[CVCRM Fetch] Página ${currentPage} de ${totalPages} processada. Unidades acumuladas: ${allUnits.length}`
+      );
+
+      currentPage++;
+    } catch (error) {
+      console.error(
+        `[CVCRM Fetch] Falha ao buscar a página ${currentPage}:`,
+        error
+      );
+      // Decide se quer parar ou tentar a próxima página. Por segurança, vamos parar.
+      throw error;
+    } finally {
+      clearTimeout(timeoutId); // Limpa o timeout se a requisição terminar (sucesso ou erro)
+    }
+  } while (currentPage <= totalPages);
+
+  return allUnits;
+}
+
+app.get("/api/cvcrm/units", verifyToken, async (req, res) => {
+  const { cvcrmId } = req.query;
+  if (!cvcrmId) {
+    return res
+      .status(400)
+      .json({ error: "O ID do empreendimento (cvcrmId) é obrigatório." });
+  }
+
+  const baseUrl = process.env.CVCRM_API_BASE_URL;
+  const email = process.env.CVCRM_API_EMAIL;
+  const token = process.env.CVCRM_API_TOKEN;
+
+  if (!baseUrl || !email || !token) {
+    console.error("[API CVCRM] ERRO: Variáveis de ambiente faltando.");
+    return res.status(500).json({
+      error: "Credenciais da API do CVCRM não configuradas no servidor.",
+    });
+  }
+
+  const finalUrl = `${baseUrl}/${cvcrmId}`;
+
+  try {
+    console.log("[API CVCRM] Iniciando busca de unidades do CVCRM...");
+    const allUnits = await fetchAllCvcrmUnitPages(finalUrl, email, token);
+    console.log(
+      `[API CVCRM] Busca concluída. Total de unidades: ${allUnits.length}`
+    );
+    res.json({ unidades: allUnits });
+  } catch (error) {
+    console.error("[API CVCRM] CRASH:", error);
+    res.status(500).json({
+      error: "Não foi possível buscar os dados das unidades do CVCRM.",
+    });
+  }
+});
+
+// Endpoint para buscar as coordenadas já salvas do CVCRM
+app.get("/api/cvcrm/get-coords", verifyToken, async (req, res) => {
+  const { implantacao } = req.query;
+  if (!implantacao) {
+    return res
+      .status(400)
+      .json({ error: "O nome da implantação é obrigatório." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
+      range: "A:E", // Colunas: unitId, unitName, coordcv_x, coordcv_y, implantacaoName
+    });
+
+    const rows = response.data.values || [];
+    // Pula o cabeçalho e transforma em um objeto para fácil acesso
+    const coordsMap = rows
+      .slice(1)
+      .filter((row) => row[4] === implantacao) // Filtra pela implantação correta
+      .reduce((acc, row) => {
+        const unitId = row[0];
+        if (unitId) {
+          acc[unitId] = { coord_x: row[2], coord_y: row[3] };
+        }
+        return acc;
+      }, {});
+
+    res.json(coordsMap);
+  } catch (error) {
+    console.error("[API CVCRM] Erro ao buscar coordenadas:", error);
+    res.status(500).json({ error: "Falha ao buscar coordenadas salvas." });
+  }
+});
+
+// Endpoint para salvar/atualizar as coordenadas de uma unidade do CVCRM
+app.post("/api/cvcrm/update-coords", verifyToken, async (req, res) => {
+  const { idunidade, unitName, coordX, coordY, implantacao } = req.body;
+
+  if (
+    !idunidade ||
+    coordX === undefined ||
+    coordY === undefined ||
+    !implantacao
+  ) {
+    return res.status(400).json({
+      error: "ID da unidade, coordenadas e implantação são obrigatórios.",
+    });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const range = "A:E";
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
+      range: range,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex(
+      (row) => row[0] == idunidade && row[4] == implantacao
+    );
+
+    if (rowIndex > 0) {
+      // 2. Se existe, ATUALIZA a linha
+      const updateRange = `C${rowIndex + 1}:D${rowIndex + 1}`;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
+        range: updateRange,
+        valueInputOption: "USER_ENTERED",
+        resource: {
+          values: [[coordX, coordY]],
+        },
+      });
+      res.json({
+        success: true,
+        message: `Coordenadas da unidade ${unitName} atualizadas.`,
+      });
+    } else {
+      // 3. Se não existe, ADICIONA uma nova linha
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
+        range: "A1",
+        valueInputOption: "USER_ENTERED",
+        insertDataOption: "INSERT_ROWS",
+        resource: {
+          values: [[idunidade, unitName, coordX, coordY, implantacao]],
+        },
+      });
+      res.json({
+        success: true,
+        message: `Coordenadas da unidade ${unitName} salvas.`,
+      });
+    }
+  } catch (error) {
+    console.error("[API CVCRM] Erro ao salvar coordenadas:", error);
+    res.status(500).json({ error: "Falha ao salvar coordenadas." });
+  }
+});
+
 // Endpoint para criar uma reserva temporária (lock)
 app.post("/api/reserve-temp", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, unitName, reservationToken } = req.body;
@@ -734,9 +1138,6 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
       timestamp: Date.now(),
       expiresAt: Date.now() + 30000, // 30 segundos
     });
-
-    // Limpa reservas expiradas
-    cleanupExpiredReservations();
 
     res.json({
       success: true,
@@ -1711,7 +2112,10 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
   }
 });
 
-app.post("/api/update-dot-size", verifyToken, async (req, res) => {
+// CORREÇÃO: Removido o `verifyToken` para permitir que as páginas públicas
+// (fullscreen.html e fullscreen-cvcrm.html) possam salvar o tamanho do ponto
+// sem necessidade de autenticação.
+app.post("/api/update-dot-size", async (req, res) => {
   const { implantacaoName, newSize } = req.body;
   const userEmail = req.user.email;
   if (!implantacaoName || newSize === undefined) {

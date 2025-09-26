@@ -14,7 +14,7 @@ html {
   --accent-green: #6ad700;
   --text-primary: #eaeaea;
   --text-secondary: #b0b0b0;
-  --status-reserved: #d9534f;
+  --status-reserved: #d9534f; /* Revertido para vermelho */
   --shadow-color: rgba(0, 0, 0, 0.4);
   --status-blocked: #d9534f; /* Laranja/Amarelo para atenção */
 }

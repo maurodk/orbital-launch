@@ -78,6 +78,7 @@
         transition: transform 0.2s ease, background-color 0.3s ease;
         cursor: help;
       }
+
       .status-RESERVADA {
         background: #d9534f;
       }
@@ -109,6 +110,41 @@
       .fullscreen-button:hover {
         background: #444;
       }
+      /* Estilos para o controle de tamanho do ponto e toast */
+      .dot-size-control {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 15px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 10; /* Acima dos pontos */
+        backdrop-filter: blur(5px);
+      }
+      .dot-size-control label {
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .toast-notification {
+        position: fixed;
+        bottom: 80px; /* Acima do controle de tamanho */
+        right: 20px;
+        background-color: #28a745;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 2000;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+        pointer-events: none;
+      }
+      .toast-notification.show {
+        opacity: 1;
+      }
     </style>
   </head>
   <body>
@@ -139,7 +175,15 @@
       <div id="status" class="small">Conectando...</div>
     </div>
     <div id="floor-plan-wrapper">
-      <!-- A imagem e os pontos serão inseridos aqui via script -->
+      <!-- A imagem e os pontos serão inseridos aqui via script. -->
+      <!-- O controle de tamanho e o toast foram movidos para cá. -->
+      <div class="dot-size-control">
+        <label for="dot-size-slider">Tamanho do Ponto</label>
+        <input type="range" id="dot-size-slider" min="8" max="40" value="16" />
+      </div>
+      <div id="toast-notification" class="toast-notification">
+        Tamanho do ponto salvo!
+      </div>
     </div>
 
     <script>
@@ -151,6 +195,8 @@
         const empreendimentoTitleEl = document.getElementById(
           "empreendimento-title"
         );
+        const dotSizeSlider = document.getElementById("dot-size-slider");
+        const toast = document.getElementById("toast-notification");
         const fullscreenBtn = document.getElementById("fullscreen-btn");
 
         const urlParams = new URLSearchParams(location.search);
@@ -192,6 +238,7 @@
 
           // Armazena o dotSize globalmente para uso em atualizações
           window.currentDotSize = dotSize;
+          dotSizeSlider.value = dotSize;
 
           if (!imageUrl) {
             wrapper.innerHTML =
@@ -334,6 +381,42 @@ Status: ${status}`;
           );
         }
 
+        // Função para atualizar o tamanho de todos os pontos na tela
+        function updateAllDotSizes(newSize) {
+          const indicators = document.querySelectorAll(".unit-indicator");
+          indicators.forEach((indicator) => {
+            indicator.style.width = `${newSize}px`;
+            indicator.style.height = `${newSize}px`;
+          });
+          window.currentDotSize = newSize;
+        }
+
+        // Função para salvar o tamanho do ponto no backend
+        async function saveDotSize(newSize) {
+          try {
+            const res = await fetch("/api/update-dot-size", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                implantacaoName: implantacao,
+                newSize: newSize,
+              }),
+            });
+            if (res.ok) {
+              showToast();
+            } else {
+              console.error("Falha ao salvar o tamanho do ponto.");
+            }
+          } catch (error) {
+            console.error("Erro de rede ao salvar o tamanho do ponto:", error);
+          }
+        }
+
+        function showToast() {
+          toast.classList.add("show");
+          setTimeout(() => toast.classList.remove("show"), 2000);
+        }
+
         // Carga inicial e início da conexão em tempo real
         reloadAndRender(urlParams.get("hideAvailable") || "false");
         connectSse();
@@ -391,6 +474,16 @@ Status: ${status}`;
 
         // Header sempre visível por padrão
         showTopbar();
+
+        // Event listener para o controle de tamanho do ponto
+        dotSizeSlider.addEventListener("input", (event) => {
+          updateAllDotSizes(event.target.value);
+        });
+
+        // Evento 'change' é disparado quando o usuário solta o slider
+        dotSizeSlider.addEventListener("change", (event) => {
+          saveDotSize(event.target.value);
+        });
       })();
     </script>
   </body>
