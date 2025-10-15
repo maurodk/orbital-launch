@@ -7,6 +7,7 @@ const express = require("express");
 const { google } = require("googleapis");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const fetch = require("node-fetch"); // <-- ADICIONAR ESTA LINHA
 const { createClient } = require("@supabase/supabase-js");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
@@ -156,7 +157,7 @@ async function broadcastEvent(implantacao, event, data) {
   if (data.rowIndex) {
     try {
       const sheets = await getSheetsClient();
-      const range = `'${implantacao}'!A${data.rowIndex}:M${data.rowIndex}`;
+      const range = `'${implantacao}'!A${data.rowIndex}:Q${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
@@ -506,7 +507,7 @@ app.get("/api/data", verifyToken, async (req, res) => {
     const [implantacaoRes, dadosRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:M`,
+        range: `'${sheetTitle}'!A:Q`,
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -558,7 +559,7 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:M`,
+      range: `'${sheetTitle}'!A:Q`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
@@ -572,7 +573,7 @@ app.get("/api/public-data", async (req, res) => {
     // Busca os dados da implantação (imagem, dotSize)
     const implantacoesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:C`,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:G`, // Coluna G para a sigla
     });
 
     const implantacaoData = (implantacoesRes.data.values || []).find(
@@ -583,11 +584,13 @@ app.get("/api/public-data", async (req, res) => {
     const dotSize = implantacaoData
       ? parseInt(implantacaoData[2], 10) || 16
       : 16;
+    const sigla = implantacaoData ? implantacaoData[6] : ""; // Pega a sigla
 
     res.json({
       unidades,
       imageUrl,
       dotSize,
+      sigla,
     });
   } catch (error) {
     res.status(500).json({
@@ -601,7 +604,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:F`, // Coluna F para o ID do CVCRM
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:G`, // Coluna G para a sigla
     });
     const implantacoes = (response.data.values || []).map((row) => ({
       nome: row[0],
@@ -610,6 +613,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
       endereco: row[3] || "Endereço não informado",
       logoUrl: row[4] || "/logo-uni.png",
       cvcrmId: row[5] || null, // Adiciona o ID do CVCRM
+      sigla: row[6] || null, // Adiciona a sigla
     }));
     res.json(implantacoes);
   } catch (error) {
@@ -2279,6 +2283,103 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Erro ao bloquear/desbloquear unidade:", error);
     res.status(500).json({ error: "Falha ao atualizar o status da unidade." });
+  }
+});
+
+// NOVO: Endpoint para atualizar dados do PIX
+app.post("/api/update-pix-data", verifyToken, async (req, res) => {
+  const {
+    implantacao,
+    rowIndex,
+    identificador,
+    payloadEmv,
+    valor,
+    statusPagamento,
+  } = req.body;
+  const userEmail = req.user.email;
+
+  if (
+    !implantacao ||
+    !rowIndex ||
+    !identificador ||
+    !payloadEmv ||
+    valor === undefined ||
+    !statusPagamento
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para atualizar o PIX." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor) e Q (Status Pagamento)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!N${rowIndex}:Q${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: [[identificador, payloadEmv, valor, statusPagamento]],
+      },
+    });
+
+    // Não precisa de broadcast aqui, pois a unidade já está reservada.
+    // A atualização de status PAGO virá por outro meio (webhook, etc) e aí sim, um broadcast será útil.
+
+    res.json({ success: true, message: "Dados do PIX atualizados." });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao atualizar dados do PIX." });
+  }
+});
+
+// NOVO: Endpoint para atuar como proxy para a API do Santander
+app.post("/api/santander/gerapix", verifyToken, async (req, res) => {
+  const SANTANDER_API_URL =
+    "https://api-santander-intregration.vercel.app/api/gerapix";
+
+  // Log para depuração: mostra o corpo da requisição recebida do frontend
+  console.log(
+    "[PROXY /api/santander/gerapix] Corpo da requisição para a API externa:",
+    JSON.stringify(req.body, null, 2)
+  );
+
+  try {
+    // O corpo da requisição (req.body) já vem do frontend no formato correto.
+    // Apenas repassamos para a API do Santander.
+    const response = await fetch(SANTANDER_API_URL, {
+      method: "POST",
+      headers: {
+        // GARANTIR que apenas os cabeçalhos necessários sejam enviados,
+        // evitando repassar o token de autorização do Firebase.
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    const responseData = await response.json();
+
+    // Log para depuração: mostra a resposta recebida da API externa
+    console.log(
+      `[PROXY /api/santander/gerapix] Resposta da API externa (Status: ${response.status}):`,
+      JSON.stringify(responseData, null, 2)
+    );
+
+    if (!response.ok) {
+      // Se a API do Santander retornar um erro, repassamos o status e a mensagem.
+      return res.status(response.status).json({
+        sucesso: false,
+        mensagem:
+          responseData.mensagem ||
+          `Erro na API externa: ${response.statusText}`,
+      });
+    }
+
+    res.status(200).json(responseData);
+  } catch (error) {
+    res.status(500).json({
+      sucesso: false,
+      mensagem: "Erro interno do servidor ao contatar a API PIX.",
+    });
   }
 });
 

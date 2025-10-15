@@ -26,6 +26,8 @@ import { IdleTimeoutModal } from "../../components/IdleTimeoutModal";
 import { VerifyingModal } from "../../components/VerifyingModal";
 import { ReservationFailedModal } from "../../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../../components/ReservationSuccessModal";
+import { PixModal } from "../../components/PixModal"; // Importa o novo modal
+import "../../components/PixModal.css"; // Importa o CSS do novo modal
 import { useReservationManager } from "../hooks/useReservationManager";
 
 const API_URL = "https://simulador-implantacao.onrender.com";
@@ -45,6 +47,7 @@ interface Implantation {
   tamanhoPonto?: number;
   endereco?: string;
   logoUrl?: string;
+  sigla?: string;
 }
 interface ManualData {
   id: string;
@@ -73,6 +76,8 @@ export function MainPage() {
   const [selectedImplantationName, setSelectedImplantationName] = useState("");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [switching, setSwitching] = useState<boolean>(false);
+  const [currentImplantation, setCurrentImplantation] =
+    useState<Implantation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"map" | "list" | "history">("map");
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -92,6 +97,10 @@ export function MainPage() {
     isOpen: false,
     isBlocking: true,
     apiError: "",
+  });
+  const [pixModalState, setPixModalState] = useState({
+    isOpen: false,
+    unitIndex: null as number | null,
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -174,7 +183,7 @@ export function MainPage() {
     setSwitching(true);
     try {
       const response = await axios.get<ApiResponse>(
-        `${apiUrl}/api/data?implantacao=${implantacaoName}`
+        `${apiUrl}/api/data?implantacao=${encodeURIComponent(implantacaoName)}`
       );
       setUnidades(response.data.unidades.slice(1) || []);
       setClientes(response.data.clientes.slice(1) || []);
@@ -210,17 +219,18 @@ export function MainPage() {
             (allImplantations[0]?.nome || "");
           setSelectedImplantationName(currentImplantationName);
 
-          const currentImplantation = allImplantations.find(
+          const foundImplantation = allImplantations.find(
             (imp) => imp.nome === currentImplantationName
           );
 
-          if (currentImplantation) {
-            setImageUrl(currentImplantation.url);
-            setDotSize(currentImplantation.tamanhoPonto || 16);
-            setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
+          if (foundImplantation) {
+            setCurrentImplantation(foundImplantation);
+            setImageUrl(foundImplantation.url);
+            setDotSize(foundImplantation.tamanhoPonto || 16);
+            setCurrentLogoUrl(foundImplantation.logoUrl || "/logo-uni.png");
 
-            await fetchUnitData(currentImplantation.nome);
-            await fetchHistory(currentImplantation.nome);
+            await fetchUnitData(foundImplantation.nome);
+            await fetchHistory(foundImplantation.nome);
           }
           setError(null);
         } catch (err) {
@@ -330,6 +340,7 @@ export function MainPage() {
     setSelectedImplantationName(newName);
     setImageUrl(newImplantation.url);
     setDotSize(newImplantation.tamanhoPonto ?? 16);
+    setCurrentImplantation(newImplantation);
     setCurrentLogoUrl(newImplantation.logoUrl || "/logo-uni.png");
     await fetchUnitData(newName);
     await fetchHistory(newName);
@@ -386,6 +397,7 @@ export function MainPage() {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
     setBlockModalState({ isOpen: false, isBlocking: true, apiError: "" });
+    setPixModalState({ isOpen: false, unitIndex: null });
     setSelectedUnitIndex(null);
   };
 
@@ -439,6 +451,13 @@ export function MainPage() {
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
     setBlockModalState({ isOpen: true, isBlocking: true, apiError: "" });
+  };
+
+  const handlePixActionClick = (unitIndex: number) => {
+    setPixModalState({
+      isOpen: true,
+      unitIndex: unitIndex,
+    });
   };
 
   const handleToggleBlockUnit = async (
@@ -715,6 +734,41 @@ export function MainPage() {
     setUnitToMapIndex(null);
   };
 
+  const handleConfirmPixData = async (
+    txid: string,
+    valor: number,
+    identificador: string,
+    payloadEmv: string,
+    statusPagamento: string
+  ) => {
+    if (pixModalState.unitIndex === null) return;
+
+    const sheetRowIndex = pixModalState.unitIndex + 2;
+
+    try {
+      await axios.post(`${apiUrl}/api/update-pix-data`, {
+        implantacao: selectedImplantationName,
+        rowIndex: sheetRowIndex,
+        txid, // txid original (curto)
+        valor,
+        identificador, // txid longo da resposta do Santander
+        payloadEmv,
+        statusPagamento,
+      });
+      // Atualiza a UI localmente para refletir o status pendente
+      const updatedUnidades = [...unidades];
+      updatedUnidades[pixModalState.unitIndex][13] = identificador; // Coluna N
+      updatedUnidades[pixModalState.unitIndex][14] = payloadEmv; // Coluna O
+      updatedUnidades[pixModalState.unitIndex][15] = String(valor); // Coluna P
+      updatedUnidades[pixModalState.unitIndex][16] = statusPagamento; // Coluna Q
+      setUnidades(updatedUnidades);
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.error || "Erro ao salvar dados do PIX."
+      );
+    }
+  };
+
   const handlePrepareAndPrint = async (unitIndex: number) => {
     const unitData = unidades[unitIndex];
     const impData = implantacoes.find(
@@ -913,6 +967,7 @@ export function MainPage() {
                     onSpontaneousClick={handleSpontaneousUnitClick}
                     onBlockClick={handleBlockActionClick}
                     onPrintClick={handlePrepareAndPrint}
+                    onPixClick={handlePixActionClick}
                     onHistoryClick={handleOpenUnitHistory}
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
@@ -975,6 +1030,20 @@ export function MainPage() {
                 onClose={() => setShowHistoryModal(false)}
                 unitName={selectedUnitForHistory}
                 fullHistory={history}
+              />
+              <PixModal
+                show={pixModalState.isOpen}
+                onClose={handleCloseModals}
+                unitData={
+                  pixModalState.unitIndex !== null
+                    ? unidades[pixModalState.unitIndex]
+                    : null
+                }
+                implantacaoSigla={
+                  currentImplantation?.sigla ||
+                  selectedImplantationName.replace(/[^A-Z0-9]/gi, "")
+                }
+                onConfirm={handleConfirmPixData}
               />
               <IdleTimeoutModal
                 show={isIdleModalOpen}

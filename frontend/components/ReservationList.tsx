@@ -8,7 +8,8 @@ interface ReservationListProps {
   onHistoryClick: (unitName: string) => void;
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
-  onPrintClick: (unitIndex: number) => void; // Prop agora será usada
+  onPrintClick: (unitIndex: number) => void;
+  onPixClick: (unitIndex: number) => void; // Nova prop para o PIX
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   statusFilter: "all" | "disponível" | "reservada" | "bloqueada";
@@ -24,7 +25,8 @@ export function ReservationList({
   onSpontaneousClick,
   onBlockClick,
   onHistoryClick,
-  onPrintClick, // Agora está sendo usado
+  onPrintClick,
+  onPixClick,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -100,7 +102,8 @@ export function ReservationList({
               unidades.map(([unitData, originalIndex]) => {
                 const status = unitData[10]?.toLowerCase() || "disponível";
                 const isAvailable = status === "disponível";
-                const isReserved = status === "reservada"; // Variável agora será usada
+                const isReserved = status === "reservada";
+                const paymentStatus = unitData[16]?.toUpperCase(); // Coluna Q
                 const clientName = unitData[6] || "—";
                 const brokerName = unitData[8] || "—";
 
@@ -158,15 +161,24 @@ export function ReservationList({
                             >
                               Gerenciar
                             </button>
-                            {isReserved && (
-                              <button
-                                className="print-button-in-table"
-                                title="Imprimir Termo de Reserva"
-                                onClick={() => onPrintClick(originalIndex)}
-                              >
-                                <FiPrinter size={16} />
-                              </button>
-                            )}
+                            {isReserved &&
+                              (paymentStatus === "PAGO" ? (
+                                <button
+                                  className="print-button-in-table"
+                                  title="Imprimir Termo de Reserva"
+                                  onClick={() => onPrintClick(originalIndex)}
+                                >
+                                  <FiPrinter size={16} />
+                                </button>
+                              ) : (
+                                <button
+                                  className="pix-button-in-table" // Estilo a ser criado
+                                  title="Gerar PIX para Pagamento"
+                                  onClick={() => onPixClick(originalIndex)}
+                                >
+                                  <img src="/pix.png" alt="PIX" />
+                                </button>
+                              ))}
                           </>
                         )}
                       </div>
