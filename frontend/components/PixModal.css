@@ -114,3 +114,78 @@
   outline: none;
   border-color: var(--accent-green);
 }
+
+/* --- ANIMAÇÃO DE PAGAMENTO CONFIRMADO --- */
+
+.payment-success-animation {
+  text-align: center;
+  padding: 40px;
+}
+
+.payment-success-animation h2 {
+  color: var(--accent-green);
+  font-size: 1.8rem;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.payment-success-animation p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.success-checkmark {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: bounceIn 0.6s ease-out;
+}
+
+.check-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-green), #4caf50);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(106, 215, 0, 0.4);
+}
+
+.check-icon::after {
+  content: "✓";
+  font-size: 36px;
+  font-weight: bold;
+  color: white;
+  animation: checkmarkDraw 0.8s ease-out 0.2s both;
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes checkmarkDraw {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-45deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}

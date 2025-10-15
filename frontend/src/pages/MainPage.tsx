@@ -49,6 +49,18 @@ interface Implantation {
   logoUrl?: string;
   sigla?: string;
 }
+
+// Função para gerar sigla a partir do nome
+const gerarSigla = (nome: string): string => {
+  if (!nome) return "";
+  // Gera um acrônimo pegando a primeira letra de cada palavra.
+  return nome
+    .split(" ")
+    .map((palavra) => palavra.charAt(0))
+    .join("")
+    .toUpperCase();
+};
+
 interface ManualData {
   id: string;
   cliente: string;
@@ -254,17 +266,24 @@ export function MainPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedImplantationName) {
+    const sigla =
+      currentImplantation?.sigla || gerarSigla(selectedImplantationName);
+    if (!sigla) {
       return;
     }
 
     const eventSource = new EventSource(
-      `${apiUrl}/api/events?implantacao=${selectedImplantationName}`
+      `${apiUrl}/api/events?implantacao=${encodeURIComponent(
+        selectedImplantationName
+      )}`
     );
 
     const handleUnitUpdate = async (event: MessageEvent) => {
       try {
-        const { unitData, rowIndex } = JSON.parse(event.data);
+        const eventData = JSON.parse(event.data);
+        const { unitData, rowIndex } = eventData;
+
+        if (!unitData || !rowIndex) return; // Ignora eventos malformados
         console.log("SSE Recebido:", { unitData, rowIndex });
 
         setUnidades((currentUnidades) =>
@@ -286,7 +305,7 @@ export function MainPage() {
       eventSource.removeEventListener("unitUpdated", handleUnitUpdate);
       eventSource.close();
     };
-  }, [selectedImplantationName]);
+  }, [selectedImplantationName, currentImplantation]);
 
   const idleTimer = useRef<NodeJS.Timeout | null>(null);
   const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
@@ -348,7 +367,7 @@ export function MainPage() {
     // CORREÇÃO: Adiciona a chamada para salvar a implantação selecionada no backend.
     try {
       await axios.post(`${apiUrl}/api/update-config`, {
-        key: "implantacaoAtual",
+        key: "implantacaoAtual", // A config ainda usa o nome completo
         value: newName,
       });
     } catch (error) {
@@ -415,7 +434,7 @@ export function MainPage() {
     try {
       const sheetRowIndex = unitIndexToClear + 2;
       await axios.post(`${apiUrl}/api/clear-coords`, {
-        rowIndex: sheetRowIndex,
+        rowIndex: sheetRowIndex, // O backend resolverá o nome da aba pela sigla
         implantacao: selectedImplantationName,
       });
     } catch (err) {
@@ -532,6 +551,7 @@ export function MainPage() {
     try {
       const tempReservationResult =
         await reservationManager.createTempReservation(
+          // O manager também usará a sigla
           selectedImplantationName,
           sheetRowIndex,
           unitName
@@ -577,7 +597,7 @@ export function MainPage() {
       }
 
       const confirmSuccess = await reservationManager.confirmReservation(
-        selectedImplantationName,
+        selectedImplantationName, // O manager também usará a sigla
         sheetRowIndex,
         dataToBackend,
         clientName,
@@ -642,7 +662,7 @@ export function MainPage() {
       console.error("Erro durante o processo de reserva:", error);
 
       await reservationManager.cancelTempReservation(
-        selectedImplantationName,
+        selectedImplantationName, // O manager também usará a sigla
         sheetRowIndex
       );
 
@@ -725,7 +745,8 @@ export function MainPage() {
         rowIndex: sheetRowIndex,
         coordX,
         coordY,
-        implantacao: selectedImplantationName,
+        implantacao:
+          currentImplantation?.sigla || gerarSigla(selectedImplantationName),
       });
     } catch (err) {
       setError("Falha ao salvar as coordenadas.");
@@ -1039,9 +1060,11 @@ export function MainPage() {
                     ? unidades[pixModalState.unitIndex]
                     : null
                 }
+                unidades={unidades}
+                implantacaoNome={selectedImplantationName}
                 implantacaoSigla={
                   currentImplantation?.sigla ||
-                  selectedImplantationName.replace(/[^A-Z0-9]/gi, "")
+                  gerarSigla(selectedImplantationName)
                 }
                 onConfirm={handleConfirmPixData}
               />

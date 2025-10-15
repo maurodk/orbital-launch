@@ -9,6 +9,8 @@ interface PixModalProps {
   show: boolean;
   onClose: () => void;
   unitData: string[] | null;
+  unidades: string[][];
+  implantacaoNome: string;
   implantacaoSigla: string;
   onConfirm: (
     txid: string,
@@ -41,6 +43,8 @@ export function PixModal({
   show,
   onClose,
   unitData,
+  unidades,
+  implantacaoNome,
   implantacaoSigla,
   onConfirm,
 }: PixModalProps) {
@@ -54,6 +58,7 @@ export function PixModal({
   );
   const [payload, setPayload] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [isPaid, setIsPaid] = useState(false); // NOVO: Estado para controlar a confirmação de pagamento
 
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
   const apiUrl =
@@ -71,6 +76,7 @@ export function PixModal({
       setShowQr(false);
       setPayload(null);
       setError("");
+      setIsPaid(false); // Reseta o estado de pagamento
       // Reseta para o estado e cidade padrão
       const defaultEstado = ESTADOS_PERMITIDOS[0];
       setEstado(defaultEstado);
@@ -78,13 +84,50 @@ export function PixModal({
     }
   }, [show]);
 
+  // NOVO: Efeito para reagir à atualização de status em tempo real
+  useEffect(() => {
+    // Verifica se o status do pagamento (coluna Q, índice 16) mudou para "PAGO"
+    if (show && unitData && unitData[16]?.toUpperCase() === "PAGO") {
+      setIsPaid(true); // Ativa a animação de sucesso
+
+      // Fecha o modal automaticamente após 3 segundos
+      const timer = setTimeout(() => {
+        onClose();
+      }, 3000);
+
+      return () => clearTimeout(timer); // Limpa o timer se o componente for desmontado
+    }
+  }, [unitData, show, onClose]);
+
+  // NOVO: Efeito para iniciar o polling (verificação periódica) do status do pagamento
+  useEffect(() => {
+    if (showQr && !isPaid) {
+      const sheetRowIndex = unitData
+        ? unidades.findIndex((u) => u[2] === unitData[2]) + 2
+        : null;
+      if (!sheetRowIndex) return;
+
+      const interval = setInterval(async () => {
+        try {
+          // Chama o novo endpoint para forçar a atualização
+          await axios.post(`${apiUrl}/api/refresh-unit`, {
+            implantacao: implantacaoNome,
+            rowIndex: sheetRowIndex,
+          });
+        } catch (error) {
+          console.error("Falha ao verificar status do PIX:", error);
+        }
+      }, 3000); // Verifica a cada 3 segundos
+
+      // Limpa o intervalo quando o modal é fechado ou o pagamento é confirmado
+      return () => clearInterval(interval);
+    }
+  }, [showQr, isPaid, unitData, implantacaoNome, unidades, apiUrl]);
+
   const txid = useMemo(() => {
     if (!unitData || !implantacaoSigla) return "";
-    const siglaSanitized = implantacaoSigla
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/gi, "");
     const unitIdentifier = (unitData[2] || "").replace(/[^A-Z0-9]/gi, "");
-    return `${siglaSanitized}${unitIdentifier}`;
+    return `${implantacaoSigla}${unitIdentifier}`;
   }, [unitData, implantacaoSigla]);
 
   // Atualiza a cidade quando o estado muda
@@ -162,11 +205,14 @@ export function PixModal({
 
       setPayload(payloadEmv);
       setShowQr(true);
-    } catch (e: any) {
-      const errorMessage =
-        e.response?.data?.mensagem ||
-        e.message ||
+    } catch (e: unknown) {
+      let errorMessage =
         "Falha ao gerar QR Code. Verifique os dados e tente novamente.";
+      if (axios.isAxiosError(e)) {
+        errorMessage = e.response?.data?.mensagem || e.message;
+      } else if (e instanceof Error) {
+        errorMessage = e.message;
+      }
       setError(errorMessage);
     } finally {
       setIsGenerating(false);
@@ -175,6 +221,24 @@ export function PixModal({
 
   if (!show || !unitData) {
     return null;
+  }
+
+  // Se o pagamento foi confirmado, mostra a animação de sucesso
+  if (isPaid) {
+    return (
+      <div className="modal-overlay">
+        <div className="modal-content pix-modal-content payment-success-animation">
+          <div className="success-checkmark">
+            <div className="check-icon"></div>
+          </div>
+          <h2>Pagamento Confirmado!</h2>
+          <p>
+            A reserva da unidade <strong>{unitData[2]}</strong> foi
+            oficializada.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

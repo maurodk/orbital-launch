@@ -482,25 +482,18 @@ app.get("/api/data", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const resolved = await resolveSheetName(
+    const resolved = await resolveSheetName( // Usa a função original de resolução
       sheets,
       SPREADSHEET_ID_IMPLANTACAO,
       implantacao
     );
 
     if (!resolved || !resolved.found) {
-      const available = Array.isArray(resolved && resolved.available)
-        ? resolved.available
-        : [];
-      const suggestions = Array.isArray(resolved && resolved.suggestions)
-        ? resolved.suggestions
-        : [];
-      const resolverError = resolved && resolved.error ? resolved.error : null;
       return res.status(404).json({
         error: `Planilha '${implantacao}' não encontrada no spreadsheet de implantação.`,
-        available,
-        suggestions,
-        resolverError,
+        available: resolved.available,
+        suggestions: resolved.suggestions,
+        resolverError: resolved.error,
       });
     }
     const sheetTitle = resolved.found;
@@ -1105,9 +1098,16 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-
-    // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
-    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res.status(404).json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
+    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1128,13 +1128,13 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
     // Marca a unidade como "RESERVANDO" temporariamente
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [["RESERVANDO"]] },
     });
 
     // Armazena o token de reserva temporária (em memória por 30 segundos)
-    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
     tempReservations.set(tempReservationKey, {
       token: reservationToken,
       userEmail,
@@ -1173,9 +1173,18 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res.status(404).json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
 
     // Verifica se a reserva temporária ainda é válida
-    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
     const tempReservation = tempReservations.get(tempReservationKey);
 
     if (!tempReservation || tempReservation.token !== reservationToken) {
@@ -1196,7 +1205,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     tempReservations.delete(tempReservationKey);
 
     // Verifica novamente se a unidade ainda está disponível
-    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1222,7 +1231,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         const { data: implData, error: implDataError } = await supabase
           .from("implantacoes")
           .select("id")
-          .eq("nome", implantacao)
+          .eq("nome", sheetTitle) // Usa o nome completo resolvido
           .maybeSingle(); // Use maybeSingle para não dar erro se não encontrar
 
         if (implDataError) {
@@ -1339,7 +1348,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     // Adiciona ao histórico DEPOIS da operação principal
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitName,
       "Reservada",
       clientName,
@@ -1356,12 +1365,12 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         try {
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+            range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
             valueInputOption: "USER_ENTERED",
             resource: { values: [data] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex,
             unitName,
           });
@@ -1430,12 +1439,12 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     // --- Fallback para Google Sheets se o Supabase falhou ---
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+      range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [data] },
     });
 
-    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
+    await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex, unitName });
 
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -1464,7 +1473,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     });
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
@@ -1489,7 +1498,17 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
   }
 
   try {
-    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const sheets = await getSheetsClient();
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res.status(404).json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
+    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
     const tempReservation = tempReservations.get(tempReservationKey);
 
     if (!tempReservation || tempReservation.token !== reservationToken) {
@@ -1510,16 +1529,15 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
     tempReservations.delete(tempReservationKey);
 
     // Restaura o status da unidade para DISPONÍVEL
-    const sheets = await getSheetsClient();
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [["DISPONÍVEL"]] },
     });
 
     // Notifica outros clientes sobre a mudança
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: tempReservation.unitName,
     });
@@ -1546,9 +1564,11 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
+    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
 
     // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
-    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1681,7 +1701,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     // Adiciona ao histórico DEPOIS da operação principal
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitName,
       "Reservada (Espontânea)",
       manualData.cliente,
@@ -1709,12 +1729,12 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
           ];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+            range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
             valueInputOption: "USER_ENTERED",
             resource: { values: [dataToUpdate] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex,
             unitName,
           });
@@ -1753,14 +1773,14 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     ];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+      range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [dataToUpdate] },
     });
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
@@ -1811,11 +1831,14 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
+    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
     let supabaseOk = false;
     let unitFullName = null;
     if (supabase) {
       try {
-        const { data: implData } = await supabase
+        const { data: implData } = await supabase // Usa o nome completo resolvido
           .from("implantacoes")
           .select("id")
           .eq("nome", implantacao)
@@ -1855,7 +1878,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           // Adiciona ao histórico DEPOIS da operação principal
           await addHistoryEntry(
             sheets,
-            implantacao,
+            sheetTitle,
             unitFullName || `Unidade na linha ${unitRowIndex}`,
             "Cancelada",
             clientName,
@@ -1890,12 +1913,12 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${implantacao}'!F${unitRowIndex}:K${unitRowIndex}`,
+            range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
             valueInputOption: "USER_ENTERED",
             resource: { values: [emptyUnitData] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex: unitRowIndex,
             unitName: unitFullName,
           });
@@ -1929,17 +1952,17 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!F${unitRowIndex}:K${unitRowIndex}`,
+        range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
         valueInputOption: "USER_ENTERED",
         resource: { values: [emptyUnitData] },
       });
       const unidadeInfo = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!C${unitRowIndex}:C${unitRowIndex}`,
+        range: `'${sheetTitle}'!C${unitRowIndex}:C${unitRowIndex}`,
       });
       unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
-      await broadcastEvent(implantacao, "unitUpdated", {
+      await broadcastEvent(sheetTitle, "unitUpdated", {
         rowIndex: unitRowIndex,
         unitName: unitFullName,
       });
@@ -1993,9 +2016,12 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
+    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!L${rowIndex}:M${rowIndex}`,
+      range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[coordX, coordY]] },
     });
@@ -2034,12 +2060,12 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     }
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitFullName,
       "Mapeamento Adicionado",
       null,
@@ -2047,7 +2073,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
     });
@@ -2074,8 +2100,11 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const range = `'${implantacao}'!L${rowIndex}:M${rowIndex}`;
+    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
 
+    const range = `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`;
+    
     // Ação Principal: Limpar as coordenadas
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2087,13 +2116,13 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     // Ação Secundária: Registrar no histórico
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitFullName,
       "Mapeamento Removido", // Ação descritiva diferente
       null,
@@ -2101,7 +2130,7 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
     });
@@ -2210,7 +2239,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient();
+    const sheets = await getSheetsClient(); // Usa o nome completo resolvido
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${implantacao}'!K${rowIndex}`,
@@ -2223,7 +2252,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       try {
         const { data: implData } = await supabase
           .from("implantacoes")
-          .select("id")
+          .select("id") // Usa o nome completo resolvido
           .eq("nome", implantacao)
           .limit(1)
           .single();
@@ -2263,7 +2292,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
 
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitFullName,
       acao,
       null,
@@ -2271,7 +2300,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
     });
@@ -2313,10 +2342,13 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
+    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
     // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor) e Q (Status Pagamento)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!N${rowIndex}:Q${rowIndex}`,
+      range: `'${sheetTitle}'!N${rowIndex}:Q${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: {
         values: [[identificador, payloadEmv, valor, statusPagamento]],
@@ -2329,6 +2361,36 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     res.json({ success: true, message: "Dados do PIX atualizados." });
   } catch (error) {
     res.status(500).json({ error: "Falha ao atualizar dados do PIX." });
+  }
+});
+
+// NOVO: Endpoint para forçar a atualização de uma unidade e notificar clientes
+app.post("/api/refresh-unit", verifyToken, async (req, res) => {
+  const { implantacao, rowIndex } = req.body;
+
+  if (!implantacao || !rowIndex) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para atualizar a unidade." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
+    // A função broadcastEvent já busca os dados mais recentes da planilha
+    // e envia para todos os clientes conectados na sala da implantação.
+    await broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex: rowIndex,
+      // O nome da unidade não é estritamente necessário aqui, pois o payload do evento
+      // será preenchido com a linha inteira de dados da planilha.
+    });
+
+    res.json({ success: true, message: "Comando de atualização enviado." });
+  } catch (error) {
+    console.error("Erro ao forçar atualização da unidade:", error);
+    res.status(500).json({ error: "Falha ao forçar atualização da unidade." });
   }
 });
 
