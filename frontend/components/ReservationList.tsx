@@ -1,11 +1,13 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
+import { useState, useEffect, useRef } from "react";
 import { FiSearch, FiLock, FiPrinter, FiClock } from "react-icons/fi";
 
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
   onHistoryClick: (unitName: string) => void;
+  onChangeUnitClick: (unitIndex: number) => void; // <-- NOVO
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
   onPrintClick: (unitIndex: number) => void;
@@ -23,6 +25,7 @@ export function ReservationList({
   unidades,
   onUnitClick,
   onSpontaneousClick,
+  onChangeUnitClick, // <-- NOVO
   onBlockClick,
   onHistoryClick,
   onPrintClick,
@@ -34,6 +37,31 @@ export function ReservationList({
   totalUnidades,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
+  const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Hook para fechar o menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuIndex(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleMenuToggle = (index: number) => {
+    setOpenMenuIndex(openMenuIndex === index ? null : index);
+  };
+
+  const handleMenuAction = (action: (index: number) => void, index: number) => {
+    action(index);
+    setOpenMenuIndex(null); // Fecha o menu após a ação
+  };
 
   return (
     <div className="reservation-list-container">
@@ -155,12 +183,43 @@ export function ReservationList({
                           </>
                         ) : (
                           <>
-                            <button
-                              className="reserve-button-in-table reserved"
-                              onClick={() => onUnitClick(originalIndex)}
+                            <div
+                              className="manage-menu-container"
+                              ref={
+                                openMenuIndex === originalIndex ? menuRef : null
+                              }
                             >
-                              Gerenciar
-                            </button>
+                              <button
+                                className="reserve-button-in-table manage"
+                                onClick={() => handleMenuToggle(originalIndex)}
+                              >
+                                Gerenciar
+                              </button>
+                              {openMenuIndex === originalIndex && (
+                                <div className="manage-dropdown-menu">
+                                  <button
+                                    onClick={() =>
+                                      handleMenuAction(
+                                        onChangeUnitClick,
+                                        originalIndex
+                                      )
+                                    }
+                                  >
+                                    Trocar Unidade
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleMenuAction(
+                                        onUnitClick,
+                                        originalIndex
+                                      )
+                                    }
+                                  >
+                                    Cancelar Reserva
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             {isReserved &&
                               (paymentStatus === "PAGO" ? (
                                 <button

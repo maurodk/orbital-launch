@@ -482,7 +482,8 @@ app.get("/api/data", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const resolved = await resolveSheetName( // Usa a função original de resolução
+    const resolved = await resolveSheetName(
+      // Usa a função original de resolução
       sheets,
       SPREADSHEET_ID_IMPLANTACAO,
       implantacao
@@ -1104,7 +1105,9 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
       implantacao
     );
     if (!resolved || !resolved.found) {
-      return res.status(404).json({ error: `Planilha '${implantacao}' não encontrada.` });
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
     }
     const sheetTitle = resolved.found;
     const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
@@ -1179,7 +1182,9 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       implantacao
     );
     if (!resolved || !resolved.found) {
-      return res.status(404).json({ error: `Planilha '${implantacao}' não encontrada.` });
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
     }
     const sheetTitle = resolved.found;
 
@@ -1505,7 +1510,9 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
       implantacao
     );
     if (!resolved || !resolved.found) {
-      return res.status(404).json({ error: `Planilha '${implantacao}' não encontrada.` });
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
     }
     const sheetTitle = resolved.found;
     const tempReservationKey = `${sheetTitle}_${rowIndex}`;
@@ -1564,7 +1571,11 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    const { sheetTitle, error, details } = await getSheetTitle(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
     if (error) return res.status(404).json({ error: error, ...details });
 
     // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
@@ -1831,7 +1842,11 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
     let supabaseOk = false;
@@ -1910,12 +1925,22 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       // A resposta será enviada depois para garantir que o fallback também responda
       (async () => {
         try {
-          const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
-          await sheets.spreadsheets.values.update({
+          // CORREÇÃO: Limpa os dados em duas partes para preservar as coordenadas (L e M)
+          await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
-            valueInputOption: "USER_ENTERED",
-            resource: { values: [emptyUnitData] },
+            resource: {
+              valueInputOption: "USER_ENTERED",
+              data: [
+                {
+                  range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
+                  values: [["", "", "", "", "", "DISPONÍVEL"]],
+                },
+                {
+                  range: `'${sheetTitle}'!N${unitRowIndex}:Q${unitRowIndex}`,
+                  values: [["", "", "", ""]],
+                },
+              ],
+            },
           });
 
           await broadcastEvent(sheetTitle, "unitUpdated", {
@@ -1949,12 +1974,22 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       })();
     } else {
       // fallback to Sheets (legacy)
-      const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
-      await sheets.spreadsheets.values.update({
+      // CORREÇÃO: Limpa os dados em duas partes para preservar as coordenadas (L e M)
+      await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
-        valueInputOption: "USER_ENTERED",
-        resource: { values: [emptyUnitData] },
+        resource: {
+          valueInputOption: "USER_ENTERED",
+          data: [
+            {
+              range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
+              values: [["", "", "", "", "", "DISPONÍVEL"]],
+            },
+            {
+              range: `'${sheetTitle}'!N${unitRowIndex}:Q${unitRowIndex}`,
+              values: [["", "", "", ""]],
+            },
+          ],
+        },
       });
       const unidadeInfo = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2000,6 +2035,140 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
   }
 });
 
+// NOVO: Endpoint para TROCAR unidade
+app.post("/api/change-unit", verifyToken, async (req, res) => {
+  const { implantacao, oldUnitIndex, newUnitIndex } = req.body;
+  const userEmail = req.user.email;
+
+  if (
+    !implantacao ||
+    oldUnitIndex === undefined ||
+    newUnitIndex === undefined
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para a troca de unidade." });
+  }
+
+  const oldRow = oldUnitIndex + 2;
+  const newRow = newUnitIndex + 2;
+
+  try {
+    const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
+    // 1. Otimização: Ler os dados das duas unidades de uma vez
+    const rangesToRead = [
+      `'${sheetTitle}'!C${oldRow}`, // Nome da unidade antiga
+      `'${sheetTitle}'!F${oldRow}:Q${oldRow}`, // Dados da unidade antiga
+      `'${sheetTitle}'!C${newRow}`, // Nome da unidade nova
+    ];
+    const batchGetData = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      ranges: rangesToRead,
+    });
+
+    const [oldUnitNameData, oldUnitDataValues, newUnitNameData] =
+      batchGetData.data.valueRanges;
+
+    const oldUnitName = oldUnitNameData.values?.[0]?.[0];
+    const oldUnitData = oldUnitDataValues.values?.[0];
+    const newUnitName = newUnitNameData.values?.[0]?.[0];
+
+    if (!oldUnitData) {
+      return res
+        .status(404)
+        .json({ error: "Dados da unidade de origem não encontrados." });
+    }
+
+    // 2. Preparar dados para atualização
+    const dataToTransfer = [
+      oldUnitData[0] || "", // F: id_pre_cadastro
+      oldUnitData[1] || "", // G: cliente
+      oldUnitData[2] || "", // H: documento
+      oldUnitData[3] || "", // I: corretor
+      oldUnitData[4] || "", // J: imobiliária
+      "RESERVADA", // K: situação
+      "", // L: coord_x (não transferir) - Limpa na nova unidade
+      "", // M: coord_y (não transferir) - Limpa na nova unidade
+      oldUnitData[8] || "", // N: IDENTIFICADOR
+      oldUnitData[9] || "", // O: Payload
+      oldUnitData[10] || "", // P: Valor
+      oldUnitData[11] || "", // Q: Pagamento
+    ];
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      resource: {
+        valueInputOption: "USER_ENTERED",
+        data: [
+          // Limpa dados da unidade antiga e a torna disponível
+          {
+            range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
+            values: [["", "", "", "", "", "DISPONÍVEL"]],
+          },
+          // CORREÇÃO: Limpa apenas os dados de PIX, mantendo as coordenadas L e M
+          {
+            range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
+            values: [["", "", "", ""]],
+          },
+          // Transfere dados para a nova unidade e a reserva
+          // CORREÇÃO: Divide a atualização para não apagar as coordenadas (L e M) da nova unidade
+          {
+            range: `'${sheetTitle}'!F${newRow}:K${newRow}`,
+            values: [
+              [
+                dataToTransfer[0], // F: id_pre_cadastro
+                dataToTransfer[1], // G: cliente
+                dataToTransfer[2], // H: documento
+                dataToTransfer[3], // I: corretor
+                dataToTransfer[4], // J: imobiliária
+                dataToTransfer[5], // K: situação
+              ],
+            ],
+          },
+          {
+            range: `'${sheetTitle}'!N${newRow}:Q${newRow}`,
+            values: [
+              [
+                dataToTransfer[8], // N: IDENTIFICADOR
+                dataToTransfer[9], // O: Payload
+                dataToTransfer[10], // P: Valor
+                dataToTransfer[11], // Q: Pagamento
+              ],
+            ],
+          },
+        ],
+      },
+    });
+
+    // 4. Registrar no histórico
+    await addHistoryEntry(
+      sheets,
+      sheetTitle,
+      `${oldUnitName} -> ${newUnitName}`,
+      "Troca de Unidade",
+      oldUnitData[1], // Nome do cliente
+      oldUnitData[3], // Nome do corretor
+      userEmail
+    );
+
+    // 5. Notificar clientes SSE sobre as duas unidades
+    await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex: oldRow - 2 });
+    await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex: newRow - 2 });
+
+    res.json({ success: true, message: "Troca de unidade realizada." });
+  } catch (err) {
+    console.error("Erro ao trocar unidade:", err);
+    res.status(500).json({ error: "Falha ao realizar a troca de unidade." });
+  }
+});
+
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, coordX, coordY } = req.body;
@@ -2016,7 +2185,11 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
     await sheets.spreadsheets.values.update({
@@ -2100,11 +2273,15 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    const { sheetTitle, error, details } = await getSheetTitle(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
     if (error) return res.status(404).json({ error: error, ...details });
 
     const range = `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`;
-    
+
     // Ação Principal: Limpar as coordenadas
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2342,7 +2519,11 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    const { sheetTitle, error, details } = await getSheetTitle(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
     if (error) return res.status(404).json({ error: error, ...details });
 
     // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor) e Q (Status Pagamento)
@@ -2376,7 +2557,11 @@ app.post("/api/refresh-unit", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    const { sheetTitle, error, details } = await getSheetTitle(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
     if (error) return res.status(404).json({ error: error, ...details });
 
     // A função broadcastEvent já busca os dados mais recentes da planilha
@@ -2396,8 +2581,7 @@ app.post("/api/refresh-unit", verifyToken, async (req, res) => {
 
 // NOVO: Endpoint para atuar como proxy para a API do Santander
 app.post("/api/santander/gerapix", verifyToken, async (req, res) => {
-  const SANTANDER_API_URL =
-    "https://api-santander-intregration.vercel.app/api/gerapix";
+  const SANTANDER_API_URL = "https://gatewaypix.suportevca.com.br/api/gerapix";
 
   // Log para depuração: mostra o corpo da requisição recebida do frontend
   console.log(

@@ -27,6 +27,9 @@ import { VerifyingModal } from "../../components/VerifyingModal";
 import { ReservationFailedModal } from "../../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../../components/ReservationSuccessModal";
 import { PixModal } from "../../components/PixModal"; // Importa o novo modal
+import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal"; // <-- NOVO
+import { ChangeUnitFailedModal } from "../../components/ChangedUnitFailedModal";
+import { ChangeUnitModal } from "../../components/ChangeUnitModal"; // <-- NOVO
 import "../../components/PixModal.css"; // Importa o CSS do novo modal
 import { useReservationManager } from "../hooks/useReservationManager";
 
@@ -114,6 +117,11 @@ export function MainPage() {
     isOpen: false,
     unitIndex: null as number | null,
   });
+  const [changeUnitModalState, setChangeUnitModalState] = useState({
+    // <-- NOVO
+    isOpen: false,
+    unitIndex: null as number | null,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "disponível" | "reservada" | "bloqueada"
@@ -136,6 +144,16 @@ export function MainPage() {
   const [isReservationSuccessModalOpen, setIsReservationSuccessModalOpen] =
     useState(false);
 
+  // NOVO: Estados para modais de troca de unidade
+  const [isChangeUnitSuccessModalOpen, setIsChangeUnitSuccessModalOpen] =
+    useState(false);
+  const [changeUnitSuccessData, setChangeUnitSuccessData] = useState<{
+    oldUnitName: string;
+    newUnitName: string;
+  } | null>(null);
+  const [isChangeUnitFailedModalOpen, setIsChangeUnitFailedModalOpen] =
+    useState(false);
+  const [changeUnitFailedMessage, setChangeUnitFailedMessage] = useState("");
   const reservationManager = useReservationManager(apiUrl);
 
   const handlePrint = useReactToPrint({
@@ -173,6 +191,19 @@ export function MainPage() {
     // A verificação `c && c[0]` garante que apenas linhas de cliente válidas sejam incluídas.
     return clientes.filter((c) => c && c[0]);
   }, [clientes]);
+
+  // NOVO: Memo para unidades disponíveis para o modal de troca
+  const availableUnitsForChange = useMemo(() => {
+    return unidades.reduce<{ unit: string[]; originalIndex: number }[]>(
+      (acc, unit, index) => {
+        if ((unit[10]?.toLowerCase() || "disponível") === "disponível") {
+          acc.push({ unit, originalIndex: index });
+        }
+        return acc;
+      },
+      []
+    );
+  }, [unidades]);
 
   const filteredUnidades: [string[], number][] = useMemo(() => {
     return unidades
@@ -417,6 +448,9 @@ export function MainPage() {
     setIsCancelModalOpen(false);
     setBlockModalState({ isOpen: false, isBlocking: true, apiError: "" });
     setPixModalState({ isOpen: false, unitIndex: null });
+    setChangeUnitModalState({ isOpen: false, unitIndex: null }); // <-- NOVO
+    setIsChangeUnitSuccessModalOpen(false); // NOVO
+    setIsChangeUnitFailedModalOpen(false); // NOVO
     setSelectedUnitIndex(null);
   };
 
@@ -479,6 +513,12 @@ export function MainPage() {
     });
   };
 
+  const handleChangeUnitClick = (unitIndex: number) => {
+    // <-- NOVO
+    setSelectedUnitIndex(unitIndex);
+    setChangeUnitModalState({ isOpen: true, unitIndex: unitIndex });
+  };
+
   const handleToggleBlockUnit = async (
     newStatus: "BLOQUEADA" | "DISPONÍVEL",
     password?: string
@@ -520,6 +560,46 @@ export function MainPage() {
         apiError: errorMessage,
       }));
       console.error(err);
+    }
+  };
+
+  const handleChangeUnit = async (newUnitIndex: number) => {
+    if (changeUnitModalState.unitIndex === null) {
+      throw new Error("Unidade de origem não selecionada.");
+    }
+
+    try {
+      await axios.post(`${apiUrl}/api/change-unit`, {
+        implantacao: selectedImplantationName,
+        oldUnitIndex: changeUnitModalState.unitIndex,
+        newUnitIndex: newUnitIndex,
+      });
+
+      // NOVO: Prepara dados para o modal de sucesso
+      const oldUnitName =
+        unidades[changeUnitModalState.unitIndex]?.[2] || "N/A";
+      const newUnitName = unidades[newUnitIndex]?.[2] || "N/A";
+      setChangeUnitSuccessData({ oldUnitName, newUnitName });
+      setIsChangeUnitSuccessModalOpen(true);
+
+      // Força a atualização dos dados após a troca bem-sucedida
+      await fetchUnitData(selectedImplantationName);
+      await fetchHistory(selectedImplantationName);
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.error ||
+        "Falha ao realizar a troca de unidade. Verifique o console para mais detalhes.";
+
+      // NOVO: Ativa o modal de falha
+      setChangeUnitFailedMessage(errorMessage);
+      setIsChangeUnitFailedModalOpen(true);
+
+      console.error("Erro ao trocar unidade:", err);
+      // Lança o erro para que o modal possa exibi-lo
+      throw new Error(errorMessage);
+    } finally {
+      // O modal será fechado pela lógica interna dele ao chamar onConfirm com sucesso
+      // handleCloseModals();
     }
   };
 
@@ -745,8 +825,7 @@ export function MainPage() {
         rowIndex: sheetRowIndex,
         coordX,
         coordY,
-        implantacao:
-          currentImplantation?.sigla || gerarSigla(selectedImplantationName),
+        implantacao: selectedImplantationName,
       });
     } catch (err) {
       setError("Falha ao salvar as coordenadas.");
@@ -909,23 +988,18 @@ export function MainPage() {
                     selected={selectedImplantationName}
                     onChange={handleImplantationChange}
                   />
-                  <button
-                    className={`toggle-mapping-button ${
-                      isMappingMode ? "active" : ""
-                    }`}
-                    onClick={() => setIsMappingMode(!isMappingMode)}
-                  >
-                    Modo Mapeamento
-                  </button>
+                  {view === "map" && (
+                    <button
+                      className={`toggle-mapping-button ${
+                        isMappingMode ? "active" : ""
+                      }`}
+                      onClick={() => setIsMappingMode(!isMappingMode)}
+                    >
+                      Modo Mapeamento
+                    </button>
+                  )}
                 </div>
                 <div className="controls-right">
-                  <Link
-                    to="/map-cvcrm"
-                    className="toggle-mapping-button"
-                    style={{ textDecoration: "none" }}
-                  >
-                    Mapeamento CVCRM
-                  </Link>
                   <div className="user-greeting">
                     Logado como: <strong>{user.email}</strong>
                   </div>
@@ -988,6 +1062,7 @@ export function MainPage() {
                     onSpontaneousClick={handleSpontaneousUnitClick}
                     onBlockClick={handleBlockActionClick}
                     onPrintClick={handlePrepareAndPrint}
+                    onChangeUnitClick={handleChangeUnitClick} // <-- NOVO
                     onPixClick={handlePixActionClick}
                     onHistoryClick={handleOpenUnitHistory}
                     searchTerm={searchTerm}
@@ -1067,6 +1142,27 @@ export function MainPage() {
                   gerarSigla(selectedImplantationName)
                 }
                 onConfirm={handleConfirmPixData}
+              />
+              <ChangeUnitModal
+                show={changeUnitModalState.isOpen}
+                onClose={handleCloseModals}
+                currentUnit={
+                  changeUnitModalState.unitIndex !== null
+                    ? unidades[changeUnitModalState.unitIndex]
+                    : null
+                }
+                availableUnits={availableUnitsForChange}
+                onConfirm={handleChangeUnit} // A chamada aqui está correta, a função que faltava.
+              />
+              <ChangeUnitSuccessModal
+                show={isChangeUnitSuccessModalOpen}
+                onClose={handleCloseModals}
+                changeData={changeUnitSuccessData}
+              />
+              <ChangeUnitFailedModal
+                show={isChangeUnitFailedModalOpen}
+                onClose={handleCloseModals}
+                message={changeUnitFailedMessage}
               />
               <IdleTimeoutModal
                 show={isIdleModalOpen}
