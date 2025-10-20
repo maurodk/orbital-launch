@@ -59,6 +59,7 @@ export function PixModal({
   const [payload, setPayload] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [isPaid, setIsPaid] = useState(false); // NOVO: Estado para controlar a confirmação de pagamento
+  const [contatoCliente, setContatoCliente] = useState(""); // NOVO: Estado para o contato do cliente
 
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
   const apiUrl =
@@ -80,9 +81,44 @@ export function PixModal({
       // Reseta para o estado e cidade padrão
       const defaultEstado = ESTADOS_PERMITIDOS[0];
       setEstado(defaultEstado);
+      setContatoCliente("");
       setCidade(CIDADES_POR_ESTADO[defaultEstado][0]);
     }
   }, [show]);
+
+  // NOVO: Efeito para decidir a visão inicial do modal
+  useEffect(() => {
+    if (show && unitData) {
+      const statusPagamento = unitData[16]?.toUpperCase();
+      const payloadExistente = unitData[14]; // Coluna O
+      const valorExistente = parseFloat(unitData[15]); // Coluna P
+      const telefoneCliente = (unitData?.[9] || "").replace(/\D/g, "");
+
+      // Preenche o contato do cliente
+      if (telefoneCliente) {
+        setContatoCliente(
+          telefoneCliente.startsWith("55")
+            ? telefoneCliente
+            : `55${telefoneCliente}`
+        );
+      }
+
+      // Se já existe um PIX pendente, mostra o QR Code diretamente
+      if (statusPagamento === "PENDENTE" && payloadExistente) {
+        setPayload(payloadExistente);
+        if (!isNaN(valorExistente)) {
+          setValor(valorExistente);
+          setDisplayValor(
+            new Intl.NumberFormat("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            }).format(valorExistente)
+          );
+        }
+        setShowQr(true);
+      }
+    }
+  }, [show, unitData]);
 
   // NOVO: Efeito para reagir à atualização de status em tempo real
   useEffect(() => {
@@ -109,15 +145,23 @@ export function PixModal({
 
       const interval = setInterval(async () => {
         try {
-          // Chama o novo endpoint para forçar a atualização
-          await axios.post(`${apiUrl}/api/refresh-unit`, {
-            implantacao: implantacaoNome,
-            rowIndex: sheetRowIndex,
-          });
+          // Chama os endpoints em paralelo para otimizar
+          await Promise.all([
+            // Endpoint para forçar a atualização da UI da unidade
+            axios.post(`${apiUrl}/api/refresh-unit`, {
+              implantacao: implantacaoNome,
+              rowIndex: sheetRowIndex,
+            }),
+            // NOVO: Endpoint para verificar se o pagamento foi confirmado e registrar no histórico
+            axios.post(`${apiUrl}/api/check-and-log-payment`, {
+              implantacao: implantacaoNome,
+              rowIndex: sheetRowIndex,
+            }),
+          ]);
         } catch (error) {
           console.error("Falha ao verificar status do PIX:", error);
         }
-      }, 3000); // Verifica a cada 3 segundos
+      }, 5000); // Verifica a cada 5 segundos
 
       // Limpa o intervalo quando o modal é fechado ou o pagamento é confirmado
       return () => clearInterval(interval);
@@ -155,6 +199,16 @@ export function PixModal({
     }).format(numericValue);
 
     setDisplayValor(formattedValue);
+  };
+
+  // NOVO: Função para voltar à tela de geração de um novo PIX
+  const handleShowFormAgain = () => {
+    setShowQr(false);
+    setPayload(null);
+    setValor(0);
+    setDisplayValor("");
+    setError("");
+    // O contato do cliente não é resetado para permitir a geração de um novo PIX para o mesmo número
   };
 
   const handleGenerateQr = async () => {
@@ -202,6 +256,28 @@ export function PixModal({
 
       // Chama a função onConfirm para salvar os dados na planilha
       await onConfirm(txid, valor, identificador, payloadEmv, "PENDENTE");
+
+      // NOVO: Dispara o webhook da Botmaker através do nosso backend
+      try {
+        if (contatoCliente) {
+          await axios.post(`${apiUrl}/api/botmaker/trigger-intent`, {
+            nomeCliente: unitData?.[6] || "N/A",
+            nomeEmpreendimento: implantacaoNome,
+            unidade: unitData?.[2] || "N/A",
+            contatoCliente: contatoCliente, // Usa o valor do estado
+            identificadorPix: identificador,
+          });
+        } else {
+          console.warn(
+            "Webhook da Botmaker não disparado: Telefone do cliente não encontrado."
+          );
+        }
+      } catch (botmakerError) {
+        console.error(
+          "Falha ao disparar o webhook da Botmaker:",
+          botmakerError
+        );
+      }
 
       setPayload(payloadEmv);
       setShowQr(true);
@@ -259,16 +335,6 @@ export function PixModal({
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Cliente</label>
-                <input type="text" value={unitData[6] || "N/A"} readOnly />
-              </div>
-              <div className="form-group">
-                <label>Corretor</label>
-                <input type="text" value={unitData[8] || "N/A"} readOnly />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
                 <label htmlFor="pix-estado">Estado</label>
                 <select
                   id="pix-estado"
@@ -299,6 +365,18 @@ export function PixModal({
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="pix-contato">Contato (WhatsApp)</label>
+              <input
+                id="pix-contato"
+                type="text"
+                value={contatoCliente}
+                onChange={(e) => setContatoCliente(e.target.value)}
+                placeholder="5577912345678"
+                className="contato-input"
+              />
+              <small>Número que receberá a notificação do PIX gerado.</small>
             </div>
             <div className="form-group">
               <label htmlFor="pix-valor">Valor do PIX (R$)</label>
@@ -344,6 +422,12 @@ export function PixModal({
               O status da unidade será atualizado automaticamente para "PAGO"
               assim que o pagamento for confirmado.
             </small>
+            <button
+              className="modal-block-button"
+              onClick={handleShowFormAgain}
+            >
+              Gerar Novo PIX
+            </button>
           </div>
         )}
       </div>

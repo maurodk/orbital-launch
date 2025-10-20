@@ -41,6 +41,9 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
 // Inicializa o Express App
 const app = express();
 
+// NOVO: Cache em memória para abas de histórico já criadas
+const createdHistorySheets = new Set();
+
 // =================================================================
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
 // =================================================================
@@ -153,7 +156,11 @@ async function broadcastEvent(implantacao, event, data) {
   if (!clients) return;
 
   // Busca os dados atualizados da unidade para enviar no payload
-  let eventPayload = { ...data };
+  // Otimização: Se os dados já foram fornecidos, use-os diretamente.
+  let eventPayload = data.unitData ? { ...data } : { ...data, unitData: null };
+
+  // Se os dados não foram fornecidos, busca na planilha.
+  // Isso mantém a compatibilidade com chamadas antigas.
   if (data.rowIndex) {
     try {
       const sheets = await getSheetsClient();
@@ -222,6 +229,11 @@ async function verifyToken(req, res, next) {
     console.error("Erro ao verificar token:", error);
     return res.status(403).send("Acesso proibido: Token inválido.");
   }
+}
+
+async function gerarTimestamp() {
+  // Retorna o timestamp atual em segundos (Unix time)
+  return Math.floor(Date.now() / 1000);
 }
 
 // Cliente do Google Sheets
@@ -348,23 +360,18 @@ async function addHistoryEntry(
   usuario
 ) {
   try {
-    const now = new Date();
+    const now = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+    );
 
-    const options = {
+    const dataFormatada = `'${now.toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+    })} às ${now.toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "America/Sao_Paulo",
-    };
-    const formatter = new Intl.DateTimeFormat("pt-BR", options);
-    const parts = formatter.formatToParts(now);
-    const dateParts = {};
-    parts.forEach((p) => (dateParts[p.type] = p.value));
-
-    // Adiciona apóstrofo para forçar o Google Sheets a tratar como texto
-    const dataFormatada = `'${dateParts.day}/${dateParts.month}/${dateParts.year} às ${dateParts.hour}:${dateParts.minute}`;
+    })}`;
 
     const historyRow = [
       now.toISOString(),
@@ -376,38 +383,49 @@ async function addHistoryEntry(
       usuario || "Sistema",
     ];
 
-    const spreadsheetMeta = await sheets.spreadsheets.get({
-      spreadsheetId: SPREADSHEET_ID_HISTORICO,
-    });
-    const sheetExists = spreadsheetMeta.data.sheets.some(
-      (s) => s.properties.title === implantacao
-    );
+    // Otimização: Usa cache em memória para evitar chamadas de API repetitivas
+    const sheetExists = createdHistorySheets.has(implantacao);
 
     if (!sheetExists) {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: SPREADSHEET_ID_HISTORICO,
-        resource: {
-          requests: [{ addSheet: { properties: { title: implantacao } } }],
-        },
-      });
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID_HISTORICO,
-        range: `'${implantacao}'!A1`,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-          values: [
-            [
-              "Timestamp ISO",
-              "Data Formatada",
-              "Unidade",
-              "Ação",
-              "Cliente",
-              "Corretor",
-              "Usuário",
+      // CORREÇÃO: Envolve a criação da aba em um try-catch.
+      // Se o servidor reiniciar, o cache em memória é perdido. Esta lógica
+      // tenta criar a aba, mas se ela já existir (causando um erro específico),
+      // o erro é ignorado e o código prossegue para inserir a linha.
+      try {
+        console.log(`[HISTÓRICO] Verificando/Criando aba '${implantacao}'...`);
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID_HISTORICO,
+          resource: {
+            requests: [{ addSheet: { properties: { title: implantacao } } }],
+          },
+        });
+
+        // Se a criação for bem-sucedida, adiciona o cabeçalho.
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_HISTORICO,
+          range: `'${implantacao}'!A1:G1`,
+          valueInputOption: "USER_ENTERED",
+          resource: {
+            values: [
+              [
+                "Timestamp ISO",
+                "Data Formatada",
+                "Unidade",
+                "Ação",
+                "Cliente",
+                "Corretor",
+                "Usuário",
+              ],
             ],
-          ],
-        },
-      });
+          },
+        });
+      } catch (e) {
+        // Ignora o erro se a aba já existir, que é o comportamento esperado após um reinício.
+        if (!e.message || !e.message.includes("already exists")) {
+          console.error(`[HISTÓRICO] Erro inesperado ao criar aba:`, e.message);
+        }
+      }
+      createdHistorySheets.add(implantacao); // Adiciona ao cache
     }
 
     // Append history to Google Sheets
@@ -419,6 +437,12 @@ async function addHistoryEntry(
       resource: {
         values: [historyRow],
       },
+    });
+
+    // NOVO: Notifica todos os clientes conectados sobre a atualização do histórico.
+    // O payload pode ser simples, apenas para sinalizar que o frontend deve recarregar o histórico.
+    await broadcastEvent(implantacao, "historyUpdated", {
+      message: `Novo evento: ${acao}`,
     });
 
     // Also persist to Supabase (best-effort)
@@ -2108,11 +2132,11 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
         valueInputOption: "USER_ENTERED",
         data: [
           // Limpa dados da unidade antiga e a torna disponível
+          // CORREÇÃO: Limpa apenas os dados da reserva (F a K), mantendo as coordenadas (L e M)
           {
             range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
             values: [["", "", "", "", "", "DISPONÍVEL"]],
           },
-          // CORREÇÃO: Limpa apenas os dados de PIX, mantendo as coordenadas L e M
           {
             range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
             values: [["", "", "", ""]],
@@ -2159,8 +2183,15 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     );
 
     // 5. Notificar clientes SSE sobre as duas unidades
-    await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex: oldRow - 2 });
-    await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex: newRow - 2 });
+    // Otimização: Envia os dados já conhecidos para evitar novas leituras
+    broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex: oldRow,
+      unitData: ["", "", "", "", "", "", "", "DISPONÍVEL", "", "", "", "", ""], // Simula linha limpa
+    });
+    broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex: newRow,
+      unitData: dataToTransfer,
+    });
 
     res.json({ success: true, message: "Troca de unidade realizada." });
   } catch (err) {
@@ -2519,12 +2550,13 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
-    if (error) return res.status(404).json({ error: error, ...details });
+    // CORREÇÃO: Utiliza a função 'resolveSheetName' que é a correta e está disponível no escopo.
+    // A função 'getSheetTitle' não existe neste contexto, causando o erro 500.
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
 
     // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor) e Q (Status Pagamento)
     await sheets.spreadsheets.values.update({
@@ -2536,12 +2568,140 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       },
     });
 
-    // Não precisa de broadcast aqui, pois a unidade já está reservada.
-    // A atualização de status PAGO virá por outro meio (webhook, etc) e aí sim, um broadcast será útil.
+    // NOVO: Adiciona ao histórico quando um PIX é gerado.
+    if (statusPagamento === "PENDENTE") {
+      const unitInfoRange = `'${sheetTitle}'!C${rowIndex}:I${rowIndex}`;
+      const unitInfoRes = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: unitInfoRange,
+      });
+      const unitInfo = unitInfoRes.data.values?.[0] || [];
+      const unitName = unitInfo[0] || `Linha ${rowIndex}`; // Coluna C
+      const clientName = unitInfo[4] || null; // Coluna G
+      const corretor = unitInfo[6] || null; // Coluna I
+
+      await addHistoryEntry(
+        sheets,
+        sheetTitle,
+        unitName,
+        "PIX Gerado",
+        clientName,
+        corretor,
+        userEmail
+      );
+    }
 
     res.json({ success: true, message: "Dados do PIX atualizados." });
   } catch (error) {
+    // Adiciona um log mais detalhado no servidor para facilitar futuras depurações.
+    console.error("Erro em /api/update-pix-data:", error);
     res.status(500).json({ error: "Falha ao atualizar dados do PIX." });
+  }
+});
+
+// NOVO: Endpoint para receber o webhook de confirmação de pagamento do Santander
+app.post("/api/santander/webhook", async (req, res) => {
+  const { identificador, status } = req.body;
+
+  console.log("[WEBHOOK SANTANDER] Recebido:", req.body);
+
+  if (!identificador || !status) {
+    return res
+      .status(400)
+      .json({ error: "Identificador e status são obrigatórios." });
+  }
+
+  if (status.toUpperCase() !== "PAGO") {
+    // Ignora outros status por enquanto (ex: EM_PROCESSAMENTO, REJEITADO)
+    return res.json({
+      message: `Status '${status}' recebido e ignorado.`,
+    });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // 1. Descobrir em qual aba (implantação) está o PIX
+    const implantacoesResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:A`,
+    });
+    const implantacoes = (implantacoesResponse.data.values || []).flat();
+
+    let targetSheet = null;
+    let targetRowIndex = -1;
+
+    for (const implantacao of implantacoes) {
+      const range = `'${implantacao}'!N:N`; // Coluna N (identificador)
+      const sheetData = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range,
+      });
+
+      const allIdentifiers = (sheetData.data.values || []).flat();
+      const rowIndexInSheet = allIdentifiers.indexOf(identificador);
+
+      if (rowIndexInSheet !== -1) {
+        targetSheet = implantacao;
+        targetRowIndex = rowIndexInSheet + 1; // +1 porque o array é 0-based
+        break;
+      }
+    }
+
+    if (!targetSheet || targetRowIndex === -1) {
+      console.warn(
+        `[WEBHOOK SANTANDER] PIX com identificador '${identificador}' não encontrado em nenhuma implantação.`
+      );
+      return res.status(404).json({
+        error: `PIX com identificador '${identificador}' não encontrado.`,
+      });
+    }
+
+    // 2. Atualizar o status da unidade para "PAGO"
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${targetSheet}'!Q${targetRowIndex}`, // Coluna Q (Status Pagamento)
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: [["PAGO"]],
+      },
+    });
+
+    // 3. Notificar clientes via SSE
+    await broadcastEvent(targetSheet, "unitUpdated", {
+      rowIndex: targetRowIndex,
+      // O nome da unidade não é estritamente necessário aqui, pois o payload do evento
+      // será preenchido com a linha inteira de dados da planilha.
+    });
+
+    // 4. Adicionar ao histórico
+    const unitInfoRange = `'${targetSheet}'!C${targetRowIndex}:I${targetRowIndex}`;
+    const unitInfoRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitInfoRange,
+    });
+    const unitInfo = unitInfoRes.data.values?.[0] || [];
+    const unitName = unitInfo[0] || `Linha ${targetRowIndex}`;
+    const clientName = unitInfo[4] || null;
+    const corretor = unitInfo[6] || null;
+
+    await addHistoryEntry(
+      sheets,
+      targetSheet,
+      unitName,
+      "PIX Pago",
+      clientName,
+      corretor,
+      "Sistema (Webhook)"
+    );
+
+    res.json({
+      success: true,
+      message: `Status da unidade ${unitName} atualizado para PAGO.`,
+    });
+  } catch (error) {
+    console.error("[WEBHOOK SANTANDER] Erro ao processar webhook:", error);
+    res.status(500).json({ error: "Falha ao processar o webhook." });
   }
 });
 
@@ -2557,12 +2717,13 @@ app.post("/api/refresh-unit", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
-    if (error) return res.status(404).json({ error: error, ...details });
+    // CORREÇÃO: A função 'getSheetTitle' não existe. A função correta é 'resolveSheetName'.
+    // Esta alteração corrige o ReferenceError que estava causando o crash.
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
 
     // A função broadcastEvent já busca os dados mais recentes da planilha
     // e envia para todos os clientes conectados na sala da implantação.
@@ -2576,6 +2737,169 @@ app.post("/api/refresh-unit", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Erro ao forçar atualização da unidade:", error);
     res.status(500).json({ error: "Falha ao forçar atualização da unidade." });
+  }
+});
+
+// NOVO: Endpoint para verificar o status de pagamento e registrar no histórico se necessário.
+// Isso desacopla a lógica de registro do webhook, tornando-a mais robusta.
+app.post("/api/check-and-log-payment", verifyToken, async (req, res) => {
+  const { implantacao, rowIndex } = req.body;
+  const userEmail = req.user.email;
+
+  if (!implantacao || !rowIndex) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para verificação de pagamento." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const { found: sheetTitle } = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+
+    if (!sheetTitle) {
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+
+    // 1. Obter os dados da unidade, incluindo nome e status de pagamento
+    const unitDataRange = `'${sheetTitle}'!C${rowIndex}:Q${rowIndex}`;
+    const unitDataRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitDataRange,
+    });
+
+    const unitData = unitDataRes.data.values?.[0] || [];
+    const unitName = unitData[0]; // Coluna C
+    const clientName = unitData[4]; // Coluna G
+    const corretor = unitData[6]; // Coluna I
+    const paymentStatus = unitData[14]; // Coluna Q (índice 14 no array de C a Q)
+
+    if (paymentStatus?.toUpperCase() !== "PAGO") {
+      return res.json({ message: "Pagamento ainda não confirmado." });
+    }
+
+    // 2. Verificar se já existe um registro de "PIX Pago" para esta unidade
+    const historyResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_HISTORICO,
+      range: `'${sheetTitle}'!A:D`, // Colunas Timestamp, Data, Unidade, Ação
+    });
+
+    const historyEntries = historyResponse.data.values || [];
+    const alreadyLogged = historyEntries.some(
+      (entry) =>
+        entry[2] === unitName && // Mesma unidade
+        entry[3] === "PIX Pago" // Mesma ação
+    );
+
+    if (alreadyLogged) {
+      return res.json({ message: "Pagamento já registrado no histórico." });
+    }
+
+    // 3. Se for "PAGO" e não houver registro, adiciona ao histórico
+    await addHistoryEntry(
+      sheets,
+      sheetTitle,
+      unitName,
+      "PIX Pago",
+      clientName || null,
+      corretor || null,
+      userEmail // Ou "Sistema" se preferir
+    );
+
+    res.json({
+      success: true,
+      message: "Pagamento confirmado e registrado no histórico.",
+    });
+  } catch (error) {
+    console.error("Erro ao verificar e registrar pagamento:", error);
+    res.status(500).json({ error: "Falha ao verificar pagamento." });
+  }
+});
+
+// NOVO: Endpoint para disparar o webhook da Botmaker
+app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
+  const {
+    nomeCliente,
+    nomeEmpreendimento,
+    unidade,
+    contatoCliente,
+    identificadorPix,
+  } = req.body;
+
+  if (
+    !nomeCliente ||
+    !nomeEmpreendimento ||
+    !unidade ||
+    !contatoCliente ||
+    !identificadorPix
+  ) {
+    return res.status(400).json({ error: "Dados incompletos para o webhook." });
+  }
+
+  const BOTMAKER_API_URL =
+    "https://api.botmaker.com/v2.0/chats-actions/trigger-intent";
+  const BOTMAKER_ACCESS_TOKEN = process.env.BOTMAKER_ACCESS_TOKEN;
+
+  if (!BOTMAKER_ACCESS_TOKEN) {
+    console.error("[BOTMAKER] Access token não configurado no .env");
+    return res
+      .status(500)
+      .json({ error: "Configuração do servidor incompleta." });
+  }
+
+  const body = {
+    chat: {
+      channelId: "vcaconstrutora-whatsapp-557730251212",
+      contactId: contatoCliente,
+    },
+    intentIdOrName: "pix_sinal3",
+    variables: {
+      nomeCliente,
+      nomeEmpreendimento,
+      unidade,
+      pix: `?id=${identificadorPix}&timestamp=${await gerarTimestamp()}`,
+    },
+  };
+
+  // Log para depuração: mostra o corpo da requisição que será enviada
+  console.log(
+    "[BOTMAKER] Corpo da requisição para a API externa:",
+    JSON.stringify(body, null, 2)
+  );
+
+  try {
+    const response = await fetch(BOTMAKER_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "access-token": BOTMAKER_ACCESS_TOKEN,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseData = await response.json();
+
+    // Log para depuração: mostra a resposta recebida da API externa
+    console.log(
+      `[BOTMAKER] Resposta da API externa (Status: ${response.status}):`,
+      JSON.stringify(responseData, null, 2)
+    );
+
+    // Repassa o status da API da Botmaker, se não for sucesso.
+    res.status(response.status).json({
+      success: response.ok,
+      message: "Webhook da Botmaker processado.",
+      botmakerResponse: responseData,
+    });
+  } catch (error) {
+    console.error("[BOTMAKER] Erro ao disparar webhook:", error);
+    res.status(500).json({ error: "Falha ao disparar o webhook." });
   }
 });
 

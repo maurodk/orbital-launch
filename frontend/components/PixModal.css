@@ -1,5 +1,9 @@
 /* frontend/src/components/PixModal.css */
 
+.pix-modal-content .form-group small {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
 .pix-modal-content {
   max-width: 500px;
 }
@@ -25,6 +29,22 @@
 }
 
 .pix-modal-content .valor-input:focus {
+  outline: none;
+  border-color: var(--accent-green);
+}
+
+.pix-modal-content .contato-input {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--bg-dark-tertiary);
+  border: 2px solid var(--bg-dark-tertiary);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.pix-modal-content .contato-input:focus {
   outline: none;
   border-color: var(--accent-green);
 }
@@ -81,6 +101,11 @@
   80%,
   100% {
     text-shadow: 0.25em 0 0 var(--accent-green), 0.5em 0 0 var(--accent-green);
+  }
+}
+
+.qr-code-container .modal-block-button {
+  margin-top: 15px;
   }
 }
 

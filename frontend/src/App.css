@@ -1110,11 +1110,32 @@ button:focus-visible {
 
 .action-pill.action-desbloqueada {
   background-color: var(--accent-green); /* Verde */
+  color: var(--bg-dark-primary); /* Texto escuro para contraste */
 }
 
 .action-pill.action-termo-impresso {
   background-color: #5bc0de; /* Azul Info */
 }
+
+/* NOVOS ESTILOS PARA HISTÓRICO */
+.action-pill.action-pix-gerado {
+  background-color: #007bff; /* Azul PIX */
+}
+
+.action-pill.action-pix-pago {
+  background-color: #28a745; /* Verde Sucesso */
+}
+
+.action-pill.action-mapeamento-adicionado,
+.action-pill.action-mapeamento-removido {
+  background-color: #6f42c1; /* Roxo para ações de config */
+}
+
+.action-pill.action-troca-de-unidade {
+  background-color: #6c757d; /* Cinza para ações administrativas */
+}
+
+/* FIM DOS NOVOS ESTILOS */
 
 .history-button-in-table {
   background-color: #777; /* Cinza */

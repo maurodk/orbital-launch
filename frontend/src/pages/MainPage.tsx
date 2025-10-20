@@ -330,10 +330,18 @@ export function MainPage() {
       }
     };
 
+    // NOVO: Handler para o evento de atualização do histórico
+    const handleHistoryUpdate = () => {
+      console.log("SSE Recebido: historyUpdated. Recarregando histórico...");
+      fetchHistory(selectedImplantationName);
+    };
+
     eventSource.addEventListener("unitUpdated", handleUnitUpdate);
+    eventSource.addEventListener("historyUpdated", handleHistoryUpdate);
 
     return () => {
       eventSource.removeEventListener("unitUpdated", handleUnitUpdate);
+      eventSource.removeEventListener("historyUpdated", handleHistoryUpdate);
       eventSource.close();
     };
   }, [selectedImplantationName, currentImplantation]);
