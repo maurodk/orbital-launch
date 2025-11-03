@@ -103,6 +103,7 @@ export function MainPage() {
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(true);
+  const [unitLetter, setUnitLetter] = useState<string>("");
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
     mode: "select" as "select" | "manual",
@@ -472,6 +473,7 @@ export function MainPage() {
     const updatedUnidades = [...unidades];
     updatedUnidades[unitIndexToClear][11] = "";
     updatedUnidades[unitIndexToClear][12] = "";
+    updatedUnidades[unitIndexToClear][17] = ""; // Limpa a letra também
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
@@ -826,6 +828,7 @@ export function MainPage() {
     const updatedUnidades = [...unidades];
     updatedUnidades[unitToMapIndex][11] = coordX;
     updatedUnidades[unitToMapIndex][12] = coordY;
+    updatedUnidades[unitToMapIndex][17] = unitLetter; // Salva a letra
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
@@ -833,6 +836,7 @@ export function MainPage() {
         rowIndex: sheetRowIndex,
         coordX,
         coordY,
+        letra: unitLetter,
         implantacao: selectedImplantationName,
       });
     } catch (err) {
@@ -840,6 +844,7 @@ export function MainPage() {
       console.error(err);
     }
     setUnitToMapIndex(null);
+    setUnitLetter(""); // Limpa a letra após salvar
   };
 
   const handleConfirmPixData = async (
@@ -973,6 +978,8 @@ export function MainPage() {
             dotSize={dotSize}
             onDotSizeChange={setDotSize}
             onSaveDotSize={handleSaveDotSize}
+            unitLetter={unitLetter}
+            onLetterChange={setUnitLetter}
           />
         )}
         <div className="app-container">
@@ -1061,6 +1068,7 @@ export function MainPage() {
                     onMapClick={handleMapClickAndSaveCoords}
                     dotSize={dotSize}
                     hideAvailable={hideAvailable}
+                    unitLetter={unitLetter}
                   />
                 )}
                 {view === "list" && (

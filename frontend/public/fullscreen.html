@@ -40,7 +40,7 @@
       .floor-plan-wrapper {
         position: relative;
         width: 100%;
-        height: calc(100vh - 51px); /* Altura da tela menos o topbar */
+        height: calc(100vh - 51px);
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -50,7 +50,7 @@
         transition: height 0.3s ease;
       }
       .floor-plan-wrapper.fullscreen {
-        height: 100vh; /* Altura total da tela quando topbar está oculto */
+        height: 100vh;
       }
       .floor-plan-container {
         position: relative;
@@ -70,13 +70,23 @@
       .unit-indicator {
         position: absolute;
         transform: translate(-50%, -50%);
-        width: 16px; /* Tamanho padrão, será sobrescrito */
+        width: 16px;
         height: 16px;
         border-radius: 50%;
-        border: 2px solid rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.3);
         box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
         transition: transform 0.2s ease, background-color 0.3s ease;
         cursor: help;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .unit-indicator .letra {
+        font-size: 6px;
+        font-weight: bold;
+        color: white;
+        text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        pointer-events: none;
       }
 
       .status-RESERVADA {
@@ -86,7 +96,7 @@
         background: #6ad700;
       }
       .status-BLOQUEADA {
-        background: #d9534f; /* Usando a mesma cor de reservada */
+        background: #d9534f;
       }
       .status-other {
         background: #6c757d;
@@ -110,7 +120,6 @@
       .fullscreen-button:hover {
         background: #444;
       }
-      /* Estilos para o controle de tamanho do ponto e toast */
       .dot-size-control {
         position: fixed;
         bottom: 20px;
@@ -121,7 +130,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        z-index: 10; /* Acima dos pontos */
+        z-index: 10;
         backdrop-filter: blur(5px);
       }
       .dot-size-control label {
@@ -131,7 +140,7 @@
       }
       .toast-notification {
         position: fixed;
-        bottom: 80px; /* Acima do controle de tamanho */
+        bottom: 80px;
         right: 20px;
         background-color: #28a745;
         color: white;
@@ -175,8 +184,6 @@
       <div id="status" class="small">Conectando...</div>
     </div>
     <div id="floor-plan-wrapper">
-      <!-- A imagem e os pontos serão inseridos aqui via script. -->
-      <!-- O controle de tamanho e o toast foram movidos para cá. -->
       <div class="dot-size-control">
         <label for="dot-size-slider">Tamanho do Ponto</label>
         <input type="range" id="dot-size-slider" min="8" max="40" value="16" />
@@ -187,7 +194,6 @@
     </div>
 
     <script>
-      // IIFE para encapsular a lógica e evitar poluir o escopo global
       (function () {
         const wrapper = document.getElementById("floor-plan-wrapper");
         const statusEl = document.getElementById("status");
@@ -212,7 +218,6 @@
         implantacaoNameEl.textContent = implantacao;
         empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
 
-        // Função para buscar os dados da API
         async function fetchData(hideAvailable = "false") {
           try {
             const url = `/api/public-data?implantacao=${encodeURIComponent(
@@ -223,7 +228,7 @@
               throw new Error(`Falha ao buscar dados: ${res.statusText}`);
             }
             const json = await res.json();
-            return json; // Retorna o objeto completo
+            return json;
           } catch (e) {
             console.error("Erro em fetchData:", e);
             statusEl.textContent = "Erro ao carregar dados.";
@@ -231,12 +236,10 @@
           }
         }
 
-        // Função para renderizar as unidades na tela
         function render(data) {
           const { unidades, imageUrl, dotSize } = data;
-          wrapper.innerHTML = ""; // Limpa o conteúdo anterior
+          wrapper.innerHTML = "";
 
-          // Armazena o dotSize globalmente para uso em atualizações
           window.currentDotSize = dotSize;
           dotSizeSlider.value = dotSize;
 
@@ -246,7 +249,6 @@
             return;
           }
 
-          // Cria um contêiner para a imagem e os pontos, para manter a proporção
           const container = document.createElement("div");
           container.className = "floor-plan-container";
 
@@ -254,13 +256,9 @@
           img.src = imageUrl;
           img.className = "floor-plan-image";
 
-          // Adiciona a imagem ao contêiner
           container.appendChild(img);
-
-          // Adiciona o contêiner principal ao wrapper da página
           wrapper.appendChild(container);
 
-          // Pula o cabeçalho se a primeira linha parecer um
           const rows =
             unidades.length > 0 &&
             unidades[0][0]?.toString().toLowerCase().includes("etapa")
@@ -270,14 +268,14 @@
           rows.forEach((u, index) => {
             const coordX = u[11];
             const coordY = u[12];
+            const letra = u[17];
             const status = (u[10] || "DISPONÍVEL").toString().toUpperCase();
 
             if (!coordX || !coordY) {
-              return; // Pula unidades não mapeadas
+              return;
             }
 
             const indicator = document.createElement("div");
-            // Adiciona ID único para cada indicador baseado no índice da linha
             const unitIndex = index;
             indicator.id = `unit-indicator-${unitIndex}`;
             indicator.className = `unit-indicator status-${status}`;
@@ -285,14 +283,20 @@
             indicator.style.top = `${coordY}%`;
             indicator.style.width = `${dotSize}px`;
             indicator.style.height = `${dotSize}px`;
-            indicator.title = `Unidade: ${u[2]}
-Status: ${status}`;
+            indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
+            
+            if (letra) {
+              const letraSpan = document.createElement("span");
+              letraSpan.className = "letra";
+              letraSpan.textContent = letra;
+              letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+              indicator.appendChild(letraSpan);
+            }
 
-            container.appendChild(indicator); // Adiciona o ponto ao contêiner da imagem
+            container.appendChild(indicator);
           });
         }
 
-        // Função para recarregar e renderizar os dados
         async function reloadAndRender(hideAvailable = "false") {
           statusEl.textContent = "Atualizando...";
           const data = await fetchData(hideAvailable);
@@ -300,7 +304,6 @@ Status: ${status}`;
           statusEl.textContent = "Conectado";
         }
 
-        // Conexão com Server-Sent Events (SSE)
         let es;
         function connectSse() {
           if (es) es.close();
@@ -315,7 +318,6 @@ Status: ${status}`;
 
           es.onerror = () => {
             statusEl.textContent = "Erro na conexão. Reconectando...";
-            // Tenta reconectar após um tempo
             setTimeout(connectSse, 5000);
           };
 
@@ -333,24 +335,21 @@ Status: ${status}`;
           });
         }
 
-        // Nova função para atualizar uma única unidade
         function updateSingleUnit(unitData, rowIndex) {
           const container = document.querySelector(".floor-plan-container");
           if (!container) return;
 
-          // O índice do array é rowIndex - 2
-          // O array de unidades no frontend começa na linha 2 da planilha (índice 0)
           const unitIndex = rowIndex - 2;
           const unitId = `unit-indicator-${unitIndex}`;
           let indicator = document.getElementById(unitId);
 
           const coordX = unitData[11];
           const coordY = unitData[12];
+          const letra = unitData[17];
           const status = (unitData[10] || "DISPONÍVEL")
             .toString()
             .toUpperCase();
 
-          // Se não há coordenadas, remove o indicador se existir
           if (!coordX || !coordY) {
             if (indicator) {
               indicator.remove();
@@ -365,33 +364,42 @@ Status: ${status}`;
             container.appendChild(indicator);
           }
 
-          // Atualiza as propriedades do indicador
           indicator.className = `unit-indicator status-${status}`;
           indicator.style.left = `${coordX}%`;
           indicator.style.top = `${coordY}%`;
           indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
 
-          // Aplica o tamanho do ponto se disponível
           const dotSize = window.currentDotSize || 16;
           indicator.style.width = `${dotSize}px`;
           indicator.style.height = `${dotSize}px`;
+          
+          indicator.innerHTML = "";
+          if (letra) {
+            const letraSpan = document.createElement("span");
+            letraSpan.className = "letra";
+            letraSpan.textContent = letra;
+            letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+            indicator.appendChild(letraSpan);
+          }
 
           console.log(
             `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
           );
         }
 
-        // Função para atualizar o tamanho de todos os pontos na tela
         function updateAllDotSizes(newSize) {
           const indicators = document.querySelectorAll(".unit-indicator");
           indicators.forEach((indicator) => {
             indicator.style.width = `${newSize}px`;
             indicator.style.height = `${newSize}px`;
+            const letraSpan = indicator.querySelector(".letra");
+            if (letraSpan) {
+              letraSpan.style.fontSize = `${Math.max(newSize * 0.25, 6)}px`;
+            }
           });
           window.currentDotSize = newSize;
         }
 
-        // Função para salvar o tamanho do ponto no backend
         async function saveDotSize(newSize) {
           try {
             const res = await fetch("/api/update-dot-size", {
@@ -417,11 +425,9 @@ Status: ${status}`;
           setTimeout(() => toast.classList.remove("show"), 2000);
         }
 
-        // Carga inicial e início da conexão em tempo real
         reloadAndRender(urlParams.get("hideAvailable") || "false");
         connectSse();
 
-        // Lógica do botão de Tela Cheia
         fullscreenBtn.addEventListener("click", () => {
           if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch((err) => {
@@ -436,7 +442,6 @@ Status: ${status}`;
           }
         });
 
-        // Lógica de controle do header (só oculta quando fullscreen é ativado)
         const topbar = document.querySelector(".topbar");
         let isFullscreenMode = false;
 
@@ -452,7 +457,6 @@ Status: ${status}`;
           isFullscreenMode = true;
         }
 
-        // Event listeners para mostrar header quando houver interação
         function showHeaderOnInteraction() {
           if (isFullscreenMode) {
             showTopbar();
@@ -465,22 +469,18 @@ Status: ${status}`;
         document.addEventListener("touchstart", showHeaderOnInteraction);
         document.addEventListener("touchmove", showHeaderOnInteraction);
 
-        // Mostrar header ao passar o mouse sobre a área do header
         topbar.addEventListener("mouseenter", () => {
           if (isFullscreenMode) {
             showTopbar();
           }
         });
 
-        // Header sempre visível por padrão
         showTopbar();
 
-        // Event listener para o controle de tamanho do ponto
         dotSizeSlider.addEventListener("input", (event) => {
           updateAllDotSizes(event.target.value);
         });
 
-        // Evento 'change' é disparado quando o usuário solta o slider
         dotSizeSlider.addEventListener("change", (event) => {
           saveDotSize(event.target.value);
         });

@@ -220,8 +220,8 @@ export function ReservationList({
                                 </div>
                               )}
                             </div>
-                            {isReserved &&
-                              (paymentStatus === "PAGO" ? (
+                            {isReserved && (
+                              <>
                                 <button
                                   className="print-button-in-table"
                                   title="Imprimir Termo de Reserva"
@@ -229,15 +229,17 @@ export function ReservationList({
                                 >
                                   <FiPrinter size={16} />
                                 </button>
-                              ) : (
-                                <button
-                                  className="pix-button-in-table" // Estilo a ser criado
-                                  title="Gerar PIX para Pagamento"
-                                  onClick={() => onPixClick(originalIndex)}
-                                >
-                                  <img src="/pix.png" alt="PIX" />
-                                </button>
-                              ))}
+                                {paymentStatus !== "PAGO" && (
+                                  <button
+                                    className="pix-button-in-table"
+                                    title="Gerar PIX para Pagamento"
+                                    onClick={() => onPixClick(originalIndex)}
+                                  >
+                                    <img src="/pix.png" alt="PIX" />
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
                       </div>

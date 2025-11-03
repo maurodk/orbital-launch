@@ -18,6 +18,7 @@ interface FloorPlanProps {
   onUnitClick: (unitIndex: number) => void;
   dotSize: number;
   hideAvailable: boolean;
+  unitLetter?: string;
 }
 
 const Controls = () => {
@@ -58,6 +59,7 @@ export function FloorPlan({
   onUnitClick,
   dotSize,
   hideAvailable,
+  unitLetter,
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -158,6 +160,7 @@ export function FloorPlan({
             {unidades.map((unidade, index) => {
               const coordX = unidade[11];
               const coordY = unidade[12];
+              const letra = unidade[17]; // Coluna R
               const status = unidade[10]?.toLowerCase() || "disponível";
               const isAvailable = status === "disponível";
 
@@ -176,15 +179,52 @@ export function FloorPlan({
                     top: `${coordY}%`,
                     width: `${dotSize}px`,
                     height: `${dotSize}px`,
+                    border: "1px solid rgba(255, 252, 252, 1)",
                   }}
                   title={`Unidade: ${unidade[2]}\nStatus: ${unidade[10]}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onUnitClick(index);
                   }}
-                />
+                >
+                  {letra && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        fontSize: `${Math.max(dotSize * 0.25, 6)}px`,
+                        fontWeight: "bold",
+                        color: "white",
+                        textShadow: "0 0 2px rgba(0,0,0,0.5)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {letra}
+                    </span>
+                  )}
+                </div>
               );
             })}
+            {isMappingMode && unitToMapIndex !== null && unitLetter && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "20px",
+                  right: "20px",
+                  background: "rgba(0, 0, 0, 0.8)",
+                  color: "white",
+                  padding: "10px 20px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  zIndex: 1000,
+                  pointerEvents: "none",
+                }}
+              >
+                Letra selecionada: <strong>{unitLetter}</strong>
+              </div>
+            )}
           </div>
         </TransformComponent>
       </TransformWrapper>

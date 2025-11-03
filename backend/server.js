@@ -164,7 +164,7 @@ async function broadcastEvent(implantacao, event, data) {
   if (data.rowIndex) {
     try {
       const sheets = await getSheetsClient();
-      const range = `'${implantacao}'!A${data.rowIndex}:Q${data.rowIndex}`;
+      const range = `'${implantacao}'!A${data.rowIndex}:R${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
@@ -525,7 +525,7 @@ app.get("/api/data", verifyToken, async (req, res) => {
     const [implantacaoRes, dadosRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:Q`,
+        range: `'${sheetTitle}'!A:R`,
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -577,7 +577,7 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:Q`,
+      range: `'${sheetTitle}'!A:R`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
@@ -1595,11 +1595,11 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
     // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
@@ -2202,7 +2202,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, coordX, coordY } = req.body;
+  const { implantacao, rowIndex, coordX, coordY, letra } = req.body;
   const userEmail = req.user.email;
   if (
     !implantacao ||
@@ -2223,12 +2223,23 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
+    // Atualiza coordenadas (L e M) e letra (R)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[coordX, coordY]] },
     });
+    
+    // Atualiza a letra na coluna R se fornecida
+    if (letra !== undefined) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!R${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[letra || ""]] },
+      });
+    }
     // Persist coordinates to Supabase unidades as well (if available)
     if (supabase) {
       try {
@@ -2304,24 +2315,32 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const { sheetTitle, error, details } = await getSheetTitle(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    const range = `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`;
-
-    // Ação Principal: Limpar as coordenadas
-    await sheets.spreadsheets.values.update({
+    // Limpa coordenadas (L e M) e letra (R)
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: range,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [["", ""]] },
+      resource: {
+        valueInputOption: "USER_ENTERED",
+        data: [
+          {
+            range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
+            values: [["", ""]],
+          },
+          {
+            range: `'${sheetTitle}'!R${rowIndex}`,
+            values: [[""]],
+          },
+        ],
+      },
     });
 
-    // Ação Secundária: Registrar no histórico
+    // Registrar no histórico
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
@@ -2332,7 +2351,7 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       sheets,
       sheetTitle,
       unitFullName,
-      "Mapeamento Removido", // Ação descritiva diferente
+      "Mapeamento Removido",
       null,
       null,
       userEmail
@@ -2345,7 +2364,7 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Coordenadas limpas e histórico registrado para '${unitFullName}'.`,
+      message: `Coordenadas e letra limpas para '${unitFullName}'.`,
     });
   } catch (error) {
     console.error("Erro ao limpar coordenadas na planilha:", error);
@@ -2447,10 +2466,17 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient(); // Usa o nome completo resolvido
+    const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[newStatus]] },
     });
@@ -2460,15 +2486,14 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       try {
         const { data: implData } = await supabase
           .from("implantacoes")
-          .select("id") // Usa o nome completo resolvido
-          .eq("nome", implantacao)
+          .select("id")
+          .eq("nome", sheetTitle)
           .limit(1)
           .single();
 
         const implantacao_id = implData ? implData.id : null;
 
         if (implantacao_id) {
-          // Atualiza a unidade existente com base no implantacao_id e rowIndex
           const { error: updateError } = await supabase
             .from("unidades")
             .update({ situacao: newStatus })
@@ -2487,13 +2512,12 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
           "Supabase: Exceção ao tentar bloquear/desbloquear unidade:",
           e.message || e
         );
-        // A operação continua mesmo se o Supabase falhar, pois o Sheets é a fonte primária aqui.
       }
     }
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     const acao = newStatus === "BLOQUEADA" ? "Bloqueada" : "Desbloqueada";
