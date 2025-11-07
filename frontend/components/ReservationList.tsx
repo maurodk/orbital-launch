@@ -65,7 +65,7 @@ export function ReservationList({
 
   return (
     <div className="reservation-list-container">
-      {/* O cabeçalho e os filtros permanecem os mesmos */}
+      <div className="list-filters-sticky">
       <div className="list-filters-header">
         <div className="search-input-wrapper">
           <FiSearch className="search-icon" />
@@ -111,8 +111,9 @@ export function ReservationList({
           <strong>{totalUnidades}</strong> unidades.
         </p>
       </div>
+      </div>
 
-      {/* A tabela com a lógica corrigida */}
+      <div className="table-scroll-container">
       <div className="table-wrapper">
         <table className="reservation-table">
           <thead>
@@ -256,6 +257,7 @@ export function ReservationList({
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

@@ -93,7 +93,9 @@ export function MainPage() {
   const [currentImplantation, setCurrentImplantation] =
     useState<Implantation | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"map" | "list" | "history">("map");
+  const [view, setView] = useState<"map" | "list" | "history">(
+    window.innerWidth <= 768 ? "list" : "map"
+  );
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
@@ -154,6 +156,7 @@ export function MainPage() {
   const [isChangeUnitFailedModalOpen, setIsChangeUnitFailedModalOpen] =
     useState(false);
   const [changeUnitFailedMessage, setChangeUnitFailedMessage] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const reservationManager = useReservationManager(apiUrl);
 
   const handlePrint = useReactToPrint({
@@ -989,45 +992,62 @@ export function MainPage() {
           )}
           <div>
             <main className="main-content">
-              <img
-                src="/logo.png"
-                alt="Logo da VCA Construtora"
-                className="main-logo"
-              />
-              <h1>Espelho de Implantação Humanizada</h1>
+              <div className="header-container">
+                <img
+                  src="/logo.png"
+                  alt="Logo da VCA Construtora"
+                  className="main-logo"
+                />
+                <div className="header-separator"></div>
+                <h1>Lançamento - Espelho Digital</h1>
+              </div>
               <div className="top-controls">
                 <div className="controls-left">
-                  <ImplantationSwitcher
-                    implantacoes={implantacoes}
-                    selected={selectedImplantationName}
-                    onChange={handleImplantationChange}
-                  />
-                  {view === "map" && (
+                  <div className="controls-left-top">
+                    <ImplantationSwitcher
+                      implantacoes={implantacoes}
+                      selected={selectedImplantationName}
+                      onChange={handleImplantationChange}
+                    />
                     <button
-                      className={`toggle-mapping-button ${
-                        isMappingMode ? "active" : ""
+                      className={`mobile-menu-toggle ${
+                        isMobileMenuOpen ? "active" : ""
                       }`}
-                      onClick={() => setIsMappingMode(!isMappingMode)}
+                      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     >
-                      Modo Mapeamento
+                      <span></span>
+                      <span></span>
+                      <span></span>
                     </button>
-                  )}
-                </div>
-                <div className="controls-right">
+                    {view === "map" && (
+                      <button
+                        className={`toggle-mapping-button ${
+                          isMappingMode ? "active" : ""
+                        }`}
+                        onClick={() => setIsMappingMode(!isMappingMode)}
+                      >
+                        Modo Mapeamento
+                      </button>
+                    )}
+                  </div>
                   <div className="user-greeting">
                     Logado como: <strong>{user.email}</strong>
                   </div>
-                  <div className="filter-checkbox-wrapper">
-                    <input
-                      type="checkbox"
-                      id="hide-available-toggle"
-                      checked={hideAvailable}
-                      onChange={(e) => setHideAvailable(e.target.checked)}
-                    />
-                    <label htmlFor="hide-available-toggle">
-                      Ocultar Disponíveis
-                    </label>
-                  </div>
+                </div>
+                <div className="controls-right">
+                  {view === "map" && (
+                    <div className="filter-checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        id="hide-available-toggle"
+                        checked={hideAvailable}
+                        onChange={(e) => setHideAvailable(e.target.checked)}
+                      />
+                      <label htmlFor="hide-available-toggle">
+                        Ocultar Disponíveis
+                      </label>
+                    </div>
+                  )}
                   <div className="view-switcher">
                     <button
                       className={view === "map" ? "active" : ""}
@@ -1056,8 +1076,63 @@ export function MainPage() {
                   </div>
                 </div>
               </div>
+              <div
+                className={`mobile-menu-modal ${
+                  isMobileMenuOpen ? "active" : ""
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <div
+                  className="mobile-menu-content"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mobile-menu-header">
+                    <span className="mobile-menu-title">Menu</span>
+                    <button
+                      className="mobile-menu-close"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="mobile-menu-items">
+                    <button
+                      className={`mobile-menu-item ${
+                        view === "list" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setView("list");
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Lista para Reserva
+                    </button>
+                    <button
+                      className={`mobile-menu-item ${
+                        view === "history" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setView("history");
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Histórico Geral
+                    </button>
+                    <button
+                      className="mobile-menu-item logout"
+                      onClick={() => {
+                        signOut(auth);
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Sair
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="top-controls"></div>
               <div className="view-content">
-                {view === "map" && imageUrl && (
+                {view === "map" && imageUrl && window.innerWidth > 768 && (
                   <FloorPlan
                     imageUrl={imageUrl}
                     unidades={unidades}
