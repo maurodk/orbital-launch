@@ -9,16 +9,20 @@ import backgroundShape from "../src/assets/shape.png";
 export interface TermoData {
   clienteNome: string;
   clienteCpf: string;
-  unidadeDesc: string; // Ex: "BL 01 - APT 101"
+  unidadeDesc: string;
   tipologia: string;
   areaPrivativa: string;
   etapa: string;
   empreendimentoNome: string;
   empreendimentoEndereco: string;
   corretorNome: string;
-  dataAtual: string; // Ex: "Vitória da Conquista, 26 de Julho de 2024"
+  dataAtual: string;
   logoEmpreendimentoUrl: string;
-  dataHoraImpressao: string; // <-- ADICIONE ESTA LINHA
+  dataHoraImpressao: string;
+  hasRegistro?: boolean;
+  paymentType?: "PIX" | "DINHEIRO";
+  paymentValue?: string;
+  paymentDate?: string;
 }
 
 interface TermoDeReservaProps {
@@ -98,6 +102,14 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
                   </tr>
                 </thead>
                 <tbody>
+                  {data.paymentValue && (
+                    <tr>
+                      <td>{data.paymentType || "PIX"}</td>
+                      <td>1</td>
+                      <td>{data.paymentValue}</td>
+                      <td>{data.paymentDate}</td>
+                    </tr>
+                  )}
                   <tr>
                     <td>FINANCIAMENTO CEF</td>
                     <td></td>
@@ -128,46 +140,76 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
                     <td></td>
                     <td></td>
                   </tr>
-                  <tr>
-                    <td>&nbsp;</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>&nbsp;</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
+                  {!data.hasRegistro && (
+                    <>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </>
+                  )}
+                  {data.hasRegistro && (
+                    <>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </>
+                  )}
                 </tbody>
               </table>
 
-              <div className="table-title">TABELA DE REGISTRO</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>SÉRIE</th>
-                    <th>PARCELAS</th>
-                    <th>VALOR</th>
-                    <th>DATA DE PAGAMENTO</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>&nbsp;</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>&nbsp;</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
+              {data.hasRegistro && (
+                <>
+                  <div className="table-title">TABELA DE REGISTRO</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>SÉRIE</th>
+                        <th>PARCELAS</th>
+                        <th>VALOR</th>
+                        <th>DATA DE PAGAMENTO</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                      <tr>
+                        <td>&nbsp;</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              )}
             </div>
 
             <div className="termo-lgpd">

@@ -25,11 +25,12 @@ import { IdleTimeoutModal } from "../../components/IdleTimeoutModal";
 import { VerifyingModal } from "../../components/VerifyingModal";
 import { ReservationFailedModal } from "../../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../../components/ReservationSuccessModal";
-import { PixModal } from "../../components/PixModal"; // Importa o novo modal
-import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal"; // <-- NOVO
+import { PixModal } from "../../components/PixModal";
+import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal";
 import { ChangeUnitFailedModal } from "../../components/ChangedUnitFailedModal";
-import { ChangeUnitModal } from "../../components/ChangeUnitModal"; // <-- NOVO
-import "../../components/PixModal.css"; // Importa o CSS do novo modal
+import { ChangeUnitModal } from "../../components/ChangeUnitModal";
+import { PrintConfigModal, type PrintConfig } from "../../components/PrintConfigModal";
+import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 
 const API_URL = "https://simulador-implantacao.onrender.com";
@@ -157,6 +158,8 @@ export function MainPage() {
     useState(false);
   const [changeUnitFailedMessage, setChangeUnitFailedMessage] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isPrintConfigModalOpen, setIsPrintConfigModalOpen] = useState(false);
+  const [pendingPrintUnitIndex, setPendingPrintUnitIndex] = useState<number | null>(null);
   const reservationManager = useReservationManager(apiUrl);
 
   const handlePrint = useReactToPrint({
@@ -884,7 +887,14 @@ export function MainPage() {
     }
   };
 
-  const handlePrepareAndPrint = async (unitIndex: number) => {
+  const handleOpenPrintConfig = (unitIndex: number) => {
+    setPendingPrintUnitIndex(unitIndex);
+    setIsPrintConfigModalOpen(true);
+  };
+
+  const handlePrepareAndPrint = async (config: PrintConfig) => {
+    if (pendingPrintUnitIndex === null) return;
+    const unitIndex = pendingPrintUnitIndex;
     const unitData = unidades[unitIndex];
     const impData = implantacoes.find(
       (imp) => imp.nome === selectedImplantationName
@@ -927,6 +937,8 @@ export function MainPage() {
       month: "long",
     })} de ${today.toLocaleDateString("pt-BR", { year: "numeric" })}`;
 
+    const paymentDate = today.toLocaleDateString("pt-BR");
+
     const termoData: TermoData = {
       clienteNome: unitData[6] || "N/D",
       clienteCpf: formatCPF(unitData[7]) || "N/D",
@@ -940,9 +952,14 @@ export function MainPage() {
       dataAtual: formattedDate,
       logoEmpreendimentoUrl: currentLogoUrl,
       dataHoraImpressao: dataHoraImpressao,
+      hasRegistro: config.hasRegistro,
+      paymentType: config.paymentType,
+      paymentValue: config.paymentValue,
+      paymentDate: paymentDate,
     };
 
     setTermoParaImprimir(termoData);
+    setPendingPrintUnitIndex(null);
   };
 
   if (error) {
@@ -1151,8 +1168,8 @@ export function MainPage() {
                     onUnitClick={handleUnitClick}
                     onSpontaneousClick={handleSpontaneousUnitClick}
                     onBlockClick={handleBlockActionClick}
-                    onPrintClick={handlePrepareAndPrint}
-                    onChangeUnitClick={handleChangeUnitClick} // <-- NOVO
+                    onPrintClick={handleOpenPrintConfig}
+                    onChangeUnitClick={handleChangeUnitClick}
                     onPixClick={handlePixActionClick}
                     onHistoryClick={handleOpenUnitHistory}
                     searchTerm={searchTerm}
@@ -1280,6 +1297,19 @@ export function MainPage() {
                   selectedUnitIndex !== null
                     ? unidades[selectedUnitIndex]?.[2]
                     : null
+                }
+              />
+              <PrintConfigModal
+                show={isPrintConfigModalOpen}
+                onClose={() => {
+                  setIsPrintConfigModalOpen(false);
+                  setPendingPrintUnitIndex(null);
+                }}
+                onConfirm={handlePrepareAndPrint}
+                pixValue={
+                  pendingPrintUnitIndex !== null
+                    ? unidades[pendingPrintUnitIndex]?.[15] || ""
+                    : ""
                 }
               />
             </main>
