@@ -1,6 +1,6 @@
 // src/pages/MainPage.tsx
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { useReactToPrint } from "react-to-print";
