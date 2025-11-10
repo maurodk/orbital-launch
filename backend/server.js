@@ -7,6 +7,7 @@ const express = require("express");
 const { google } = require("googleapis");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const fetch = require("node-fetch"); // <-- ADICIONAR ESTA LINHA
 const { createClient } = require("@supabase/supabase-js");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
@@ -39,6 +40,9 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
 
 // Inicializa o Express App
 const app = express();
+
+// NOVO: Cache em memória para abas de histórico já criadas
+const createdHistorySheets = new Set();
 
 // =================================================================
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
@@ -152,11 +156,15 @@ async function broadcastEvent(implantacao, event, data) {
   if (!clients) return;
 
   // Busca os dados atualizados da unidade para enviar no payload
-  let eventPayload = { ...data };
+  // Otimização: Se os dados já foram fornecidos, use-os diretamente.
+  let eventPayload = data.unitData ? { ...data } : { ...data, unitData: null };
+
+  // Se os dados não foram fornecidos, busca na planilha.
+  // Isso mantém a compatibilidade com chamadas antigas.
   if (data.rowIndex) {
     try {
       const sheets = await getSheetsClient();
-      const range = `'${implantacao}'!A${data.rowIndex}:M${data.rowIndex}`;
+      const range = `'${implantacao}'!A${data.rowIndex}:R${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
@@ -204,23 +212,44 @@ const SHEET_NAME_FUNIL = "Página1";
 // (Definidas ANTES de serem usadas nos endpoints)
 // =================================================================
 
-// Middleware para verificar o Token do Firebase
+// Middleware para verificar o Token (Supabase ou Firebase)
 async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).send("Acesso não autorizado: Token não fornecido.");
   }
 
-  const idToken = authHeader.split("Bearer ")[1];
+  const token = authHeader.split("Bearer ")[1];
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken; // Adiciona os dados do usuário à requisição
-    next(); // Passa para o próximo handler (o endpoint em si)
+    // Tenta verificar com Supabase primeiro
+    if (supabase) {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (!error && user) {
+        req.user = { email: user.email, uid: user.id };
+        return next();
+      }
+    }
+    
+    // Fallback para Firebase (compatibilidade)
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      req.user = decodedToken;
+      return next();
+    } catch (fbError) {
+      console.error("Erro ao verificar token (Firebase):", fbError.message);
+    }
+    
+    return res.status(403).send("Acesso proibido: Token inválido.");
   } catch (error) {
     console.error("Erro ao verificar token:", error);
     return res.status(403).send("Acesso proibido: Token inválido.");
   }
+}
+
+async function gerarTimestamp() {
+  // Retorna o timestamp atual em segundos (Unix time)
+  return Math.floor(Date.now() / 1000);
 }
 
 // Cliente do Google Sheets
@@ -347,23 +376,18 @@ async function addHistoryEntry(
   usuario
 ) {
   try {
-    const now = new Date();
+    const now = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+    );
 
-    const options = {
+    const dataFormatada = `'${now.toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+    })} às ${now.toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "America/Sao_Paulo",
-    };
-    const formatter = new Intl.DateTimeFormat("pt-BR", options);
-    const parts = formatter.formatToParts(now);
-    const dateParts = {};
-    parts.forEach((p) => (dateParts[p.type] = p.value));
-
-    // Adiciona apóstrofo para forçar o Google Sheets a tratar como texto
-    const dataFormatada = `'${dateParts.day}/${dateParts.month}/${dateParts.year} às ${dateParts.hour}:${dateParts.minute}`;
+    })}`;
 
     const historyRow = [
       now.toISOString(),
@@ -375,38 +399,49 @@ async function addHistoryEntry(
       usuario || "Sistema",
     ];
 
-    const spreadsheetMeta = await sheets.spreadsheets.get({
-      spreadsheetId: SPREADSHEET_ID_HISTORICO,
-    });
-    const sheetExists = spreadsheetMeta.data.sheets.some(
-      (s) => s.properties.title === implantacao
-    );
+    // Otimização: Usa cache em memória para evitar chamadas de API repetitivas
+    const sheetExists = createdHistorySheets.has(implantacao);
 
     if (!sheetExists) {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: SPREADSHEET_ID_HISTORICO,
-        resource: {
-          requests: [{ addSheet: { properties: { title: implantacao } } }],
-        },
-      });
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID_HISTORICO,
-        range: `'${implantacao}'!A1`,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-          values: [
-            [
-              "Timestamp ISO",
-              "Data Formatada",
-              "Unidade",
-              "Ação",
-              "Cliente",
-              "Corretor",
-              "Usuário",
+      // CORREÇÃO: Envolve a criação da aba em um try-catch.
+      // Se o servidor reiniciar, o cache em memória é perdido. Esta lógica
+      // tenta criar a aba, mas se ela já existir (causando um erro específico),
+      // o erro é ignorado e o código prossegue para inserir a linha.
+      try {
+        console.log(`[HISTÓRICO] Verificando/Criando aba '${implantacao}'...`);
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID_HISTORICO,
+          resource: {
+            requests: [{ addSheet: { properties: { title: implantacao } } }],
+          },
+        });
+
+        // Se a criação for bem-sucedida, adiciona o cabeçalho.
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_HISTORICO,
+          range: `'${implantacao}'!A1:G1`,
+          valueInputOption: "USER_ENTERED",
+          resource: {
+            values: [
+              [
+                "Timestamp ISO",
+                "Data Formatada",
+                "Unidade",
+                "Ação",
+                "Cliente",
+                "Corretor",
+                "Usuário",
+              ],
             ],
-          ],
-        },
-      });
+          },
+        });
+      } catch (e) {
+        // Ignora o erro se a aba já existir, que é o comportamento esperado após um reinício.
+        if (!e.message || !e.message.includes("already exists")) {
+          console.error(`[HISTÓRICO] Erro inesperado ao criar aba:`, e.message);
+        }
+      }
+      createdHistorySheets.add(implantacao); // Adiciona ao cache
     }
 
     // Append history to Google Sheets
@@ -418,6 +453,12 @@ async function addHistoryEntry(
       resource: {
         values: [historyRow],
       },
+    });
+
+    // NOVO: Notifica todos os clientes conectados sobre a atualização do histórico.
+    // O payload pode ser simples, apenas para sinalizar que o frontend deve recarregar o histórico.
+    await broadcastEvent(implantacao, "historyUpdated", {
+      message: `Novo evento: ${acao}`,
     });
 
     // Also persist to Supabase (best-effort)
@@ -482,31 +523,25 @@ app.get("/api/data", verifyToken, async (req, res) => {
   try {
     const sheets = await getSheetsClient();
     const resolved = await resolveSheetName(
+      // Usa a função original de resolução
       sheets,
       SPREADSHEET_ID_IMPLANTACAO,
       implantacao
     );
 
     if (!resolved || !resolved.found) {
-      const available = Array.isArray(resolved && resolved.available)
-        ? resolved.available
-        : [];
-      const suggestions = Array.isArray(resolved && resolved.suggestions)
-        ? resolved.suggestions
-        : [];
-      const resolverError = resolved && resolved.error ? resolved.error : null;
       return res.status(404).json({
         error: `Planilha '${implantacao}' não encontrada no spreadsheet de implantação.`,
-        available,
-        suggestions,
-        resolverError,
+        available: resolved.available,
+        suggestions: resolved.suggestions,
+        resolverError: resolved.error,
       });
     }
     const sheetTitle = resolved.found;
     const [implantacaoRes, dadosRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:M`,
+        range: `'${sheetTitle}'!A:R`,
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -558,7 +593,7 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:M`,
+      range: `'${sheetTitle}'!A:R`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
@@ -572,7 +607,7 @@ app.get("/api/public-data", async (req, res) => {
     // Busca os dados da implantação (imagem, dotSize)
     const implantacoesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:C`,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:G`, // Coluna G para a sigla
     });
 
     const implantacaoData = (implantacoesRes.data.values || []).find(
@@ -583,11 +618,13 @@ app.get("/api/public-data", async (req, res) => {
     const dotSize = implantacaoData
       ? parseInt(implantacaoData[2], 10) || 16
       : 16;
+    const sigla = implantacaoData ? implantacaoData[6] : ""; // Pega a sigla
 
     res.json({
       unidades,
       imageUrl,
       dotSize,
+      sigla,
     });
   } catch (error) {
     res.status(500).json({
@@ -601,7 +638,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:F`, // Coluna F para o ID do CVCRM
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:G`, // Coluna G para a sigla
     });
     const implantacoes = (response.data.values || []).map((row) => ({
       nome: row[0],
@@ -610,6 +647,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
       endereco: row[3] || "Endereço não informado",
       logoUrl: row[4] || "/logo-uni.png",
       cvcrmId: row[5] || null, // Adiciona o ID do CVCRM
+      sigla: row[6] || null, // Adiciona a sigla
     }));
     res.json(implantacoes);
   } catch (error) {
@@ -1101,9 +1139,18 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-
-    // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
-    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
+    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1124,13 +1171,13 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
     // Marca a unidade como "RESERVANDO" temporariamente
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [["RESERVANDO"]] },
     });
 
     // Armazena o token de reserva temporária (em memória por 30 segundos)
-    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
     tempReservations.set(tempReservationKey, {
       token: reservationToken,
       userEmail,
@@ -1169,9 +1216,20 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
 
     // Verifica se a reserva temporária ainda é válida
-    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
     const tempReservation = tempReservations.get(tempReservationKey);
 
     if (!tempReservation || tempReservation.token !== reservationToken) {
@@ -1192,7 +1250,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     tempReservations.delete(tempReservationKey);
 
     // Verifica novamente se a unidade ainda está disponível
-    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1218,7 +1276,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         const { data: implData, error: implDataError } = await supabase
           .from("implantacoes")
           .select("id")
-          .eq("nome", implantacao)
+          .eq("nome", sheetTitle) // Usa o nome completo resolvido
           .maybeSingle(); // Use maybeSingle para não dar erro se não encontrar
 
         if (implDataError) {
@@ -1335,7 +1393,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     // Adiciona ao histórico DEPOIS da operação principal
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitName,
       "Reservada",
       clientName,
@@ -1352,12 +1410,12 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         try {
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+            range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
             valueInputOption: "USER_ENTERED",
             resource: { values: [data] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex,
             unitName,
           });
@@ -1426,12 +1484,12 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     // --- Fallback para Google Sheets se o Supabase falhou ---
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+      range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [data] },
     });
 
-    await broadcastEvent(implantacao, "unitUpdated", { rowIndex, unitName });
+    await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex, unitName });
 
     const allClientsData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -1460,7 +1518,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     });
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
@@ -1485,7 +1543,19 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
   }
 
   try {
-    const tempReservationKey = `${implantacao}_${rowIndex}`;
+    const sheets = await getSheetsClient();
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
+    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
     const tempReservation = tempReservations.get(tempReservationKey);
 
     if (!tempReservation || tempReservation.token !== reservationToken) {
@@ -1506,16 +1576,15 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
     tempReservations.delete(tempReservationKey);
 
     // Restaura o status da unidade para DISPONÍVEL
-    const sheets = await getSheetsClient();
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [["DISPONÍVEL"]] },
     });
 
     // Notifica outros clientes sobre a mudança
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: tempReservation.unitName,
     });
@@ -1542,9 +1611,15 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
 
     // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
-    const unitCheckRange = `'${implantacao}'!K${rowIndex}`;
+    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1677,7 +1752,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     // Adiciona ao histórico DEPOIS da operação principal
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitName,
       "Reservada (Espontânea)",
       manualData.cliente,
@@ -1705,12 +1780,12 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
           ];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+            range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
             valueInputOption: "USER_ENTERED",
             resource: { values: [dataToUpdate] },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex,
             unitName,
           });
@@ -1749,14 +1824,14 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     ];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`,
+      range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [dataToUpdate] },
     });
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
@@ -1807,11 +1882,18 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
     let supabaseOk = false;
     let unitFullName = null;
     if (supabase) {
       try {
-        const { data: implData } = await supabase
+        const { data: implData } = await supabase // Usa o nome completo resolvido
           .from("implantacoes")
           .select("id")
           .eq("nome", implantacao)
@@ -1851,7 +1933,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           // Adiciona ao histórico DEPOIS da operação principal
           await addHistoryEntry(
             sheets,
-            implantacao,
+            sheetTitle,
             unitFullName || `Unidade na linha ${unitRowIndex}`,
             "Cancelada",
             clientName,
@@ -1883,15 +1965,25 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       // A resposta será enviada depois para garantir que o fallback também responda
       (async () => {
         try {
-          const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
-          await sheets.spreadsheets.values.update({
+          // CORREÇÃO: Limpa os dados em duas partes para preservar as coordenadas (L e M)
+          await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${implantacao}'!F${unitRowIndex}:K${unitRowIndex}`,
-            valueInputOption: "USER_ENTERED",
-            resource: { values: [emptyUnitData] },
+            resource: {
+              valueInputOption: "USER_ENTERED",
+              data: [
+                {
+                  range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
+                  values: [["", "", "", "", "", "DISPONÍVEL"]],
+                },
+                {
+                  range: `'${sheetTitle}'!N${unitRowIndex}:Q${unitRowIndex}`,
+                  values: [["", "", "", ""]],
+                },
+              ],
+            },
           });
 
-          await broadcastEvent(implantacao, "unitUpdated", {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex: unitRowIndex,
             unitName: unitFullName,
           });
@@ -1922,20 +2014,30 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       })();
     } else {
       // fallback to Sheets (legacy)
-      const emptyUnitData = ["", "", "", "", "", "DISPONÍVEL"];
-      await sheets.spreadsheets.values.update({
+      // CORREÇÃO: Limpa os dados em duas partes para preservar as coordenadas (L e M)
+      await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!F${unitRowIndex}:K${unitRowIndex}`,
-        valueInputOption: "USER_ENTERED",
-        resource: { values: [emptyUnitData] },
+        resource: {
+          valueInputOption: "USER_ENTERED",
+          data: [
+            {
+              range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
+              values: [["", "", "", "", "", "DISPONÍVEL"]],
+            },
+            {
+              range: `'${sheetTitle}'!N${unitRowIndex}:Q${unitRowIndex}`,
+              values: [["", "", "", ""]],
+            },
+          ],
+        },
       });
       const unidadeInfo = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!C${unitRowIndex}:C${unitRowIndex}`,
+        range: `'${sheetTitle}'!C${unitRowIndex}:C${unitRowIndex}`,
       });
       unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
-      await broadcastEvent(implantacao, "unitUpdated", {
+      await broadcastEvent(sheetTitle, "unitUpdated", {
         rowIndex: unitRowIndex,
         unitName: unitFullName,
       });
@@ -1973,9 +2075,150 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
   }
 });
 
+// NOVO: Endpoint para TROCAR unidade
+app.post("/api/change-unit", verifyToken, async (req, res) => {
+  const { implantacao, oldUnitIndex, newUnitIndex } = req.body;
+  const userEmail = req.user.email;
+
+  if (
+    !implantacao ||
+    oldUnitIndex === undefined ||
+    newUnitIndex === undefined
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para a troca de unidade." });
+  }
+
+  const oldRow = oldUnitIndex + 2;
+  const newRow = newUnitIndex + 2;
+
+  try {
+    const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
+    // 1. Otimização: Ler os dados das duas unidades de uma vez
+    const rangesToRead = [
+      `'${sheetTitle}'!C${oldRow}`, // Nome da unidade antiga
+      `'${sheetTitle}'!F${oldRow}:Q${oldRow}`, // Dados da unidade antiga
+      `'${sheetTitle}'!C${newRow}`, // Nome da unidade nova
+    ];
+    const batchGetData = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      ranges: rangesToRead,
+    });
+
+    const [oldUnitNameData, oldUnitDataValues, newUnitNameData] =
+      batchGetData.data.valueRanges;
+
+    const oldUnitName = oldUnitNameData.values?.[0]?.[0];
+    const oldUnitData = oldUnitDataValues.values?.[0];
+    const newUnitName = newUnitNameData.values?.[0]?.[0];
+
+    if (!oldUnitData) {
+      return res
+        .status(404)
+        .json({ error: "Dados da unidade de origem não encontrados." });
+    }
+
+    // 2. Preparar dados para atualização
+    const dataToTransfer = [
+      oldUnitData[0] || "", // F: id_pre_cadastro
+      oldUnitData[1] || "", // G: cliente
+      oldUnitData[2] || "", // H: documento
+      oldUnitData[3] || "", // I: corretor
+      oldUnitData[4] || "", // J: imobiliária
+      "RESERVADA", // K: situação
+      "", // L: coord_x (não transferir) - Limpa na nova unidade
+      "", // M: coord_y (não transferir) - Limpa na nova unidade
+      oldUnitData[8] || "", // N: IDENTIFICADOR
+      oldUnitData[9] || "", // O: Payload
+      oldUnitData[10] || "", // P: Valor
+      oldUnitData[11] || "", // Q: Pagamento
+    ];
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      resource: {
+        valueInputOption: "USER_ENTERED",
+        data: [
+          // Limpa dados da unidade antiga e a torna disponível
+          // CORREÇÃO: Limpa apenas os dados da reserva (F a K), mantendo as coordenadas (L e M)
+          {
+            range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
+            values: [["", "", "", "", "", "DISPONÍVEL"]],
+          },
+          {
+            range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
+            values: [["", "", "", ""]],
+          },
+          // Transfere dados para a nova unidade e a reserva
+          // CORREÇÃO: Divide a atualização para não apagar as coordenadas (L e M) da nova unidade
+          {
+            range: `'${sheetTitle}'!F${newRow}:K${newRow}`,
+            values: [
+              [
+                dataToTransfer[0], // F: id_pre_cadastro
+                dataToTransfer[1], // G: cliente
+                dataToTransfer[2], // H: documento
+                dataToTransfer[3], // I: corretor
+                dataToTransfer[4], // J: imobiliária
+                dataToTransfer[5], // K: situação
+              ],
+            ],
+          },
+          {
+            range: `'${sheetTitle}'!N${newRow}:Q${newRow}`,
+            values: [
+              [
+                dataToTransfer[8], // N: IDENTIFICADOR
+                dataToTransfer[9], // O: Payload
+                dataToTransfer[10], // P: Valor
+                dataToTransfer[11], // Q: Pagamento
+              ],
+            ],
+          },
+        ],
+      },
+    });
+
+    // 4. Registrar no histórico
+    await addHistoryEntry(
+      sheets,
+      sheetTitle,
+      `${oldUnitName} -> ${newUnitName}`,
+      "Troca de Unidade",
+      oldUnitData[1], // Nome do cliente
+      oldUnitData[3], // Nome do corretor
+      userEmail
+    );
+
+    // 5. Notificar clientes SSE sobre as duas unidades
+    // Otimização: Envia os dados já conhecidos para evitar novas leituras
+    broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex: oldRow,
+      unitData: ["", "", "", "", "", "", "", "DISPONÍVEL", "", "", "", "", ""], // Simula linha limpa
+    });
+    broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex: newRow,
+      unitData: dataToTransfer,
+    });
+
+    res.json({ success: true, message: "Troca de unidade realizada." });
+  } catch (err) {
+    console.error("Erro ao trocar unidade:", err);
+    res.status(500).json({ error: "Falha ao realizar a troca de unidade." });
+  }
+});
+
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, coordX, coordY } = req.body;
+  const { implantacao, rowIndex, coordX, coordY, letra } = req.body;
   const userEmail = req.user.email;
   if (
     !implantacao ||
@@ -1989,12 +2232,30 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
   }
   try {
     const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
+    // Atualiza coordenadas (L e M) e letra (R)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!L${rowIndex}:M${rowIndex}`,
+      range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[coordX, coordY]] },
     });
+    
+    // Atualiza a letra na coluna R se fornecida
+    if (letra !== undefined) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!R${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[letra || ""]] },
+      });
+    }
     // Persist coordinates to Supabase unidades as well (if available)
     if (supabase) {
       try {
@@ -2030,12 +2291,12 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     }
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitFullName,
       "Mapeamento Adicionado",
       null,
@@ -2043,7 +2304,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
     });
@@ -2070,41 +2331,56 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    const range = `'${implantacao}'!L${rowIndex}:M${rowIndex}`;
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
 
-    // Ação Principal: Limpar as coordenadas
-    await sheets.spreadsheets.values.update({
+    // Limpa coordenadas (L e M) e letra (R)
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: range,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [["", ""]] },
+      resource: {
+        valueInputOption: "USER_ENTERED",
+        data: [
+          {
+            range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
+            values: [["", ""]],
+          },
+          {
+            range: `'${sheetTitle}'!R${rowIndex}`,
+            values: [[""]],
+          },
+        ],
+      },
     });
 
-    // Ação Secundária: Registrar no histórico
+    // Registrar no histórico
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
 
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitFullName,
-      "Mapeamento Removido", // Ação descritiva diferente
+      "Mapeamento Removido",
       null,
       null,
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
     });
 
     res.json({
       success: true,
-      message: `Coordenadas limpas e histórico registrado para '${unitFullName}'.`,
+      message: `Coordenadas e letra limpas para '${unitFullName}'.`,
     });
   } catch (error) {
     console.error("Erro ao limpar coordenadas na planilha:", error);
@@ -2207,9 +2483,16 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+    if (error) return res.status(404).json({ error: error, ...details });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!K${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[newStatus]] },
     });
@@ -2220,14 +2503,13 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
         const { data: implData } = await supabase
           .from("implantacoes")
           .select("id")
-          .eq("nome", implantacao)
+          .eq("nome", sheetTitle)
           .limit(1)
           .single();
 
         const implantacao_id = implData ? implData.id : null;
 
         if (implantacao_id) {
-          // Atualiza a unidade existente com base no implantacao_id e rowIndex
           const { error: updateError } = await supabase
             .from("unidades")
             .update({ situacao: newStatus })
@@ -2246,20 +2528,19 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
           "Supabase: Exceção ao tentar bloquear/desbloquear unidade:",
           e.message || e
         );
-        // A operação continua mesmo se o Supabase falhar, pois o Sheets é a fonte primária aqui.
       }
     }
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!C${rowIndex}:C${rowIndex}`,
+      range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     const acao = newStatus === "BLOQUEADA" ? "Bloqueada" : "Desbloqueada";
 
     await addHistoryEntry(
       sheets,
-      implantacao,
+      sheetTitle,
       unitFullName,
       acao,
       null,
@@ -2267,7 +2548,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(implantacao, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
     });
@@ -2279,6 +2560,436 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Erro ao bloquear/desbloquear unidade:", error);
     res.status(500).json({ error: "Falha ao atualizar o status da unidade." });
+  }
+});
+
+// NOVO: Endpoint para atualizar dados do PIX
+app.post("/api/update-pix-data", verifyToken, async (req, res) => {
+  const {
+    implantacao,
+    rowIndex,
+    identificador,
+    payloadEmv,
+    valor,
+    statusPagamento,
+  } = req.body;
+  const userEmail = req.user.email;
+
+  if (
+    !implantacao ||
+    !rowIndex ||
+    !identificador ||
+    !payloadEmv ||
+    valor === undefined ||
+    !statusPagamento
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para atualizar o PIX." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    // CORREÇÃO: Utiliza a função 'resolveSheetName' que é a correta e está disponível no escopo.
+    // A função 'getSheetTitle' não existe neste contexto, causando o erro 500.
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+
+    // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor) e Q (Status Pagamento)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${sheetTitle}'!N${rowIndex}:Q${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: [[identificador, payloadEmv, valor, statusPagamento]],
+      },
+    });
+
+    // NOVO: Adiciona ao histórico quando um PIX é gerado.
+    if (statusPagamento === "PENDENTE") {
+      const unitInfoRange = `'${sheetTitle}'!C${rowIndex}:I${rowIndex}`;
+      const unitInfoRes = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: unitInfoRange,
+      });
+      const unitInfo = unitInfoRes.data.values?.[0] || [];
+      const unitName = unitInfo[0] || `Linha ${rowIndex}`; // Coluna C
+      const clientName = unitInfo[4] || null; // Coluna G
+      const corretor = unitInfo[6] || null; // Coluna I
+
+      await addHistoryEntry(
+        sheets,
+        sheetTitle,
+        unitName,
+        "PIX Gerado",
+        clientName,
+        corretor,
+        userEmail
+      );
+    }
+
+    res.json({ success: true, message: "Dados do PIX atualizados." });
+  } catch (error) {
+    // Adiciona um log mais detalhado no servidor para facilitar futuras depurações.
+    console.error("Erro em /api/update-pix-data:", error);
+    res.status(500).json({ error: "Falha ao atualizar dados do PIX." });
+  }
+});
+
+// NOVO: Endpoint para receber o webhook de confirmação de pagamento do Santander
+app.post("/api/santander/webhook", async (req, res) => {
+  const { identificador, status } = req.body;
+
+  console.log("[WEBHOOK SANTANDER] Recebido:", req.body);
+
+  if (!identificador || !status) {
+    return res
+      .status(400)
+      .json({ error: "Identificador e status são obrigatórios." });
+  }
+
+  if (status.toUpperCase() !== "PAGO") {
+    // Ignora outros status por enquanto (ex: EM_PROCESSAMENTO, REJEITADO)
+    return res.json({
+      message: `Status '${status}' recebido e ignorado.`,
+    });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // 1. Descobrir em qual aba (implantação) está o PIX
+    const implantacoesResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_DADOS,
+      range: `${SHEET_NAME_IMPLANTACOES}!A2:A`,
+    });
+    const implantacoes = (implantacoesResponse.data.values || []).flat();
+
+    let targetSheet = null;
+    let targetRowIndex = -1;
+
+    for (const implantacao of implantacoes) {
+      const range = `'${implantacao}'!N:N`; // Coluna N (identificador)
+      const sheetData = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range,
+      });
+
+      const allIdentifiers = (sheetData.data.values || []).flat();
+      const rowIndexInSheet = allIdentifiers.indexOf(identificador);
+
+      if (rowIndexInSheet !== -1) {
+        targetSheet = implantacao;
+        targetRowIndex = rowIndexInSheet + 1; // +1 porque o array é 0-based
+        break;
+      }
+    }
+
+    if (!targetSheet || targetRowIndex === -1) {
+      console.warn(
+        `[WEBHOOK SANTANDER] PIX com identificador '${identificador}' não encontrado em nenhuma implantação.`
+      );
+      return res.status(404).json({
+        error: `PIX com identificador '${identificador}' não encontrado.`,
+      });
+    }
+
+    // 2. Atualizar o status da unidade para "PAGO"
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${targetSheet}'!Q${targetRowIndex}`, // Coluna Q (Status Pagamento)
+      valueInputOption: "USER_ENTERED",
+      resource: {
+        values: [["PAGO"]],
+      },
+    });
+
+    // 3. Notificar clientes via SSE
+    await broadcastEvent(targetSheet, "unitUpdated", {
+      rowIndex: targetRowIndex,
+      // O nome da unidade não é estritamente necessário aqui, pois o payload do evento
+      // será preenchido com a linha inteira de dados da planilha.
+    });
+
+    // 4. Adicionar ao histórico
+    const unitInfoRange = `'${targetSheet}'!C${targetRowIndex}:I${targetRowIndex}`;
+    const unitInfoRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitInfoRange,
+    });
+    const unitInfo = unitInfoRes.data.values?.[0] || [];
+    const unitName = unitInfo[0] || `Linha ${targetRowIndex}`;
+    const clientName = unitInfo[4] || null;
+    const corretor = unitInfo[6] || null;
+
+    await addHistoryEntry(
+      sheets,
+      targetSheet,
+      unitName,
+      "PIX Pago",
+      clientName,
+      corretor,
+      "Sistema (Webhook)"
+    );
+
+    res.json({
+      success: true,
+      message: `Status da unidade ${unitName} atualizado para PAGO.`,
+    });
+  } catch (error) {
+    console.error("[WEBHOOK SANTANDER] Erro ao processar webhook:", error);
+    res.status(500).json({ error: "Falha ao processar o webhook." });
+  }
+});
+
+// NOVO: Endpoint para forçar a atualização de uma unidade e notificar clientes
+app.post("/api/refresh-unit", verifyToken, async (req, res) => {
+  const { implantacao, rowIndex } = req.body;
+
+  if (!implantacao || !rowIndex) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para atualizar a unidade." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    // CORREÇÃO: A função 'getSheetTitle' não existe. A função correta é 'resolveSheetName'.
+    // Esta alteração corrige o ReferenceError que estava causando o crash.
+    const {
+      found: sheetTitle,
+      error,
+      ...details
+    } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+
+    // A função broadcastEvent já busca os dados mais recentes da planilha
+    // e envia para todos os clientes conectados na sala da implantação.
+    await broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex: rowIndex,
+      // O nome da unidade não é estritamente necessário aqui, pois o payload do evento
+      // será preenchido com a linha inteira de dados da planilha.
+    });
+
+    res.json({ success: true, message: "Comando de atualização enviado." });
+  } catch (error) {
+    console.error("Erro ao forçar atualização da unidade:", error);
+    res.status(500).json({ error: "Falha ao forçar atualização da unidade." });
+  }
+});
+
+// NOVO: Endpoint para verificar o status de pagamento e registrar no histórico se necessário.
+// Isso desacopla a lógica de registro do webhook, tornando-a mais robusta.
+app.post("/api/check-and-log-payment", verifyToken, async (req, res) => {
+  const { implantacao, rowIndex } = req.body;
+  const userEmail = req.user.email;
+
+  if (!implantacao || !rowIndex) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para verificação de pagamento." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const { found: sheetTitle } = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+
+    if (!sheetTitle) {
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+
+    // 1. Obter os dados da unidade, incluindo nome e status de pagamento
+    const unitDataRange = `'${sheetTitle}'!C${rowIndex}:Q${rowIndex}`;
+    const unitDataRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitDataRange,
+    });
+
+    const unitData = unitDataRes.data.values?.[0] || [];
+    const unitName = unitData[0]; // Coluna C
+    const clientName = unitData[4]; // Coluna G
+    const corretor = unitData[6]; // Coluna I
+    const paymentStatus = unitData[14]; // Coluna Q (índice 14 no array de C a Q)
+
+    if (paymentStatus?.toUpperCase() !== "PAGO") {
+      return res.json({ message: "Pagamento ainda não confirmado." });
+    }
+
+    // 2. Verificar se já existe um registro de "PIX Pago" para esta unidade
+    const historyResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_HISTORICO,
+      range: `'${sheetTitle}'!A:D`, // Colunas Timestamp, Data, Unidade, Ação
+    });
+
+    const historyEntries = historyResponse.data.values || [];
+    const alreadyLogged = historyEntries.some(
+      (entry) =>
+        entry[2] === unitName && // Mesma unidade
+        entry[3] === "PIX Pago" // Mesma ação
+    );
+
+    if (alreadyLogged) {
+      return res.json({ message: "Pagamento já registrado no histórico." });
+    }
+
+    // 3. Se for "PAGO" e não houver registro, adiciona ao histórico
+    await addHistoryEntry(
+      sheets,
+      sheetTitle,
+      unitName,
+      "PIX Pago",
+      clientName || null,
+      corretor || null,
+      userEmail // Ou "Sistema" se preferir
+    );
+
+    res.json({
+      success: true,
+      message: "Pagamento confirmado e registrado no histórico.",
+    });
+  } catch (error) {
+    console.error("Erro ao verificar e registrar pagamento:", error);
+    res.status(500).json({ error: "Falha ao verificar pagamento." });
+  }
+});
+
+// NOVO: Endpoint para disparar o webhook da Botmaker
+app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
+  const {
+    nomeCliente,
+    nomeEmpreendimento,
+    unidade,
+    contatoCliente,
+    identificadorPix,
+  } = req.body;
+
+  if (
+    !nomeCliente ||
+    !nomeEmpreendimento ||
+    !unidade ||
+    !contatoCliente ||
+    !identificadorPix
+  ) {
+    return res.status(400).json({ error: "Dados incompletos para o webhook." });
+  }
+
+  const BOTMAKER_API_URL =
+    "https://api.botmaker.com/v2.0/chats-actions/trigger-intent";
+  const BOTMAKER_ACCESS_TOKEN = process.env.BOTMAKER_ACCESS_TOKEN;
+
+  if (!BOTMAKER_ACCESS_TOKEN) {
+    console.error("[BOTMAKER] Access token não configurado no .env");
+    return res
+      .status(500)
+      .json({ error: "Configuração do servidor incompleta." });
+  }
+
+  const body = {
+    chat: {
+      channelId: "vcaconstrutora-whatsapp-557730251212",
+      contactId: contatoCliente,
+    },
+    intentIdOrName: "pix_sinal3",
+    variables: {
+      nomeCliente,
+      nomeEmpreendimento,
+      unidade,
+      pix: `?id=${identificadorPix}&timestamp=${await gerarTimestamp()}`,
+    },
+  };
+
+  // Log para depuração: mostra o corpo da requisição que será enviada
+  console.log(
+    "[BOTMAKER] Corpo da requisição para a API externa:",
+    JSON.stringify(body, null, 2)
+  );
+
+  try {
+    const response = await fetch(BOTMAKER_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "access-token": BOTMAKER_ACCESS_TOKEN,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseData = await response.json();
+
+    // Log para depuração: mostra a resposta recebida da API externa
+    console.log(
+      `[BOTMAKER] Resposta da API externa (Status: ${response.status}):`,
+      JSON.stringify(responseData, null, 2)
+    );
+
+    // Repassa o status da API da Botmaker, se não for sucesso.
+    res.status(response.status).json({
+      success: response.ok,
+      message: "Webhook da Botmaker processado.",
+      botmakerResponse: responseData,
+    });
+  } catch (error) {
+    console.error("[BOTMAKER] Erro ao disparar webhook:", error);
+    res.status(500).json({ error: "Falha ao disparar o webhook." });
+  }
+});
+
+// NOVO: Endpoint para atuar como proxy para a API do Santander
+app.post("/api/santander/gerapix", verifyToken, async (req, res) => {
+  const SANTANDER_API_URL = "https://gatewaypix.suportevca.com.br/api/gerapix";
+
+  // Log para depuração: mostra o corpo da requisição recebida do frontend
+  console.log(
+    "[PROXY /api/santander/gerapix] Corpo da requisição para a API externa:",
+    JSON.stringify(req.body, null, 2)
+  );
+
+  try {
+    // O corpo da requisição (req.body) já vem do frontend no formato correto.
+    // Apenas repassamos para a API do Santander.
+    const response = await fetch(SANTANDER_API_URL, {
+      method: "POST",
+      headers: {
+        // GARANTIR que apenas os cabeçalhos necessários sejam enviados,
+        // evitando repassar o token de autorização do Firebase.
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    const responseData = await response.json();
+
+    // Log para depuração: mostra a resposta recebida da API externa
+    console.log(
+      `[PROXY /api/santander/gerapix] Resposta da API externa (Status: ${response.status}):`,
+      JSON.stringify(responseData, null, 2)
+    );
+
+    if (!response.ok) {
+      // Se a API do Santander retornar um erro, repassamos o status e a mensagem.
+      return res.status(response.status).json({
+        sucesso: false,
+        mensagem:
+          responseData.mensagem ||
+          `Erro na API externa: ${response.statusText}`,
+      });
+    }
+
+    res.status(200).json(responseData);
+  } catch (error) {
+    res.status(500).json({
+      sucesso: false,
+      mensagem: "Erro interno do servidor ao contatar a API PIX.",
+    });
   }
 });
 
@@ -2326,6 +3037,40 @@ app.get("/api/history/:implantacao", verifyToken, async (req, res) => {
       return res.json([]);
     }
     res.status(500).json({ error: "Falha ao buscar histórico." });
+  }
+});
+
+app.get("/api/user/full-name", verifyToken, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("id", req.user.uid)
+      .single();
+
+    if (error) throw error;
+    res.json({ full_name: data?.full_name || null });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao buscar nome completo." });
+  }
+});
+
+app.post("/api/user/full-name", verifyToken, async (req, res) => {
+  const { full_name } = req.body;
+  if (!full_name || !full_name.trim()) {
+    return res.status(400).json({ error: "Nome completo é obrigatório." });
+  }
+
+  try {
+    const { error } = await supabase
+      .from("users")
+      .update({ full_name: full_name.trim() })
+      .eq("id", req.user.uid);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao atualizar nome completo." });
   }
 });
 

@@ -1,14 +1,17 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
+import { useState, useEffect, useRef } from "react";
 import { FiSearch, FiLock, FiPrinter, FiClock } from "react-icons/fi";
 
 interface ReservationListProps {
   unidades: [string[], number][];
   onUnitClick: (unitIndex: number) => void;
   onHistoryClick: (unitName: string) => void;
+  onChangeUnitClick: (unitIndex: number) => void; // <-- NOVO
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
-  onPrintClick: (unitIndex: number) => void; // Prop agora será usada
+  onPrintClick: (unitIndex: number) => void;
+  onPixClick: (unitIndex: number) => void; // Nova prop para o PIX
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   statusFilter: "all" | "disponível" | "reservada" | "bloqueada";
@@ -22,9 +25,11 @@ export function ReservationList({
   unidades,
   onUnitClick,
   onSpontaneousClick,
+  onChangeUnitClick, // <-- NOVO
   onBlockClick,
   onHistoryClick,
-  onPrintClick, // Agora está sendo usado
+  onPrintClick,
+  onPixClick,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -32,10 +37,45 @@ export function ReservationList({
   totalUnidades,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
+  const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Hook para fechar o menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuIndex(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleMenuToggle = (index: number, event: React.MouseEvent<HTMLButtonElement>) => {
+    if (openMenuIndex === index) {
+      setOpenMenuIndex(null);
+    } else {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+      });
+      setOpenMenuIndex(index);
+    }
+  };
+
+  const handleMenuAction = (action: (index: number) => void, index: number) => {
+    action(index);
+    setOpenMenuIndex(null); // Fecha o menu após a ação
+  };
 
   return (
     <div className="reservation-list-container">
-      {/* O cabeçalho e os filtros permanecem os mesmos */}
+      <div className="list-filters-sticky">
       <div className="list-filters-header">
         <div className="search-input-wrapper">
           <FiSearch className="search-icon" />
@@ -81,8 +121,9 @@ export function ReservationList({
           <strong>{totalUnidades}</strong> unidades.
         </p>
       </div>
+      </div>
 
-      {/* A tabela com a lógica corrigida */}
+      <div className="table-scroll-container">
       <div className="table-wrapper">
         <table className="reservation-table">
           <thead>
@@ -100,7 +141,8 @@ export function ReservationList({
               unidades.map(([unitData, originalIndex]) => {
                 const status = unitData[10]?.toLowerCase() || "disponível";
                 const isAvailable = status === "disponível";
-                const isReserved = status === "reservada"; // Variável agora será usada
+                const isReserved = status === "reservada";
+                const paymentStatus = unitData[16]?.toUpperCase(); // Coluna Q
                 const clientName = unitData[6] || "—";
                 const brokerName = unitData[8] || "—";
 
@@ -152,20 +194,65 @@ export function ReservationList({
                           </>
                         ) : (
                           <>
-                            <button
-                              className="reserve-button-in-table reserved"
-                              onClick={() => onUnitClick(originalIndex)}
+                            <div
+                              className="manage-menu-container"
+                              ref={
+                                openMenuIndex === originalIndex ? menuRef : null
+                              }
                             >
-                              Gerenciar
-                            </button>
-                            {isReserved && (
                               <button
-                                className="print-button-in-table"
-                                title="Imprimir Termo de Reserva"
-                                onClick={() => onPrintClick(originalIndex)}
+                                className="reserve-button-in-table manage"
+                                onClick={(e) => handleMenuToggle(originalIndex, e)}
                               >
-                                <FiPrinter size={16} />
+                                Gerenciar
                               </button>
+                              {openMenuIndex === originalIndex && (
+                                <div 
+                                  className="manage-dropdown-menu"
+                                  style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+                                >
+                                  <button
+                                    onClick={() =>
+                                      handleMenuAction(
+                                        onChangeUnitClick,
+                                        originalIndex
+                                      )
+                                    }
+                                  >
+                                    Trocar Unidade
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleMenuAction(
+                                        onUnitClick,
+                                        originalIndex
+                                      )
+                                    }
+                                  >
+                                    Cancelar Reserva
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            {isReserved && (
+                              <>
+                                <button
+                                  className="print-button-in-table"
+                                  title="Imprimir Termo de Reserva"
+                                  onClick={() => onPrintClick(originalIndex)}
+                                >
+                                  <FiPrinter size={16} />
+                                </button>
+                                {paymentStatus !== "PAGO" && (
+                                  <button
+                                    className="pix-button-in-table"
+                                    title="Gerar PIX para Pagamento"
+                                    onClick={() => onPixClick(originalIndex)}
+                                  >
+                                    <img src="/pix.png" alt="PIX" />
+                                  </button>
+                                )}
+                              </>
                             )}
                           </>
                         )}
@@ -183,6 +270,7 @@ export function ReservationList({
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

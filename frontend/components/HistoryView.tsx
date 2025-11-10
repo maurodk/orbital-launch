@@ -26,6 +26,7 @@ export function HistoryView({ history }: HistoryViewProps) {
 
   return (
     <div className="history-container">
+      <div className="history-filters-sticky">
       <div className="history-search-wrapper">
         <FiSearch className="search-icon" />
         <input
@@ -36,7 +37,9 @@ export function HistoryView({ history }: HistoryViewProps) {
           className="search-input"
         />
       </div>
+      </div>
 
+      <div className="history-scroll-container">
       {filteredHistory.length > 0 ? (
         <div className="table-wrapper">
           <table className="history-table">
@@ -78,6 +81,7 @@ export function HistoryView({ history }: HistoryViewProps) {
           Nenhum registro de histórico encontrado com os filtros aplicados.
         </p>
       )}
+      </div>
     </div>
   );
 }

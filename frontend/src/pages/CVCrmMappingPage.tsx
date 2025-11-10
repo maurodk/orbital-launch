@@ -75,6 +75,7 @@ export function CVCrmMappingPage() {
 
   const isMappingMode = true; // Sempre em modo mapeamento
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
+  const [unitLetter, setUnitLetter] = useState<string>("");
 
   // Transforma os dados do CVCRM para o formato que os componentes esperam
   const unidadesFormatadas = useMemo(
@@ -351,6 +352,8 @@ export function CVCrmMappingPage() {
           dotSize={dotSize}
           onDotSizeChange={setDotSize}
           onSaveDotSize={handleSaveDotSize}
+          unitLetter={unitLetter}
+          onLetterChange={setUnitLetter}
         />
         <div className="app-container">
           <h1>Mapeamento de Unidades - CVCRM</h1>

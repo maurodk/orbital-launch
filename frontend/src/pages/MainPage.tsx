@@ -1,7 +1,6 @@
 // src/pages/MainPage.tsx
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Link } from "react-router-dom";
 import axios from "axios";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { useReactToPrint } from "react-to-print";
@@ -19,13 +18,20 @@ import {
 } from "../../components/TermoDeReserva";
 import { HistoryView } from "../../components/HistoryView";
 import { UnitHistoryModal } from "../../components/UnitHistoryModal";
-import { type User, onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import { auth, supabase } from "../supabaseClient";
+import type { User } from "@supabase/supabase-js";
 import { Login } from "../../components/Login";
-import { IdleTimeoutModal } from "../../components/IdleTimeoutModal";
+
 import { VerifyingModal } from "../../components/VerifyingModal";
 import { ReservationFailedModal } from "../../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../../components/ReservationSuccessModal";
+import { PixModal } from "../../components/PixModal";
+import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal";
+import { ChangeUnitFailedModal } from "../../components/ChangedUnitFailedModal";
+import { ChangeUnitModal } from "../../components/ChangeUnitModal";
+import { PrintConfigModal, type PrintConfig } from "../../components/PrintConfigModal";
+import { FullNameModal } from "../../components/FullNameModal";
+import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 
 const API_URL = "https://simulador-implantacao.onrender.com";
@@ -45,7 +51,20 @@ interface Implantation {
   tamanhoPonto?: number;
   endereco?: string;
   logoUrl?: string;
+  sigla?: string;
 }
+
+// Função para gerar sigla a partir do nome
+const gerarSigla = (nome: string): string => {
+  if (!nome) return "";
+  // Gera um acrônimo pegando a primeira letra de cada palavra.
+  return nome
+    .split(" ")
+    .map((palavra) => palavra.charAt(0))
+    .join("")
+    .toUpperCase();
+};
+
 interface ManualData {
   id: string;
   cliente: string;
@@ -67,14 +86,19 @@ const formatCPF = (cpf: string | null | undefined): string => {
 export function MainPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showContent, setShowContent] = useState(false);
   const [unidades, setUnidades] = useState<string[][]>([]);
   const [clientes, setClientes] = useState<string[][]>([]);
   const [implantacoes, setImplantacoes] = useState<Implantation[]>([]);
   const [selectedImplantationName, setSelectedImplantationName] = useState("");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [switching, setSwitching] = useState<boolean>(false);
+  const [currentImplantation, setCurrentImplantation] =
+    useState<Implantation | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"map" | "list" | "history">("map");
+  const [view, setView] = useState<"map" | "list" | "history">(
+    window.innerWidth <= 768 ? "list" : "map"
+  );
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
@@ -83,6 +107,7 @@ export function MainPage() {
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(true);
+  const [unitLetter, setUnitLetter] = useState<string>("");
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
     mode: "select" as "select" | "manual",
@@ -92,6 +117,15 @@ export function MainPage() {
     isOpen: false,
     isBlocking: true,
     apiError: "",
+  });
+  const [pixModalState, setPixModalState] = useState({
+    isOpen: false,
+    unitIndex: null as number | null,
+  });
+  const [changeUnitModalState, setChangeUnitModalState] = useState({
+    // <-- NOVO
+    isOpen: false,
+    unitIndex: null as number | null,
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -107,7 +141,7 @@ export function MainPage() {
   const [selectedUnitForHistory, setSelectedUnitForHistory] = useState<
     string | null
   >(null);
-  const [isIdleModalOpen, setIsIdleModalOpen] = useState(false);
+
   const [isVerifyingModalOpen, setIsVerifyingModalOpen] = useState(false);
   const [isReservationFailedModalOpen, setIsReservationFailedModalOpen] =
     useState(false);
@@ -115,6 +149,21 @@ export function MainPage() {
   const [isReservationSuccessModalOpen, setIsReservationSuccessModalOpen] =
     useState(false);
 
+  // NOVO: Estados para modais de troca de unidade
+  const [isChangeUnitSuccessModalOpen, setIsChangeUnitSuccessModalOpen] =
+    useState(false);
+  const [changeUnitSuccessData, setChangeUnitSuccessData] = useState<{
+    oldUnitName: string;
+    newUnitName: string;
+  } | null>(null);
+  const [isChangeUnitFailedModalOpen, setIsChangeUnitFailedModalOpen] =
+    useState(false);
+  const [changeUnitFailedMessage, setChangeUnitFailedMessage] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isPrintConfigModalOpen, setIsPrintConfigModalOpen] = useState(false);
+  const [pendingPrintUnitIndex, setPendingPrintUnitIndex] = useState<number | null>(null);
+  const [showFullNameModal, setShowFullNameModal] = useState(false);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
   const reservationManager = useReservationManager(apiUrl);
 
   const handlePrint = useReactToPrint({
@@ -153,6 +202,19 @@ export function MainPage() {
     return clientes.filter((c) => c && c[0]);
   }, [clientes]);
 
+  // NOVO: Memo para unidades disponíveis para o modal de troca
+  const availableUnitsForChange = useMemo(() => {
+    return unidades.reduce<{ unit: string[]; originalIndex: number }[]>(
+      (acc, unit, index) => {
+        if ((unit[10]?.toLowerCase() || "disponível") === "disponível") {
+          acc.push({ unit, originalIndex: index });
+        }
+        return acc;
+      },
+      []
+    );
+  }, [unidades]);
+
   const filteredUnidades: [string[], number][] = useMemo(() => {
     return unidades
       .map((unidade, index) => ({ data: unidade, originalIndex: index }))
@@ -160,10 +222,12 @@ export function MainPage() {
         const unitStatus = data[10]?.toLowerCase() || "disponível";
         const unitName = data[2]?.toLowerCase() || "";
         const blockName = data[1]?.toLowerCase() || "";
+        const clientName = data[6]?.toLowerCase() || "";
+        const brokerName = data[8]?.toLowerCase() || "";
         const term = searchTerm.toLowerCase();
         const statusMatch =
           statusFilter === "all" || unitStatus === statusFilter;
-        const searchMatch = unitName.includes(term) || blockName.includes(term);
+        const searchMatch = unitName.includes(term) || blockName.includes(term) || clientName.includes(term) || brokerName.includes(term);
         return statusMatch && searchMatch;
       })
       .map((item) => [item.data, item.originalIndex]);
@@ -174,7 +238,7 @@ export function MainPage() {
     setSwitching(true);
     try {
       const response = await axios.get<ApiResponse>(
-        `${apiUrl}/api/data?implantacao=${implantacaoName}`
+        `${apiUrl}/api/data?implantacao=${encodeURIComponent(implantacaoName)}`
       );
       setUnidades(response.data.unidades.slice(1) || []);
       setClientes(response.data.clientes.slice(1) || []);
@@ -187,18 +251,28 @@ export function MainPage() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const checkUser = async () => {
+      const currentUser = await auth.getCurrentUser();
       setUser(currentUser);
 
       if (currentUser) {
-        const token = await currentUser.getIdToken();
-        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          axios.defaults.headers.common["Authorization"] = `Bearer ${session.access_token}`;
+        }
 
         try {
-          const [configRes, implantacoesRes] = await Promise.all([
+          const [configRes, implantacoesRes, fullNameRes] = await Promise.all([
             axios.get<AppConfig>(`${apiUrl}/api/config`),
             axios.get<Implantation[]>(`${apiUrl}/api/implantacoes`),
+            axios.get(`${apiUrl}/api/user/full-name`),
           ]);
+
+          const fullName = fullNameRes.data.full_name;
+          setUserFullName(fullName);
+          if (!fullName) {
+            setShowFullNameModal(true);
+          }
 
           const allImplantations = implantacoesRes.data || [];
           setImplantacoes(allImplantations);
@@ -210,17 +284,18 @@ export function MainPage() {
             (allImplantations[0]?.nome || "");
           setSelectedImplantationName(currentImplantationName);
 
-          const currentImplantation = allImplantations.find(
+          const foundImplantation = allImplantations.find(
             (imp) => imp.nome === currentImplantationName
           );
 
-          if (currentImplantation) {
-            setImageUrl(currentImplantation.url);
-            setDotSize(currentImplantation.tamanhoPonto || 16);
-            setCurrentLogoUrl(currentImplantation.logoUrl || "/logo-uni.png");
+          if (foundImplantation) {
+            setCurrentImplantation(foundImplantation);
+            setImageUrl(foundImplantation.url);
+            setDotSize(foundImplantation.tamanhoPonto || 16);
+            setCurrentLogoUrl(foundImplantation.logoUrl || "/logo-uni.png");
 
-            await fetchUnitData(currentImplantation.nome);
-            await fetchHistory(currentImplantation.nome);
+            await fetchUnitData(foundImplantation.nome);
+            await fetchHistory(foundImplantation.nome);
           }
           setError(null);
         } catch (err) {
@@ -238,23 +313,45 @@ export function MainPage() {
       }
 
       setAuthLoading(false);
+    };
+
+    checkUser();
+
+    const unsubscribe = auth.onAuthStateChange((user) => {
+      setUser(user);
+      if (!user) {
+        delete axios.defaults.headers.common["Authorization"];
+        setUnidades([]);
+        setClientes([]);
+        setHistory([]);
+        setImplantacoes([]);
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!selectedImplantationName) {
+    const sigla =
+      currentImplantation?.sigla || gerarSigla(selectedImplantationName);
+    if (!sigla) {
       return;
     }
 
     const eventSource = new EventSource(
-      `${apiUrl}/api/events?implantacao=${selectedImplantationName}`
+      `${apiUrl}/api/events?implantacao=${encodeURIComponent(
+        selectedImplantationName
+      )}`
     );
 
     const handleUnitUpdate = async (event: MessageEvent) => {
       try {
-        const { unitData, rowIndex } = JSON.parse(event.data);
+        const eventData = JSON.parse(event.data);
+        const { unitData, rowIndex } = eventData;
+
+        if (!unitData || !rowIndex) return; // Ignora eventos malformados
         console.log("SSE Recebido:", { unitData, rowIndex });
 
         setUnidades((currentUnidades) =>
@@ -270,59 +367,23 @@ export function MainPage() {
       }
     };
 
+    // NOVO: Handler para o evento de atualização do histórico
+    const handleHistoryUpdate = () => {
+      console.log("SSE Recebido: historyUpdated. Recarregando histórico...");
+      fetchHistory(selectedImplantationName);
+    };
+
     eventSource.addEventListener("unitUpdated", handleUnitUpdate);
+    eventSource.addEventListener("historyUpdated", handleHistoryUpdate);
 
     return () => {
       eventSource.removeEventListener("unitUpdated", handleUnitUpdate);
+      eventSource.removeEventListener("historyUpdated", handleHistoryUpdate);
       eventSource.close();
     };
-  }, [selectedImplantationName]);
+  }, [selectedImplantationName, currentImplantation]);
 
-  const idleTimer = useRef<NodeJS.Timeout | null>(null);
-  const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
 
-  const handleLogout = useCallback(() => {
-    signOut(auth).then(() => {
-      console.log("Usuário deslogado.");
-      setIsIdleModalOpen(false);
-    });
-  }, []);
-
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimer.current) {
-      clearTimeout(idleTimer.current);
-    }
-    setIsIdleModalOpen(false);
-
-    idleTimer.current = setTimeout(() => {
-      setIsIdleModalOpen(true);
-    }, INACTIVITY_TIMEOUT);
-  }, [INACTIVITY_TIMEOUT]);
-
-  useEffect(() => {
-    const activityEvents = [
-      "mousemove",
-      "mousedown",
-      "keypress",
-      "touchstart",
-      "scroll",
-    ];
-
-    resetIdleTimer();
-
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, resetIdleTimer);
-    });
-
-    return () => {
-      if (idleTimer.current) {
-        clearTimeout(idleTimer.current);
-      }
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, resetIdleTimer);
-      });
-    };
-  }, [resetIdleTimer]);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
@@ -330,6 +391,7 @@ export function MainPage() {
     setSelectedImplantationName(newName);
     setImageUrl(newImplantation.url);
     setDotSize(newImplantation.tamanhoPonto ?? 16);
+    setCurrentImplantation(newImplantation);
     setCurrentLogoUrl(newImplantation.logoUrl || "/logo-uni.png");
     await fetchUnitData(newName);
     await fetchHistory(newName);
@@ -337,7 +399,7 @@ export function MainPage() {
     // CORREÇÃO: Adiciona a chamada para salvar a implantação selecionada no backend.
     try {
       await axios.post(`${apiUrl}/api/update-config`, {
-        key: "implantacaoAtual",
+        key: "implantacaoAtual", // A config ainda usa o nome completo
         value: newName,
       });
     } catch (error) {
@@ -386,6 +448,10 @@ export function MainPage() {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
     setBlockModalState({ isOpen: false, isBlocking: true, apiError: "" });
+    setPixModalState({ isOpen: false, unitIndex: null });
+    setChangeUnitModalState({ isOpen: false, unitIndex: null }); // <-- NOVO
+    setIsChangeUnitSuccessModalOpen(false); // NOVO
+    setIsChangeUnitFailedModalOpen(false); // NOVO
     setSelectedUnitIndex(null);
   };
 
@@ -399,11 +465,12 @@ export function MainPage() {
     const updatedUnidades = [...unidades];
     updatedUnidades[unitIndexToClear][11] = "";
     updatedUnidades[unitIndexToClear][12] = "";
+    updatedUnidades[unitIndexToClear][17] = ""; // Limpa a letra também
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
       await axios.post(`${apiUrl}/api/clear-coords`, {
-        rowIndex: sheetRowIndex,
+        rowIndex: sheetRowIndex, // O backend resolverá o nome da aba pela sigla
         implantacao: selectedImplantationName,
       });
     } catch (err) {
@@ -439,6 +506,19 @@ export function MainPage() {
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
     setBlockModalState({ isOpen: true, isBlocking: true, apiError: "" });
+  };
+
+  const handlePixActionClick = (unitIndex: number) => {
+    setPixModalState({
+      isOpen: true,
+      unitIndex: unitIndex,
+    });
+  };
+
+  const handleChangeUnitClick = (unitIndex: number) => {
+    // <-- NOVO
+    setSelectedUnitIndex(unitIndex);
+    setChangeUnitModalState({ isOpen: true, unitIndex: unitIndex });
   };
 
   const handleToggleBlockUnit = async (
@@ -485,6 +565,46 @@ export function MainPage() {
     }
   };
 
+  const handleChangeUnit = async (newUnitIndex: number) => {
+    if (changeUnitModalState.unitIndex === null) {
+      throw new Error("Unidade de origem não selecionada.");
+    }
+
+    try {
+      await axios.post(`${apiUrl}/api/change-unit`, {
+        implantacao: selectedImplantationName,
+        oldUnitIndex: changeUnitModalState.unitIndex,
+        newUnitIndex: newUnitIndex,
+      });
+
+      // NOVO: Prepara dados para o modal de sucesso
+      const oldUnitName =
+        unidades[changeUnitModalState.unitIndex]?.[2] || "N/A";
+      const newUnitName = unidades[newUnitIndex]?.[2] || "N/A";
+      setChangeUnitSuccessData({ oldUnitName, newUnitName });
+      setIsChangeUnitSuccessModalOpen(true);
+
+      // Força a atualização dos dados após a troca bem-sucedida
+      await fetchUnitData(selectedImplantationName);
+      await fetchHistory(selectedImplantationName);
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.error ||
+        "Falha ao realizar a troca de unidade. Verifique o console para mais detalhes.";
+
+      // NOVO: Ativa o modal de falha
+      setChangeUnitFailedMessage(errorMessage);
+      setIsChangeUnitFailedModalOpen(true);
+
+      console.error("Erro ao trocar unidade:", err);
+      // Lança o erro para que o modal possa exibi-lo
+      throw new Error(errorMessage);
+    } finally {
+      // O modal será fechado pela lógica interna dele ao chamar onConfirm com sucesso
+      // handleCloseModals();
+    }
+  };
+
   const handleReserveUnit = async (
     selectedClientIdOrManualData: string | ManualData
   ) => {
@@ -513,6 +633,7 @@ export function MainPage() {
     try {
       const tempReservationResult =
         await reservationManager.createTempReservation(
+          // O manager também usará a sigla
           selectedImplantationName,
           sheetRowIndex,
           unitName
@@ -558,7 +679,7 @@ export function MainPage() {
       }
 
       const confirmSuccess = await reservationManager.confirmReservation(
-        selectedImplantationName,
+        selectedImplantationName, // O manager também usará a sigla
         sheetRowIndex,
         dataToBackend,
         clientName,
@@ -623,7 +744,7 @@ export function MainPage() {
       console.error("Erro durante o processo de reserva:", error);
 
       await reservationManager.cancelTempReservation(
-        selectedImplantationName,
+        selectedImplantationName, // O manager também usará a sigla
         sheetRowIndex
       );
 
@@ -699,6 +820,7 @@ export function MainPage() {
     const updatedUnidades = [...unidades];
     updatedUnidades[unitToMapIndex][11] = coordX;
     updatedUnidades[unitToMapIndex][12] = coordY;
+    updatedUnidades[unitToMapIndex][17] = unitLetter; // Salva a letra
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
@@ -706,6 +828,7 @@ export function MainPage() {
         rowIndex: sheetRowIndex,
         coordX,
         coordY,
+        letra: unitLetter,
         implantacao: selectedImplantationName,
       });
     } catch (err) {
@@ -713,9 +836,52 @@ export function MainPage() {
       console.error(err);
     }
     setUnitToMapIndex(null);
+    setUnitLetter(""); // Limpa a letra após salvar
   };
 
-  const handlePrepareAndPrint = async (unitIndex: number) => {
+  const handleConfirmPixData = async (
+    txid: string,
+    valor: number,
+    identificador: string,
+    payloadEmv: string,
+    statusPagamento: string
+  ) => {
+    if (pixModalState.unitIndex === null) return;
+
+    const sheetRowIndex = pixModalState.unitIndex + 2;
+
+    try {
+      await axios.post(`${apiUrl}/api/update-pix-data`, {
+        implantacao: selectedImplantationName,
+        rowIndex: sheetRowIndex,
+        txid, // txid original (curto)
+        valor,
+        identificador, // txid longo da resposta do Santander
+        payloadEmv,
+        statusPagamento,
+      });
+      // Atualiza a UI localmente para refletir o status pendente
+      const updatedUnidades = [...unidades];
+      updatedUnidades[pixModalState.unitIndex][13] = identificador; // Coluna N
+      updatedUnidades[pixModalState.unitIndex][14] = payloadEmv; // Coluna O
+      updatedUnidades[pixModalState.unitIndex][15] = String(valor); // Coluna P
+      updatedUnidades[pixModalState.unitIndex][16] = statusPagamento; // Coluna Q
+      setUnidades(updatedUnidades);
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.error || "Erro ao salvar dados do PIX."
+      );
+    }
+  };
+
+  const handleOpenPrintConfig = (unitIndex: number) => {
+    setPendingPrintUnitIndex(unitIndex);
+    setIsPrintConfigModalOpen(true);
+  };
+
+  const handlePrepareAndPrint = async (config: PrintConfig) => {
+    if (pendingPrintUnitIndex === null) return;
+    const unitIndex = pendingPrintUnitIndex;
     const unitData = unidades[unitIndex];
     const impData = implantacoes.find(
       (imp) => imp.nome === selectedImplantationName
@@ -758,6 +924,8 @@ export function MainPage() {
       month: "long",
     })} de ${today.toLocaleDateString("pt-BR", { year: "numeric" })}`;
 
+    const paymentDate = today.toLocaleDateString("pt-BR");
+
     const termoData: TermoData = {
       clienteNome: unitData[6] || "N/D",
       clienteCpf: formatCPF(unitData[7]) || "N/D",
@@ -771,9 +939,14 @@ export function MainPage() {
       dataAtual: formattedDate,
       logoEmpreendimentoUrl: currentLogoUrl,
       dataHoraImpressao: dataHoraImpressao,
+      hasRegistro: config.hasRegistro,
+      paymentType: config.paymentType,
+      paymentValue: config.paymentValue,
+      paymentDate: paymentDate,
     };
 
     setTermoParaImprimir(termoData);
+    setPendingPrintUnitIndex(null);
   };
 
   if (error) {
@@ -791,6 +964,11 @@ export function MainPage() {
 
   if (!user) {
     return <Login />;
+  }
+
+  // Trigger fade-in animation after user is authenticated
+  if (user && !showContent) {
+    setTimeout(() => setShowContent(true), 50);
   }
 
   return (
@@ -811,6 +989,8 @@ export function MainPage() {
             dotSize={dotSize}
             onDotSizeChange={setDotSize}
             onSaveDotSize={handleSaveDotSize}
+            unitLetter={unitLetter}
+            onLetterChange={setUnitLetter}
           />
         )}
         <div className="app-container">
@@ -821,50 +1001,62 @@ export function MainPage() {
           )}
           <div>
             <main className="main-content">
-              <img
-                src="/logo.png"
-                alt="Logo da VCA Construtora"
-                className="main-logo"
-              />
-              <h1>Espelho de Implantação Humanizada</h1>
+              <div className="header-container">
+                <img
+                  src="/logo.png"
+                  alt="Logo da VCA Construtora"
+                  className="main-logo"
+                />
+                <div className="header-separator"></div>
+                <h1>Lançamento - Espelho Digital</h1>
+              </div>
               <div className="top-controls">
                 <div className="controls-left">
-                  <ImplantationSwitcher
-                    implantacoes={implantacoes}
-                    selected={selectedImplantationName}
-                    onChange={handleImplantationChange}
-                  />
-                  <button
-                    className={`toggle-mapping-button ${
-                      isMappingMode ? "active" : ""
-                    }`}
-                    onClick={() => setIsMappingMode(!isMappingMode)}
-                  >
-                    Modo Mapeamento
-                  </button>
+                  <div className="controls-left-top">
+                    <ImplantationSwitcher
+                      implantacoes={implantacoes}
+                      selected={selectedImplantationName}
+                      onChange={handleImplantationChange}
+                    />
+                    <button
+                      className={`mobile-menu-toggle ${
+                        isMobileMenuOpen ? "active" : ""
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    >
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </button>
+                    {view === "map" && (
+                      <button
+                        className={`toggle-mapping-button ${
+                          isMappingMode ? "active" : ""
+                        }`}
+                        onClick={() => setIsMappingMode(!isMappingMode)}
+                      >
+                        Modo Mapeamento
+                      </button>
+                    )}
+                  </div>
+                  <div className="user-greeting">
+                    Logado como: <strong>{userFullName || user.email}</strong>
+                  </div>
                 </div>
                 <div className="controls-right">
-                  <Link
-                    to="/map-cvcrm"
-                    className="toggle-mapping-button"
-                    style={{ textDecoration: "none" }}
-                  >
-                    Mapeamento CVCRM
-                  </Link>
-                  <div className="user-greeting">
-                    Logado como: <strong>{user.email}</strong>
-                  </div>
-                  <div className="filter-checkbox-wrapper">
-                    <input
-                      type="checkbox"
-                      id="hide-available-toggle"
-                      checked={hideAvailable}
-                      onChange={(e) => setHideAvailable(e.target.checked)}
-                    />
-                    <label htmlFor="hide-available-toggle">
-                      Ocultar Disponíveis
-                    </label>
-                  </div>
+                  {view === "map" && (
+                    <div className="filter-checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        id="hide-available-toggle"
+                        checked={hideAvailable}
+                        onChange={(e) => setHideAvailable(e.target.checked)}
+                      />
+                      <label htmlFor="hide-available-toggle">
+                        Ocultar Disponíveis
+                      </label>
+                    </div>
+                  )}
                   <div className="view-switcher">
                     <button
                       className={view === "map" ? "active" : ""}
@@ -885,7 +1077,7 @@ export function MainPage() {
                       Histórico Geral
                     </button>
                     <button
-                      onClick={() => signOut(auth)}
+                      onClick={() => auth.signOut()}
                       className="logout-button"
                     >
                       Sair
@@ -893,8 +1085,63 @@ export function MainPage() {
                   </div>
                 </div>
               </div>
+              <div
+                className={`mobile-menu-modal ${
+                  isMobileMenuOpen ? "active" : ""
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <div
+                  className="mobile-menu-content"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mobile-menu-header">
+                    <span className="mobile-menu-title">Menu</span>
+                    <button
+                      className="mobile-menu-close"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="mobile-menu-items">
+                    <button
+                      className={`mobile-menu-item ${
+                        view === "list" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setView("list");
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Lista para Reserva
+                    </button>
+                    <button
+                      className={`mobile-menu-item ${
+                        view === "history" ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setView("history");
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Histórico Geral
+                    </button>
+                    <button
+                      className="mobile-menu-item logout"
+                      onClick={() => {
+                        auth.signOut();
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Sair
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="top-controls"></div>
               <div className="view-content">
-                {view === "map" && imageUrl && (
+                {view === "map" && imageUrl && window.innerWidth > 768 && (
                   <FloorPlan
                     imageUrl={imageUrl}
                     unidades={unidades}
@@ -904,6 +1151,7 @@ export function MainPage() {
                     onMapClick={handleMapClickAndSaveCoords}
                     dotSize={dotSize}
                     hideAvailable={hideAvailable}
+                    unitLetter={unitLetter}
                   />
                 )}
                 {view === "list" && (
@@ -912,7 +1160,9 @@ export function MainPage() {
                     onUnitClick={handleUnitClick}
                     onSpontaneousClick={handleSpontaneousUnitClick}
                     onBlockClick={handleBlockActionClick}
-                    onPrintClick={handlePrepareAndPrint}
+                    onPrintClick={handleOpenPrintConfig}
+                    onChangeUnitClick={handleChangeUnitClick}
+                    onPixClick={handlePixActionClick}
                     onHistoryClick={handleOpenUnitHistory}
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
@@ -976,11 +1226,44 @@ export function MainPage() {
                 unitName={selectedUnitForHistory}
                 fullHistory={history}
               />
-              <IdleTimeoutModal
-                show={isIdleModalOpen}
-                onContinue={resetIdleTimer}
-                onLogout={handleLogout}
+              <PixModal
+                show={pixModalState.isOpen}
+                onClose={handleCloseModals}
+                unitData={
+                  pixModalState.unitIndex !== null
+                    ? unidades[pixModalState.unitIndex]
+                    : null
+                }
+                unidades={unidades}
+                implantacaoNome={selectedImplantationName}
+                implantacaoSigla={
+                  currentImplantation?.sigla ||
+                  gerarSigla(selectedImplantationName)
+                }
+                onConfirm={handleConfirmPixData}
               />
+              <ChangeUnitModal
+                show={changeUnitModalState.isOpen}
+                onClose={handleCloseModals}
+                currentUnit={
+                  changeUnitModalState.unitIndex !== null
+                    ? unidades[changeUnitModalState.unitIndex]
+                    : null
+                }
+                availableUnits={availableUnitsForChange}
+                onConfirm={handleChangeUnit} // A chamada aqui está correta, a função que faltava.
+              />
+              <ChangeUnitSuccessModal
+                show={isChangeUnitSuccessModalOpen}
+                onClose={handleCloseModals}
+                changeData={changeUnitSuccessData}
+              />
+              <ChangeUnitFailedModal
+                show={isChangeUnitFailedModalOpen}
+                onClose={handleCloseModals}
+                message={changeUnitFailedMessage}
+              />
+
               <VerifyingModal
                 show={isVerifyingModalOpen}
                 reservationState={reservationManager.reservationState}
@@ -1003,6 +1286,32 @@ export function MainPage() {
                     ? unidades[selectedUnitIndex]?.[2]
                     : null
                 }
+              />
+              <PrintConfigModal
+                show={isPrintConfigModalOpen}
+                onClose={() => {
+                  setIsPrintConfigModalOpen(false);
+                  setPendingPrintUnitIndex(null);
+                }}
+                onConfirm={handlePrepareAndPrint}
+                pixValue={
+                  pendingPrintUnitIndex !== null
+                    ? unidades[pendingPrintUnitIndex]?.[15] || ""
+                    : ""
+                }
+              />
+              <FullNameModal
+                show={showFullNameModal}
+                onConfirm={async (fullName) => {
+                  try {
+                    await axios.post(`${apiUrl}/api/user/full-name`, { full_name: fullName });
+                    setUserFullName(fullName);
+                    setShowFullNameModal(false);
+                  } catch (err) {
+                    console.error("Erro ao salvar full_name:", err);
+                    alert("Erro ao salvar nome. Tente novamente.");
+                  }
+                }}
               />
             </main>
           </div>

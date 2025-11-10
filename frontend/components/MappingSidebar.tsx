@@ -30,6 +30,8 @@ interface MappingSidebarProps {
   dotSize: number;
   onDotSizeChange: (newSize: number) => void;
   onSaveDotSize: () => void;
+  unitLetter: string;
+  onLetterChange: (letter: string) => void;
 }
 
 export function MappingSidebar({
@@ -41,6 +43,8 @@ export function MappingSidebar({
   dotSize,
   onDotSizeChange,
   onSaveDotSize,
+  unitLetter,
+  onLetterChange,
 }: MappingSidebarProps) {
   // Agrupamento de unidades
   const groupedUnits = useMemo<GroupedUnits>(() => {
@@ -156,6 +160,20 @@ export function MappingSidebar({
       </div>
 
       <div className="sidebar-footer">
+        <div className="form-group">
+          <label htmlFor="unit-letter-input">Letra da Unidade (Opcional)</label>
+          <input
+            id="unit-letter-input"
+            type="text"
+            maxLength={1}
+            value={unitLetter}
+            onChange={(e) => onLetterChange(e.target.value.toUpperCase())}
+            placeholder="Ex: A"
+            className="sidebar-input"
+            style={{ textTransform: "uppercase", textAlign: "center" }}
+          />
+        </div>
+
         <div className="form-group">
           <label htmlFor="image-url-input">URL da Imagem da Planta</label>
           <div className="input-group">

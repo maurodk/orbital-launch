@@ -61,7 +61,7 @@
         width: 16px; /* Tamanho padrão, será sobrescrito */
         height: 16px;
         border-radius: 50%;
-        border: 2px solid rgba(255, 255, 255, 0.8);
+        border: 1px solid rgb(255, 255, 255);
         box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
         transition: transform 0.2s ease, background-color 0.3s ease;
         cursor: help;
@@ -341,6 +341,7 @@
             rows.forEach((u, index) => {
               const coordX = u[11];
               const coordY = u[12];
+              const letra = u[17];
               const status = (u[10] || "DISPONÍVEL").toString().toUpperCase();
 
               if (!coordX || !coordY) return;
@@ -353,7 +354,25 @@
               indicator.style.top = `${coordY}%`;
               indicator.style.width = `${dotSize}px`;
               indicator.style.height = `${dotSize}px`;
+              indicator.style.display = "flex";
+              indicator.style.alignItems = "center";
+              indicator.style.justifyContent = "center";
               indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
+
+              if (letra) {
+                const letraSpan = document.createElement("span");
+                letraSpan.style.position = "absolute";
+                letraSpan.style.top = "45%";
+                letraSpan.style.left = "50%";
+                letraSpan.style.transform = "translate(-50%, -50%)";
+                letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+                letraSpan.style.fontWeight = "bold";
+                letraSpan.style.color = "white";
+                letraSpan.style.textShadow = "0 0 2px rgba(0,0,0,0.5)";
+                letraSpan.style.pointerEvents = "none";
+                letraSpan.textContent = letra;
+                indicator.appendChild(letraSpan);
+              }
 
               container.appendChild(indicator);
             });
@@ -578,10 +597,30 @@
           indicator.className = `unit-indicator status-${status}`;
           indicator.style.left = `${coordX}%`;
           indicator.style.top = `${coordY}%`;
+          indicator.style.display = "flex";
+          indicator.style.alignItems = "center";
+          indicator.style.justifyContent = "center";
           indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
           const dotSize = window.currentDotSize || 16;
           indicator.style.width = `${dotSize}px`;
           indicator.style.height = `${dotSize}px`;
+
+          indicator.innerHTML = "";
+          const letra = unitData[17];
+          if (letra) {
+            const letraSpan = document.createElement("span");
+            letraSpan.style.position = "absolute";
+            letraSpan.style.top = "calc(50% - 1px)";
+            letraSpan.style.left = "50%";
+            letraSpan.style.transform = "translate(-50%, -50%)";
+            letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+            letraSpan.style.fontWeight = "bold";
+            letraSpan.style.color = "white";
+            letraSpan.style.textShadow = "0 0 2px rgba(0,0,0,0.5)";
+            letraSpan.style.pointerEvents = "none";
+            letraSpan.textContent = letra;
+            indicator.appendChild(letraSpan);
+          }
         }
 
         reloadAndRender(urlParams.get("hideAvailable") || "false");

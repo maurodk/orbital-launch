@@ -20,6 +20,8 @@ interface MappingToolProps {
   selectedUnitIndex: number | null;
   onSelectUnit: (index: number | null) => void;
   customSelectStyles: StylesConfig<MappedUnitOption, false>;
+  unitLetter: string;
+  onLetterChange: (letter: string) => void;
 }
 
 export function MappingTool({
@@ -29,6 +31,8 @@ export function MappingTool({
   selectedUnitIndex,
   onSelectUnit,
   customSelectStyles,
+  unitLetter,
+  onLetterChange,
 }: MappingToolProps) {
   // Adapta os dados para o formato que o react-select precisa
   const unitOptions: MappedUnitOption[] = unidadesNaoMapeadas.map((item) => ({
@@ -66,7 +70,22 @@ export function MappingTool({
             placeholder="Selecione uma unidade não mapeada..."
             styles={customSelectStyles}
           />
-          <p>2. Clique no local exato no mapa abaixo.</p>
+          <p>2. Digite uma letra (opcional):</p>
+          <input
+            type="text"
+            maxLength={1}
+            value={unitLetter}
+            onChange={(e) => onLetterChange(e.target.value.toUpperCase())}
+            placeholder="Ex: A"
+            style={{
+              width: "50px",
+              padding: "8px",
+              fontSize: "16px",
+              textAlign: "center",
+              textTransform: "uppercase",
+            }}
+          />
+          <p>3. Clique no local exato no mapa abaixo.</p>
         </div>
       )}
     </div>
