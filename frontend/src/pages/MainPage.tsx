@@ -259,6 +259,10 @@ export function MainPage() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           axios.defaults.headers.common["Authorization"] = `Bearer ${session.access_token}`;
+        } else {
+          console.warn("Sessão não encontrada após login");
+          setAuthLoading(false);
+          return;
         }
 
         try {
@@ -324,8 +328,11 @@ export function MainPage() {
     checkUser();
 
     const unsubscribe = auth.onAuthStateChange((user) => {
-      setUser(user);
-      if (!user) {
+      if (user && !axios.defaults.headers.common["Authorization"]) {
+        // Se o usuário acabou de fazer login, recarrega os dados
+        checkUser();
+      } else if (!user) {
+        setUser(null);
         delete axios.defaults.headers.common["Authorization"];
         setUnidades([]);
         setClientes([]);

@@ -6,24 +6,15 @@
 const express = require("express");
 const { google } = require("googleapis");
 const cors = require("cors");
-const admin = require("firebase-admin");
-const fetch = require("node-fetch"); // <-- ADICIONAR ESTA LINHA
+const fetch = require("node-fetch");
 const { createClient } = require("@supabase/supabase-js");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
 
-// Carrega a chave de serviço do Firebase Admin
-const serviceAccount = require("./serviceAccountKey.json");
-
 // =================================================================
 // 2. INICIALIZAÇÃO DOS SERVIÇOS
 // =================================================================
-
-// Inicializa o Firebase Admin SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
 
 // Inicializa cliente Supabase (use SERVICE ROLE no backend para operações administrativas)
 const SUPABASE_URL = process.env.SUPABASE_URL || null;
@@ -212,7 +203,7 @@ const SHEET_NAME_FUNIL = "Página1";
 // (Definidas ANTES de serem usadas nos endpoints)
 // =================================================================
 
-// Middleware para verificar o Token (Supabase ou Firebase)
+// Middleware para verificar o Token do Supabase
 async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -222,25 +213,17 @@ async function verifyToken(req, res, next) {
   const token = authHeader.split("Bearer ")[1];
 
   try {
-    // Tenta verificar com Supabase primeiro
-    if (supabase) {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (!error && user) {
-        req.user = { email: user.email, uid: user.id };
-        return next();
-      }
+    if (!supabase) {
+      return res.status(500).send("Supabase não configurado.");
     }
-    
-    // Fallback para Firebase (compatibilidade)
-    try {
-      const decodedToken = await admin.auth().verifyIdToken(token);
-      req.user = decodedToken;
-      return next();
-    } catch (fbError) {
-      console.error("Erro ao verificar token (Firebase):", fbError.message);
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(403).send("Acesso proibido: Token inválido.");
     }
-    
-    return res.status(403).send("Acesso proibido: Token inválido.");
+
+    req.user = { email: user.email, uid: user.id };
+    return next();
   } catch (error) {
     console.error("Erro ao verificar token:", error);
     return res.status(403).send("Acesso proibido: Token inválido.");
