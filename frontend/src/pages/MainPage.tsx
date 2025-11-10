@@ -18,10 +18,10 @@ import {
 } from "../../components/TermoDeReserva";
 import { HistoryView } from "../../components/HistoryView";
 import { UnitHistoryModal } from "../../components/UnitHistoryModal";
-import { type User, onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import { auth, supabase } from "../supabaseClient";
+import type { User } from "@supabase/supabase-js";
 import { Login } from "../../components/Login";
-import { IdleTimeoutModal } from "../../components/IdleTimeoutModal";
+
 import { VerifyingModal } from "../../components/VerifyingModal";
 import { ReservationFailedModal } from "../../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../../components/ReservationSuccessModal";
@@ -30,6 +30,7 @@ import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal"
 import { ChangeUnitFailedModal } from "../../components/ChangedUnitFailedModal";
 import { ChangeUnitModal } from "../../components/ChangeUnitModal";
 import { PrintConfigModal, type PrintConfig } from "../../components/PrintConfigModal";
+import { FullNameModal } from "../../components/FullNameModal";
 import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 
@@ -85,6 +86,7 @@ const formatCPF = (cpf: string | null | undefined): string => {
 export function MainPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showContent, setShowContent] = useState(false);
   const [unidades, setUnidades] = useState<string[][]>([]);
   const [clientes, setClientes] = useState<string[][]>([]);
   const [implantacoes, setImplantacoes] = useState<Implantation[]>([]);
@@ -139,7 +141,7 @@ export function MainPage() {
   const [selectedUnitForHistory, setSelectedUnitForHistory] = useState<
     string | null
   >(null);
-  const [isIdleModalOpen, setIsIdleModalOpen] = useState(false);
+
   const [isVerifyingModalOpen, setIsVerifyingModalOpen] = useState(false);
   const [isReservationFailedModalOpen, setIsReservationFailedModalOpen] =
     useState(false);
@@ -160,6 +162,8 @@ export function MainPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPrintConfigModalOpen, setIsPrintConfigModalOpen] = useState(false);
   const [pendingPrintUnitIndex, setPendingPrintUnitIndex] = useState<number | null>(null);
+  const [showFullNameModal, setShowFullNameModal] = useState(false);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
   const reservationManager = useReservationManager(apiUrl);
 
   const handlePrint = useReactToPrint({
@@ -218,10 +222,12 @@ export function MainPage() {
         const unitStatus = data[10]?.toLowerCase() || "disponível";
         const unitName = data[2]?.toLowerCase() || "";
         const blockName = data[1]?.toLowerCase() || "";
+        const clientName = data[6]?.toLowerCase() || "";
+        const brokerName = data[8]?.toLowerCase() || "";
         const term = searchTerm.toLowerCase();
         const statusMatch =
           statusFilter === "all" || unitStatus === statusFilter;
-        const searchMatch = unitName.includes(term) || blockName.includes(term);
+        const searchMatch = unitName.includes(term) || blockName.includes(term) || clientName.includes(term) || brokerName.includes(term);
         return statusMatch && searchMatch;
       })
       .map((item) => [item.data, item.originalIndex]);
@@ -245,18 +251,28 @@ export function MainPage() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const checkUser = async () => {
+      const currentUser = await auth.getCurrentUser();
       setUser(currentUser);
 
       if (currentUser) {
-        const token = await currentUser.getIdToken();
-        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          axios.defaults.headers.common["Authorization"] = `Bearer ${session.access_token}`;
+        }
 
         try {
-          const [configRes, implantacoesRes] = await Promise.all([
+          const [configRes, implantacoesRes, fullNameRes] = await Promise.all([
             axios.get<AppConfig>(`${apiUrl}/api/config`),
             axios.get<Implantation[]>(`${apiUrl}/api/implantacoes`),
+            axios.get(`${apiUrl}/api/user/full-name`),
           ]);
+
+          const fullName = fullNameRes.data.full_name;
+          setUserFullName(fullName);
+          if (!fullName) {
+            setShowFullNameModal(true);
+          }
 
           const allImplantations = implantacoesRes.data || [];
           setImplantacoes(allImplantations);
@@ -297,9 +313,24 @@ export function MainPage() {
       }
 
       setAuthLoading(false);
+    };
+
+    checkUser();
+
+    const unsubscribe = auth.onAuthStateChange((user) => {
+      setUser(user);
+      if (!user) {
+        delete axios.defaults.headers.common["Authorization"];
+        setUnidades([]);
+        setClientes([]);
+        setHistory([]);
+        setImplantacoes([]);
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -352,51 +383,7 @@ export function MainPage() {
     };
   }, [selectedImplantationName, currentImplantation]);
 
-  const idleTimer = useRef<NodeJS.Timeout | null>(null);
-  const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
 
-  const handleLogout = useCallback(() => {
-    signOut(auth).then(() => {
-      console.log("Usuário deslogado.");
-      setIsIdleModalOpen(false);
-    });
-  }, []);
-
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimer.current) {
-      clearTimeout(idleTimer.current);
-    }
-    setIsIdleModalOpen(false);
-
-    idleTimer.current = setTimeout(() => {
-      setIsIdleModalOpen(true);
-    }, INACTIVITY_TIMEOUT);
-  }, [INACTIVITY_TIMEOUT]);
-
-  useEffect(() => {
-    const activityEvents = [
-      "mousemove",
-      "mousedown",
-      "keypress",
-      "touchstart",
-      "scroll",
-    ];
-
-    resetIdleTimer();
-
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, resetIdleTimer);
-    });
-
-    return () => {
-      if (idleTimer.current) {
-        clearTimeout(idleTimer.current);
-      }
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, resetIdleTimer);
-      });
-    };
-  }, [resetIdleTimer]);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
@@ -979,6 +966,11 @@ export function MainPage() {
     return <Login />;
   }
 
+  // Trigger fade-in animation after user is authenticated
+  if (user && !showContent) {
+    setTimeout(() => setShowContent(true), 50);
+  }
+
   return (
     <HelmetProvider>
       <Helmet>
@@ -1048,7 +1040,7 @@ export function MainPage() {
                     )}
                   </div>
                   <div className="user-greeting">
-                    Logado como: <strong>{user.email}</strong>
+                    Logado como: <strong>{userFullName || user.email}</strong>
                   </div>
                 </div>
                 <div className="controls-right">
@@ -1085,7 +1077,7 @@ export function MainPage() {
                       Histórico Geral
                     </button>
                     <button
-                      onClick={() => signOut(auth)}
+                      onClick={() => auth.signOut()}
                       className="logout-button"
                     >
                       Sair
@@ -1138,7 +1130,7 @@ export function MainPage() {
                     <button
                       className="mobile-menu-item logout"
                       onClick={() => {
-                        signOut(auth);
+                        auth.signOut();
                         setIsMobileMenuOpen(false);
                       }}
                     >
@@ -1271,11 +1263,7 @@ export function MainPage() {
                 onClose={handleCloseModals}
                 message={changeUnitFailedMessage}
               />
-              <IdleTimeoutModal
-                show={isIdleModalOpen}
-                onContinue={resetIdleTimer}
-                onLogout={handleLogout}
-              />
+
               <VerifyingModal
                 show={isVerifyingModalOpen}
                 reservationState={reservationManager.reservationState}
@@ -1311,6 +1299,19 @@ export function MainPage() {
                     ? unidades[pendingPrintUnitIndex]?.[15] || ""
                     : ""
                 }
+              />
+              <FullNameModal
+                show={showFullNameModal}
+                onConfirm={async (fullName) => {
+                  try {
+                    await axios.post(`${apiUrl}/api/user/full-name`, { full_name: fullName });
+                    setUserFullName(fullName);
+                    setShowFullNameModal(false);
+                  } catch (err) {
+                    console.error("Erro ao salvar full_name:", err);
+                    alert("Erro ao salvar nome. Tente novamente.");
+                  }
+                }}
               />
             </main>
           </div>

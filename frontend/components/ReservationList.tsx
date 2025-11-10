@@ -38,6 +38,7 @@ export function ReservationList({
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Hook para fechar o menu ao clicar fora
@@ -54,8 +55,17 @@ export function ReservationList({
     };
   }, []);
 
-  const handleMenuToggle = (index: number) => {
-    setOpenMenuIndex(openMenuIndex === index ? null : index);
+  const handleMenuToggle = (index: number, event: React.MouseEvent<HTMLButtonElement>) => {
+    if (openMenuIndex === index) {
+      setOpenMenuIndex(null);
+    } else {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+      });
+      setOpenMenuIndex(index);
+    }
   };
 
   const handleMenuAction = (action: (index: number) => void, index: number) => {
@@ -192,12 +202,15 @@ export function ReservationList({
                             >
                               <button
                                 className="reserve-button-in-table manage"
-                                onClick={() => handleMenuToggle(originalIndex)}
+                                onClick={(e) => handleMenuToggle(originalIndex, e)}
                               >
                                 Gerenciar
                               </button>
                               {openMenuIndex === originalIndex && (
-                                <div className="manage-dropdown-menu">
+                                <div 
+                                  className="manage-dropdown-menu"
+                                  style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+                                >
                                   <button
                                     onClick={() =>
                                       handleMenuAction(

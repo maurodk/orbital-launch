@@ -212,19 +212,35 @@ const SHEET_NAME_FUNIL = "Página1";
 // (Definidas ANTES de serem usadas nos endpoints)
 // =================================================================
 
-// Middleware para verificar o Token do Firebase
+// Middleware para verificar o Token (Supabase ou Firebase)
 async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).send("Acesso não autorizado: Token não fornecido.");
   }
 
-  const idToken = authHeader.split("Bearer ")[1];
+  const token = authHeader.split("Bearer ")[1];
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken; // Adiciona os dados do usuário à requisição
-    next(); // Passa para o próximo handler (o endpoint em si)
+    // Tenta verificar com Supabase primeiro
+    if (supabase) {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (!error && user) {
+        req.user = { email: user.email, uid: user.id };
+        return next();
+      }
+    }
+    
+    // Fallback para Firebase (compatibilidade)
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      req.user = decodedToken;
+      return next();
+    } catch (fbError) {
+      console.error("Erro ao verificar token (Firebase):", fbError.message);
+    }
+    
+    return res.status(403).send("Acesso proibido: Token inválido.");
   } catch (error) {
     console.error("Erro ao verificar token:", error);
     return res.status(403).send("Acesso proibido: Token inválido.");
@@ -3021,6 +3037,40 @@ app.get("/api/history/:implantacao", verifyToken, async (req, res) => {
       return res.json([]);
     }
     res.status(500).json({ error: "Falha ao buscar histórico." });
+  }
+});
+
+app.get("/api/user/full-name", verifyToken, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("id", req.user.uid)
+      .single();
+
+    if (error) throw error;
+    res.json({ full_name: data?.full_name || null });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao buscar nome completo." });
+  }
+});
+
+app.post("/api/user/full-name", verifyToken, async (req, res) => {
+  const { full_name } = req.body;
+  if (!full_name || !full_name.trim()) {
+    return res.status(400).json({ error: "Nome completo é obrigatório." });
+  }
+
+  try {
+    const { error } = await supabase
+      .from("users")
+      .update({ full_name: full_name.trim() })
+      .eq("id", req.user.uid);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Falha ao atualizar nome completo." });
   }
 });
 
