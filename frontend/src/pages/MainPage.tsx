@@ -262,15 +262,21 @@ export function MainPage() {
         }
 
         try {
-          const [configRes, implantacoesRes, fullNameRes] = await Promise.all([
+          const [configRes, implantacoesRes] = await Promise.all([
             axios.get<AppConfig>(`${apiUrl}/api/config`),
             axios.get<Implantation[]>(`${apiUrl}/api/implantacoes`),
-            axios.get(`${apiUrl}/api/user/full-name`),
           ]);
 
-          const fullName = fullNameRes.data.full_name;
-          setUserFullName(fullName);
-          if (!fullName) {
+          // Busca full_name separadamente para não bloquear o fluxo principal
+          try {
+            const fullNameRes = await axios.get(`${apiUrl}/api/user/full-name`);
+            const fullName = fullNameRes.data.full_name;
+            setUserFullName(fullName);
+            if (!fullName) {
+              setShowFullNameModal(true);
+            }
+          } catch (err) {
+            console.log("Erro ao buscar full_name (não crítico):", err);
             setShowFullNameModal(true);
           }
 
