@@ -217,7 +217,10 @@ async function verifyToken(req, res, next) {
       return res.status(500).send("Supabase não configurado.");
     }
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(token);
     if (error || !user) {
       return res.status(403).send("Acesso proibido: Token inválido.");
     }
@@ -494,6 +497,299 @@ async function addHistoryEntry(
 // =================================================================
 // 6. ENDPOINTS DA API
 // =================================================================
+
+// ROTA DE TESTE: Página visual para testar o backend sem o frontend
+app.get("/", (req, res) => {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Backend - Status</title>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+            'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+            sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        
+        .container {
+          background: white;
+          border-radius: 10px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          padding: 40px;
+          max-width: 600px;
+          width: 100%;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+        }
+        
+        .status-badge {
+          display: inline-block;
+          background: #10b981;
+          color: white;
+          padding: 8px 16px;
+          border-radius: 20px;
+          font-weight: 600;
+          font-size: 14px;
+          margin-bottom: 15px;
+        }
+        
+        h1 {
+          color: #333;
+          font-size: 32px;
+          margin-bottom: 10px;
+        }
+        
+        .subtitle {
+          color: #666;
+          font-size: 16px;
+          margin-bottom: 20px;
+        }
+        
+        .info-section {
+          background: #f8f9fa;
+          border-left: 4px solid #667eea;
+          padding: 15px;
+          margin: 20px 0;
+          border-radius: 5px;
+        }
+        
+        .info-section h3 {
+          color: #667eea;
+          font-size: 14px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 10px;
+        }
+        
+        .info-section p {
+          color: #555;
+          font-size: 14px;
+          line-height: 1.6;
+          margin: 5px 0;
+        }
+        
+        .status-item {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .status-item:last-child {
+          border-bottom: none;
+        }
+        
+        .status-label {
+          font-weight: 600;
+          color: #333;
+        }
+        
+        .status-value {
+          color: #10b981;
+          font-weight: 600;
+        }
+        
+        .endpoints-list {
+          background: #f8f9fa;
+          border-left: 4px solid #764ba2;
+          padding: 15px;
+          margin: 20px 0;
+          border-radius: 5px;
+        }
+        
+        .endpoints-list h3 {
+          color: #764ba2;
+          font-size: 14px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 10px;
+        }
+        
+        .endpoint {
+          background: white;
+          padding: 8px 12px;
+          margin: 5px 0;
+          border-radius: 4px;
+          font-size: 12px;
+          font-family: 'Courier New', monospace;
+          color: #333;
+          border-left: 2px solid #764ba2;
+        }
+        
+        .method {
+          display: inline-block;
+          font-weight: 600;
+          color: white;
+          padding: 2px 6px;
+          border-radius: 3px;
+          margin-right: 8px;
+          font-size: 10px;
+        }
+        
+        .method.get {
+          background: #3b82f6;
+        }
+        
+        .method.post {
+          background: #ef4444;
+        }
+        
+        .footer {
+          text-align: center;
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 1px solid #e0e0e0;
+          color: #999;
+          font-size: 12px;
+        }
+        
+        .button-group {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+          flex-wrap: wrap;
+        }
+        
+        .btn {
+          flex: 1;
+          min-width: 120px;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 5px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          text-decoration: none;
+          display: inline-block;
+          text-align: center;
+        }
+        
+        .btn-primary {
+          background: #667eea;
+          color: white;
+        }
+        
+        .btn-primary:hover {
+          background: #5568d3;
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+          background: #764ba2;
+          color: white;
+        }
+        
+        .btn-secondary:hover {
+          background: #633a87;
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(118, 75, 162, 0.4);
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <span class="status-badge">✓ Backend Rodando</span>
+          <h1>Simulador Implantação</h1>
+          <p class="subtitle">Backend API Status</p>
+        </div>
+        
+        <div class="info-section">
+          <h3>Status do Servidor</h3>
+          <div class="status-item">
+            <span class="status-label">Server</span>
+            <span class="status-value">✓ Online</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Porta</span>
+            <span class="status-value">3000</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Ambiente</span>
+            <span class="status-value">${
+              process.env.NODE_ENV || "development"
+            }</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Supabase</span>
+            <span class="status-value">${
+              supabase ? "✓ Conectado" : "✗ Não configurado"
+            }</span>
+          </div>
+        </div>
+        
+        <div class="endpoints-list">
+          <h3>Endpoints Disponíveis</h3>
+          <div class="endpoint"><span class="method get">GET</span>/api/data - Buscar dados da implantação</div>
+          <div class="endpoint"><span class="method get">GET</span>/api/public-data - Dados públicos (sem autenticação)</div>
+          <div class="endpoint"><span class="method get">GET</span>/api/implantacoes - Lista de implantações</div>
+          <div class="endpoint"><span class="method get">GET</span>/api/config - Configurações</div>
+          <div class="endpoint"><span class="method post">POST</span>/api/confirm-reservation - Confirmar reserva</div>
+          <div class="endpoint"><span class="method get">GET</span>/api/events - Server-Sent Events (SSE)</div>
+          <div class="endpoint"><span class="method get">GET</span>/fullscreen - Página Fullscreen</div>
+          <div class="endpoint"><span class="method get">GET</span>/fullscreen/current - Fullscreen atual</div>
+        </div>
+        
+        <div class="info-section">
+          <h3>Informações Importantes</h3>
+          <p>✓ CORS habilitado para o frontend em desenvolvimento (localhost:5173)</p>
+          <p>✓ Google Sheets integrado para gerenciamento de dados</p>
+          <p>✓ Sistema de autenticação Supabase ativo</p>
+          <p>✓ Real-time updates via Server-Sent Events</p>
+        </div>
+        
+        <div class="button-group">
+          <button class="btn btn-primary" onclick="testEndpoint('/api/implantacoes')">
+            Testar API
+          </button>
+          <button class="btn btn-secondary" onclick="location.href='/fullscreen/current'">
+            Ver Fullscreen
+          </button>
+        </div>
+        
+        <div class="footer">
+          <p>💡 Para testar endpoints protegidos, use o Postman ou similar com um Bearer token válido</p>
+          <p>Backend rodando e pronto para o frontend se conectar!</p>
+        </div>
+      </div>
+      
+      <script>
+        function testEndpoint(endpoint) {
+          fetch(endpoint)
+            .then(res => res.json())
+            .then(data => {
+              alert('Resposta da API:\\n\\n' + JSON.stringify(data, null, 2).substring(0, 200) + '...');
+            })
+            .catch(err => {
+              alert('Erro ao testar endpoint: ' + err.message + '\\n\\nNota: Alguns endpoints requerem autenticação');
+            });
+        }
+      </script>
+    </body>
+    </html>
+  `;
+  res.send(html);
+});
 
 app.get("/api/data", verifyToken, async (req, res) => {
   const { implantacao } = req.query;
@@ -2229,7 +2525,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: { values: [[coordX, coordY]] },
     });
-    
+
     // Atualiza a letra na coluna R se fornecida
     if (letra !== undefined) {
       await sheets.spreadsheets.values.update({
@@ -3058,7 +3354,7 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
 });
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () =>
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`)
 );
