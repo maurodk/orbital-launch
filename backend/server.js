@@ -3354,7 +3354,8 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
 });
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () =>
-  console.log(`Servidor rodando em http://0.0.0.0:${PORT}`)
-);
+app.listen(3000, () => {
+  console.log(`Servidor rodando na porta 3000`);
+});
+
+export default app;
