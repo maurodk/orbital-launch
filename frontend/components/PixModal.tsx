@@ -64,7 +64,7 @@ export function PixModal({
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
   const apiUrl =
     process.env.NODE_ENV === "development"
-      ? "http://localhost:3001"
+      ? "http://localhost:3000"
       : "https://simulador-implantacao.onrender.com";
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
 

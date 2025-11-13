@@ -29,13 +29,16 @@ import { PixModal } from "../../components/PixModal";
 import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal";
 import { ChangeUnitFailedModal } from "../../components/ChangedUnitFailedModal";
 import { ChangeUnitModal } from "../../components/ChangeUnitModal";
-import { PrintConfigModal, type PrintConfig } from "../../components/PrintConfigModal";
+import {
+  PrintConfigModal,
+  type PrintConfig,
+} from "../../components/PrintConfigModal";
 import { FullNameModal } from "../../components/FullNameModal";
 import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 
 const API_URL = "https://simulador-implantacao.onrender.com";
-const localApiUrl = "http://localhost:3001";
+const localApiUrl = "http://localhost:3000";
 const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
 
 interface ApiResponse {
@@ -161,7 +164,9 @@ export function MainPage() {
   const [changeUnitFailedMessage, setChangeUnitFailedMessage] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPrintConfigModalOpen, setIsPrintConfigModalOpen] = useState(false);
-  const [pendingPrintUnitIndex, setPendingPrintUnitIndex] = useState<number | null>(null);
+  const [pendingPrintUnitIndex, setPendingPrintUnitIndex] = useState<
+    number | null
+  >(null);
   const [showFullNameModal, setShowFullNameModal] = useState(false);
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const reservationManager = useReservationManager(apiUrl);
@@ -227,7 +232,11 @@ export function MainPage() {
         const term = searchTerm.toLowerCase();
         const statusMatch =
           statusFilter === "all" || unitStatus === statusFilter;
-        const searchMatch = unitName.includes(term) || blockName.includes(term) || clientName.includes(term) || brokerName.includes(term);
+        const searchMatch =
+          unitName.includes(term) ||
+          blockName.includes(term) ||
+          clientName.includes(term) ||
+          brokerName.includes(term);
         return statusMatch && searchMatch;
       })
       .map((item) => [item.data, item.originalIndex]);
@@ -256,9 +265,13 @@ export function MainPage() {
       setUser(currentUser);
 
       if (currentUser) {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session) {
-          axios.defaults.headers.common["Authorization"] = `Bearer ${session.access_token}`;
+          axios.defaults.headers.common[
+            "Authorization"
+          ] = `Bearer ${session.access_token}`;
         } else {
           console.warn("Sessão não encontrada após login");
           setAuthLoading(false);
@@ -395,8 +408,6 @@ export function MainPage() {
       eventSource.close();
     };
   }, [selectedImplantationName, currentImplantation]);
-
-
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
@@ -1317,7 +1328,9 @@ export function MainPage() {
                 show={showFullNameModal}
                 onConfirm={async (fullName) => {
                   try {
-                    await axios.post(`${apiUrl}/api/user/full-name`, { full_name: fullName });
+                    await axios.post(`${apiUrl}/api/user/full-name`, {
+                      full_name: fullName,
+                    });
                     setUserFullName(fullName);
                     setShowFullNameModal(false);
                   } catch (err) {

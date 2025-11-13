@@ -11,7 +11,7 @@ import { auth } from "../../firebaseConfig";
 import { Login } from "../../components/Login";
 import type { AppConfig } from "./MainPage";
 
-const localApiUrl = "http://localhost:3001";
+const localApiUrl = "http://localhost:3000";
 const API_URL = "https://simulador-implantacao.onrender.com";
 const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
 
