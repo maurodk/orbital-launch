@@ -231,7 +231,7 @@ export function PixModal({
       })(),
       nome: (unitData?.[6] || "CLIENTE").slice(0, 25),
       cidade: cidade.slice(0, 15),
-      chave: "58571081000160",
+      chave: "financeiro11@vcaconstrutora.com.br",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
       expiracao: 600,
       infoAdicionais: [
