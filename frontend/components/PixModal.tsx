@@ -65,7 +65,7 @@ export function PixModal({
   const apiUrl =
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
-      : "https://simulador-implantacao.onrender.com";
+      : "http://34.204.204.81:3000/";
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
 
   useEffect(() => {
@@ -233,14 +233,7 @@ export function PixModal({
       cidade: cidade.slice(0, 15),
       chave: "financeiro11@vcaconstrutora.com.br",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
-      expiracao: 600,
-      infoAdicionais: [
-        {
-          nome: "Campo 2",
-          valor:
-            "Efetuar o pagamento do sinal oficializará a reserva de sua unidade.",
-        },
-      ],
+      expiracao: 3600,
     };
 
     try {

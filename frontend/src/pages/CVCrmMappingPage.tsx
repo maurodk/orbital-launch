@@ -11,9 +11,15 @@ import { auth } from "../../firebaseConfig";
 import { Login } from "../../components/Login";
 import type { AppConfig } from "./MainPage";
 
-const localApiUrl = "http://localhost:3000";
-const API_URL = "https://simulador-implantacao.onrender.com";
-const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
+const AWS_API_URL =
+  import.meta.env.VITE_AWS_API_URL || "http://34.204.204.81:3000";
+const PRODUCTION_API_URL =
+  import.meta.env.VITE_PRODUCTION_API_URL ||
+  "https://simulador-implantacao.onrender.com";
+const LOCALHOST_API_URL =
+  import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3000";
+const apiUrl =
+  process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
 
 interface CvcrmUnit {
   idunidade: number;

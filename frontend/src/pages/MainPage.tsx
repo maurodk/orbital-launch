@@ -37,9 +37,17 @@ import { FullNameModal } from "../../components/FullNameModal";
 import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 
-const API_URL = "https://simulador-implantacao.onrender.com";
-const localApiUrl = "http://localhost:3000";
-const apiUrl = process.env.NODE_ENV === "development" ? localApiUrl : API_URL;
+const AWS_API_URL =
+  import.meta.env.VITE_AWS_API_URL || "http://34.204.204.81:3000";
+const PRODUCTION_API_URL =
+  import.meta.env.VITE_PRODUCTION_API_URL ||
+  "https://simulador-implantacao.onrender.com";
+const LOCALHOST_API_URL =
+  import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3000";
+
+// Use AWS em produção, localhost em desenvolvimento
+const apiUrl =
+  process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
 
 interface ApiResponse {
   unidades: string[][];
