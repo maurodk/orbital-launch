@@ -2,13 +2,21 @@
   "name": "backend",
   "version": "1.0.0",
   "type": "commonjs",
-  "main": "server.js",
+  "main": "server.cjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.cjs",
+    "dev": "node server.cjs",
+    "check": "node check-env.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
     "express": "^4.18.2",
+    "googleapis": "^118.0.0",
     "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "chalk": "^4.1.2"
   }
 }

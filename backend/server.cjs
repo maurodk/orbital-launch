@@ -207,6 +207,7 @@ const SHEET_NAME_FUNIL = 'Página1'
 async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.error('[AUTH] Token não fornecido. Header:', authHeader)
     return res.status(401).send('Acesso não autorizado: Token não fornecido.')
   }
 
@@ -214,22 +215,38 @@ async function verifyToken(req, res, next) {
 
   try {
     if (!supabase) {
+      console.error('[AUTH] Supabase não configurado')
       return res.status(500).send('Supabase não configurado.')
     }
 
+    console.log('[AUTH] Verificando token...')
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser(token)
-    if (error || !user) {
+
+    if (error) {
+      console.error('[AUTH] Erro ao verificar token:', error.message)
+      return res.status(403).json({
+        error: 'Acesso proibido: Token inválido.',
+        details: error.message,
+      })
+    }
+
+    if (!user) {
+      console.error('[AUTH] Usuário não encontrado')
       return res.status(403).send('Acesso proibido: Token inválido.')
     }
 
+    console.log('[AUTH] Token verificado com sucesso para usuário:', user.email)
     req.user = { email: user.email, uid: user.id }
     return next()
   } catch (error) {
-    console.error('Erro ao verificar token:', error)
-    return res.status(403).send('Acesso proibido: Token inválido.')
+    console.error('[AUTH] Exceção ao verificar token:', error)
+    return res.status(403).json({
+      error: 'Acesso proibido: Token inválido.',
+      details: error.message,
+    })
   }
 }
 
@@ -549,6 +566,10 @@ app.get('/', (req, res) => {
           margin-bottom: 15px;
         }
         
+        .status-badge.error {
+          background: #ef4444;
+        }
+        
         h1 {
           color: #333;
           font-size: 32px;
@@ -603,6 +624,10 @@ app.get('/', (req, res) => {
         .status-value {
           color: #10b981;
           font-weight: 600;
+        }
+        
+        .status-value.error {
+          color: #ef4444;
         }
         
         .endpoints-list {
@@ -707,7 +732,9 @@ app.get('/', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <span class="status-badge">✓ Backend Rodando</span>
+          <span class="status-badge ${
+            supabase ? '' : 'error'
+          }">✓ Backend Rodando</span>
           <h1>Simulador Implantação</h1>
           <p class="subtitle">Backend API Status</p>
         </div>
@@ -730,9 +757,23 @@ app.get('/', (req, res) => {
           </div>
           <div class="status-item">
             <span class="status-label">Supabase</span>
-            <span class="status-value">${
-              supabase ? '✓ Conectado' : '✗ Não configurado'
-            }</span>
+            <span class="status-value ${supabase ? '' : 'error'}">${
+    supabase ? '✓ Conectado' : '✗ Não configurado'
+  }</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Supabase URL</span>
+            <span class="status-value ${SUPABASE_URL ? '' : 'error'}">${
+    SUPABASE_URL ? '✓ Configurado' : '✗ Não configurado'
+  }</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Service Role</span>
+            <span class="status-value ${
+              SUPABASE_SERVICE_ROLE ? '' : 'error'
+            }">${
+    SUPABASE_SERVICE_ROLE ? '✓ Configurado' : '✗ Não configurado'
+  }</span>
           </div>
         </div>
         
@@ -752,7 +793,11 @@ app.get('/', (req, res) => {
           <h3>Informações Importantes</h3>
           <p>✓ CORS habilitado para o frontend em desenvolvimento (localhost:5173)</p>
           <p>✓ Google Sheets integrado para gerenciamento de dados</p>
-          <p>✓ Sistema de autenticação Supabase ativo</p>
+          <p ${supabase ? '' : 'style="color: #ef4444;"'}>
+            ${supabase ? '✓' : '✗'} Sistema de autenticação Supabase ${
+    supabase ? 'ativo' : 'INATIVO - VERIFICAR .ENV'
+  }
+          </p>
           <p>✓ Real-time updates via Server-Sent Events</p>
         </div>
         
@@ -912,6 +957,7 @@ app.get('/api/public-data', async (req, res) => {
 
 app.get('/api/implantacoes', verifyToken, async (req, res) => {
   try {
+    console.log('[/api/implantacoes] Iniciando busca de implantações...')
     const sheets = await getSheetsClient()
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -926,13 +972,20 @@ app.get('/api/implantacoes', verifyToken, async (req, res) => {
       cvcrmId: row[5] || null, // Adiciona o ID do CVCRM
       sigla: row[6] || null, // Adiciona a sigla
     }))
+    console.log(
+      '[/api/implantacoes] Busca concluída. Total:',
+      implantacoes.length
+    )
     res.json(implantacoes)
   } catch (error) {
     console.error(
-      'Erro ao buscar lista de implantações:',
+      '[/api/implantacoes] ERRO:',
       error && error.message ? error.message : error
     )
-    res.status(500).json({ error: 'Falha ao buscar lista de implantações.' })
+    res.status(500).json({
+      error: 'Falha ao buscar lista de implantações.',
+      details: error && error.message ? error.message : String(error),
+    })
   }
 })
 
@@ -1009,6 +1062,7 @@ app.get('/api/public-data-cvcrm', async (req, res) => {
 // CORREÇÃO: Este endpoint agora lê a aba 'Config' corretamente.
 app.get('/api/config', verifyToken, async (req, res) => {
   try {
+    console.log('[/api/config] Iniciando busca de configurações...')
     const sheets = await getSheetsClient()
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_DADOS,
@@ -1022,13 +1076,21 @@ app.get('/api/config', verifyToken, async (req, res) => {
       }
       return acc
     }, {})
+    console.log(
+      '[/api/config] Configurações carregadas:',
+      Object.keys(config).length,
+      'chaves'
+    )
     res.json(config)
   } catch (error) {
     console.error(
-      'Erro ao buscar config:',
+      '[/api/config] ERRO:',
       error && error.message ? error.message : error
     )
-    res.status(500).json({ error: 'Falha ao buscar configurações.' })
+    res.status(500).json({
+      error: 'Falha ao buscar configurações.',
+      details: error && error.message ? error.message : String(error),
+    })
   }
 })
 
