@@ -7,10 +7,15 @@ interface PrintConfigModalProps {
   pixValue?: string;
 }
 
+export type SaleType = "CEF" | "FACILITA";
+export type PlanType = "PADRAO" | "BLACK";
+
 export interface PrintConfig {
   hasRegistro: boolean;
   paymentType: "PIX" | "DINHEIRO";
   paymentValue: string;
+  saleType: SaleType;
+  planType?: PlanType;
 }
 
 export function PrintConfigModal({
@@ -22,18 +27,47 @@ export function PrintConfigModal({
   const [hasRegistro, setHasRegistro] = useState(false);
   const [paymentType, setPaymentType] = useState<"PIX" | "DINHEIRO">("PIX");
   const [paymentValue, setPaymentValue] = useState("");
+  const [displayValue, setDisplayValue] = useState("");
+  const [saleType, setSaleType] = useState<SaleType>("CEF");
+  const [planType, setPlanType] = useState<PlanType>("PADRAO");
 
   useEffect(() => {
     if (show && pixValue) {
-      setPaymentValue(pixValue);
+      const numericValue = parseFloat(pixValue.replace(/[^\d]/g, "")) / 100;
+      setPaymentValue(numericValue.toString());
+      setDisplayValue(formatCurrency(numericValue));
     }
   }, [show, pixValue]);
+
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, "");
+
+    if (!rawValue) {
+      setDisplayValue("");
+      setPaymentValue("0");
+      return;
+    }
+
+    const numericValue = parseInt(rawValue, 10) / 100;
+    setPaymentValue(numericValue.toString());
+    setDisplayValue(formatCurrency(numericValue));
+  };
 
   const handleConfirm = () => {
     onConfirm({
       hasRegistro,
       paymentType,
-      paymentValue,
+      paymentValue:
+        displayValue || formatCurrency(parseFloat(paymentValue || "0")),
+      saleType,
+      planType: saleType === "FACILITA" ? planType : undefined,
     });
     onClose();
   };
@@ -59,6 +93,104 @@ export function PrintConfigModal({
             <span>Possui Registro</span>
           </label>
         </div>
+
+        <div className="form-group">
+          <label>Tipo de Venda</label>
+          <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+            <button
+              onClick={() => setSaleType("CEF")}
+              style={{
+                flex: 1,
+                padding: "10px",
+                background:
+                  saleType === "CEF"
+                    ? "var(--accent-green)"
+                    : "var(--bg-dark-tertiary)",
+                color:
+                  saleType === "CEF"
+                    ? "var(--bg-dark-primary)"
+                    : "var(--text-secondary)",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+              }}
+            >
+              CEF
+            </button>
+            <button
+              onClick={() => setSaleType("FACILITA")}
+              style={{
+                flex: 1,
+                padding: "10px",
+                background:
+                  saleType === "FACILITA"
+                    ? "var(--accent-green)"
+                    : "var(--bg-dark-tertiary)",
+                color:
+                  saleType === "FACILITA"
+                    ? "var(--bg-dark-primary)"
+                    : "var(--text-secondary)",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+              }}
+            >
+              Facilita
+            </button>
+          </div>
+        </div>
+
+        {saleType === "FACILITA" && (
+          <div className="form-group">
+            <label>Tipo de Plano</label>
+            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+              <button
+                onClick={() => setPlanType("PADRAO")}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background:
+                    planType === "PADRAO"
+                      ? "var(--accent-green)"
+                      : "var(--bg-dark-tertiary)",
+                  color:
+                    planType === "PADRAO"
+                      ? "var(--bg-dark-primary)"
+                      : "var(--text-secondary)",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                Plano Padrão
+              </button>
+              <button
+                onClick={() => setPlanType("BLACK")}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background:
+                    planType === "BLACK"
+                      ? "var(--accent-green)"
+                      : "var(--bg-dark-tertiary)",
+                  color:
+                    planType === "BLACK"
+                      ? "var(--bg-dark-primary)"
+                      : "var(--text-secondary)",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
+              >
+                Condição Black
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="form-group">
           <label>Tipo de Pagamento</label>
@@ -112,8 +244,8 @@ export function PrintConfigModal({
           <label>Valor do Pagamento (opcional)</label>
           <input
             type="text"
-            value={paymentValue}
-            onChange={(e) => setPaymentValue(e.target.value)}
+            value={displayValue}
+            onChange={handleValueChange}
             placeholder="R$ 0,00"
             style={{
               width: "100%",

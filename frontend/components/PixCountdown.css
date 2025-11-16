@@ -1,0 +1,95 @@
+.pix-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: "Courier New", monospace;
+  transition: all 0.3s ease;
+}
+
+.countdown-icon {
+  font-size: 1rem;
+}
+
+.countdown-time {
+  letter-spacing: 0.5px;
+}
+
+.countdown-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Verde - Mais de 30 minutos */
+.countdown-safe {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Amarelo - Entre 10 e 30 minutos */
+.countdown-warning {
+  background-color: rgba(250, 204, 21, 0.15);
+  color: #facc15;
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+/* Vermelho - Menos de 10 minutos */
+.countdown-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  animation: pulse-danger 1s ease-in-out infinite;
+}
+
+/* Expirado */
+.countdown-expired {
+  background-color: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+/* Animações de pulsação */
+@keyframes pulse-warning {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes pulse-danger {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .pix-countdown {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    gap: 4px;
+  }
+
+  .countdown-icon {
+    font-size: 0.875rem;
+  }
+}

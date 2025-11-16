@@ -2,6 +2,7 @@
 
 import { forwardRef } from "react";
 import "./TermoDeReserva.css";
+import type { SaleType, PlanType } from "./PrintConfigModal";
 // ATENÇÃO: Verifique se o caminho e o nome do arquivo da imagem estão corretos!
 import backgroundShape from "../src/assets/shape.png";
 
@@ -23,6 +24,8 @@ export interface TermoData {
   paymentType?: "PIX" | "DINHEIRO";
   paymentValue?: string;
   paymentDate?: string;
+  saleType?: SaleType;
+  planType?: PlanType;
 }
 
 interface TermoDeReservaProps {
@@ -32,6 +35,295 @@ interface TermoDeReservaProps {
 export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
   ({ data }, ref) => {
     if (!data) return null;
+
+    const renderTableRows = () => {
+      const saleType = data.saleType || "CEF";
+      const planType = data.planType || "PADRAO";
+
+      // CEF - Padrão atual
+      if (saleType === "CEF") {
+        return (
+          <>
+            {data.paymentValue && (
+              <tr>
+                <td>{data.paymentType || "PIX"}</td>
+                <td>1</td>
+                <td>{data.paymentValue}</td>
+                <td>{data.paymentDate}</td>
+              </tr>
+            )}
+            <tr>
+              <td>FINANCIAMENTO CEF</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>SUBSÍDIO</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>FGTS</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>SINAL</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>ENTRADA/MENSAL</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            {!data.hasRegistro && (
+              <>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            )}
+            {data.hasRegistro && (
+              <>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            )}
+          </>
+        );
+      }
+
+      // FACILITA - Plano Padrão
+      if (saleType === "FACILITA" && planType === "PADRAO") {
+        return (
+          <>
+            {data.paymentValue && (
+              <tr>
+                <td>{data.paymentType || "PIX"}</td>
+                <td>1</td>
+                <td>{data.paymentValue}</td>
+                <td>{data.paymentDate}</td>
+              </tr>
+            )}
+            <tr>
+              <td>SINAL 1</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>SINAL 2</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>SINAL 3</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>PARCELAMENTO INCORPORADORA</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            {!data.hasRegistro && (
+              <>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            )}
+            {data.hasRegistro && (
+              <>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            )}
+          </>
+        );
+      }
+
+      // FACILITA - Condição Black
+      if (saleType === "FACILITA" && planType === "BLACK") {
+        return (
+          <>
+            {data.paymentValue && (
+              <tr>
+                <td>{data.paymentType || "PIX"}</td>
+                <td>1</td>
+                <td>{data.paymentValue}</td>
+                <td>{data.paymentDate}</td>
+              </tr>
+            )}
+            <tr>
+              <td>SINAL</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>PARCELAMENTO INCORPORADORA 1</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>PARCELAMENTO INCORPORADORA 2</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            {!data.hasRegistro && (
+              <>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            )}
+            {data.hasRegistro && (
+              <>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            )}
+          </>
+        );
+      }
+
+      return null;
+    };
 
     return (
       <div id="print-container" ref={ref}>
@@ -101,84 +393,7 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
                     <th>DATA DE PAGAMENTO</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {data.paymentValue && (
-                    <tr>
-                      <td>{data.paymentType || "PIX"}</td>
-                      <td>1</td>
-                      <td>{data.paymentValue}</td>
-                      <td>{data.paymentDate}</td>
-                    </tr>
-                  )}
-                  <tr>
-                    <td>FINANCIAMENTO CEF</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>SUBSÍDIO</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>FGTS</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>SINAL</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>ENTRADA/MENSAL</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  {!data.hasRegistro && (
-                    <>
-                      <tr>
-                        <td>&nbsp;</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                      </tr>
-                      <tr>
-                        <td>&nbsp;</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                      </tr>
-                      <tr>
-                        <td>&nbsp;</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                      </tr>
-                    </>
-                  )}
-                  {data.hasRegistro && (
-                    <>
-                      <tr>
-                        <td>&nbsp;</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                      </tr>
-                      <tr>
-                        <td>&nbsp;</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                      </tr>
-                    </>
-                  )}
-                </tbody>
+                <tbody>{renderTableRows()}</tbody>
               </table>
 
               {data.hasRegistro && (

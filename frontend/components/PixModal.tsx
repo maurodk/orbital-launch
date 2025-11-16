@@ -62,10 +62,12 @@ export function PixModal({
   const [contatoCliente, setContatoCliente] = useState(""); // NOVO: Estado para o contato do cliente
 
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
+  const AWS_API_URL =
+    import.meta.env.VITE_AWS_API_URL || "http://34.204.204.81:3000";
+  const LOCALHOST_API_URL =
+    import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3000";
   const apiUrl =
-    process.env.NODE_ENV === "development"
-      ? "http://localhost:3000"
-      : "http://34.204.204.81:3000/";
+    process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
 
   useEffect(() => {
