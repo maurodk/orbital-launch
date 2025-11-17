@@ -49,13 +49,24 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // Permite requisições sem origin (ex: Postman, curl, apps mobile)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Origem bloqueada: ${origin}`);
       callback(new Error("Acesso não permitido pela política de CORS"));
     }
   },
+  credentials: true, // Permite envio de cookies/credenciais
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
   optionsSuccessStatus: 200,
+  maxAge: 86400, // Cache preflight por 24 horas
 };
 
 app.use(cors(corsOptions));
@@ -2449,7 +2460,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     // 1. Otimização: Ler os dados das duas unidades de uma vez
     const rangesToRead = [
       `'${sheetTitle}'!C${oldRow}`, // Nome da unidade antiga
-      `'${sheetTitle}'!F${oldRow}:Q${oldRow}`, // Dados da unidade antiga
+      `'${sheetTitle}'!F${oldRow}:R${oldRow}`, // CORREÇÃO: Inclui coluna R (Timestamp)
       `'${sheetTitle}'!C${newRow}`, // Nome da unidade nova
     ];
     const batchGetData = await sheets.spreadsheets.values.batchGet({
@@ -2484,6 +2495,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       oldUnitData[9] || "", // O: Payload
       oldUnitData[10] || "", // P: Valor
       oldUnitData[11] || "", // Q: Pagamento
+      oldUnitData[12] || "", // R: Timestamp (adiciona coluna R)
     ];
 
     await sheets.spreadsheets.values.batchUpdate({
@@ -2497,9 +2509,10 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
             range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
             values: [["", "", "", "", "", "DISPONÍVEL"]],
           },
+          // CORREÇÃO: Inclui coluna R (Timestamp) na limpeza
           {
-            range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
-            values: [["", "", "", ""]],
+            range: `'${sheetTitle}'!N${oldRow}:R${oldRow}`,
+            values: [["", "", "", "", ""]],
           },
           // Transfere dados para a nova unidade e a reserva
           // CORREÇÃO: Divide a atualização para não apagar as coordenadas (L e M) da nova unidade
@@ -2516,14 +2529,16 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
               ],
             ],
           },
+          // CORREÇÃO: Inclui coluna R (Timestamp) na transferência
           {
-            range: `'${sheetTitle}'!N${newRow}:Q${newRow}`,
+            range: `'${sheetTitle}'!N${newRow}:R${newRow}`,
             values: [
               [
                 dataToTransfer[8], // N: IDENTIFICADOR
                 dataToTransfer[9], // O: Payload
                 dataToTransfer[10], // P: Valor
                 dataToTransfer[11], // Q: Pagamento
+                dataToTransfer[12] || "", // R: Timestamp (adiciona com fallback)
               ],
             ],
           },
@@ -2919,6 +2934,17 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
   } = req.body;
   const userEmail = req.user.email;
 
+  // Log detalhado dos dados recebidos para debug
+  console.log("[UPDATE-PIX-DATA] Payload recebido:", {
+    implantacao,
+    rowIndex,
+    identificador,
+    payloadEmv,
+    valor,
+    statusPagamento,
+    userEmail,
+  });
+
   if (
     !implantacao ||
     !rowIndex ||
@@ -2945,6 +2971,27 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     // Gera o timestamp atual para controle de expiração
     const pixTimestamp = new Date().toISOString();
 
+    // IMPORTANTE: Antes de atualizar, vamos ler os dados atuais para não sobrescrever colunas indesejadas
+    const currentDataRange = `'${sheetTitle}'!A${rowIndex}:R${rowIndex}`;
+    const currentDataRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: currentDataRange,
+    });
+    const currentRow = currentDataRes.data.values?.[0] || [];
+
+    console.log(`[UPDATE-PIX-DATA] Dados atuais da linha ${rowIndex}:`, {
+      colunaF: currentRow[5], // F = índice 5
+      colunaG: currentRow[6], // G = índice 6
+      colunaH: currentRow[7], // H = índice 7
+      colunaI: currentRow[8], // I = índice 8
+      colunaJ: currentRow[9], // J = índice 9
+      colunaN: currentRow[13], // N = índice 13
+      colunaO: currentRow[14], // O = índice 14
+      colunaP: currentRow[15], // P = índice 15
+      colunaQ: currentRow[16], // Q = índice 16
+      colunaR: currentRow[17], // R = índice 17
+    });
+
     console.log(`[UPDATE-PIX-DATA] Atualizando PIX:`, {
       implantacao,
       rowIndex,
@@ -2953,6 +3000,7 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       timestamp: pixTimestamp,
     });
 
+    // CORREÇÃO: Garante que nenhum valor seja null/undefined para evitar apagar células
     // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor), Q (Status Pagamento) e R (Timestamp)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2960,10 +3008,48 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       valueInputOption: "USER_ENTERED",
       resource: {
         values: [
-          [identificador, payloadEmv, valor, statusPagamento, pixTimestamp],
+          [
+            identificador || "",
+            payloadEmv || "",
+            valor !== undefined && valor !== null ? valor : "",
+            statusPagamento || "",
+            pixTimestamp || "",
+          ],
         ],
       },
     });
+
+    // VERIFICAÇÃO PÓS-ATUALIZAÇÃO: Confirma que as colunas F-J não foram afetadas
+    const verifyDataRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: currentDataRange,
+    });
+    const verifyRow = verifyDataRes.data.values?.[0] || [];
+
+    console.log(`[UPDATE-PIX-DATA] Verificação pós-atualização:`, {
+      colunaF: verifyRow[5],
+      colunaG: verifyRow[6],
+      colunaH: verifyRow[7],
+      colunaI: verifyRow[8],
+      colunaJ: verifyRow[9],
+      colunaN_atualizada: verifyRow[13],
+      colunaO_atualizada: verifyRow[14],
+      colunaP_atualizada: verifyRow[15],
+      colunaQ_atualizada: verifyRow[16],
+      colunaR_atualizada: verifyRow[17],
+    });
+
+    // ALERTA: Se as colunas F-J foram apagadas, registra erro crítico
+    if (!verifyRow[5] && currentRow[5]) {
+      console.error(
+        `[UPDATE-PIX-DATA] ERRO CRÍTICO: Coluna F foi apagada! Valor anterior: ${currentRow[5]}`
+      );
+    }
+    if (!verifyRow[6] && currentRow[6]) {
+      console.error(
+        `[UPDATE-PIX-DATA] ERRO CRÍTICO: Coluna G foi apagada! Valor anterior: ${currentRow[6]}`
+      );
+    }
 
     // NOVO: Adiciona ao histórico quando um PIX é gerado.
     if (statusPagamento === "PENDENTE") {
