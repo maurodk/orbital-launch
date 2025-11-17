@@ -9,7 +9,6 @@ yarn.lock
 .env.*.local
 
 # Credentials - NUNCA COMMITAR
-credentials.json
 serviceAccountKey.json
 *.pem
 *.key
