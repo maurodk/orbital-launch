@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/fullscreen",
+      "destination": "/fullscreen.html"
+    },
+    {
+      "source": "/fullscreen-cvcrm",
+      "destination": "/fullscreen-cvcrm.html"
+    }
+  ]
+}
