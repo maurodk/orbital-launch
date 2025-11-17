@@ -5,6 +5,14 @@
     {
       "source": "/api/(.*)",
       "destination": "/backend/server.js"
+    },
+    {
+      "source": "/fullscreen",
+      "destination": "/frontend/public/fullscreen.html"
+    },
+    {
+      "source": "/fullscreen-cvcrm",
+      "destination": "/frontend/public/fullscreen-cvcrm.html"
     }
   ]
 }
