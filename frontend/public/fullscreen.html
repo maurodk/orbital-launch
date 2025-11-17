@@ -9,6 +9,11 @@
     <link rel="icon" type="image/x-icon" href="/v.ico" />
     <title>Espelho de Implantação - VCA</title>
     <style>
+      :root {
+        --color-disponivel: #6ad700;
+        --color-reservada: #d9534f;
+      }
+
       body {
         margin: 0;
         font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
@@ -90,13 +95,13 @@
       }
 
       .status-RESERVADA {
-        background: #d9534f;
+        background: var(--color-reservada);
       }
       .status-DISPONÍVEL {
-        background: #6ad700;
+        background: var(--color-disponivel);
       }
       .status-BLOQUEADA {
-        background: #d9534f;
+        background: var(--color-reservada);
       }
       .status-other {
         background: #6c757d;
@@ -160,6 +165,62 @@
         color: #6ad700;
         margin-top: 2px;
       }
+      .dot-color-control {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        padding: 12px 18px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 9999;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-width: 220px;
+        pointer-events: auto;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .dot-color-control.hidden {
+        opacity: 0;
+        transform: translateY(20px);
+        pointer-events: none;
+      }
+      .dot-color-control h3 {
+        margin: 0 0 8px 0;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        color: #fff;
+      }
+      .color-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: space-between;
+      }
+      .color-option label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #fff;
+        flex: 1;
+      }
+      .color-option input[type="color"] {
+        width: 50px;
+        height: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        cursor: pointer;
+        background: transparent;
+      }
+      .color-option input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 2px;
+      }
+      .color-option input[type="color"]::-webkit-color-swatch {
+        border: none;
+        border-radius: 3px;
+      }
       .toast-notification {
         position: fixed;
         bottom: 80px;
@@ -221,6 +282,19 @@
       />
       <div class="dot-size-value"><span id="dot-size-value">16</span> px</div>
     </div>
+
+    <div class="dot-color-control">
+      <h3>Cores dos Pontos</h3>
+      <div class="color-option">
+        <label for="color-disponivel">Disponível</label>
+        <input type="color" id="color-disponivel" value="#6ad700" />
+      </div>
+      <div class="color-option">
+        <label for="color-reservada">Reservada</label>
+        <input type="color" id="color-reservada" value="#d9534f" />
+      </div>
+    </div>
+
     <div id="toast-notification" class="toast-notification">
       Tamanho do ponto salvo!
     </div>
@@ -492,12 +566,17 @@
 
         const topbar = document.querySelector(".topbar");
         const dotSizeControl = document.querySelector(".dot-size-control");
+        const dotColorControl = document.querySelector(".dot-color-control");
+        const colorDisponivelInput =
+          document.getElementById("color-disponivel");
+        const colorReservadaInput = document.getElementById("color-reservada");
         let isFullscreenMode = false;
         let hideHeaderTimeout = null;
 
         function showTopbar() {
           topbar.classList.remove("hidden");
           dotSizeControl.classList.remove("hidden");
+          dotColorControl.classList.remove("hidden");
           wrapper.classList.remove("fullscreen");
 
           // Cancela timeout anterior se existir
@@ -516,6 +595,7 @@
         function hideTopbar() {
           topbar.classList.add("hidden");
           dotSizeControl.classList.add("hidden");
+          dotColorControl.classList.add("hidden");
           wrapper.classList.add("fullscreen");
 
           // Cancela qualquer timeout pendente
@@ -565,6 +645,60 @@
             showTopbar();
           }
         });
+
+        dotColorControl.addEventListener("mouseenter", () => {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
+        });
+
+        // Controles de cor
+        function updateColors() {
+          const disponivelColor = colorDisponivelInput.value;
+          const reservadaColor = colorReservadaInput.value;
+
+          // Atualiza variáveis CSS
+          document.documentElement.style.setProperty(
+            "--color-disponivel",
+            disponivelColor
+          );
+          document.documentElement.style.setProperty(
+            "--color-reservada",
+            reservadaColor
+          );
+
+          // Salva no localStorage
+          localStorage.setItem("dot-color-disponivel", disponivelColor);
+          localStorage.setItem("dot-color-reservada", reservadaColor);
+        }
+
+        // Carrega cores salvas do localStorage
+        function loadSavedColors() {
+          const savedDisponivel = localStorage.getItem("dot-color-disponivel");
+          const savedReservada = localStorage.getItem("dot-color-reservada");
+
+          if (savedDisponivel) {
+            colorDisponivelInput.value = savedDisponivel;
+            document.documentElement.style.setProperty(
+              "--color-disponivel",
+              savedDisponivel
+            );
+          }
+
+          if (savedReservada) {
+            colorReservadaInput.value = savedReservada;
+            document.documentElement.style.setProperty(
+              "--color-reservada",
+              savedReservada
+            );
+          }
+        }
+
+        // Carrega cores ao iniciar
+        loadSavedColors();
+
+        colorDisponivelInput.addEventListener("input", updateColors);
+        colorReservadaInput.addEventListener("input", updateColors);
 
         // Detecta quando entra/sai do fullscreen do navegador
         document.addEventListener("fullscreenchange", () => {
