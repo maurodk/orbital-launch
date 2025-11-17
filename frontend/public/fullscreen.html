@@ -312,7 +312,9 @@
           if (es) es.close();
 
           es = new EventSource(
-            `/api/events?implantacao=${encodeURIComponent(implantacao)}`
+            `${API_URL}/api/events?implantacao=${encodeURIComponent(
+              implantacao
+            )}`
           );
 
           es.onopen = () => {
