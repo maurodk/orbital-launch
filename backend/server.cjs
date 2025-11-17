@@ -152,7 +152,7 @@ async function broadcastEvent(implantacao, event, data) {
 
   // Se os dados não foram fornecidos, busca na planilha.
   // Isso mantém a compatibilidade com chamadas antigas.
-  if (data.rowIndex) {
+  if (data.rowIndex && !data.unitData) {
     try {
       const sheets = await getSheetsClient();
       const range = `'${implantacao}'!A${data.rowIndex}:R${data.rowIndex}`;
@@ -170,6 +170,18 @@ async function broadcastEvent(implantacao, event, data) {
       );
     }
   }
+
+  // Log do que está sendo enviado
+  console.log(
+    `[SSE Broadcast] Enviando evento '${event}' para '${implantacao}':`,
+    {
+      rowIndex: eventPayload.rowIndex,
+      temUnitData: !!eventPayload.unitData,
+      colunaG: eventPayload.unitData?.[6],
+      colunaK: eventPayload.unitData?.[10],
+      colunaN: eventPayload.unitData?.[13],
+    }
+  );
 
   const payload = `event: ${event}\ndata: ${JSON.stringify(eventPayload)}\n\n`;
   for (const res of Array.from(clients)) {
@@ -2497,12 +2509,10 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
             range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
             values: [["", "", "", "", "", "DISPONÍVEL"]],
           },
-          // CORREÇÃO CRÍTICA: NÃO limpa mais N-Q na troca de unidade
-          // As colunas N-Q (PIX) devem permanecer intactas e só podem ser apagadas no cancelamento
-          // {
-          //   range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
-          //   values: [["", "", "", ""]],
-          // },
+          {
+            range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
+            values: [["", "", "", ""]],
+          },
           // Transfere dados para a nova unidade e a reserva
           // CORREÇÃO: Divide a atualização para não apagar as coordenadas (L e M) da nova unidade
           {
@@ -3013,6 +3023,29 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
         `[UPDATE-PIX-DATA] ⚠️ ERRO: Coluna I (Corretor) foi APAGADA!`
       );
     }
+
+    // CRÍTICO: Busca a linha COMPLETA (A-R) para enviar via SSE
+    const fullRowRange = `'${sheetTitle}'!A${rowIndex}:R${rowIndex}`;
+    const fullRowData = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: fullRowRange,
+    });
+    const fullRow = fullRowData.data.values?.[0] || [];
+
+    console.log(`[UPDATE-PIX-DATA] Linha completa para broadcast:`, {
+      totalColunas: fullRow.length,
+      F: fullRow[5],
+      G: fullRow[6],
+      K: fullRow[10],
+      N: fullRow[13],
+      Q: fullRow[16],
+    });
+
+    // CORREÇÃO CRÍTICA: Envia broadcast SSE com dados COMPLETOS da unidade
+    await broadcastEvent(sheetTitle, "unitUpdated", {
+      rowIndex,
+      unitData: fullRow,
+    });
 
     // NOVO: Adiciona ao histórico quando um PIX é gerado.
     if (statusPagamento === "PENDENTE") {
