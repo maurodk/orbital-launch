@@ -2497,10 +2497,12 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
             range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
             values: [["", "", "", "", "", "DISPONÍVEL"]],
           },
-          {
-            range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
-            values: [["", "", "", ""]],
-          },
+          // CORREÇÃO CRÍTICA: NÃO limpa mais N-Q na troca de unidade
+          // As colunas N-Q (PIX) devem permanecer intactas e só podem ser apagadas no cancelamento
+          // {
+          //   range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
+          //   values: [["", "", "", ""]],
+          // },
           // Transfere dados para a nova unidade e a reserva
           // CORREÇÃO: Divide a atualização para não apagar as coordenadas (L e M) da nova unidade
           {
@@ -2934,23 +2936,83 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
 
   try {
     const sheets = await getSheetsClient();
-    // CORREÇÃO: Utiliza a função 'resolveSheetName' que é a correta e está disponível no escopo.
-    // A função 'getSheetTitle' não existe neste contexto, causando o erro 500.
     const {
       found: sheetTitle,
       error,
       ...details
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
 
-    // Atualiza as colunas N (identificador), O (payloadEmv), P (Valor) e Q (Status Pagamento)
+    if (error) return res.status(404).json({ error: error, ...details });
+
+    // CORREÇÃO: Lê os dados atuais ANTES para garantir que F-J não serão apagadas
+    const verifyBeforeRange = `'${sheetTitle}'!F${rowIndex}:Q${rowIndex}`;
+    const beforeData = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: verifyBeforeRange,
+    });
+    const beforeRow = beforeData.data.values?.[0] || [];
+
+    console.log(`[UPDATE-PIX-DATA] ANTES - Células F-Q linha ${rowIndex}:`, {
+      F: beforeRow[0],
+      G: beforeRow[1],
+      H: beforeRow[2],
+      I: beforeRow[3],
+      J: beforeRow[4],
+      K: beforeRow[5],
+      N: beforeRow[8],
+      O: beforeRow[9],
+      P: beforeRow[10],
+      Q: beforeRow[11],
+    });
+
+    // Atualiza APENAS as colunas N, O, P, Q (PIX) sem tocar em F-K
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!N${rowIndex}:Q${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: {
-        values: [[identificador, payloadEmv, valor, statusPagamento]],
+        values: [
+          [
+            identificador || "",
+            payloadEmv || "",
+            valor || "",
+            statusPagamento || "",
+          ],
+        ],
       },
     });
+
+    // VERIFICAÇÃO: Confirma que F-J não foram alteradas
+    const afterData = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: verifyBeforeRange,
+    });
+    const afterRow = afterData.data.values?.[0] || [];
+
+    console.log(`[UPDATE-PIX-DATA] DEPOIS - Células F-Q linha ${rowIndex}:`, {
+      F: afterRow[0],
+      G: afterRow[1],
+      H: afterRow[2],
+      I: afterRow[3],
+      J: afterRow[4],
+      K: afterRow[5],
+      N: afterRow[8],
+      O: afterRow[9],
+      P: afterRow[10],
+      Q: afterRow[11],
+    });
+
+    // Alerta se alguma célula foi apagada
+    if (beforeRow[1] && !afterRow[1]) {
+      console.error(
+        `[UPDATE-PIX-DATA] ⚠️ ERRO: Coluna G (Cliente) foi APAGADA!`
+      );
+    }
+    if (beforeRow[3] && !afterRow[3]) {
+      console.error(
+        `[UPDATE-PIX-DATA] ⚠️ ERRO: Coluna I (Corretor) foi APAGADA!`
+      );
+    }
 
     // NOVO: Adiciona ao histórico quando um PIX é gerado.
     if (statusPagamento === "PENDENTE") {

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FiSearch, FiLock, FiPrinter, FiClock } from "react-icons/fi";
-import { PixCountdown } from "./PixCountdown";
 
 interface ReservationListProps {
   unidades: [string[], number][];
@@ -147,8 +146,6 @@ export function ReservationList({
                   const isAvailable = status === "disponível";
                   const isReserved = status === "reservada";
                   const paymentStatus = unitData[16]?.toUpperCase(); // Coluna Q
-                  const hasPendingPix = paymentStatus === "PENDENTE";
-                  const unitName = unitData[2]; // Coluna C - Nome da unidade
                   const clientName = unitData[6] || "—";
                   const brokerName = unitData[8] || "—";
 
@@ -168,12 +165,7 @@ export function ReservationList({
                           <span className={`status-pill ${status}`}>
                             {unitData[10]}
                           </span>
-                          {hasPendingPix && (
-                            <PixCountdown
-                              unitName={unitName}
-                              implantacaoNome={unitData[0]}
-                            />
-                          )}
+                          {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
                       </td>
                       <td>{clientName}</td>

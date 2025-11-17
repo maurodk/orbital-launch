@@ -895,7 +895,7 @@ export function MainPage() {
       updatedUnidades[pixModalState.unitIndex][14] = payloadEmv; // Coluna O
       updatedUnidades[pixModalState.unitIndex][15] = String(valor); // Coluna P
       updatedUnidades[pixModalState.unitIndex][16] = statusPagamento; // Coluna Q
-      updatedUnidades[pixModalState.unitIndex][17] = new Date().toISOString(); // Coluna R (timestamp)
+      // REMOVIDO: Coluna R não é mais usada para timestamp
       setUnidades(updatedUnidades);
     } catch (error: any) {
       throw new Error(
