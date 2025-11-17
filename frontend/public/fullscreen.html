@@ -135,6 +135,12 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
         min-width: 200px;
         pointer-events: auto;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .dot-size-control.hidden {
+        opacity: 0;
+        transform: translateY(20px);
+        pointer-events: none;
       }
       .dot-size-control label {
         font-size: 13px;
@@ -485,11 +491,13 @@
         });
 
         const topbar = document.querySelector(".topbar");
+        const dotSizeControl = document.querySelector(".dot-size-control");
         let isFullscreenMode = false;
         let hideHeaderTimeout = null;
 
         function showTopbar() {
           topbar.classList.remove("hidden");
+          dotSizeControl.classList.remove("hidden");
           wrapper.classList.remove("fullscreen");
 
           // Cancela timeout anterior se existir
@@ -507,6 +515,7 @@
 
         function hideTopbar() {
           topbar.classList.add("hidden");
+          dotSizeControl.classList.add("hidden");
           wrapper.classList.add("fullscreen");
 
           // Cancela qualquer timeout pendente
@@ -545,6 +554,13 @@
         document.addEventListener("touchmove", showHeaderOnInteraction);
 
         topbar.addEventListener("mouseenter", () => {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
+        });
+
+        // Mantém visível quando interage com o controle
+        dotSizeControl.addEventListener("mouseenter", () => {
           if (isFullscreenMode) {
             showTopbar();
           }
