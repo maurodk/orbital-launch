@@ -124,19 +124,34 @@
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 10px 15px;
-        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.85);
+        padding: 12px 18px;
+        border-radius: 10px;
         display: flex;
-        align-items: center;
-        gap: 10px;
+        flex-direction: column;
+        gap: 8px;
         z-index: 10;
-        backdrop-filter: blur(5px);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-width: 200px;
       }
       .dot-size-control label {
-        font-size: 12px;
-        font-weight: 500;
+        font-size: 13px;
+        font-weight: 600;
         white-space: nowrap;
+        color: #fff;
+        text-align: center;
+      }
+      .dot-size-control input[type="range"] {
+        width: 100%;
+        cursor: pointer;
+      }
+      .dot-size-value {
+        text-align: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: #6ad700;
+        margin-top: 2px;
       }
       .toast-notification {
         position: fixed;
@@ -185,8 +200,16 @@
     </div>
     <div id="floor-plan-wrapper">
       <div class="dot-size-control">
-        <label for="dot-size-slider">Tamanho do Ponto</label>
-        <input type="range" id="dot-size-slider" min="8" max="40" value="16" />
+        <label for="dot-size-slider">Tamanho dos Pontos</label>
+        <input
+          type="range"
+          id="dot-size-slider"
+          min="8"
+          max="40"
+          value="16"
+          step="1"
+        />
+        <div class="dot-size-value"><span id="dot-size-value">16</span> px</div>
       </div>
       <div id="toast-notification" class="toast-notification">
         Tamanho do ponto salvo!
@@ -205,6 +228,7 @@
           "empreendimento-title"
         );
         const dotSizeSlider = document.getElementById("dot-size-slider");
+        const dotSizeValueEl = document.getElementById("dot-size-value");
         const toast = document.getElementById("toast-notification");
         const fullscreenBtn = document.getElementById("fullscreen-btn");
 
@@ -245,6 +269,11 @@
 
           window.currentDotSize = dotSize;
           dotSizeSlider.value = dotSize;
+
+          // Atualiza o valor exibido inicial
+          if (dotSizeValueEl) {
+            dotSizeValueEl.textContent = dotSize;
+          }
 
           if (!imageUrl) {
             wrapper.innerHTML =
@@ -403,6 +432,11 @@
             }
           });
           window.currentDotSize = newSize;
+
+          // Atualiza o valor exibido
+          if (dotSizeValueEl) {
+            dotSizeValueEl.textContent = newSize;
+          }
         }
 
         async function saveDotSize(newSize) {
@@ -449,17 +483,50 @@
 
         const topbar = document.querySelector(".topbar");
         let isFullscreenMode = false;
+        let hideHeaderTimeout = null;
 
         function showTopbar() {
           topbar.classList.remove("hidden");
           wrapper.classList.remove("fullscreen");
-          isFullscreenMode = false;
+
+          // Cancela timeout anterior se existir
+          if (hideHeaderTimeout) {
+            clearTimeout(hideHeaderTimeout);
+          }
+
+          // Se estiver em modo fullscreen, agenda o ocultamento automático
+          if (isFullscreenMode) {
+            hideHeaderTimeout = setTimeout(() => {
+              hideTopbar();
+            }, 3000); // 3 segundos de inatividade
+          }
         }
 
         function hideTopbar() {
           topbar.classList.add("hidden");
           wrapper.classList.add("fullscreen");
+
+          // Cancela qualquer timeout pendente
+          if (hideHeaderTimeout) {
+            clearTimeout(hideHeaderTimeout);
+            hideHeaderTimeout = null;
+          }
+        }
+
+        function enableFullscreenMode() {
           isFullscreenMode = true;
+          hideTopbar();
+        }
+
+        function disableFullscreenMode() {
+          isFullscreenMode = false;
+          showTopbar();
+
+          // Cancela timeout ao sair do fullscreen
+          if (hideHeaderTimeout) {
+            clearTimeout(hideHeaderTimeout);
+            hideHeaderTimeout = null;
+          }
         }
 
         function showHeaderOnInteraction() {
@@ -480,7 +547,16 @@
           }
         });
 
-        showTopbar();
+        // Detecta quando entra/sai do fullscreen do navegador
+        document.addEventListener("fullscreenchange", () => {
+          if (document.fullscreenElement) {
+            enableFullscreenMode();
+          } else {
+            disableFullscreenMode();
+          }
+        });
+
+        disableFullscreenMode();
 
         dotSizeSlider.addEventListener("input", (event) => {
           updateAllDotSizes(event.target.value);
