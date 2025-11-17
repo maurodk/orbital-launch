@@ -264,6 +264,9 @@
 
     <script>
       (function () {
+        // URL da API no EC2
+        const API_URL = "https://apitelaodigital.suportevca.com.br";
+
         const wrapper = document.getElementById("floor-plan-wrapper");
         const zoomControls = document.getElementById("zoom-controls");
         const zoomIndicator = document.getElementById("zoom-indicator");
@@ -293,7 +296,7 @@
 
         async function fetchData() {
           try {
-            const url = `/api/public-data-cvcrm?implantacao=${encodeURIComponent(
+            const url = `${API_URL}/api/public-data-cvcrm?implantacao=${encodeURIComponent(
               implantacao
             )}&hideAvailable=${hideAvailable}`;
             const res = await fetch(url);
@@ -611,7 +614,7 @@
         // Função para salvar o tamanho do ponto no backend
         async function saveDotSize(newSize) {
           try {
-            const res = await fetch("/api/update-dot-size", {
+            const res = await fetch(`${API_URL}/api/update-dot-size`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

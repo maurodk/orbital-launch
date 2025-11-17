@@ -85,7 +85,7 @@
         font-size: 6px;
         font-weight: bold;
         color: white;
-        text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
         pointer-events: none;
       }
 
@@ -195,6 +195,9 @@
 
     <script>
       (function () {
+        // URL da API no EC2
+        const API_URL = "https://apitelaodigital.suportevca.com.br";
+
         const wrapper = document.getElementById("floor-plan-wrapper");
         const statusEl = document.getElementById("status");
         const implantacaoNameEl = document.getElementById("implantacaoName");
@@ -220,7 +223,7 @@
 
         async function fetchData(hideAvailable = "false") {
           try {
-            const url = `/api/public-data?implantacao=${encodeURIComponent(
+            const url = `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
               implantacao
             )}&hideAvailable=${hideAvailable}`;
             const res = await fetch(url);
@@ -284,7 +287,7 @@
             indicator.style.width = `${dotSize}px`;
             indicator.style.height = `${dotSize}px`;
             indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
-            
+
             if (letra) {
               const letraSpan = document.createElement("span");
               letraSpan.className = "letra";
@@ -372,7 +375,7 @@
           const dotSize = window.currentDotSize || 16;
           indicator.style.width = `${dotSize}px`;
           indicator.style.height = `${dotSize}px`;
-          
+
           indicator.innerHTML = "";
           if (letra) {
             const letraSpan = document.createElement("span");
@@ -402,7 +405,7 @@
 
         async function saveDotSize(newSize) {
           try {
-            const res = await fetch("/api/update-dot-size", {
+            const res = await fetch(`${API_URL}/api/update-dot-size`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
