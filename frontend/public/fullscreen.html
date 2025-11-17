@@ -106,6 +106,10 @@
       .status-other {
         background: #6c757d;
       }
+      /* Esconder unidades disponíveis quando toggle ativado */
+      .hide-disponivel .status-DISPONÍVEL {
+        display: none !important;
+      }
       .small {
         font-size: 14px;
         color: #ccc;
@@ -221,6 +225,57 @@
         border: none;
         border-radius: 3px;
       }
+      .toggle-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .toggle-option label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+      }
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #555;
+        transition: 0.3s;
+        border-radius: 24px;
+      }
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      .toggle-switch input:checked + .toggle-slider {
+        background-color: #6ad700;
+      }
+      .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+      }
       .toast-notification {
         position: fixed;
         bottom: 80px;
@@ -292,6 +347,13 @@
       <div class="color-option">
         <label for="color-reservada">Reservada</label>
         <input type="color" id="color-reservada" value="#d9534f" />
+      </div>
+      <div class="toggle-option">
+        <label for="hide-disponivel">Esconder Disponíveis</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="hide-disponivel" />
+          <span class="toggle-slider"></span>
+        </label>
       </div>
     </div>
 
@@ -699,6 +761,36 @@
 
         colorDisponivelInput.addEventListener("input", updateColors);
         colorReservadaInput.addEventListener("input", updateColors);
+
+        // Toggle para esconder disponíveis
+        const hideDisponivelToggle = document.getElementById("hide-disponivel");
+
+        function updateHideDisponivel() {
+          const isHidden = hideDisponivelToggle.checked;
+
+          if (isHidden) {
+            wrapper.classList.add("hide-disponivel");
+          } else {
+            wrapper.classList.remove("hide-disponivel");
+          }
+
+          // Salva no localStorage
+          localStorage.setItem("hide-disponivel", isHidden);
+        }
+
+        // Carrega estado salvo do toggle
+        function loadHideDisponivelState() {
+          const savedState = localStorage.getItem("hide-disponivel");
+          if (savedState === "true") {
+            hideDisponivelToggle.checked = true;
+            wrapper.classList.add("hide-disponivel");
+          }
+        }
+
+        // Carrega estado ao iniciar
+        loadHideDisponivelState();
+
+        hideDisponivelToggle.addEventListener("change", updateHideDisponivel);
 
         // Detecta quando entra/sai do fullscreen do navegador
         document.addEventListener("fullscreenchange", () => {
