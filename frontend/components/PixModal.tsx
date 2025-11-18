@@ -23,7 +23,7 @@ interface PixModalProps {
 
 // Estrutura de dados para os estados e cidades permitidos
 const CIDADES_POR_ESTADO: { [key: string]: string[] } = {
-  BA: ["VITORIA DA CONQUISTA", "SALVADOR", "FEIRA DE SANTANA", "ITABUNA"],
+  BA: ["VITORIA DA CONQUISTA", "SALVADOR", "FEIRA DE SANTANA", "ITABUNA", "BARREIRAS", "ILHÉUS", "PORTO SEGURO"],
   SP: ["SAO PAULO", "CAMPINAS", "GUARULHOS", "SANTOS", "SAO JOSE DOS CAMPOS"],
   RJ: ["RIO DE JANEIRO", "NITEROI", "DUQUE DE CAXIAS", "NOVA IGUACU"],
   MG: ["BELO HORIZONTE", "UBERLANDIA", "CONTAGEM", "JUIZ DE FORA"],
