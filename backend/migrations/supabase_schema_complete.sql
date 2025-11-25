@@ -40,8 +40,11 @@ create table if not exists public.implantacoes (
   id uuid primary key default gen_random_uuid(),
   nome text not null unique,
   url text not null,
-  tamanho_ponto integer default 16,
+  tamanho_ponto integer default 15,
   endereco text,
+  cidade text,
+  estado text,
+  cvcrm_id text,
   logo_url text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

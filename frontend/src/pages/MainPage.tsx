@@ -12,6 +12,10 @@ import { CancelModal } from "../../components/CancelModal";
 import { BlockModal } from "../../components/BlockModal";
 import { MappingSidebar } from "../../components/MappingSidebar";
 import { ImplantationSwitcher } from "../../components/ImplantationSwitcher";
+import { Header } from "../../components/Header";
+import { HamburgerMenu } from "../../components/HamburgerMenu";
+import { NewImplantationModal } from "../../components/NewImplantationModal";
+import { EditImplantationModal } from "../../components/EditImplantationModal";
 import {
   TermoDeReserva,
   type TermoData,
@@ -175,6 +179,63 @@ export function MainPage() {
   const [showFullNameModal, setShowFullNameModal] = useState(false);
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const reservationManager = useReservationManager(apiUrl);
+
+  // Estados para os novos modais
+  const [isNewImplantationModalOpen, setIsNewImplantationModalOpen] =
+    useState(false);
+  const [isEditImplantationModalOpen, setIsEditImplantationModalOpen] =
+    useState(false);
+  const [implantationToEdit, setImplantationToEdit] = useState<
+    | (Implantation & {
+        id: string;
+        cidade: string;
+        estado: string;
+        cvcrm_id?: string;
+      })
+    | null
+  >(null);
+
+  // Função para recarregar implantações
+  const fetchImplantations = async () => {
+    try {
+      const response = await axios.get<Implantation[]>(
+        `${apiUrl}/api/implantacoes`
+      );
+      setImplantacoes(response.data || []);
+    } catch (err) {
+      console.error("Erro ao buscar implantações:", err);
+    }
+  };
+
+  // Handlers para os novos modais
+  const handleOpenNewImplantation = () => {
+    setIsNewImplantationModalOpen(true);
+  };
+
+  const handleOpenEditImplantation = () => {
+    if (!currentImplantation) return;
+    // Buscar dados completos da implantação (incluindo id, cidade, estado)
+    axios
+      .get(`${apiUrl}/api/implantacoes`)
+      .then((res) => {
+        const fullData = res.data.find(
+          (imp: any) => imp.nome === currentImplantation.nome
+        );
+        if (fullData) {
+          setImplantationToEdit(fullData);
+          setIsEditImplantationModalOpen(true);
+        }
+      })
+      .catch((err) => console.error("Erro ao buscar implantação:", err));
+  };
+
+  const handleImplantationSuccess = async () => {
+    await fetchImplantations();
+  };
+
+  const handleLogout = async () => {
+    await auth.signOut();
+  };
 
   const handlePrint = useReactToPrint({
     contentRef: printComponentRef,
@@ -1011,6 +1072,16 @@ export function MainPage() {
       </Helmet>
 
       <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>
+        {/* Novo Header fixo no topo */}
+        <Header title="Lançamento - Espelho Digital" />
+
+        {/* Menu Hamburger flutuante */}
+        <HamburgerMenu
+          onHistoryClick={() => setView("history")}
+          onMappingClick={() => setIsMappingMode(!isMappingMode)}
+          onLogout={handleLogout}
+        />
+
         {isMappingMode && (
           <MappingSidebar
             unidades={unidades}
@@ -1025,7 +1096,7 @@ export function MainPage() {
             onLetterChange={setUnitLetter}
           />
         )}
-        <div className="app-container">
+        <div className="app-container" style={{ marginTop: "70px" }}>
           {switching && (
             <div className="switching-overlay">
               <div className="loading-spinner"></div>
@@ -1033,23 +1104,59 @@ export function MainPage() {
           )}
           <div>
             <main className="main-content">
-              <div className="header-container">
-                <img
-                  src="/logo.png"
-                  alt="Logo da VCA Construtora"
-                  className="main-logo"
-                />
-                <div className="header-separator"></div>
-                <h1>Lançamento - Espelho Digital</h1>
+              {/* Botão "+ Novo Lançamento" */}
+              <div style={{ marginBottom: "20px", textAlign: "right" }}>
+                <button
+                  onClick={handleOpenNewImplantation}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "#28a745",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "16px",
+                  }}
+                >
+                  + Novo Lançamento
+                </button>
               </div>
+
+              {/* Seletor de empreendimento com ícone de configuração */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "20px",
+                }}
+              >
+                <ImplantationSwitcher
+                  implantacoes={implantacoes}
+                  selected={selectedImplantationName}
+                  onChange={handleImplantationChange}
+                />
+                <button
+                  onClick={handleOpenEditImplantation}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#007bff",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                  }}
+                  title="Configurar empreendimento"
+                >
+                  ⚙️
+                </button>
+              </div>
+
               <div className="top-controls">
                 <div className="controls-left">
                   <div className="controls-left-top">
-                    <ImplantationSwitcher
-                      implantacoes={implantacoes}
-                      selected={selectedImplantationName}
-                      onChange={handleImplantationChange}
-                    />
                     <button
                       className={`mobile-menu-toggle ${
                         isMobileMenuOpen ? "active" : ""
@@ -1353,6 +1460,21 @@ export function MainPage() {
         <div style={{ display: "none" }}>
           <TermoDeReserva ref={printComponentRef} data={termoParaImprimir} />
         </div>
+
+        {/* Novos Modais */}
+        <NewImplantationModal
+          isOpen={isNewImplantationModalOpen}
+          onClose={() => setIsNewImplantationModalOpen(false)}
+          onSuccess={handleImplantationSuccess}
+          apiUrl={apiUrl}
+        />
+        <EditImplantationModal
+          isOpen={isEditImplantationModalOpen}
+          onClose={() => setIsEditImplantationModalOpen(false)}
+          onSuccess={handleImplantationSuccess}
+          apiUrl={apiUrl}
+          implantation={implantationToEdit}
+        />
       </div>
     </HelmetProvider>
   );
