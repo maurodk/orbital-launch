@@ -17,6 +17,7 @@
     "axios": "^1.11.0",
     "firebase": "^12.1.0",
     "helmet": "^8.1.0",
+    "lucide-react": "^0.554.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

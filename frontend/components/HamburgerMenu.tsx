@@ -1,16 +1,21 @@
 // frontend/components/HamburgerMenu.tsx
 
 import { useState } from "react";
+import { LogOut } from "lucide-react";
 
 interface HamburgerMenuProps {
+  onNewImplantationClick: () => void;
+  onMapViewClick: () => void;
+  onListViewClick: () => void;
   onHistoryClick: () => void;
-  onMappingClick: () => void;
   onLogout?: () => void;
 }
 
 export function HamburgerMenu({
+  onNewImplantationClick,
+  onMapViewClick,
+  onListViewClick,
   onHistoryClick,
-  onMappingClick,
   onLogout,
 }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -35,9 +40,9 @@ export function HamburgerMenu({
           width: "50px",
           height: "50px",
           borderRadius: "50%",
-          border: "none",
-          backgroundColor: "#007bff",
-          color: "white",
+          border: "2px solid #6ad700",
+          backgroundColor: "#1e1e1e",
+          color: "#6ad700",
           cursor: "pointer",
           display: "flex",
           flexDirection: "column",
@@ -53,7 +58,7 @@ export function HamburgerMenu({
           style={{
             width: "25px",
             height: "3px",
-            backgroundColor: "white",
+            backgroundColor: "#6ad700",
             borderRadius: "2px",
             transition: "all 0.3s ease",
             transform: isOpen ? "rotate(45deg) translate(5px, 5px)" : "none",
@@ -63,7 +68,7 @@ export function HamburgerMenu({
           style={{
             width: "25px",
             height: "3px",
-            backgroundColor: "white",
+            backgroundColor: "#6ad700",
             borderRadius: "2px",
             transition: "all 0.3s ease",
             opacity: isOpen ? 0 : 1,
@@ -73,7 +78,7 @@ export function HamburgerMenu({
           style={{
             width: "25px",
             height: "3px",
-            backgroundColor: "white",
+            backgroundColor: "#6ad700",
             borderRadius: "2px",
             transition: "all 0.3s ease",
             transform: isOpen ? "rotate(-45deg) translate(5px, -5px)" : "none",
@@ -88,9 +93,10 @@ export function HamburgerMenu({
             position: "absolute",
             top: "60px",
             right: 0,
-            backgroundColor: "white",
+            backgroundColor: "#1e1e1e",
             borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            border: "1px solid #6ad700",
+            boxShadow: "0 4px 12px rgba(106, 215, 0, 0.3)",
             minWidth: "200px",
             overflow: "hidden",
             animation: "slideDown 0.3s ease",
@@ -112,6 +118,84 @@ export function HamburgerMenu({
           </style>
 
           <button
+            onClick={() => handleItemClick(onNewImplantationClick)}
+            style={{
+              width: "100%",
+              padding: "12px 20px",
+              border: "none",
+              backgroundColor: "transparent",
+              textAlign: "left",
+              cursor: "pointer",
+              fontSize: "14px",
+              color: "#6ad700",
+              fontWeight: "bold",
+              transition: "background-color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#2a2a2a";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            + Novo Lançamento
+          </button>
+
+          <div
+            style={{
+              height: "1px",
+              backgroundColor: "#2a2a2a",
+              margin: "5px 0",
+            }}
+          />
+
+          <button
+            onClick={() => handleItemClick(onMapViewClick)}
+            style={{
+              width: "100%",
+              padding: "12px 20px",
+              border: "none",
+              backgroundColor: "transparent",
+              textAlign: "left",
+              cursor: "pointer",
+              fontSize: "14px",
+              color: "#eaeaea",
+              transition: "background-color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#2a2a2a";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            Mapa Visual
+          </button>
+
+          <button
+            onClick={() => handleItemClick(onListViewClick)}
+            style={{
+              width: "100%",
+              padding: "12px 20px",
+              border: "none",
+              backgroundColor: "transparent",
+              textAlign: "left",
+              cursor: "pointer",
+              fontSize: "14px",
+              color: "#eaeaea",
+              transition: "background-color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#2a2a2a";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            Lista para Reserva
+          </button>
+
+          <button
             onClick={() => handleItemClick(onHistoryClick)}
             style={{
               width: "100%",
@@ -121,38 +205,17 @@ export function HamburgerMenu({
               textAlign: "left",
               cursor: "pointer",
               fontSize: "14px",
+              color: "#eaeaea",
               transition: "background-color 0.2s ease",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f0f0f0";
+              e.currentTarget.style.backgroundColor = "#2a2a2a";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = "transparent";
             }}
           >
-            📊 Histórico
-          </button>
-
-          <button
-            onClick={() => handleItemClick(onMappingClick)}
-            style={{
-              width: "100%",
-              padding: "12px 20px",
-              border: "none",
-              backgroundColor: "transparent",
-              textAlign: "left",
-              cursor: "pointer",
-              fontSize: "14px",
-              transition: "background-color 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f0f0f0";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
-          >
-            🗺️ Mapeamento
+            Histórico Geral
           </button>
 
           {onLogout && (
@@ -160,7 +223,7 @@ export function HamburgerMenu({
               <div
                 style={{
                   height: "1px",
-                  backgroundColor: "#e0e0e0",
+                  backgroundColor: "#2a2a2a",
                   margin: "5px 0",
                 }}
               />
@@ -174,17 +237,21 @@ export function HamburgerMenu({
                   textAlign: "left",
                   cursor: "pointer",
                   fontSize: "14px",
-                  color: "#dc3545",
+                  color: "#d9534f",
                   transition: "background-color 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#fff0f0";
+                  e.currentTarget.style.backgroundColor = "#2a2a2a";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
-                🚪 Sair
+                <LogOut size={16} />
+                Sair
               </button>
             </>
           )}

@@ -3560,144 +3560,221 @@ app.get("/api/implantacoes", async (req, res) => {
 });
 
 // Criar nova implantação
-app.post("/api/implantacoes", upload.single("imagem"), async (req, res) => {
-  try {
-    if (!supabase) {
-      return res.status(500).json({ error: "Supabase não está configurado." });
-    }
-
-    const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
-
-    if (!nome || !endereco || !cidade || !estado) {
-      return res.status(400).json({
-        error: "Nome, endereço, cidade e estado são obrigatórios.",
-      });
-    }
-
-    let imageUrl = "";
-
-    // Upload da imagem para Supabase Storage (se fornecida)
-    if (req.file) {
-      const fileName = `${Date.now()}_${req.file.originalname}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("implantacoes")
-        .upload(fileName, req.file.buffer, {
-          contentType: req.file.mimetype,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("Erro ao fazer upload da imagem:", uploadError);
+app.post(
+  "/api/implantacoes",
+  upload.fields([
+    { name: "imagem", maxCount: 1 },
+    { name: "logo", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      if (!supabase) {
         return res
           .status(500)
-          .json({ error: "Falha ao fazer upload da imagem." });
+          .json({ error: "Supabase não está configurado." });
       }
 
-      // Gerar URL pública da imagem
-      const { data: urlData } = supabase.storage
+      const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
+
+      if (!nome || !endereco || !cidade || !estado) {
+        return res.status(400).json({
+          error: "Nome, endereço, cidade e estado são obrigatórios.",
+        });
+      }
+
+      let imageUrl = "";
+      let logoUrl = "";
+
+      // Upload da imagem da implantação para Supabase Storage (se fornecida)
+      if (req.files && req.files.imagem && req.files.imagem[0]) {
+        const file = req.files.imagem[0];
+        const fileName = `implantacao_${Date.now()}_${file.originalname}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("implantacoes")
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Erro ao fazer upload da imagem:", uploadError);
+          return res
+            .status(500)
+            .json({ error: "Falha ao fazer upload da imagem." });
+        }
+
+        // Gerar URL pública da imagem
+        const { data: urlData } = supabase.storage
+          .from("implantacoes")
+          .getPublicUrl(fileName);
+
+        imageUrl = urlData?.publicUrl || "";
+      }
+
+      // Upload da logo para Supabase Storage (se fornecida)
+      if (req.files && req.files.logo && req.files.logo[0]) {
+        const file = req.files.logo[0];
+        const fileName = `logo_${Date.now()}_${file.originalname}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("implantacoes")
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Erro ao fazer upload da logo:", uploadError);
+          return res
+            .status(500)
+            .json({ error: "Falha ao fazer upload da logo." });
+        }
+
+        // Gerar URL pública da logo
+        const { data: urlData } = supabase.storage
+          .from("implantacoes")
+          .getPublicUrl(fileName);
+
+        logoUrl = urlData?.publicUrl || "";
+      }
+
+      // Inserir implantação no banco
+      const { data, error } = await supabase
         .from("implantacoes")
-        .getPublicUrl(fileName);
+        .insert({
+          nome: nome.trim(),
+          url: imageUrl,
+          logo_url: logoUrl,
+          tamanho_ponto: 15,
+          endereco: endereco.trim(),
+          cidade: cidade.trim(),
+          estado: estado.trim(),
+          cvcrm_id: cvcrm_id?.trim() || null,
+        })
+        .select()
+        .single();
 
-      imageUrl = urlData?.publicUrl || "";
+      if (error) throw error;
+      res.status(201).json(data);
+    } catch (error) {
+      console.error("Erro ao criar implantação:", error);
+      res.status(500).json({ error: "Falha ao criar implantação." });
     }
-
-    // Inserir implantação no banco
-    const { data, error } = await supabase
-      .from("implantacoes")
-      .insert({
-        nome: nome.trim(),
-        url: imageUrl,
-        tamanho_ponto: 15,
-        endereco: endereco.trim(),
-        cidade: cidade.trim(),
-        estado: estado.trim(),
-        cvcrm_id: cvcrm_id?.trim() || null,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    res.status(201).json(data);
-  } catch (error) {
-    console.error("Erro ao criar implantação:", error);
-    res.status(500).json({ error: "Falha ao criar implantação." });
   }
-});
+);
 
 // Atualizar implantação existente
-app.put("/api/implantacoes/:id", upload.single("imagem"), async (req, res) => {
-  try {
-    if (!supabase) {
-      return res.status(500).json({ error: "Supabase não está configurado." });
-    }
-
-    const { id } = req.params;
-    const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
-
-    if (!nome || !endereco || !cidade || !estado) {
-      return res.status(400).json({
-        error: "Nome, endereço, cidade e estado são obrigatórios.",
-      });
-    }
-
-    // Buscar implantação atual
-    const { data: currentData, error: fetchError } = await supabase
-      .from("implantacoes")
-      .select("url")
-      .eq("id", id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    let imageUrl = currentData?.url || "";
-
-    // Upload de nova imagem (se fornecida)
-    if (req.file) {
-      const fileName = `${Date.now()}_${req.file.originalname}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("implantacoes")
-        .upload(fileName, req.file.buffer, {
-          contentType: req.file.mimetype,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("Erro ao fazer upload da imagem:", uploadError);
+app.put(
+  "/api/implantacoes/:id",
+  upload.fields([
+    { name: "imagem", maxCount: 1 },
+    { name: "logo", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      if (!supabase) {
         return res
           .status(500)
-          .json({ error: "Falha ao fazer upload da imagem." });
+          .json({ error: "Supabase não está configurado." });
       }
 
-      // Gerar URL pública da nova imagem
-      const { data: urlData } = supabase.storage
+      const { id } = req.params;
+      const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
+
+      if (!nome || !endereco || !cidade || !estado) {
+        return res.status(400).json({
+          error: "Nome, endereço, cidade e estado são obrigatórios.",
+        });
+      }
+
+      // Buscar implantação atual
+      const { data: currentData, error: fetchError } = await supabase
         .from("implantacoes")
-        .getPublicUrl(fileName);
+        .select("url, logo_url")
+        .eq("id", id)
+        .single();
 
-      imageUrl = urlData?.publicUrl || "";
+      if (fetchError) throw fetchError;
+
+      let imageUrl = currentData?.url || "";
+      let logoUrl = currentData?.logo_url || "";
+
+      // Upload de nova imagem da implantação (se fornecida)
+      if (req.files && req.files.imagem && req.files.imagem[0]) {
+        const file = req.files.imagem[0];
+        const fileName = `implantacao_${Date.now()}_${file.originalname}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("implantacoes")
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Erro ao fazer upload da imagem:", uploadError);
+          return res
+            .status(500)
+            .json({ error: "Falha ao fazer upload da imagem." });
+        }
+
+        // Gerar URL pública da nova imagem
+        const { data: urlData } = supabase.storage
+          .from("implantacoes")
+          .getPublicUrl(fileName);
+
+        imageUrl = urlData?.publicUrl || "";
+      }
+
+      // Upload de nova logo (se fornecida)
+      if (req.files && req.files.logo && req.files.logo[0]) {
+        const file = req.files.logo[0];
+        const fileName = `logo_${Date.now()}_${file.originalname}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("implantacoes")
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("Erro ao fazer upload da logo:", uploadError);
+          return res
+            .status(500)
+            .json({ error: "Falha ao fazer upload da logo." });
+        }
+
+        // Gerar URL pública da nova logo
+        const { data: urlData } = supabase.storage
+          .from("implantacoes")
+          .getPublicUrl(fileName);
+
+        logoUrl = urlData?.publicUrl || "";
+      }
+
+      // Atualizar implantação no banco
+      const { data, error } = await supabase
+        .from("implantacoes")
+        .update({
+          nome: nome.trim(),
+          url: imageUrl,
+          logo_url: logoUrl,
+          endereco: endereco.trim(),
+          cidade: cidade.trim(),
+          estado: estado.trim(),
+          cvcrm_id: cvcrm_id?.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      console.error("Erro ao atualizar implantação:", error);
+      res.status(500).json({ error: "Falha ao atualizar implantação." });
     }
-
-    // Atualizar implantação
-    const { data, error } = await supabase
-      .from("implantacoes")
-      .update({
-        nome: nome.trim(),
-        url: imageUrl,
-        endereco: endereco.trim(),
-        cidade: cidade.trim(),
-        estado: estado.trim(),
-        cvcrm_id: cvcrm_id?.trim() || null,
-      })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    res.json(data);
-  } catch (error) {
-    console.error("Erro ao atualizar implantação:", error);
-    res.status(500).json({ error: "Falha ao atualizar implantação." });
   }
-});
+);
 
 // Deletar implantação
 app.delete("/api/implantacoes/:id", async (req, res) => {

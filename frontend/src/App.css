@@ -116,6 +116,12 @@ body {
   min-width: 0;
   box-sizing: border-box;
   overflow-x: hidden;
+  margin-top: 90px; /* Gap entre o header e o container */
+}
+
+/* Aumenta a largura máxima para a lista de reserva */
+.app-container.list-view {
+  max-width: 2200px;
 }
 
 h1 {
@@ -581,12 +587,24 @@ button:focus-visible {
   text-transform: uppercase;
   font-size: 0.8rem;
 }
-.reservation-table th:nth-child(1) { width: 15%; }
-.reservation-table th:nth-child(2) { width: 12%; }
-.reservation-table th:nth-child(3) { width: 12%; }
-.reservation-table th:nth-child(4) { width: 18%; }
-.reservation-table th:nth-child(5) { width: 18%; }
-.reservation-table th:nth-child(6) { width: 25%; }
+.reservation-table th:nth-child(1) {
+  width: 15%;
+}
+.reservation-table th:nth-child(2) {
+  width: 12%;
+}
+.reservation-table th:nth-child(3) {
+  width: 12%;
+}
+.reservation-table th:nth-child(4) {
+  width: 18%;
+}
+.reservation-table th:nth-child(5) {
+  width: 18%;
+}
+.reservation-table th:nth-child(6) {
+  width: 25%;
+}
 .reservation-table tbody tr {
   position: relative;
 }

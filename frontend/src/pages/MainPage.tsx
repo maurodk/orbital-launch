@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { useReactToPrint } from "react-to-print";
+import { Settings } from "lucide-react";
 
 import { FloorPlan } from "../../components/FloorPlan";
 import { ReservationModal } from "../../components/ReservationModal";
@@ -118,7 +119,7 @@ export function MainPage() {
   const [isMappingMode, setIsMappingMode] = useState(false);
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
   const [dotSize, setDotSize] = useState<number>(16);
-  const [hideAvailable, setHideAvailable] = useState<boolean>(true);
+  const [hideAvailable, setHideAvailable] = useState<boolean>(false);
   const [unitLetter, setUnitLetter] = useState<string>("");
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
@@ -177,6 +178,7 @@ export function MainPage() {
     number | null
   >(null);
   const [showFullNameModal, setShowFullNameModal] = useState(false);
+  // @ts-ignore - userFullName is set but not currently displayed
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const reservationManager = useReservationManager(apiUrl);
 
@@ -1072,13 +1074,21 @@ export function MainPage() {
       </Helmet>
 
       <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>
-        {/* Novo Header fixo no topo */}
-        <Header title="Lançamento - Espelho Digital" />
+        {/* Header - fixo apenas quando não estiver no mapa visual */}
+        <Header title="Lançamento - Espelho Digital" isFixed={view !== "map"} />
 
         {/* Menu Hamburger flutuante */}
         <HamburgerMenu
-          onHistoryClick={() => setView("history")}
-          onMappingClick={() => setIsMappingMode(!isMappingMode)}
+          onNewImplantationClick={handleOpenNewImplantation}
+          onMapViewClick={() => setView("map")}
+          onListViewClick={() => {
+            setView("list");
+            setIsMappingMode(false);
+          }}
+          onHistoryClick={() => {
+            setView("history");
+            setIsMappingMode(false);
+          }}
           onLogout={handleLogout}
         />
 
@@ -1096,7 +1106,7 @@ export function MainPage() {
             onLetterChange={setUnitLetter}
           />
         )}
-        <div className="app-container" style={{ marginTop: "70px" }}>
+        <div className={`app-container ${view === "list" ? "list-view" : ""}`}>
           {switching && (
             <div className="switching-overlay">
               <div className="loading-spinner"></div>
@@ -1104,70 +1114,26 @@ export function MainPage() {
           )}
           <div>
             <main className="main-content">
-              {/* Botão "+ Novo Lançamento" */}
-              <div style={{ marginBottom: "20px", textAlign: "right" }}>
-                <button
-                  onClick={handleOpenNewImplantation}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                    fontSize: "16px",
-                  }}
-                >
-                  + Novo Lançamento
-                </button>
-              </div>
-
-              {/* Seletor de empreendimento com ícone de configuração */}
+              {/* Nova organização dos controles */}
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
                   marginBottom: "20px",
+                  gap: "20px",
                 }}
               >
-                <ImplantationSwitcher
-                  implantacoes={implantacoes}
-                  selected={selectedImplantationName}
-                  onChange={handleImplantationChange}
-                />
-                <button
-                  onClick={handleOpenEditImplantation}
+                {/* Esquerda: Modo Mapeamento e Checkbox */}
+                <div
                   style={{
-                    padding: "8px 12px",
-                    backgroundColor: "#007bff",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "18px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
                   }}
-                  title="Configurar empreendimento"
                 >
-                  ⚙️
-                </button>
-              </div>
-
-              <div className="top-controls">
-                <div className="controls-left">
-                  <div className="controls-left-top">
-                    <button
-                      className={`mobile-menu-toggle ${
-                        isMobileMenuOpen ? "active" : ""
-                      }`}
-                      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    >
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </button>
-                    {view === "map" && (
+                  {view === "map" && (
+                    <>
                       <button
                         className={`toggle-mapping-button ${
                           isMappingMode ? "active" : ""
@@ -1176,52 +1142,62 @@ export function MainPage() {
                       >
                         Modo Mapeamento
                       </button>
-                    )}
-                  </div>
-                  <div className="user-greeting">
-                    Logado como: <strong>{userFullName || user.email}</strong>
-                  </div>
-                </div>
-                <div className="controls-right">
-                  {view === "map" && (
-                    <div className="filter-checkbox-wrapper">
-                      <input
-                        type="checkbox"
-                        id="hide-available-toggle"
-                        checked={hideAvailable}
-                        onChange={(e) => setHideAvailable(e.target.checked)}
-                      />
-                      <label htmlFor="hide-available-toggle">
-                        Ocultar Disponíveis
-                      </label>
-                    </div>
+                      <div
+                        className="filter-checkbox-wrapper"
+                        style={{ marginLeft: 0 }}
+                      >
+                        <input
+                          type="checkbox"
+                          id="hide-available-toggle"
+                          checked={hideAvailable}
+                          onChange={(e) => setHideAvailable(e.target.checked)}
+                        />
+                        <label htmlFor="hide-available-toggle">
+                          Ocultar Disponíveis
+                        </label>
+                      </div>
+                    </>
                   )}
-                  <div className="view-switcher">
-                    <button
-                      className={view === "map" ? "active" : ""}
-                      onClick={() => setView("map")}
-                    >
-                      Mapa Visual
-                    </button>
-                    <button
-                      className={view === "list" ? "active" : ""}
-                      onClick={() => setView("list")}
-                    >
-                      Lista para Reserva
-                    </button>
-                    <button
-                      className={view === "history" ? "active" : ""}
-                      onClick={() => setView("history")}
-                    >
-                      Histórico Geral
-                    </button>
-                    <button
-                      onClick={() => auth.signOut()}
-                      className="logout-button"
-                    >
-                      Sair
-                    </button>
-                  </div>
+                </div>
+
+                {/* Direita: Seletor de empreendimento e configurações */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <ImplantationSwitcher
+                    implantacoes={implantacoes}
+                    selected={selectedImplantationName}
+                    onChange={handleImplantationChange}
+                  />
+                  <button
+                    onClick={handleOpenEditImplantation}
+                    style={{
+                      padding: "8px 12px",
+                      backgroundColor: "transparent",
+                      color: "#6ad700",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "18px",
+                      transition: "all 0.3s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#2a2a2a";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                    title="Configurar empreendimento"
+                  >
+                    <Settings size={20} />
+                  </button>
                 </div>
               </div>
               <div

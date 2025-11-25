@@ -6,9 +6,29 @@
 create extension if not exists pgcrypto;
 
 -- ============================================
--- 2) TABELA DE USUÁRIOS (vinculada ao auth.users)
+-- 2) DROP TABLES (CASCADE para remover dependências)
 -- ============================================
-create table if not exists public.users (
+drop table if exists public.funil cascade;
+drop table if exists public.historico cascade;
+drop table if exists public.unidades cascade;
+drop table if exists public.clientes cascade;
+drop table if exists public.config cascade;
+drop table if exists public.implantacoes cascade;
+drop table if exists public.users cascade;
+
+-- Drop triggers e functions antigas
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user() cascade;
+drop function if exists public.set_updated_at() cascade;
+drop function if exists public.backfill_implantacao_ids() cascade;
+
+-- Drop views
+drop view if exists public.unidades_flat cascade;
+
+-- ============================================
+-- 3) TABELA DE USUÁRIOS (vinculada ao auth.users)
+-- ============================================
+create table public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique not null,
   full_name text,
@@ -32,11 +52,11 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- ============================================
--- 3) TABELAS PRINCIPAIS
+-- 4) TABELAS PRINCIPAIS
 -- ============================================
 
 -- Implantações (projetos)
-create table if not exists public.implantacoes (
+create table public.implantacoes (
   id uuid primary key default gen_random_uuid(),
   nome text not null unique,
   url text not null,
@@ -51,7 +71,7 @@ create table if not exists public.implantacoes (
 );
 
 -- Clientes (pré-cadastros)
-create table if not exists public.clientes (
+create table public.clientes (
   id uuid primary key default gen_random_uuid(),
   id_pre_cadastro text,
   nome text,
@@ -62,10 +82,10 @@ create table if not exists public.clientes (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-create index if not exists idx_clientes_idpre on public.clientes (id_pre_cadastro);
+create index idx_clientes_idpre on public.clientes (id_pre_cadastro);
 
 -- Unidades
-create table if not exists public.unidades (
+create table public.unidades (
   id uuid primary key default gen_random_uuid(),
   row_index integer,
   etapa text,
@@ -85,11 +105,11 @@ create table if not exists public.unidades (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-create index if not exists idx_unidades_implantacao on public.unidades (implantacao_id);
-create index if not exists idx_unidades_rowindex_implantacao on public.unidades (row_index, implantacao_id);
+create index idx_unidades_implantacao on public.unidades (implantacao_id);
+create index idx_unidades_rowindex_implantacao on public.unidades (row_index, implantacao_id);
 
 -- Histórico (log de ações)
-create table if not exists public.historico (
+create table public.historico (
   id uuid primary key default gen_random_uuid(),
   timestamp_iso timestamptz default now(),
   data_formatada text,
@@ -101,11 +121,11 @@ create table if not exists public.historico (
   implantacao_id uuid references public.implantacoes(id) on delete set null,
   created_at timestamptz default now()
 );
-create index if not exists idx_historico_implantacao on public.historico (implantacao_id);
-create index if not exists idx_historico_unidade on public.historico (unidade_nome);
+create index idx_historico_implantacao on public.historico (implantacao_id);
+create index idx_historico_unidade on public.historico (unidade_nome);
 
 -- Funil
-create table if not exists public.funil (
+create table public.funil (
   id uuid primary key default gen_random_uuid(),
   id_pre text,
   unit_name text,
@@ -115,14 +135,14 @@ create table if not exists public.funil (
 );
 
 -- Config
-create table if not exists public.config (
+create table public.config (
   key text primary key,
   value text,
   updated_at timestamptz default now()
 );
 
 -- ============================================
--- 4) TRIGGERS PARA UPDATED_AT
+-- 5) TRIGGERS PARA UPDATED_AT
 -- ============================================
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -149,7 +169,7 @@ create trigger trg_unidades_updated_at
   for each row execute procedure public.set_updated_at();
 
 -- ============================================
--- 5) ROW LEVEL SECURITY (RLS)
+-- 6) ROW LEVEL SECURITY (RLS)
 -- ============================================
 
 -- Habilitar RLS
@@ -229,7 +249,7 @@ create policy "Usuários autenticados podem atualizar config"
   using (auth.role() = 'authenticated');
 
 -- ============================================
--- 6) VIEWS ÚTEIS
+-- 7) VIEWS ÚTEIS
 -- ============================================
 create or replace view public.unidades_flat as
 select 
@@ -240,7 +260,7 @@ from public.unidades u
 left join public.implantacoes i on i.id = u.implantacao_id;
 
 -- ============================================
--- 7) FUNÇÕES AUXILIARES
+-- 8) FUNÇÕES AUXILIARES
 -- ============================================
 create or replace function public.backfill_implantacao_ids()
 returns void language plpgsql as $$
