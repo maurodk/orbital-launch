@@ -70,16 +70,25 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
+    const allowedCsvTypes = /csv/;
 
-    if (mimetype && extname) {
+    const extname = path.extname(file.originalname).toLowerCase();
+    const isImage =
+      allowedImageTypes.test(extname) && /^image\//.test(file.mimetype);
+    const isCsv =
+      allowedCsvTypes.test(extname) ||
+      file.mimetype === "text/csv" ||
+      file.mimetype === "application/vnd.ms-excel";
+
+    if (isImage || isCsv) {
       return cb(null, true);
     }
-    cb(new Error("Apenas imagens são permitidas (jpeg, jpg, png, gif, webp)"));
+    cb(
+      new Error(
+        "Apenas imagens (jpeg, jpg, png, gif, webp) e arquivos CSV são permitidos"
+      )
+    );
   },
 });
 
@@ -222,15 +231,11 @@ async function broadcastEvent(implantacao, event, data) {
 const SPREADSHEET_ID_IMPLANTACAO =
   "1_q-6DYUTbPKPzBFCovoOTrtKXys1TraQFzGiXiz-h9s";
 const SPREADSHEET_ID_DADOS = "1CyXDp_RpSApsh-QjJPuWUzHnQV1MZFy2W3u7jIhFPbY";
-const SPREADSHEET_ID_FUNIL = "1v1S__nsKFCYbbpO36PP0MPQqBWgKcP1utuLYByAhca0";
 const SPREADSHEET_ID_HISTORICO = "1LiDhvO1wJg8WZFpmMKUFE2DkzIxzouch_7aHjwlQPfI";
-const SPREADSHEET_ID_CVCRM_COORDS =
-  "1IZD98W5-pQvOrSdw5Lg5NJL-NkSLjc3M91hAZnEc0VU";
 
 const SHEET_NAME_DADOS = "Página1";
 const SHEET_NAME_CONFIG = "Config";
 const SHEET_NAME_IMPLANTACOES = "Implantacoes";
-const SHEET_NAME_FUNIL = "Página1";
 
 // =================================================================
 // 5. FUNÇÕES AUXILIARES E MIDDLEWARE DE AUTENTICAÇÃO
@@ -884,7 +889,6 @@ app.get("/api/data", verifyToken, async (req, res) => {
   try {
     const sheets = await getSheetsClient();
     const resolved = await resolveSheetName(
-      // Usa a função original de resolução
       sheets,
       SPREADSHEET_ID_IMPLANTACAO,
       implantacao
@@ -899,19 +903,50 @@ app.get("/api/data", verifyToken, async (req, res) => {
       });
     }
     const sheetTitle = resolved.found;
-    const [implantacaoRes, dadosRes] = await Promise.all([
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:R`,
-      }),
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_DADOS,
-        range: `${SHEET_NAME_DADOS}!A:F`,
-      }),
-    ]);
+
+    // Busca unidades da planilha (Google Sheets)
+    const implantacaoRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${sheetTitle}'!A:R`,
+    });
+
+    // Busca clientes do Supabase
+    let clientes = [];
+    if (supabase) {
+      try {
+        // Primeiro encontra o ID da implantação
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
+
+        if (implData && implData.id) {
+          // Busca os clientes associados a esta implantação
+          const { data: clientesData } = await supabase
+            .from("clientes")
+            .select("*")
+            .eq("implantacao_id", implData.id);
+
+          clientes = (clientesData || []).map((c) => [
+            c.id_pre_cadastro || "",
+            c.nome || "",
+            c.documento || "",
+            c.corretor || "",
+            c.imobiliaria || "",
+            c.status || "",
+          ]);
+        }
+      } catch (e) {
+        console.error("Erro ao buscar clientes do Supabase:", e);
+        // Em caso de erro, retorna array vazio
+      }
+    }
+
     res.json({
       unidades: implantacaoRes.data.values || [],
-      clientes: dadosRes.data.values || [],
+      clientes: clientes,
     });
   } catch (error) {
     res.status(500).json({
@@ -997,25 +1032,39 @@ app.get("/api/public-data", async (req, res) => {
 app.get("/api/implantacoes", verifyToken, async (req, res) => {
   try {
     console.log("[/api/implantacoes] Iniciando busca de implantações...");
-    const sheets = await getSheetsClient();
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:G`, // Coluna G para a sigla
-    });
-    const implantacoes = (response.data.values || []).map((row) => ({
-      nome: row[0],
-      url: row[1],
-      tamanhoPonto: parseInt(row[2], 10) || 16,
-      endereco: row[3] || "Endereço não informado",
-      logoUrl: row[4] || "/logo-uni.png",
-      cvcrmId: row[5] || null, // Adiciona o ID do CVCRM
-      sigla: row[6] || null, // Adiciona a sigla
+
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
+    const { data: implantacoes, error } = await supabase
+      .from("implantacoes")
+      .select(
+        "id, nome, imagem_url, dot_size, endereco, logo_url, cvcrm_id, sigla"
+      )
+      .order("nome", { ascending: true });
+
+    if (error) {
+      console.error("[/api/implantacoes] Erro Supabase:", error);
+      return res.status(500).json({
+        error: "Falha ao buscar lista de implantações.",
+        details: error.message,
+      });
+    }
+
+    const result = (implantacoes || []).map((impl) => ({
+      id: impl.id,
+      nome: impl.nome,
+      url: impl.imagem_url,
+      tamanhoPonto: impl.dot_size || 16,
+      endereco: impl.endereco || "Endereço não informado",
+      logoUrl: impl.logo_url || "/logo-uni.png",
+      cvcrmId: impl.cvcrm_id || null,
+      sigla: impl.sigla || null,
     }));
-    console.log(
-      "[/api/implantacoes] Busca concluída. Total:",
-      implantacoes.length
-    );
-    res.json(implantacoes);
+
+    console.log("[/api/implantacoes] Busca concluída. Total:", result.length);
+    res.json(result);
   } catch (error) {
     console.error(
       "[/api/implantacoes] ERRO:",
@@ -1028,93 +1077,34 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
   }
 });
 
-app.get("/api/public-data-cvcrm", async (req, res) => {
-  const { implantacao, hideAvailable } = req.query;
-  if (!implantacao) {
-    return res
-      .status(400)
-      .json({ error: "O nome da implantação é obrigatório." });
-  }
-
-  try {
-    const sheets = await getSheetsClient();
-
-    // 1. Busca os dados da implantação (imagem, dotSize, cvcrmId)
-    const implantacoesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:F`,
-    });
-
-    const implantacaoData = (implantacoesRes.data.values || []).find(
-      (row) => row[0] === implantacao
-    );
-
-    if (!implantacaoData || !implantacaoData[5]) {
-      return res.status(404).json({
-        error: `Implantação '${implantacao}' ou seu ID do CVCRM não foram encontrados.`,
-      });
-    }
-
-    const imageUrl = implantacaoData[1] || "";
-    const dotSize = parseInt(implantacaoData[2], 10) || 16;
-    const cvcrmId = implantacaoData[5];
-
-    // 2. Busca as unidades da API do CVCRM
-    const baseUrl = process.env.CVCRM_API_BASE_URL;
-    const email = process.env.CVCRM_API_EMAIL;
-    const token = process.env.CVCRM_API_TOKEN;
-    const finalUrl = `${baseUrl}/${cvcrmId}`;
-    let cvcrmUnits = await fetchAllCvcrmUnitPages(finalUrl, email, token);
-
-    // Filtra as unidades se o parâmetro for verdadeiro
-    if (hideAvailable === "true") {
-      cvcrmUnits = cvcrmUnits.filter(
-        (unit) => unit.situacao.toUpperCase() !== "DISPONIVEL"
-      );
-    }
-
-    // 3. Busca as coordenadas salvas
-    const coordsRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
-      range: "A:E",
-    });
-    const savedCoords = (coordsRes.data.values || [])
-      .slice(1)
-      .filter((row) => row[4] === implantacao)
-      .reduce((acc, row) => {
-        if (row[0]) acc[row[0]] = { coord_x: row[2], coord_y: row[3] };
-        return acc;
-      }, {});
-
-    // 4. Mescla os dados
-    const unidades = cvcrmUnits.map((unit) => ({
-      ...unit,
-      ...savedCoords[unit.idunidade],
-    }));
-
-    res.json({ unidades, imageUrl, dotSize });
-  } catch (error) {
-    res.status(500).json({ error: "Falha ao buscar dados públicos do CVCRM." });
-  }
-});
-
-// CORREÇÃO: Este endpoint agora lê a aba 'Config' corretamente.
+// CORREÇÃO: Este endpoint agora lê do Supabase.
 app.get("/api/config", verifyToken, async (req, res) => {
   try {
     console.log("[/api/config] Iniciando busca de configurações...");
-    const sheets = await getSheetsClient();
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_CONFIG}!A2:B`, // Lê da aba de configuração
-    });
-    const configRows = response.data.values || [];
-    const config = configRows.reduce((acc, row) => {
-      if (row[0]) {
-        // se a chave existe
-        acc[row[0]] = row[1];
+
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
+    const { data: configRows, error } = await supabase
+      .from("config")
+      .select("key, value");
+
+    if (error) {
+      console.error("[/api/config] Erro Supabase:", error);
+      return res.status(500).json({
+        error: "Falha ao buscar configurações.",
+        details: error.message,
+      });
+    }
+
+    const config = (configRows || []).reduce((acc, row) => {
+      if (row.key) {
+        acc[row.key] = row.value;
       }
       return acc;
     }, {});
+
     console.log(
       "[/api/config] Configurações carregadas:",
       Object.keys(config).length,
@@ -1133,7 +1123,7 @@ app.get("/api/config", verifyToken, async (req, res) => {
   }
 });
 
-// NOVO: Endpoint para ATUALIZAR um valor na aba de Config
+// NOVO: Endpoint para ATUALIZAR um valor na tabela Config do Supabase
 app.post("/api/update-config", verifyToken, async (req, res) => {
   const { key, value } = req.body;
   if (!key || value === undefined) {
@@ -1141,34 +1131,22 @@ app.post("/api/update-config", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient();
-    const range = `${SHEET_NAME_CONFIG}!A:B`;
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: range,
-    });
-
-    const rows = response.data.values || [];
-    const rowIndex = rows.findIndex((row) => row[0] === key);
-
-    if (rowIndex === -1) {
-      return res
-        .status(404)
-        .json({ error: `Chave '${key}' não encontrada na configuração.` });
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
     }
 
-    const sheetRowIndex = rowIndex + 1;
-    const updateRange = `${SHEET_NAME_CONFIG}!B${sheetRowIndex}`;
+    const { error } = await supabase
+      .from("config")
+      .update({ value: value })
+      .eq("key", key);
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: updateRange,
-      valueInputOption: "USER_ENTERED",
-      resource: {
-        values: [[value]],
-      },
-    });
+    if (error) {
+      console.error("Erro ao atualizar configuração:", error);
+      return res.status(500).json({
+        error: "Falha ao atualizar configuração.",
+        details: error.message,
+      });
+    }
 
     res.json({ success: true, message: `Configuração '${key}' atualizada.` });
   } catch (error) {
@@ -1207,16 +1185,6 @@ app.get("/api/events", (req, res) => {
 // Serve a página fullscreen estática
 app.get("/fullscreen", (req, res) => {
   res.sendFile(require("path").resolve(__dirname, "../public/fullscreen.html"));
-});
-
-// NOVO: Serve a página fullscreen do CVCRM
-app.get("/fullscreen-cvcrm", (req, res) => {
-  res.sendFile(
-    require("path").resolve(
-      __dirname,
-      "../frontend/public/fullscreen-cvcrm.html"
-    )
-  );
 });
 
 // Rota útil: redireciona para a fullscreen da implantação atual definida em Config
@@ -1274,233 +1242,6 @@ app.get("/api/debug/spreadsheet-meta", async (req, res) => {
       ok: false,
       error: error && error.message ? error.message : String(error),
     });
-  }
-});
-
-// =================================================================
-// 6.1. ENDPOINTS DA API - CVCRM
-// =================================================================
-
-/**
- * Busca todas as páginas de unidades da API do CVCRM.
- * @param {string} baseUrl
- * @param {string} email
- * @param {string} token
- * @returns {Promise<any[]>}
- */
-async function fetchAllCvcrmUnitPages(baseUrl, email, token) {
-  let currentPage = 1;
-  let totalPages = 1;
-  const allUnits = [];
-  const limitPerPage = 100;
-
-  do {
-    const urlWithParams = `${baseUrl}?limitePagina=${limitPerPage}&pagina=${currentPage}`;
-
-    console.log(`[CVCRM Fetch] Buscando URL: ${urlWithParams}`);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.log(
-        `[CVCRM Fetch] Timeout de 20s atingido para: ${urlWithParams}`
-      );
-      controller.abort();
-    }, 20000); // 20 segundos de timeout
-
-    try {
-      const response = await fetch(urlWithParams, {
-        headers: {
-          accept: "application/json",
-          email: email,
-          token: token.trim(),
-        },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Erro na API do CVCRM na página ${currentPage}: ${response.status} ${
-            response.statusText
-          } - ${errorText.substring(0, 200)}`
-        );
-      }
-
-      const data = await response.json();
-
-      if (data.dados && Array.isArray(data.dados) && data.dados.length > 0) {
-        allUnits.push(...data.dados);
-      } else {
-        console.log(
-          `[CVCRM Fetch] Página ${currentPage} não retornou dados. Finalizando busca.`
-        );
-        break;
-      }
-
-      if (data.paginacao && data.paginacao.total_de_paginas) {
-        totalPages = data.paginacao.total_de_paginas;
-      } else {
-        console.warn(
-          `[CVCRM Fetch] Objeto 'paginacao' não encontrado na resposta da página ${currentPage}.`
-        );
-        break;
-      }
-
-      console.log(
-        `[CVCRM Fetch] Página ${currentPage} de ${totalPages} processada. Unidades acumuladas: ${allUnits.length}`
-      );
-
-      currentPage++;
-    } catch (error) {
-      console.error(
-        `[CVCRM Fetch] Falha ao buscar a página ${currentPage}:`,
-        error
-      );
-      // Decide se quer parar ou tentar a próxima página. Por segurança, vamos parar.
-      throw error;
-    } finally {
-      clearTimeout(timeoutId); // Limpa o timeout se a requisição terminar (sucesso ou erro)
-    }
-  } while (currentPage <= totalPages);
-
-  return allUnits;
-}
-
-app.get("/api/cvcrm/units", verifyToken, async (req, res) => {
-  const { cvcrmId } = req.query;
-  if (!cvcrmId) {
-    return res
-      .status(400)
-      .json({ error: "O ID do empreendimento (cvcrmId) é obrigatório." });
-  }
-
-  const baseUrl = process.env.CVCRM_API_BASE_URL;
-  const email = process.env.CVCRM_API_EMAIL;
-  const token = process.env.CVCRM_API_TOKEN;
-
-  if (!baseUrl || !email || !token) {
-    console.error("[API CVCRM] ERRO: Variáveis de ambiente faltando.");
-    return res.status(500).json({
-      error: "Credenciais da API do CVCRM não configuradas no servidor.",
-    });
-  }
-
-  const finalUrl = `${baseUrl}/${cvcrmId}`;
-
-  try {
-    console.log("[API CVCRM] Iniciando busca de unidades do CVCRM...");
-    const allUnits = await fetchAllCvcrmUnitPages(finalUrl, email, token);
-    console.log(
-      `[API CVCRM] Busca concluída. Total de unidades: ${allUnits.length}`
-    );
-    res.json({ unidades: allUnits });
-  } catch (error) {
-    console.error("[API CVCRM] CRASH:", error);
-    res.status(500).json({
-      error: "Não foi possível buscar os dados das unidades do CVCRM.",
-    });
-  }
-});
-
-// Endpoint para buscar as coordenadas já salvas do CVCRM
-app.get("/api/cvcrm/get-coords", verifyToken, async (req, res) => {
-  const { implantacao } = req.query;
-  if (!implantacao) {
-    return res
-      .status(400)
-      .json({ error: "O nome da implantação é obrigatório." });
-  }
-
-  try {
-    const sheets = await getSheetsClient();
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
-      range: "A:E", // Colunas: unitId, unitName, coordcv_x, coordcv_y, implantacaoName
-    });
-
-    const rows = response.data.values || [];
-    // Pula o cabeçalho e transforma em um objeto para fácil acesso
-    const coordsMap = rows
-      .slice(1)
-      .filter((row) => row[4] === implantacao) // Filtra pela implantação correta
-      .reduce((acc, row) => {
-        const unitId = row[0];
-        if (unitId) {
-          acc[unitId] = { coord_x: row[2], coord_y: row[3] };
-        }
-        return acc;
-      }, {});
-
-    res.json(coordsMap);
-  } catch (error) {
-    console.error("[API CVCRM] Erro ao buscar coordenadas:", error);
-    res.status(500).json({ error: "Falha ao buscar coordenadas salvas." });
-  }
-});
-
-// Endpoint para salvar/atualizar as coordenadas de uma unidade do CVCRM
-app.post("/api/cvcrm/update-coords", verifyToken, async (req, res) => {
-  const { idunidade, unitName, coordX, coordY, implantacao } = req.body;
-
-  if (
-    !idunidade ||
-    coordX === undefined ||
-    coordY === undefined ||
-    !implantacao
-  ) {
-    return res.status(400).json({
-      error: "ID da unidade, coordenadas e implantação são obrigatórios.",
-    });
-  }
-
-  try {
-    const sheets = await getSheetsClient();
-    const range = "A:E";
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
-      range: range,
-    });
-
-    const rows = response.data.values || [];
-    const rowIndex = rows.findIndex(
-      (row) => row[0] == idunidade && row[4] == implantacao
-    );
-
-    if (rowIndex > 0) {
-      // 2. Se existe, ATUALIZA a linha
-      const updateRange = `C${rowIndex + 1}:D${rowIndex + 1}`;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
-        range: updateRange,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-          values: [[coordX, coordY]],
-        },
-      });
-      res.json({
-        success: true,
-        message: `Coordenadas da unidade ${unitName} atualizadas.`,
-      });
-    } else {
-      // 3. Se não existe, ADICIONA uma nova linha
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID_CVCRM_COORDS,
-        range: "A1",
-        valueInputOption: "USER_ENTERED",
-        insertDataOption: "INSERT_ROWS",
-        resource: {
-          values: [[idunidade, unitName, coordX, coordY, implantacao]],
-        },
-      });
-      res.json({
-        success: true,
-        message: `Coordenadas da unidade ${unitName} salvas.`,
-      });
-    }
-  } catch (error) {
-    console.error("[API CVCRM] Erro ao salvar coordenadas:", error);
-    res.status(500).json({ error: "Falha ao salvar coordenadas." });
   }
 });
 
@@ -1741,19 +1482,6 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
               );
             }
           }
-
-          // Insert into funil
-          const { error: funilErr } = await supabase.from("funil").insert({
-            // eslint-disable-line no-unused-vars
-            id_pre: data[0] || null,
-            unit_name: unitName || null,
-            corretor: data[3] || null,
-            implantacao_id,
-          });
-          if (funilErr) {
-            console.error("Supabase: erro ao inserir no funil:", funilErr);
-            // Não lançamos erro aqui, pois o funil é secundário
-          }
         } else {
           console.warn(
             `[SUPABASE] Implantação '${implantacao}' não encontrada. Pulando persistência no Supabase.`
@@ -1781,7 +1509,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
 
     // Se o Supabase funcionou, já podemos responder e fazer o sync com Sheets em background
     if (supabaseOk) {
-      res.json({ success: true, message: `Reserva e funil atualizados.` });
+      res.json({ success: true, message: `Reserva atualizada.` });
 
       // Tenta sincronizar com o Sheets em background (best-effort)
       (async () => {
@@ -1839,15 +1567,6 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
               // Não paramos a execução, pois a reserva da unidade é mais crítica.
             }
           }
-
-          const funnelRow = [data[0], unitName || "N/A", data[3]];
-          await sheets.spreadsheets.values.append({
-            spreadsheetId: SPREADSHEET_ID_FUNIL,
-            range: `${SHEET_NAME_FUNIL}!A:C`,
-            valueInputOption: "USER_ENTERED",
-            insertDataOption: "INSERT_ROWS",
-            resource: { values: [funnelRow] },
-          });
         } catch (e) {
           console.warn(
             "Sync to Sheets or broadcast failed after Supabase write:",
@@ -1886,14 +1605,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         resource: { values: [["JA RESERVOU"]] },
       });
     }
-    const funnelRow = [data[0], unitName || "N/A", data[3]];
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID_FUNIL,
-      range: `${SHEET_NAME_FUNIL}!A:C`,
-      valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
-      resource: { values: [funnelRow] },
-    });
+
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
@@ -1902,7 +1614,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Reserva e funil atualizados (via fallback).`,
+      message: `Reserva atualizada (via fallback).`,
     });
   } catch (error) {
     res.status(500).json({ error: "Falha ao processar a reserva." });
@@ -2104,18 +1816,6 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
               );
             }
           }
-
-          const { error: funilErr } = await supabase.from("funil").insert({
-            id_pre: manualData.id || null,
-            unit_name: unitName || null,
-            corretor: manualData.corretor || null,
-            implantacao_id: implantacao_id,
-          });
-          if (funilErr)
-            console.error(
-              "Supabase: error inserting funil (spontaneous)",
-              funilErr
-            );
         }
         supabaseOk = true;
       } catch (e) {
@@ -2167,19 +1867,6 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
             rowIndex,
             unitName,
           });
-
-          const funnelRow = [
-            manualData.id || "",
-            unitName || "N/A",
-            manualData.corretor || "",
-          ];
-          await sheets.spreadsheets.values.append({
-            spreadsheetId: SPREADSHEET_ID_FUNIL,
-            range: `${SHEET_NAME_FUNIL}!A:C`,
-            valueInputOption: "USER_ENTERED",
-            insertDataOption: "INSERT_ROWS",
-            resource: { values: [funnelRow] },
-          });
         } catch (e) {
           console.warn(
             "Sync to Sheets (spontaneous) failed after Supabase write (non-blocking)",
@@ -2216,19 +1903,6 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     await broadcastEvent(implantacao, "unitUpdated", {
       rowIndex,
       unitName: unitFullName,
-    });
-
-    const funnelRow = [
-      manualData.id || "",
-      unitName || "N/A",
-      manualData.corretor || "",
-    ];
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID_FUNIL,
-      range: `${SHEET_NAME_FUNIL}!A:C`,
-      valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
-      resource: { values: [funnelRow] },
     });
 
     res.json({
@@ -2366,7 +2040,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             unitName: unitFullName,
           });
 
-          // Libera o cliente na planilha de DADOS (Funil)
+          // Libera o cliente na planilha de DADOS
           const allClientsData = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID_DADOS,
             range: `${SHEET_NAME_DADOS}!A:F`,
@@ -3792,6 +3466,216 @@ app.delete("/api/implantacoes/:id", async (req, res) => {
   } catch (error) {
     console.error("Erro ao deletar implantação:", error);
     res.status(500).json({ error: "Falha ao deletar implantação." });
+  }
+});
+
+// =================================================================
+// CSV IMPORT ENDPOINTS
+// =================================================================
+
+// Endpoint para importar clientes via CSV para o Supabase
+app.post(
+  "/api/import-clientes",
+  verifyToken,
+  upload.single("csv"),
+  async (req, res) => {
+    try {
+      const { implantacao_id } = req.body;
+
+      if (!implantacao_id) {
+        return res.status(400).json({ error: "implantacao_id é obrigatório." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Arquivo CSV não fornecido." });
+      }
+
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não configurado." });
+      }
+
+      // Parse CSV (formato esperado: id_pre_cadastro,nome,documento,corretor,imobiliaria,status)
+      const csvContent = req.file.buffer.toString("utf-8");
+      const lines = csvContent.split("\n").filter((line) => line.trim());
+
+      // Remove cabeçalho se existir
+      const hasHeader =
+        lines[0] &&
+        (lines[0].toLowerCase().includes("nome") ||
+          lines[0].toLowerCase().includes("cliente"));
+      const dataLines = hasHeader ? lines.slice(1) : lines;
+
+      const clientesToInsert = dataLines
+        .map((line) => {
+          const cols = line.split(",").map((c) => c.trim());
+          return {
+            implantacao_id: parseInt(implantacao_id, 10),
+            id_pre_cadastro: cols[0] || null,
+            nome: cols[1] || null,
+            documento: cols[2] || null,
+            corretor: cols[3] || null,
+            imobiliaria: cols[4] || null,
+            status: cols[5] || "ATIVO",
+          };
+        })
+        .filter((c) => c.nome); // Remove linhas sem nome
+
+      if (clientesToInsert.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "Nenhum cliente válido encontrado no CSV." });
+      }
+
+      // Insert em batch no Supabase
+      const { data, error } = await supabase
+        .from("clientes")
+        .insert(clientesToInsert);
+
+      if (error) {
+        console.error("Erro ao importar clientes:", error);
+        return res.status(500).json({
+          error: "Falha ao importar clientes.",
+          details: error.message,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `${clientesToInsert.length} clientes importados com sucesso.`,
+        imported: clientesToInsert.length,
+      });
+    } catch (error) {
+      console.error("Erro no endpoint de importação de clientes:", error);
+      res.status(500).json({
+        error: "Falha ao processar importação de clientes.",
+        details: error.message,
+      });
+    }
+  }
+);
+
+// Endpoint para importar unidades via CSV para o Google Sheets
+app.post(
+  "/api/import-unidades",
+  verifyToken,
+  upload.single("csv"),
+  async (req, res) => {
+    try {
+      const { implantacao } = req.body;
+
+      if (!implantacao) {
+        return res
+          .status(400)
+          .json({ error: "Nome da implantação é obrigatório." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Arquivo CSV não fornecido." });
+      }
+
+      const sheets = await getSheetsClient();
+      const resolved = await resolveSheetName(
+        sheets,
+        SPREADSHEET_ID_IMPLANTACAO,
+        implantacao
+      );
+
+      if (!resolved || !resolved.found) {
+        return res.status(404).json({
+          error: `Planilha '${implantacao}' não encontrada.`,
+          available: resolved.available,
+          suggestions: resolved.suggestions,
+        });
+      }
+
+      const sheetTitle = resolved.found;
+
+      // Parse CSV (formato esperado: colunas A-R da planilha de implantação)
+      const csvContent = req.file.buffer.toString("utf-8");
+      const lines = csvContent.split("\n").filter((line) => line.trim());
+
+      // Remove cabeçalho se existir
+      const hasHeader =
+        lines[0] &&
+        (lines[0].toLowerCase().includes("torre") ||
+          lines[0].toLowerCase().includes("unidade"));
+      const dataLines = hasHeader ? lines.slice(1) : lines;
+
+      const unidadesToInsert = dataLines
+        .map((line) => {
+          const cols = line.split(",").map((c) => c.trim());
+          // Garante que temos 18 colunas (A-R)
+          while (cols.length < 18) cols.push("");
+          return cols.slice(0, 18);
+        })
+        .filter((row) => row[0]); // Remove linhas vazias
+
+      if (unidadesToInsert.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "Nenhuma unidade válida encontrada no CSV." });
+      }
+
+      // Append no Google Sheets
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!A:R`,
+        valueInputOption: "USER_ENTERED",
+        insertDataOption: "INSERT_ROWS",
+        resource: {
+          values: unidadesToInsert,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: `${unidadesToInsert.length} unidades importadas com sucesso na planilha '${sheetTitle}'.`,
+        imported: unidadesToInsert.length,
+      });
+    } catch (error) {
+      console.error("Erro no endpoint de importação de unidades:", error);
+      res.status(500).json({
+        error: "Falha ao processar importação de unidades.",
+        details: error.message,
+      });
+    }
+  }
+);
+
+// Endpoint para buscar clientes por implantacao_id
+app.get("/api/clientes/:implantacao_id", verifyToken, async (req, res) => {
+  try {
+    const { implantacao_id } = req.params;
+
+    if (!implantacao_id) {
+      return res.status(400).json({ error: "implantacao_id é obrigatório." });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
+    const { data: clientes, error } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("implantacao_id", parseInt(implantacao_id, 10))
+      .order("nome", { ascending: true });
+
+    if (error) {
+      console.error("Erro ao buscar clientes:", error);
+      return res.status(500).json({
+        error: "Falha ao buscar clientes.",
+        details: error.message,
+      });
+    }
+
+    res.json({ clientes: clientes || [] });
+  } catch (error) {
+    console.error("Erro no endpoint de busca de clientes:", error);
+    res.status(500).json({
+      error: "Falha ao buscar clientes.",
+      details: error.message,
+    });
   }
 });
 
