@@ -3716,6 +3716,7 @@ app.post(
           "nome_unidade",
           "area_privativa",
           "tipologia",
+          "valor_do_imovel",
           "id_pre_cadastro",
           "cliente",
           "documento",
@@ -3733,7 +3734,7 @@ app.post(
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A1:R1`,
+          range: `'${implantacao}'!A1:S1`,
           valueInputOption: "RAW",
           resource: {
             values: [header],
@@ -3853,7 +3854,7 @@ app.post(
       // Append no Google Sheets
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A:R`,
+        range: `'${implantacao}'!A:S`,
         valueInputOption: "USER_ENTERED",
         insertDataOption: "INSERT_ROWS",
         resource: {
@@ -3881,7 +3882,7 @@ app.post(
 // Função auxiliar para mapear CSV/XLSX → Sheets
 function mapCsvToSheets(cols) {
   // CSV/XLSX: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
-  // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
+  // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, valor_do_imovel, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
 
   // Converte valores null/undefined para string vazia
   const getVal = (index) => {
@@ -3890,24 +3891,25 @@ function mapCsvToSheets(cols) {
   };
 
   return [
-    getVal(0), // etapa
-    getVal(1), // bloco
-    getVal(2), // nome_unidade
-    getVal(3), // area_privativa
-    getVal(6), // tipologia (índice 6 no CSV/XLSX com GARAGEM e JARDIM)
-    "", // id_pre_cadastro (vazio)
-    "", // cliente (vazio)
-    "", // documento (vazio)
-    "", // corretor (vazio)
-    "", // imobiliaria (vazio)
-    getVal(7), // situacao (índice 7 no CSV/XLSX)
-    "", // coord_x (vazio)
-    "", // coord_y (vazio)
-    "", // IDENTIFICADOR (vazio)
-    "", // Payload (vazio)
-    getVal(8), // Valor (índice 8 no CSV/XLSX)
-    "", // Pagamento (vazio)
-    "", // Simbolo (vazio)
+    getVal(0), // A - etapa
+    getVal(1), // B - bloco
+    getVal(2), // C - nome_unidade
+    getVal(3), // D - area_privativa
+    getVal(6), // E - tipologia (índice 6 no CSV/XLSX com GARAGEM e JARDIM)
+    getVal(8), // F - valor_do_imovel (índice 8 no CSV/XLSX)
+    "", // G - id_pre_cadastro (vazio)
+    "", // H - cliente (vazio)
+    "", // I - documento (vazio)
+    "", // J - corretor (vazio)
+    "", // K - imobiliaria (vazio)
+    getVal(7), // L - situacao (índice 7 no CSV/XLSX)
+    "", // M - coord_x (vazio)
+    "", // N - coord_y (vazio)
+    "", // O - IDENTIFICADOR (vazio)
+    "", // P - Payload (vazio)
+    "", // Q - Valor (vazio)
+    "", // R - Pagamento (vazio)
+    "", // S - Simbolo (vazio)
   ];
 }
 
