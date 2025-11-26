@@ -129,8 +129,8 @@ export function EditImplantationModal({
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
-      if (!file.name.endsWith(".csv")) {
-        setError("Apenas arquivos CSV são permitidos");
+      if (!file.name.endsWith(".csv") && !file.name.endsWith(".xlsx")) {
+        setError("Apenas arquivos CSV ou XLSX são permitidos");
         e.target.value = "";
         return;
       }
@@ -142,7 +142,7 @@ export function EditImplantationModal({
 
   const handleImportCsv = async () => {
     if (!csvFile) {
-      setError("Selecione um arquivo CSV primeiro");
+      setError("Selecione um arquivo CSV ou XLSX primeiro");
       return;
     }
 
@@ -664,7 +664,7 @@ export function EditImplantationModal({
                   <input
                     id="edit-csv-import-input"
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.xlsx"
                     onChange={handleCsvChange}
                     disabled={isImportingCsv || isLoading}
                     style={{

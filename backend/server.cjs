@@ -10,6 +10,7 @@ const fetch = require("node-fetch");
 const { createClient } = require("@supabase/supabase-js");
 const multer = require("multer");
 const path = require("path");
+const XLSX = require("xlsx");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
@@ -3649,7 +3650,7 @@ app.post(
   }
 );
 
-// Endpoint para importar unidades via CSV para o Google Sheets
+// Endpoint para importar unidades via CSV/XLSX para o Google Sheets
 // Cria a aba automaticamente se não existir
 app.post(
   "/api/import-unidades",
@@ -3667,10 +3668,11 @@ app.post(
       }
 
       if (!req.file) {
-        return res.status(400).json({ error: "Arquivo CSV não fornecido." });
+        return res.status(400).json({ error: "Arquivo não fornecido." });
       }
 
       console.log("📥 [IMPORT UNIDADES] Implantação:", implantacao);
+      console.log("📥 [IMPORT UNIDADES] Tipo de arquivo:", req.file.mimetype);
 
       const sheets = await getSheetsClient();
 
@@ -3736,40 +3738,94 @@ app.post(
         console.log("✅ [IMPORT UNIDADES] Aba criada com cabeçalho");
       }
 
-      // Parse CSV (formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL)
-      const csvContent = req.file.buffer.toString("utf-8");
-      const lines = csvContent.split("\n").filter((line) => line.trim());
+      let dataLines = [];
 
-      // Remove cabeçalho do CSV
-      const hasHeader = lines[0] && lines[0].toUpperCase().includes("ETAPA");
-      const dataLines = hasHeader ? lines.slice(1) : lines;
+      // Detecta se é XLSX ou CSV
+      if (
+        req.file.mimetype ===
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        req.file.originalname.endsWith(".xlsx")
+      ) {
+        console.log("📥 [IMPORT UNIDADES] Processando arquivo XLSX...");
 
-      console.log("📥 [IMPORT UNIDADES] Linhas de dados:", dataLines.length);
+        // Parse XLSX
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0]; // Pega a primeira aba
+        const worksheet = workbook.Sheets[sheetName];
 
-      // Log primeira linha para debug
-      if (dataLines.length > 0) {
+        // Converte para array de arrays
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
         console.log(
-          "📥 [IMPORT UNIDADES] Primeira linha exemplo:",
-          dataLines[0].substring(0, 100)
+          "📥 [IMPORT UNIDADES] Total de linhas no XLSX:",
+          jsonData.length
         );
-      }
 
-      // Mapear CSV → Sheets
-      // CSV: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
-      // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
-      const unidadesToInsert = dataLines
-        .map((line) => {
+        // Remove cabeçalho (primeira linha)
+        dataLines = jsonData.slice(1).filter((row) => {
+          // Remove linhas vazias
+          return (
+            row &&
+            row.length > 0 &&
+            row.some(
+              (cell) => cell !== null && cell !== undefined && cell !== ""
+            )
+          );
+        });
+
+        console.log(
+          "📥 [IMPORT UNIDADES] Linhas de dados após filtro:",
+          dataLines.length
+        );
+      } else {
+        console.log("📥 [IMPORT UNIDADES] Processando arquivo CSV...");
+
+        // Parse CSV (formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL)
+        const csvContent = req.file.buffer.toString("utf-8");
+        const lines = csvContent.split("\n").filter((line) => line.trim());
+
+        // Remove cabeçalho do CSV
+        const hasHeader = lines[0] && lines[0].toUpperCase().includes("ETAPA");
+        const rawDataLines = hasHeader ? lines.slice(1) : lines;
+
+        console.log(
+          "📥 [IMPORT UNIDADES] Linhas de dados:",
+          rawDataLines.length
+        );
+
+        // Log primeira linha para debug
+        if (rawDataLines.length > 0) {
+          console.log(
+            "📥 [IMPORT UNIDADES] Primeira linha exemplo:",
+            rawDataLines[0].substring(0, 100)
+          );
+        }
+
+        dataLines = rawDataLines.map((line) => {
           // Remove aspas duplas e quebras de linha extras
           let cleanLine = line.replace(/"/g, "").trim();
 
           // Detecta o separador: TAB é o separador principal
-          let cols = cleanLine.split("\t").map((c) => c.trim());
+          return cleanLine.split("\t").map((c) => c.trim());
+        });
+      }
 
+      // Mapear CSV/XLSX → Sheets
+      // CSV/XLSX: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
+      // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
+      const unidadesToInsert = dataLines
+        .map((cols) => {
           // Valida se há pelo menos as colunas básicas (ETAPA, BLOCO, UNIDADE)
-          if (cols.length < 3 || !cols[0] || !cols[1] || !cols[2]) {
+          if (
+            !Array.isArray(cols) ||
+            cols.length < 3 ||
+            !cols[0] ||
+            !cols[1] ||
+            !cols[2]
+          ) {
             console.log(
               "⚠️ [IMPORT UNIDADES] Linha ignorada (colunas insuficientes):",
-              line.substring(0, 100)
+              cols
             );
             return null;
           }
@@ -3781,7 +3837,7 @@ app.post(
       if (unidadesToInsert.length === 0) {
         return res
           .status(400)
-          .json({ error: "Nenhuma unidade válida encontrada no CSV." });
+          .json({ error: "Nenhuma unidade válida encontrada no arquivo." });
       }
 
       console.log(
@@ -3817,28 +3873,34 @@ app.post(
   }
 );
 
-// Função auxiliar para mapear CSV → Sheets
-function mapCsvToSheets(csvCols) {
-  // CSV: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
+// Função auxiliar para mapear CSV/XLSX → Sheets
+function mapCsvToSheets(cols) {
+  // CSV/XLSX: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
   // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
 
+  // Converte valores null/undefined para string vazia
+  const getVal = (index) => {
+    const val = cols[index];
+    return val !== null && val !== undefined ? String(val).trim() : "";
+  };
+
   return [
-    csvCols[0] || "", // etapa
-    csvCols[1] || "", // bloco
-    csvCols[2] || "", // nome_unidade
-    csvCols[3] || "", // area_privativa
-    csvCols[6] || "", // tipologia (índice 6 no CSV com GARAGEM e JARDIM)
+    getVal(0), // etapa
+    getVal(1), // bloco
+    getVal(2), // nome_unidade
+    getVal(3), // area_privativa
+    getVal(6), // tipologia (índice 6 no CSV/XLSX com GARAGEM e JARDIM)
     "", // id_pre_cadastro (vazio)
     "", // cliente (vazio)
     "", // documento (vazio)
     "", // corretor (vazio)
     "", // imobiliaria (vazio)
-    csvCols[7] || "", // situacao (índice 7 no CSV)
+    getVal(7), // situacao (índice 7 no CSV/XLSX)
     "", // coord_x (vazio)
     "", // coord_y (vazio)
     "", // IDENTIFICADOR (vazio)
     "", // Payload (vazio)
-    csvCols[8] || "", // Valor (índice 8 no CSV)
+    getVal(8), // Valor (índice 8 no CSV/XLSX)
     "", // Pagamento (vazio)
     "", // Simbolo (vazio)
   ];
