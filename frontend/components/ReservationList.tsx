@@ -160,18 +160,25 @@ export function ReservationList({
                   return (
                     <tr key={unitData[2] || originalIndex}>
                       <td>{unitData[2]}</td>
-                      <td>{tipologia}</td>
-                      <td>
+                      <td
+                        style={{
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {tipologia}
+                      </td>
+                      <td style={{ textAlign: "center" }}>
                         <div
                           style={{
                             display: "flex",
                             flexDirection: "column",
                             gap: "6px",
-                            alignItems: "flex-start",
+                            alignItems: "center",
                           }}
                         >
                           <span className={`status-pill ${normalizedStatus}`}>
-                            {unitData[10]}
+                            {rawStatus}
                           </span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>

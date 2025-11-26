@@ -610,10 +610,14 @@ button:focus-visible {
   width: 15%;
 }
 .reservation-table th:nth-child(2) {
-  width: 12%;
+  width: 15%;
 }
 .reservation-table th:nth-child(3) {
   width: 12%;
+  text-align: center;
+}
+.reservation-table td:nth-child(3) {
+  text-align: center;
 }
 .reservation-table th:nth-child(4) {
   width: 18%;
@@ -678,7 +682,7 @@ button:focus-visible {
   justify-content: center;
   align-items: center;
   backdrop-filter: blur(5px);
-  z-index: 1000;
+  z-index: 10000;
 }
 .modal-content {
   background: var(--bg-dark-secondary);
@@ -1972,7 +1976,7 @@ button:focus-visible {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.8);
-    z-index: 1000;
+    z-index: 9000;
     display: none;
     justify-content: center;
     align-items: center;
@@ -2165,7 +2169,7 @@ button:focus-visible {
     padding: 20px;
     min-width: 250px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    z-index: 1001;
+    z-index: 9001;
   }
 
   .manage-menu-container::before {
@@ -2176,7 +2180,7 @@ button:focus-visible {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.7);
-    z-index: 1000;
+    z-index: 9000;
     display: none;
   }
 

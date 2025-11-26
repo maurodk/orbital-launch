@@ -4024,6 +4024,185 @@ app.use((err, req, res, next) => {
   });
 });
 
+// =================================================================
+// ENDPOINT: Importação de Clientes (XLSX → Supabase)
+// =================================================================
+app.post(
+  "/api/import-clientes",
+  verifyToken,
+  upload.single("xlsx"),
+  async (req, res) => {
+    try {
+      console.log("📥 [IMPORT CLIENTES] Iniciando importação...");
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Arquivo não fornecido." });
+      }
+
+      console.log("📥 [IMPORT CLIENTES] Tipo de arquivo:", req.file.mimetype);
+
+      // Verifica se Supabase está configurado
+      if (!supabase) {
+        return res.status(500).json({
+          error: "Supabase não está configurado no servidor.",
+        });
+      }
+
+      let dataLines = [];
+
+      // Detecta se é XLSX
+      if (
+        req.file.mimetype ===
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        req.file.originalname.endsWith(".xlsx")
+      ) {
+        console.log("📥 [IMPORT CLIENTES] Processando arquivo XLSX...");
+
+        // Parse XLSX
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Converte para array de arrays
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        console.log(
+          "📥 [IMPORT CLIENTES] Total de linhas no XLSX:",
+          jsonData.length
+        );
+
+        // Remove cabeçalho (primeira linha)
+        dataLines = jsonData.slice(1).filter((row) => {
+          // Remove linhas vazias
+          return (
+            row &&
+            row.length > 0 &&
+            row.some(
+              (cell) => cell !== null && cell !== undefined && cell !== ""
+            )
+          );
+        });
+
+        console.log(
+          "📥 [IMPORT CLIENTES] Linhas de dados após filtro:",
+          dataLines.length
+        );
+      } else {
+        return res.status(400).json({
+          error: "Formato de arquivo não suportado. Use .xlsx",
+        });
+      }
+
+      // Mapear XLSX → Supabase clientes table
+      // Estrutura esperada: Id, Cliente, CPF/CNPJ, Corretor, Imobiliária
+      const clientesToInsert = dataLines
+        .map((cols) => {
+          // Valida se há pelo menos as colunas básicas (Id, Cliente)
+          if (!Array.isArray(cols) || cols.length < 2 || !cols[0] || !cols[1]) {
+            console.log(
+              "⚠️ [IMPORT CLIENTES] Linha ignorada (colunas insuficientes):",
+              cols
+            );
+            return null;
+          }
+
+          return {
+            id_pre_cadastro: String(cols[0] || "").trim(),
+            nome: String(cols[1] || "").trim(),
+            documento: String(cols[2] || "")
+              .trim()
+              .replace(/[^0-9]/g, ""), // Remove formatação
+            corretor: String(cols[3] || "").trim(),
+            imobiliaria: String(cols[4] || "").trim(),
+            status: "ativo",
+          };
+        })
+        .filter((row) => row !== null); // Remove linhas inválidas
+
+      if (clientesToInsert.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "Nenhum cliente válido encontrado no arquivo." });
+      }
+
+      console.log(
+        "📥 [IMPORT CLIENTES] Clientes a inserir:",
+        clientesToInsert.length
+      );
+
+      // TRUNCATE na tabela clientes (remove todos os registros)
+      console.log("🗑️ [IMPORT CLIENTES] Limpando tabela clientes...");
+      const { error: deleteError } = await supabase
+        .from("clientes")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000"); // Deleta tudo
+
+      if (deleteError) {
+        console.error(
+          "❌ [IMPORT CLIENTES] Erro ao limpar tabela:",
+          deleteError
+        );
+        return res.status(500).json({
+          error: "Erro ao limpar tabela de clientes.",
+          details: deleteError.message,
+        });
+      }
+
+      console.log("✅ [IMPORT CLIENTES] Tabela clientes limpa");
+
+      // Insert em lotes (Supabase tem limite de 1000 registros por request)
+      const batchSize = 1000;
+      let totalInserted = 0;
+
+      for (let i = 0; i < clientesToInsert.length; i += batchSize) {
+        const batch = clientesToInsert.slice(i, i + batchSize);
+        console.log(
+          `📥 [IMPORT CLIENTES] Inserindo lote ${
+            Math.floor(i / batchSize) + 1
+          }...`
+        );
+
+        const { data: insertData, error: insertError } = await supabase
+          .from("clientes")
+          .insert(batch);
+
+        if (insertError) {
+          console.error(
+            "❌ [IMPORT CLIENTES] Erro ao inserir lote:",
+            insertError
+          );
+          return res.status(500).json({
+            error: "Erro ao inserir clientes no Supabase.",
+            details: insertError.message,
+            insertedSoFar: totalInserted,
+          });
+        }
+
+        totalInserted += batch.length;
+        console.log(
+          `✅ [IMPORT CLIENTES] Lote inserido. Total: ${totalInserted}`
+        );
+      }
+
+      console.log(
+        `✅ [IMPORT CLIENTES] Importação concluída. Total: ${totalInserted} clientes`
+      );
+
+      res.json({
+        success: true,
+        message: `${totalInserted} clientes importados com sucesso.`,
+        total: totalInserted,
+      });
+    } catch (error) {
+      console.error("❌ [IMPORT CLIENTES] Erro:", error);
+      res.status(500).json({
+        error: "Erro ao importar clientes.",
+        details: error.message,
+      });
+    }
+  }
+);
+
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

@@ -666,12 +666,17 @@ export function MainPage() {
       return;
     }
     setSelectedUnitIndex(unitIndex);
-    const status = unidades[unitIndex][10]?.toLowerCase();
-    if (status === "disponível") {
+    const rawStatus = unidades[unitIndex][10] || "disponível";
+    const normalizedStatus = rawStatus
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+    if (normalizedStatus === "disponivel") {
       setReservationModalState({ isOpen: true, mode: "select" });
-    } else if (status === "reservada") {
+    } else if (normalizedStatus === "reservada") {
       setIsCancelModalOpen(true);
-    } else if (status === "bloqueada") {
+    } else if (normalizedStatus === "bloqueada") {
       setBlockModalState({ isOpen: true, isBlocking: false, apiError: "" });
     }
   };
