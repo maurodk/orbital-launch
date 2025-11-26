@@ -4030,7 +4030,7 @@ app.use((err, req, res, next) => {
 app.post(
   "/api/import-clientes",
   verifyToken,
-  upload.single("xlsx"),
+  upload.single("clientes"),
   async (req, res) => {
     try {
       console.log("📥 [IMPORT CLIENTES] Iniciando importação...");
