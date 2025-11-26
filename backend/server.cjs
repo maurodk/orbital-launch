@@ -3736,7 +3736,7 @@ app.post(
         console.log("✅ [IMPORT UNIDADES] Aba criada com cabeçalho");
       }
 
-      // Parse CSV (formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL)
+      // Parse CSV (formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL)
       const csvContent = req.file.buffer.toString("utf-8");
       const lines = csvContent.split("\n").filter((line) => line.trim());
 
@@ -3747,16 +3747,22 @@ app.post(
       console.log("📥 [IMPORT UNIDADES] Linhas de dados:", dataLines.length);
 
       // Mapear CSV → Sheets
-      // CSV: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
+      // CSV: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
       // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
       const unidadesToInsert = dataLines
         .map((line) => {
           const cols = line.split("\t").map((c) => c.trim()); // CSV separado por TAB
 
-          if (cols.length < 7) {
-            // Se não for TAB, tenta vírgula
+          // Valida se há pelo menos as colunas básicas (ETAPA, BLOCO, UNIDADE)
+          if (cols.length < 3 || !cols[0] || !cols[1] || !cols[2]) {
+            // Se não for TAB ou linha inválida, tenta vírgula
             const colsComma = line.split(",").map((c) => c.trim());
-            if (colsComma.length >= 7) {
+            if (
+              colsComma.length >= 3 &&
+              colsComma[0] &&
+              colsComma[1] &&
+              colsComma[2]
+            ) {
               return mapCsvToSheets(colsComma);
             }
             return null;
@@ -3807,7 +3813,7 @@ app.post(
 
 // Função auxiliar para mapear CSV → Sheets
 function mapCsvToSheets(csvCols) {
-  // CSV: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]TIPOLOGIA, [5]SITUAÇÃO, [6]VALOR DO IMOVEL
+  // CSV: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
   // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
 
   return [
@@ -3815,18 +3821,18 @@ function mapCsvToSheets(csvCols) {
     csvCols[1] || "", // bloco
     csvCols[2] || "", // nome_unidade
     csvCols[3] || "", // area_privativa
-    csvCols[4] || "", // tipologia
+    csvCols[6] || "", // tipologia (índice 6 no CSV com GARAGEM e JARDIM)
     "", // id_pre_cadastro (vazio)
     "", // cliente (vazio)
     "", // documento (vazio)
     "", // corretor (vazio)
     "", // imobiliaria (vazio)
-    csvCols[5] || "", // situacao
+    csvCols[7] || "", // situacao (índice 7 no CSV)
     "", // coord_x (vazio)
     "", // coord_y (vazio)
     "", // IDENTIFICADOR (vazio)
     "", // Payload (vazio)
-    csvCols[6] || "", // Valor
+    csvCols[8] || "", // Valor (índice 8 no CSV)
     "", // Pagamento (vazio)
     "", // Simbolo (vazio)
   ];
