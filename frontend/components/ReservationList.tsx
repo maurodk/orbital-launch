@@ -84,7 +84,7 @@ export function ReservationList({
             <FiSearch className="search-icon" />
             <input
               type="text"
-              placeholder="Buscar por unidade ou bloco..."
+              placeholder="Buscar por unidade, bloco ou tipologia..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -132,7 +132,7 @@ export function ReservationList({
             <thead>
               <tr>
                 <th>Unidade</th>
-                <th>Bloco</th>
+                <th>Tipologia</th>
                 <th>Status</th>
                 <th>Cliente</th>
                 <th>Corretor</th>
@@ -142,17 +142,25 @@ export function ReservationList({
             <tbody>
               {unidades.length > 0 ? (
                 unidades.map(([unitData, originalIndex]) => {
-                  const status = unitData[10]?.toLowerCase() || "disponível";
-                  const isAvailable = status === "disponível";
-                  const isReserved = status === "reservada";
+                  // Normaliza status: remove acentos, lowercase, trim
+                  const rawStatus = unitData[10] || "disponível";
+                  const normalizedStatus = rawStatus
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .trim();
+
+                  const isAvailable = normalizedStatus === "disponivel";
+                  const isReserved = normalizedStatus === "reservada";
                   const paymentStatus = unitData[16]?.toUpperCase(); // Coluna Q
                   const clientName = unitData[6] || "—";
                   const brokerName = unitData[8] || "—";
+                  const tipologia = unitData[4] || "—"; // Coluna E - Tipologia
 
                   return (
                     <tr key={unitData[2] || originalIndex}>
                       <td>{unitData[2]}</td>
-                      <td>{unitData[1]}</td>
+                      <td>{tipologia}</td>
                       <td>
                         <div
                           style={{
@@ -162,7 +170,7 @@ export function ReservationList({
                             alignItems: "flex-start",
                           }}
                         >
-                          <span className={`status-pill ${status}`}>
+                          <span className={`status-pill ${normalizedStatus}`}>
                             {unitData[10]}
                           </span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}

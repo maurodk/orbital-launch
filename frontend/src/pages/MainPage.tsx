@@ -16,7 +16,7 @@ import { ImplantationSwitcher } from "../../components/ImplantationSwitcher";
 import { Header } from "../../components/Header";
 import { HamburgerMenu } from "../../components/HamburgerMenu";
 import { NewImplantationModal } from "../../components/NewImplantationModal";
-import { EditImplantationModal } from "../../components/EditImplantationModal";
+import { EditImplantationModal } from "../../components/EditImplantationModalWithTabs";
 import {
   TermoDeReserva,
   type TermoData,
@@ -149,6 +149,7 @@ export function MainPage() {
   >("all");
   const [unidadesCount, setUnidadesCount] = useState<number>(0);
   const [unidadesConfigured, setUnidadesConfigured] = useState<boolean>(false);
+  const [userDisplayName, setUserDisplayName] = useState<string>("");
 
   const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
     null
@@ -283,7 +284,12 @@ export function MainPage() {
   const availableUnitsForChange = useMemo(() => {
     return unidades.reduce<{ unit: string[]; originalIndex: number }[]>(
       (acc, unit, index) => {
-        if ((unit[10]?.toLowerCase() || "disponível") === "disponível") {
+        const normalizedStatus = (unit[10] || "disponível")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+        if (normalizedStatus === "disponivel") {
           acc.push({ unit, originalIndex: index });
         }
         return acc;
@@ -296,17 +302,36 @@ export function MainPage() {
     return unidades
       .map((unidade, index) => ({ data: unidade, originalIndex: index }))
       .filter(({ data }) => {
-        const unitStatus = data[10]?.toLowerCase() || "disponível";
+        // Normaliza status: remove acentos, lowercase, trim
+        const rawStatus = data[10] || "disponível";
+        const normalizedStatus = rawStatus
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+
         const unitName = data[2]?.toLowerCase() || "";
         const blockName = data[1]?.toLowerCase() || "";
+        const tipologia = data[4]?.toLowerCase() || ""; // Coluna E - Tipologia
         const clientName = data[6]?.toLowerCase() || "";
         const brokerName = data[8]?.toLowerCase() || "";
-        const term = searchTerm.toLowerCase();
+        const term = searchTerm
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+
+        // Normaliza statusFilter para comparação
+        const normalizedFilter =
+          statusFilter === "all"
+            ? "all"
+            : statusFilter.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
         const statusMatch =
-          statusFilter === "all" || unitStatus === statusFilter;
+          normalizedFilter === "all" || normalizedStatus === normalizedFilter;
         const searchMatch =
           unitName.includes(term) ||
           blockName.includes(term) ||
+          tipologia.includes(term) ||
           clientName.includes(term) ||
           brokerName.includes(term);
         return statusMatch && searchMatch;
@@ -372,6 +397,9 @@ export function MainPage() {
           try {
             const fullNameRes = await axios.get(`${apiUrl}/api/user/full-name`);
             const fullName = fullNameRes.data.full_name;
+            if (fullName) {
+              setUserDisplayName(fullName);
+            }
             if (!fullName) {
               setShowFullNameModal(true);
             }
@@ -574,21 +602,6 @@ export function MainPage() {
       setError("Falha ao carregar dados da nova implantação.");
     } finally {
       setSwitching(false);
-    }
-  };
-
-  const handleUpdateImageUrl = async (newUrl: string) => {
-    setImageUrl(newUrl);
-    try {
-      await axios.post(`${apiUrl}/api/update-config`, {
-        key: "imagemPlantaAtual",
-        value: newUrl,
-      });
-    } catch (error) {
-      console.error("Falha ao salvar a nova URL da imagem", error);
-      alert(
-        "Não foi possível salvar a nova imagem. Verifique o link e tente novamente."
-      );
     }
   };
 
@@ -1173,8 +1186,6 @@ export function MainPage() {
             unidades={unidades}
             onSelectUnit={setUnitToMapIndex}
             selectedUnitIndex={unitToMapIndex}
-            currentImageUrl={imageUrl}
-            onUpdateImage={handleUpdateImageUrl}
             dotSize={dotSize}
             onDotSizeChange={setDotSize}
             onSaveDotSize={handleSaveDotSize}
@@ -1241,9 +1252,14 @@ export function MainPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
+                    gap: "20px",
                   }}
                 >
+                  {userDisplayName && (
+                    <div className="user-greeting">
+                      Olá, <strong>{userDisplayName}</strong>
+                    </div>
+                  )}
                   <ImplantationSwitcher
                     implantacoes={implantacoes}
                     selected={selectedImplantationName}

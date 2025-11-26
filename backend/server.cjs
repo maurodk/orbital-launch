@@ -39,6 +39,18 @@ const app = express();
 const createdHistorySheets = new Set();
 
 // =================================================================
+// HELPER: Normalização de Status (case e accent insensitive)
+// =================================================================
+function normalizeStatus(status) {
+  if (!status || typeof status !== "string") return "";
+  return status
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+// =================================================================
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
 // =================================================================
 
@@ -1026,7 +1038,7 @@ app.get("/api/public-data", async (req, res) => {
 
     if (hideAvailable === "true") {
       unidades = unidades.filter(
-        (u) => u[10] && u[10].toUpperCase() !== "DISPONÍVEL"
+        (u) => u[10] && normalizeStatus(u[10]) !== "disponivel"
       );
     }
 
@@ -1287,14 +1299,12 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
       range: unitCheckRange,
     });
 
-    const currentStatus =
-      unitCheckResult.data.values?.[0]?.[0]?.toUpperCase() || "DISPONÍVEL";
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "DISPONÍVEL";
+    const currentStatus = normalizeStatus(rawStatus);
 
-    if (currentStatus !== "DISPONÍVEL") {
+    if (currentStatus !== "disponivel") {
       return res.status(409).json({
-        error: `Esta unidade não está mais disponível. Status atual: ${
-          unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
-        }.`,
+        error: `Esta unidade não está mais disponível. Status atual: ${rawStatus}.`,
         code: "UNIT_NOT_AVAILABLE",
       });
     }
@@ -1387,14 +1397,12 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       range: unitCheckRange,
     });
 
-    const currentStatus =
-      unitCheckResult.data.values?.[0]?.[0]?.toUpperCase() || "DISPONÍVEL";
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "DISPONÍVEL";
+    const currentStatus = normalizeStatus(rawStatus);
 
-    if (currentStatus !== "RESERVANDO" && currentStatus !== "DISPONÍVEL") {
+    if (currentStatus !== "reservando" && currentStatus !== "disponivel") {
       return res.status(409).json({
-        error: `Esta unidade não está mais disponível. Status atual: ${
-          unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
-        }.`,
+        error: `Esta unidade não está mais disponível. Status atual: ${rawStatus}.`,
         code: "UNIT_NOT_AVAILABLE",
       });
     }
@@ -1727,14 +1735,12 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
       range: unitCheckRange,
     });
 
-    const currentStatus =
-      unitCheckResult.data.values?.[0]?.[0]?.toUpperCase() || "DISPONÍVEL";
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "DISPONÍVEL";
+    const currentStatus = normalizeStatus(rawStatus);
 
-    if (currentStatus !== "DISPONÍVEL") {
+    if (currentStatus !== "disponivel") {
       return res.status(409).json({
-        error: `Esta unidade não está mais disponível. Status atual: ${
-          unitCheckResult.data.values?.[0]?.[0] || "Indefinido"
-        }.`,
+        error: `Esta unidade não está mais disponível. Status atual: ${rawStatus}.`,
       });
     }
     let supabaseOk = false;
@@ -2501,11 +2507,12 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, newStatus, password } = req.body;
   const userEmail = req.user.email; // Declaração no escopo principal
 
+  const normalizedNewStatus = normalizeStatus(newStatus);
   if (
     !implantacao ||
     !rowIndex ||
     !newStatus ||
-    !["BLOQUEADA", "DISPONÍVEL"].includes(newStatus)
+    !["bloqueada", "disponivel"].includes(normalizedNewStatus)
   ) {
     return res
       .status(400)
@@ -2513,7 +2520,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   }
 
   // Validação de senha apenas para DESBLOQUEAR
-  if (newStatus === "DISPONÍVEL") {
+  if (normalizedNewStatus === "disponivel") {
     console.log("[VALIDAÇÃO SENHA] Recebida para desbloqueio:", {
       password,
       hasPassword: !!password,
@@ -2595,7 +2602,8 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
-    const acao = newStatus === "BLOQUEADA" ? "Bloqueada" : "Desbloqueada";
+    const acao =
+      normalizeStatus(newStatus) === "bloqueada" ? "Bloqueada" : "Desbloqueada";
 
     await addHistoryEntry(
       sheets,

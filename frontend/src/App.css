@@ -272,7 +272,7 @@ button:focus-visible {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  max-height: 131vh;
+  max-height: 100vh;
 }
 
 .sidebar-title {
@@ -284,10 +284,27 @@ button:focus-visible {
   flex-shrink: 0;
 }
 
+.sidebar-controls {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--bg-dark-tertiary);
+  flex-shrink: 0;
+}
+
+.sidebar-controls .form-group {
+  margin-bottom: 15px;
+}
+
+.sidebar-controls .form-group:last-child {
+  margin-bottom: 0;
+}
+
 .unit-groups-container {
+  position: sticky;
+  top: 20px;
   overflow-y: auto;
   flex-grow: 1;
   min-height: 0;
+  max-height: calc(100vh - 280px);
 }
 
 .unit-group {
@@ -376,7 +393,8 @@ button:focus-visible {
   background-color: #555;
 }
 
-.unit-status.disponível {
+.unit-status.disponível,
+.unit-status.disponivel {
   background-color: var(--accent-green);
 }
 
@@ -453,7 +471,8 @@ button:focus-visible {
   z-index: 6;
 }
 
-.unit-indicator.disponível {
+.unit-indicator.disponível,
+.unit-indicator.disponivel {
   background-color: var(--accent-green);
 }
 .unit-indicator.reservada {
@@ -618,7 +637,8 @@ button:focus-visible {
   font-weight: 600;
   color: white;
 }
-.status-pill.disponível {
+.status-pill.disponível,
+.status-pill.disponivel {
   background-color: var(--accent-green);
   color: black;
 }
@@ -1562,6 +1582,86 @@ button:focus-visible {
   transform: scale(1.05);
 }
 
+/* Estilos para controles de volume do tamanho do ponto */
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.volume-button {
+  background: transparent;
+  color: var(--accent-green);
+  border: none;
+  width: 32px;
+  height: 32px;
+  font-size: 1.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.volume-button:hover:not(:disabled) {
+  color: var(--text-primary);
+  transform: scale(1.2);
+}
+
+.volume-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  color: var(--text-secondary);
+}
+
+.dot-size-slider {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-dark-tertiary);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.dot-size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(106, 215, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.dot-size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(106, 215, 0, 0.6);
+}
+
+.dot-size-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 8px rgba(106, 215, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.dot-size-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(106, 215, 0, 0.6);
+}
+
 .reserve-button-in-table.manage {
   background-color: #f0ad4e; /* Amarelo */
   color: var(--bg-dark-primary);
@@ -2161,5 +2261,60 @@ button:focus-visible {
 
   .history-search-wrapper .search-input {
     width: 100%;
+  }
+
+  /* Ajustes para modais */
+  .modal-content {
+    width: 95%;
+    max-width: 95%;
+    padding: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .success-title,
+  .modal-content h2 {
+    font-size: 1.4rem;
+  }
+
+  .modal-content .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .modal-content .form-group {
+    width: 100%;
+  }
+
+  /* Ajustes para termo de reserva */
+  .termo-de-reserva {
+    font-size: 0.85rem;
+    padding: 15px;
+  }
+
+  /* Ajustes para o container de planta */
+  .floor-plan-wrapper {
+    min-height: 300px;
+    height: 50vh;
+  }
+
+  /* Ajustes para sidebar de mapeamento */
+  .mapping-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    max-height: 50vh;
+    z-index: 100;
+  }
+
+  .sidebar-controls {
+    padding: 10px;
+  }
+
+  /* Ajustes para botões de ação */
+  button,
+  .button {
+    min-height: 44px; /* Touch target mínimo */
   }
 }

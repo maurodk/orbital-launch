@@ -2,12 +2,7 @@
 
 // <<< CORREÇÃO 1: Adicionar 'useMemo' à lista de imports do React >>>
 import { useState, useEffect, useMemo } from "react";
-import {
-  FiChevronDown,
-  FiChevronUp,
-  FiPlusCircle,
-  FiSave,
-} from "react-icons/fi";
+import { FiChevronDown, FiChevronUp, FiPlusCircle } from "react-icons/fi";
 
 // Interface para um único item de unidade com seu índice original
 interface UnitItem {
@@ -25,8 +20,6 @@ interface MappingSidebarProps {
   unidades: string[][];
   onSelectUnit: (index: number) => void;
   selectedUnitIndex: number | null;
-  currentImageUrl: string;
-  onUpdateImage: (newUrl: string) => void;
   dotSize: number;
   onDotSizeChange: (newSize: number) => void;
   onSaveDotSize: () => void;
@@ -38,8 +31,6 @@ export function MappingSidebar({
   unidades,
   onSelectUnit,
   selectedUnitIndex,
-  currentImageUrl,
-  onUpdateImage,
   dotSize,
   onDotSizeChange,
   onSaveDotSize,
@@ -62,32 +53,44 @@ export function MappingSidebar({
     Object.keys(groupedUnits)
   );
 
-  const [newImageUrl, setNewImageUrl] = useState(currentImageUrl);
   const [localDotSize, setLocalDotSize] = useState(dotSize);
 
   useEffect(() => {
-    setNewImageUrl(currentImageUrl);
     setLocalDotSize(dotSize);
-  }, [currentImageUrl, dotSize]);
+  }, [dotSize]);
 
-  const handleImageURLChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewImageUrl(e.target.value);
+  // Debounce para auto-save do tamanho do ponto
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localDotSize !== dotSize) {
+        onDotSizeChange(localDotSize);
+        onSaveDotSize();
+      }
+    }, 500); // Salva 500ms após parar de ajustar
+
+    return () => clearTimeout(timer);
+  }, [localDotSize, dotSize, onDotSizeChange, onSaveDotSize]);
+
+  const handleDotSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newSize = parseInt(e.target.value, 10);
+    setLocalDotSize(newSize);
+    onDotSizeChange(newSize); // Atualiza visualmente em tempo real
   };
 
-  const handleSaveImage = () => {
-    if (
-      newImageUrl &&
-      newImageUrl.trim() !== "" &&
-      newImageUrl !== currentImageUrl
-    ) {
-      onUpdateImage(newImageUrl);
+  const handleIncreaseDotSize = () => {
+    if (localDotSize < 40) {
+      const newSize = localDotSize + 2;
+      setLocalDotSize(newSize);
+      onDotSizeChange(newSize);
     }
   };
 
-  const handleSizeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newSize = parseInt(e.target.value, 10) || 0;
-    setLocalDotSize(newSize);
-    onDotSizeChange(newSize);
+  const handleDecreaseDotSize = () => {
+    if (localDotSize > 8) {
+      const newSize = localDotSize - 2;
+      setLocalDotSize(newSize);
+      onDotSizeChange(newSize);
+    }
   };
 
   const handleToggleGroup = (blockName: string) => {
@@ -101,6 +104,55 @@ export function MappingSidebar({
   return (
     <aside className="mapping-sidebar">
       <h3 className="sidebar-title">Unidades para Mapear</h3>
+
+      <div className="sidebar-controls">
+        <div className="form-group">
+          <label htmlFor="unit-letter-input">Letra da Unidade (Opcional)</label>
+          <input
+            id="unit-letter-input"
+            type="text"
+            maxLength={1}
+            value={unitLetter}
+            onChange={(e) => onLetterChange(e.target.value.toUpperCase())}
+            placeholder="Ex: A"
+            className="sidebar-input"
+            style={{ textTransform: "uppercase", textAlign: "center" }}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="dot-size-slider">
+            Tamanho do Ponto: {localDotSize}px
+          </label>
+          <div className="volume-control">
+            <button
+              onClick={handleDecreaseDotSize}
+              className="volume-button"
+              title="Diminuir tamanho"
+              disabled={localDotSize <= 8}
+            >
+              -
+            </button>
+            <input
+              id="dot-size-slider"
+              type="range"
+              min="8"
+              max="40"
+              value={localDotSize}
+              onChange={handleDotSizeChange}
+              className="dot-size-slider"
+            />
+            <button
+              onClick={handleIncreaseDotSize}
+              className="volume-button"
+              title="Aumentar tamanho"
+              disabled={localDotSize >= 40}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="unit-groups-container">
         {/* <<< CORREÇÃO 2: Adicionar o tipo correto para Object.entries >>> */}
@@ -162,64 +214,6 @@ export function MappingSidebar({
             );
           }
         )}
-      </div>
-
-      <div className="sidebar-footer">
-        <div className="form-group">
-          <label htmlFor="unit-letter-input">Letra da Unidade (Opcional)</label>
-          <input
-            id="unit-letter-input"
-            type="text"
-            maxLength={1}
-            value={unitLetter}
-            onChange={(e) => onLetterChange(e.target.value.toUpperCase())}
-            placeholder="Ex: A"
-            className="sidebar-input"
-            style={{ textTransform: "uppercase", textAlign: "center" }}
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="image-url-input">URL da Imagem da Planta</label>
-          <div className="input-group">
-            <input
-              id="image-url-input"
-              type="text"
-              value={newImageUrl}
-              onChange={handleImageURLChange}
-              placeholder="Cole a nova URL da imagem aqui"
-              className="sidebar-input"
-            />
-            <button
-              onClick={handleSaveImage}
-              className="sidebar-button"
-              title="Salvar nova imagem"
-            >
-              <FiSave size={18} />
-            </button>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="dot-size-input">Tamanho do Ponto (px)</label>
-          <div className="input-group">
-            <input
-              id="dot-size-input"
-              type="number"
-              value={localDotSize}
-              onChange={handleSizeInputChange}
-              className="sidebar-input"
-              min="1"
-            />
-            <button
-              onClick={onSaveDotSize}
-              className="sidebar-button"
-              title="Salvar tamanho do ponto para esta implantação"
-            >
-              <FiSave size={18} />
-            </button>
-          </div>
-        </div>
       </div>
     </aside>
   );

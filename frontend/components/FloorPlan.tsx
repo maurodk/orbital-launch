@@ -161,8 +161,14 @@ export function FloorPlan({
               const coordX = unidade[11];
               const coordY = unidade[12];
               const letra = unidade[17]; // Coluna R
-              const status = unidade[10]?.toLowerCase() || "disponível";
-              const isAvailable = status === "disponível";
+              // Normaliza status: remove acentos, lowercase, trim
+              const rawStatus = unidade[10] || "disponível";
+              const normalizedStatus = rawStatus
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim();
+              const isAvailable = normalizedStatus === "disponivel";
 
               if (isAvailable && hideAvailable) {
                 return null;
@@ -173,7 +179,7 @@ export function FloorPlan({
               return (
                 <div
                   key={unidade[2] || index}
-                  className={`unit-indicator ${status}`}
+                  className={`unit-indicator ${normalizedStatus}`}
                   style={{
                     left: `${coordX}%`,
                     top: `${coordY}%`,
