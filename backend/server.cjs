@@ -296,6 +296,16 @@ async function verifyToken(req, res, next) {
   }
 }
 
+// Função para sanitizar nomes de arquivo (remove acentos e caracteres especiais)
+function sanitizeFilename(filename) {
+  return filename
+    .normalize("NFD") // Decompõe caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, "") // Remove marcas diacríticas
+    .replace(/[^a-zA-Z0-9._-]/g, "_") // Substitui caracteres especiais por _
+    .replace(/_+/g, "_") // Remove underscores duplicados
+    .replace(/^_|_$/g, ""); // Remove underscores do início e fim
+}
+
 async function gerarTimestamp() {
   // Retorna o timestamp atual em segundos (Unix time)
   return Math.floor(Date.now() / 1000);
@@ -883,12 +893,18 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/data", verifyToken, async (req, res) => {
+  console.log("📊 [/api/data] Requisição recebida");
+  console.log("📊 Query params:", req.query);
+
   const { implantacao } = req.query;
   if (!implantacao) {
+    console.error("📊 [/api/data] Nome da implantação não fornecido");
     return res
       .status(400)
       .json({ error: "O nome da implantação é obrigatório." });
   }
+
+  console.log("📊 [/api/data] Buscando dados para:", implantacao);
 
   try {
     const sheets = await getSheetsClient();
@@ -3332,7 +3348,8 @@ app.post(
       if (req.files && req.files.imagem && req.files.imagem[0]) {
         console.log("📤 Iniciando upload da imagem...");
         const file = req.files.imagem[0];
-        const fileName = `implantacao_${Date.now()}_${file.originalname}`;
+        const sanitizedName = sanitizeFilename(file.originalname);
+        const fileName = `implantacao_${Date.now()}_${sanitizedName}`;
         console.log("Nome do arquivo:", fileName);
 
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -3365,7 +3382,8 @@ app.post(
       if (req.files && req.files.logo && req.files.logo[0]) {
         console.log("📤 Iniciando upload da logo...");
         const file = req.files.logo[0];
-        const fileName = `logo_${Date.now()}_${file.originalname}`;
+        const sanitizedName = sanitizeFilename(file.originalname);
+        const fileName = `logo_${Date.now()}_${sanitizedName}`;
         console.log("Nome do arquivo:", fileName);
 
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -3477,7 +3495,8 @@ app.put(
       // Upload de nova imagem da implantação (se fornecida)
       if (req.files && req.files.imagem && req.files.imagem[0]) {
         const file = req.files.imagem[0];
-        const fileName = `implantacao_${Date.now()}_${file.originalname}`;
+        const sanitizedName = sanitizeFilename(file.originalname);
+        const fileName = `implantacao_${Date.now()}_${sanitizedName}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("implantacoes")
           .upload(fileName, file.buffer, {
@@ -3503,7 +3522,8 @@ app.put(
       // Upload de nova logo (se fornecida)
       if (req.files && req.files.logo && req.files.logo[0]) {
         const file = req.files.logo[0];
-        const fileName = `logo_${Date.now()}_${file.originalname}`;
+        const sanitizedName = sanitizeFilename(file.originalname);
+        const fileName = `logo_${Date.now()}_${sanitizedName}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("implantacoes")
           .upload(fileName, file.buffer, {
