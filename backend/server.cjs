@@ -3290,15 +3290,32 @@ app.post(
   ]),
   async (req, res) => {
     try {
+      console.log("=== POST /api/implantacoes INICIADO ===");
+      console.log("User:", req.user?.email);
+      console.log("Body recebido:", req.body);
+      console.log(
+        "Files recebidos:",
+        req.files ? Object.keys(req.files) : "nenhum"
+      );
+
       if (!supabase) {
+        console.error("❌ Supabase não configurado");
         return res
           .status(500)
           .json({ error: "Supabase não está configurado." });
       }
 
       const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
+      console.log("Campos extraídos:", {
+        nome,
+        endereco,
+        cidade,
+        estado,
+        cvcrm_id,
+      });
 
       if (!nome || !endereco || !cidade || !estado) {
+        console.error("❌ Campos obrigatórios faltando");
         return res.status(400).json({
           error: "Nome, endereço, cidade e estado são obrigatórios.",
         });
@@ -3309,8 +3326,11 @@ app.post(
 
       // Upload da imagem da implantação para Supabase Storage (se fornecida)
       if (req.files && req.files.imagem && req.files.imagem[0]) {
+        console.log("📤 Iniciando upload da imagem...");
         const file = req.files.imagem[0];
         const fileName = `implantacao_${Date.now()}_${file.originalname}`;
+        console.log("Nome do arquivo:", fileName);
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("implantacoes")
           .upload(fileName, file.buffer, {
@@ -3319,10 +3339,13 @@ app.post(
           });
 
         if (uploadError) {
-          console.error("Erro ao fazer upload da imagem:", uploadError);
+          console.error("❌ Erro ao fazer upload da imagem:", uploadError);
           return res
             .status(500)
-            .json({ error: "Falha ao fazer upload da imagem." });
+            .json({
+              error: "Falha ao fazer upload da imagem.",
+              details: uploadError.message,
+            });
         }
 
         // Gerar URL pública da imagem
@@ -3331,12 +3354,18 @@ app.post(
           .getPublicUrl(fileName);
 
         imageUrl = urlData?.publicUrl || "";
+        console.log("✅ Imagem uploaded:", imageUrl);
+      } else {
+        console.log("ℹ️ Nenhuma imagem fornecida");
       }
 
       // Upload da logo para Supabase Storage (se fornecida)
       if (req.files && req.files.logo && req.files.logo[0]) {
+        console.log("📤 Iniciando upload da logo...");
         const file = req.files.logo[0];
         const fileName = `logo_${Date.now()}_${file.originalname}`;
+        console.log("Nome do arquivo:", fileName);
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("implantacoes")
           .upload(fileName, file.buffer, {
@@ -3345,10 +3374,13 @@ app.post(
           });
 
         if (uploadError) {
-          console.error("Erro ao fazer upload da logo:", uploadError);
+          console.error("❌ Erro ao fazer upload da logo:", uploadError);
           return res
             .status(500)
-            .json({ error: "Falha ao fazer upload da logo." });
+            .json({
+              error: "Falha ao fazer upload da logo.",
+              details: uploadError.message,
+            });
         }
 
         // Gerar URL pública da logo
@@ -3357,33 +3389,45 @@ app.post(
           .getPublicUrl(fileName);
 
         logoUrl = urlData?.publicUrl || "";
+        console.log("✅ Logo uploaded:", logoUrl);
+      } else {
+        console.log("ℹ️ Nenhuma logo fornecida");
       }
 
       // Inserir implantação no banco
+      console.log("💾 Inserindo implantação no banco...");
+      const insertPayload = {
+        nome: nome.trim(),
+        imagem_url: imageUrl || null,
+        logo_url: logoUrl || null,
+        dot_size: 15,
+        endereco: endereco.trim(),
+        cidade: cidade.trim(),
+        estado: estado.trim(),
+        cvcrm_id: cvcrm_id?.trim() || null,
+        sigla: null,
+      };
+      console.log("Payload:", insertPayload);
+
       const { data, error } = await supabase
         .from("implantacoes")
-        .insert({
-          nome: nome.trim(),
-          imagem_url: imageUrl || null,
-          logo_url: logoUrl || null,
-          dot_size: 15,
-          endereco: endereco.trim(),
-          cidade: cidade.trim(),
-          estado: estado.trim(),
-          cvcrm_id: cvcrm_id?.trim() || null,
-          sigla: null,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
       if (error) {
-        console.error("Erro Supabase ao inserir implantação:", error);
+        console.error("❌ Erro Supabase ao inserir implantação:", error);
+        console.error("Código do erro:", error.code);
+        console.error("Detalhes:", error.details);
+        console.error("Hint:", error.hint);
         throw error;
       }
 
+      console.log("✅ Implantação criada com sucesso:", data);
       res.status(201).json(data);
     } catch (error) {
-      console.error("Erro ao criar implantação:", error);
+      console.error("❌❌❌ EXCEÇÃO ao criar implantação:", error);
+      console.error("Stack:", error.stack);
       res.status(500).json({
         error: "Falha ao criar implantação.",
         details: error.message || String(error),
