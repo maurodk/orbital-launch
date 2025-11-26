@@ -4051,23 +4051,33 @@ app.post(
 
       // TRUNCATE na tabela clientes (remove todos os registros)
       console.log("🗑️ [IMPORT CLIENTES] Limpando tabela clientes...");
-      const { error: deleteError } = await supabase
+
+      // Primeiro verifica se há dados na tabela
+      const { count } = await supabase
         .from("clientes")
-        .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000"); // Deleta tudo
+        .select("*", { count: "exact", head: true });
 
-      if (deleteError) {
-        console.error(
-          "❌ [IMPORT CLIENTES] Erro ao limpar tabela:",
-          deleteError
-        );
-        return res.status(500).json({
-          error: "Erro ao limpar tabela de clientes.",
-          details: deleteError.message,
-        });
+      if (count > 0) {
+        // Usa gt (greater than) com um valor impossível de UUID para deletar tudo
+        const { error: deleteError } = await supabase
+          .from("clientes")
+          .delete()
+          .gte("created_at", "1970-01-01"); // Deleta tudo criado após 1970
+
+        if (deleteError) {
+          console.error(
+            "❌ [IMPORT CLIENTES] Erro ao limpar tabela:",
+            deleteError
+          );
+          return res.status(500).json({
+            error: "Erro ao limpar tabela de clientes.",
+            details: deleteError.message,
+          });
+        }
+        console.log("✅ [IMPORT CLIENTES] Tabela clientes limpa");
+      } else {
+        console.log("ℹ️ [IMPORT CLIENTES] Tabela clientes já está vazia");
       }
-
-      console.log("✅ [IMPORT CLIENTES] Tabela clientes limpa");
 
       // Insert em lotes (Supabase tem limite de 1000 registros por request)
       const batchSize = 1000;
