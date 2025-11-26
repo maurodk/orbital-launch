@@ -3746,25 +3746,31 @@ app.post(
 
       console.log("📥 [IMPORT UNIDADES] Linhas de dados:", dataLines.length);
 
+      // Log primeira linha para debug
+      if (dataLines.length > 0) {
+        console.log(
+          "📥 [IMPORT UNIDADES] Primeira linha exemplo:",
+          dataLines[0].substring(0, 100)
+        );
+      }
+
       // Mapear CSV → Sheets
       // CSV: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
       // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
       const unidadesToInsert = dataLines
         .map((line) => {
-          const cols = line.split("\t").map((c) => c.trim()); // CSV separado por TAB
+          // Remove aspas duplas e quebras de linha extras
+          let cleanLine = line.replace(/"/g, "").trim();
+
+          // Detecta o separador: TAB é o separador principal
+          let cols = cleanLine.split("\t").map((c) => c.trim());
 
           // Valida se há pelo menos as colunas básicas (ETAPA, BLOCO, UNIDADE)
           if (cols.length < 3 || !cols[0] || !cols[1] || !cols[2]) {
-            // Se não for TAB ou linha inválida, tenta vírgula
-            const colsComma = line.split(",").map((c) => c.trim());
-            if (
-              colsComma.length >= 3 &&
-              colsComma[0] &&
-              colsComma[1] &&
-              colsComma[2]
-            ) {
-              return mapCsvToSheets(colsComma);
-            }
+            console.log(
+              "⚠️ [IMPORT UNIDADES] Linha ignorada (colunas insuficientes):",
+              line.substring(0, 100)
+            );
             return null;
           }
 
