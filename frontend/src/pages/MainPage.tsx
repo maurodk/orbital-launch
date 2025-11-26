@@ -147,6 +147,8 @@ export function MainPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "disponível" | "reservada" | "bloqueada"
   >("all");
+  const [unidadesCount, setUnidadesCount] = useState<number>(0);
+  const [unidadesConfigured, setUnidadesConfigured] = useState<boolean>(false);
 
   const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
     null
@@ -402,6 +404,24 @@ export function MainPage() {
 
                 await fetchUnitData(foundImplantation.nome);
                 await fetchHistory(foundImplantation.nome);
+
+                // Fetch unit count for badge display
+                try {
+                  const countResponse = await axios.get(
+                    `${apiUrl}/api/implantacoes/${encodeURIComponent(
+                      foundImplantation.nome
+                    )}/unidades/count`,
+                    {
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                      },
+                    }
+                  );
+                  setUnidadesCount(countResponse.data.count || 0);
+                  setUnidadesConfigured(countResponse.data.configured || false);
+                } catch (err) {
+                  console.log("Erro ao buscar contagem de unidades:", err);
+                }
               }
             } else {
               console.log(
@@ -525,6 +545,21 @@ export function MainPage() {
     try {
       await fetchUnitData(newName);
       await fetchHistory(newName);
+
+      // Fetch unit count for badge display
+      const token = localStorage.getItem("token");
+      const countResponse = await axios.get(
+        `${apiUrl}/api/implantacoes/${encodeURIComponent(
+          newName
+        )}/unidades/count`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setUnidadesCount(countResponse.data.count || 0);
+      setUnidadesConfigured(countResponse.data.configured || false);
     } catch (error) {
       console.error("❌ Erro ao trocar implantação:", error);
       setError("Falha ao carregar dados da nova implantação.");
@@ -1202,6 +1237,27 @@ export function MainPage() {
                     selected={selectedImplantationName}
                     onChange={handleImplantationChange}
                   />
+                  {unidadesConfigured && (
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        backgroundColor: "#2a2a2a",
+                        color: "#ffffff",
+                        borderRadius: "4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        border: "1px solid #6ad700",
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                        Unidades configuradas
+                      </div>
+                      <div>
+                        Quantidade: <strong>{unidadesCount}</strong> Unidades
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={handleOpenEditImplantation}
                     style={{

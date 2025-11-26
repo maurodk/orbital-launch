@@ -3650,12 +3650,14 @@ app.post(
 );
 
 // Endpoint para importar unidades via CSV para o Google Sheets
+// Cria a aba automaticamente se não existir
 app.post(
   "/api/import-unidades",
   verifyToken,
   upload.single("csv"),
   async (req, res) => {
     try {
+      console.log("📥 [IMPORT UNIDADES] Iniciando importação...");
       const { implantacao } = req.body;
 
       if (!implantacao) {
@@ -3668,42 +3670,101 @@ app.post(
         return res.status(400).json({ error: "Arquivo CSV não fornecido." });
       }
 
+      console.log("📥 [IMPORT UNIDADES] Implantação:", implantacao);
+
       const sheets = await getSheetsClient();
-      const resolved = await resolveSheetName(
-        sheets,
-        SPREADSHEET_ID_IMPLANTACAO,
-        implantacao
+
+      // Verifica se a aba já existe
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      });
+
+      const existingSheet = spreadsheet.data.sheets.find(
+        (s) => s.properties.title === implantacao
       );
 
-      if (!resolved || !resolved.found) {
-        return res.status(404).json({
-          error: `Planilha '${implantacao}' não encontrada.`,
-          available: resolved.available,
-          suggestions: resolved.suggestions,
+      // Se não existir, cria a aba com cabeçalho padrão
+      if (!existingSheet) {
+        console.log("📥 [IMPORT UNIDADES] Criando nova aba:", implantacao);
+
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          resource: {
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title: implantacao,
+                  },
+                },
+              },
+            ],
+          },
         });
+
+        // Adiciona cabeçalho padrão
+        const header = [
+          "etapa",
+          "bloco",
+          "nome_unidade",
+          "area_privativa",
+          "tipologia",
+          "id_pre_cadastro",
+          "cliente",
+          "documento",
+          "corretor",
+          "imobiliaria",
+          "situacao",
+          "coord_x",
+          "coord_y",
+          "IDENTIFICADOR",
+          "Payload",
+          "Valor",
+          "Pagamento",
+          "Simbolo",
+        ];
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: `'${implantacao}'!A1:R1`,
+          valueInputOption: "RAW",
+          resource: {
+            values: [header],
+          },
+        });
+
+        console.log("✅ [IMPORT UNIDADES] Aba criada com cabeçalho");
       }
 
-      const sheetTitle = resolved.found;
-
-      // Parse CSV (formato esperado: colunas A-R da planilha de implantação)
+      // Parse CSV (formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL)
       const csvContent = req.file.buffer.toString("utf-8");
       const lines = csvContent.split("\n").filter((line) => line.trim());
 
-      // Remove cabeçalho se existir
-      const hasHeader =
-        lines[0] &&
-        (lines[0].toLowerCase().includes("torre") ||
-          lines[0].toLowerCase().includes("unidade"));
+      // Remove cabeçalho do CSV
+      const hasHeader = lines[0] && lines[0].toUpperCase().includes("ETAPA");
       const dataLines = hasHeader ? lines.slice(1) : lines;
 
+      console.log("📥 [IMPORT UNIDADES] Linhas de dados:", dataLines.length);
+
+      // Mapear CSV → Sheets
+      // CSV: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
+      // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
       const unidadesToInsert = dataLines
         .map((line) => {
-          const cols = line.split(",").map((c) => c.trim());
-          // Garante que temos 18 colunas (A-R)
-          while (cols.length < 18) cols.push("");
-          return cols.slice(0, 18);
+          const cols = line.split("\t").map((c) => c.trim()); // CSV separado por TAB
+
+          if (cols.length < 7) {
+            // Se não for TAB, tenta vírgula
+            const colsComma = line.split(",").map((c) => c.trim());
+            if (colsComma.length >= 7) {
+              return mapCsvToSheets(colsComma);
+            }
+            return null;
+          }
+
+          return mapCsvToSheets(cols);
         })
-        .filter((row) => row[0]); // Remove linhas vazias
+        .filter((row) => row !== null); // Remove linhas inválidas
 
       if (unidadesToInsert.length === 0) {
         return res
@@ -3711,10 +3772,15 @@ app.post(
           .json({ error: "Nenhuma unidade válida encontrada no CSV." });
       }
 
+      console.log(
+        "📥 [IMPORT UNIDADES] Unidades a inserir:",
+        unidadesToInsert.length
+      );
+
       // Append no Google Sheets
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:R`,
+        range: `'${implantacao}'!A:R`,
         valueInputOption: "USER_ENTERED",
         insertDataOption: "INSERT_ROWS",
         resource: {
@@ -3722,15 +3788,90 @@ app.post(
         },
       });
 
+      console.log("✅ [IMPORT UNIDADES] Importação concluída");
+
       res.json({
         success: true,
-        message: `${unidadesToInsert.length} unidades importadas com sucesso na planilha '${sheetTitle}'.`,
+        message: `${unidadesToInsert.length} unidades importadas com sucesso na planilha '${implantacao}'.`,
         imported: unidadesToInsert.length,
       });
     } catch (error) {
-      console.error("Erro no endpoint de importação de unidades:", error);
+      console.error("❌ [IMPORT UNIDADES] Erro:", error);
       res.status(500).json({
-        error: "Falha ao processar importação de unidades.",
+        error: "Falha ao importar unidades.",
+        details: error.message,
+      });
+    }
+  }
+);
+
+// Função auxiliar para mapear CSV → Sheets
+function mapCsvToSheets(csvCols) {
+  // CSV: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]TIPOLOGIA, [5]SITUAÇÃO, [6]VALOR DO IMOVEL
+  // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
+
+  return [
+    csvCols[0] || "", // etapa
+    csvCols[1] || "", // bloco
+    csvCols[2] || "", // nome_unidade
+    csvCols[3] || "", // area_privativa
+    csvCols[4] || "", // tipologia
+    "", // id_pre_cadastro (vazio)
+    "", // cliente (vazio)
+    "", // documento (vazio)
+    "", // corretor (vazio)
+    "", // imobiliaria (vazio)
+    csvCols[5] || "", // situacao
+    "", // coord_x (vazio)
+    "", // coord_y (vazio)
+    "", // IDENTIFICADOR (vazio)
+    "", // Payload (vazio)
+    csvCols[6] || "", // Valor
+    "", // Pagamento (vazio)
+    "", // Simbolo (vazio)
+  ];
+}
+
+// Endpoint para contar unidades configuradas na planilha
+app.get(
+  "/api/implantacoes/:nome/unidades/count",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const { nome } = req.params;
+      console.log("📊 [COUNT UNIDADES] Contando unidades para:", nome);
+
+      const sheets = await getSheetsClient();
+
+      // Verifica se a aba existe
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      });
+
+      const existingSheet = spreadsheet.data.sheets.find(
+        (s) => s.properties.title === nome
+      );
+
+      if (!existingSheet) {
+        return res.json({ count: 0, configured: false });
+      }
+
+      // Busca dados da aba (ignora cabeçalho na linha 1)
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${nome}'!A2:R`,
+      });
+
+      const rows = response.data.values || [];
+      const count = rows.filter((row) => row[0] || row[2]).length; // Conta linhas com etapa ou nome_unidade
+
+      console.log("📊 [COUNT UNIDADES] Total:", count);
+
+      res.json({ count, configured: count > 0 });
+    } catch (error) {
+      console.error("❌ [COUNT UNIDADES] Erro:", error);
+      res.status(500).json({
+        error: "Falha ao contar unidades.",
         details: error.message,
       });
     }

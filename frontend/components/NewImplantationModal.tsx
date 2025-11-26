@@ -53,11 +53,13 @@ export function NewImplantationModal({
   const [cvcrmId, setCvcrmId] = useState("");
   const [imagemFile, setImagemFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [imageScale, setImageScale] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [error, setError] = useState("");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +95,75 @@ export function NewImplantationModal({
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setLogoPreviewUrl(previewUrl);
+    }
+  };
+
+  const handleCsvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      if (!file.name.endsWith(".csv")) {
+        setError("Apenas arquivos CSV são permitidos");
+        e.target.value = "";
+        return;
+      }
+
+      setCsvFile(file);
+      setError(""); // Limpa erro ao selecionar arquivo válido
+    }
+  };
+
+  const handleImportCsv = async () => {
+    if (!csvFile) {
+      setError("Selecione um arquivo CSV primeiro");
+      return;
+    }
+
+    if (!nome.trim()) {
+      setError("Digite o nome do empreendimento antes de importar unidades");
+      return;
+    }
+
+    setIsImportingCsv(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Token de autenticação não encontrado");
+        setIsImportingCsv(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("csv", csvFile);
+      formData.append("implantacao", nome.trim());
+
+      const response = await axios.post(
+        `${apiUrl}/api/import-unidades`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      alert(`✅ ${response.data.message}`);
+      setCsvFile(null);
+      // Reset input
+      const fileInput = document.getElementById(
+        "csv-import-input"
+      ) as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+    } catch (err: any) {
+      console.error("Erro ao importar CSV:", err);
+      const errorMessage =
+        err.response?.data?.error || "Erro ao importar unidades do CSV";
+      setError(errorMessage);
+    } finally {
+      setIsImportingCsv(false);
     }
   };
 
@@ -573,6 +644,99 @@ export function NewImplantationModal({
                     }}
                   >
                     Arquivo selecionado: {logoFile.name}
+                  </small>
+                )}
+              </div>
+
+              {/* Seção de Importação de Unidades via CSV */}
+              <div
+                style={{
+                  marginBottom: "20px",
+                  padding: "15px",
+                  backgroundColor: "#1a1a1a",
+                  borderRadius: "4px",
+                  border: "1px solid #2a2a2a",
+                }}
+              >
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    color: "#eaeaea",
+                  }}
+                >
+                  📊 Importar Unidades (CSV) - Opcional
+                </label>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#888",
+                    marginBottom: "10px",
+                  }}
+                >
+                  Formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, TIPOLOGIA,
+                  SITUAÇÃO, VALOR DO IMOVEL
+                </p>
+                <div
+                  style={{ display: "flex", gap: "10px", alignItems: "center" }}
+                >
+                  <input
+                    id="csv-import-input"
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsvChange}
+                    disabled={isImportingCsv || isLoading}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      borderRadius: "4px",
+                      border: "1px solid #2a2a2a",
+                      backgroundColor: "#2a2a2a",
+                      color: "#eaeaea",
+                      cursor:
+                        isImportingCsv || isLoading ? "not-allowed" : "pointer",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleImportCsv}
+                    disabled={
+                      !csvFile || isImportingCsv || isLoading || !nome.trim()
+                    }
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "4px",
+                      border: "none",
+                      backgroundColor:
+                        !csvFile || isImportingCsv || isLoading || !nome.trim()
+                          ? "#444"
+                          : "#6ad700",
+                      color:
+                        !csvFile || isImportingCsv || isLoading || !nome.trim()
+                          ? "#888"
+                          : "#121212",
+                      cursor:
+                        !csvFile || isImportingCsv || isLoading || !nome.trim()
+                          ? "not-allowed"
+                          : "pointer",
+                      fontWeight: "bold",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {isImportingCsv ? "Importando..." : "Importar"}
+                  </button>
+                </div>
+                {csvFile && !isImportingCsv && (
+                  <small
+                    style={{
+                      color: "#6ad700",
+                      marginTop: "5px",
+                      display: "block",
+                    }}
+                  >
+                    ✓ {csvFile.name}
                   </small>
                 )}
               </div>
