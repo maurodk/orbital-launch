@@ -3283,6 +3283,7 @@ app.get("/api/implantacoes", async (req, res) => {
 // Criar nova implantação
 app.post(
   "/api/implantacoes",
+  verifyToken,
   upload.fields([
     { name: "imagem", maxCount: 1 },
     { name: "logo", maxCount: 1 },
@@ -3363,29 +3364,39 @@ app.post(
         .from("implantacoes")
         .insert({
           nome: nome.trim(),
-          imagem_url: imageUrl,
-          logo_url: logoUrl,
+          imagem_url: imageUrl || null,
+          logo_url: logoUrl || null,
           dot_size: 15,
           endereco: endereco.trim(),
           cidade: cidade.trim(),
           estado: estado.trim(),
           cvcrm_id: cvcrm_id?.trim() || null,
+          sigla: null,
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro Supabase ao inserir implantação:", error);
+        throw error;
+      }
+
       res.status(201).json(data);
     } catch (error) {
       console.error("Erro ao criar implantação:", error);
-      res.status(500).json({ error: "Falha ao criar implantação." });
+      res.status(500).json({
+        error: "Falha ao criar implantação.",
+        details: error.message || String(error),
+      });
     }
   }
 );
 
 // Atualizar implantação existente
+// Atualizar implantação existente
 app.put(
   "/api/implantacoes/:id",
+  verifyToken,
   upload.fields([
     { name: "imagem", maxCount: 1 },
     { name: "logo", maxCount: 1 },
@@ -3498,7 +3509,8 @@ app.put(
 );
 
 // Deletar implantação
-app.delete("/api/implantacoes/:id", async (req, res) => {
+// Deletar implantação
+app.delete("/api/implantacoes/:id", verifyToken, async (req, res) => {
   try {
     if (!supabase) {
       return res.status(500).json({ error: "Supabase não está configurado." });
