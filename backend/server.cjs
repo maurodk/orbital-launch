@@ -1200,21 +1200,23 @@ app.get("/fullscreen", (req, res) => {
 // Rota útil: redireciona para a fullscreen da implantação atual definida em Config
 app.get("/fullscreen/current", async (req, res) => {
   try {
-    const sheets = await getSheetsClient();
-    const configRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_CONFIG}!A2:B`,
-    });
-    const configRows = configRes.data.values || [];
-    const config = configRows.reduce((acc, row) => {
-      if (row[0]) acc[row[0]] = row[1];
-      return acc;
-    }, {});
-    const implantacaoAtual =
-      config["implantacaoAtual"] || config["implantacao"] || null;
-    if (!implantacaoAtual) {
+    if (!supabase) {
+      return res.status(500).send("Supabase não configurado.");
+    }
+
+    // Busca a chave implantacaoAtual do Supabase
+    const { data: configData, error } = await supabase
+      .from("config")
+      .select("value")
+      .eq("key", "implantacaoAtual")
+      .limit(1)
+      .single();
+
+    if (error || !configData || !configData.value) {
       return res.status(404).send("implantacaoAtual não encontrada na Config.");
     }
+
+    const implantacaoAtual = configData.value;
     const encoded = encodeURIComponent(implantacaoAtual);
     return res.redirect(`/fullscreen?implantacao=${encoded}`);
   } catch (error) {

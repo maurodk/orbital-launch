@@ -123,7 +123,12 @@ export function MappingSidebar({
                 {isOpen && (
                   <div className="group-content">
                     {unitItems.map(({ unidade, originalIndex }) => {
-                      const isMapped = unidade[11] && unidade[11].trim() !== "";
+                      // Verifica se AMBAS as coordenadas (M e N) estão preenchidas
+                      const isMapped =
+                        unidade[11] &&
+                        unidade[11].trim() !== "" &&
+                        unidade[12] &&
+                        unidade[12].trim() !== "";
                       const isSelected = originalIndex === selectedUnitIndex;
                       // <<< MUDANÇA 1: Pega o status da unidade e converte para minúsculas >>>
                       const status = unidade[10]?.toLowerCase() || "disponível";
