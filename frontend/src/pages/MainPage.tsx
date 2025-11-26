@@ -337,6 +337,8 @@ export function MainPage() {
           data: { session },
         } = await supabase.auth.getSession();
         if (session) {
+          // Salva o token no localStorage para uso em outros componentes
+          localStorage.setItem("token", session.access_token);
           axios.defaults.headers.common[
             "Authorization"
           ] = `Bearer ${session.access_token}`;
@@ -396,6 +398,8 @@ export function MainPage() {
           console.error(err);
         }
       } else {
+        // Remove o token do localStorage ao fazer logout
+        localStorage.removeItem("token");
         delete axios.defaults.headers.common["Authorization"];
         setUnidades([]);
         setClientes([]);
@@ -414,6 +418,7 @@ export function MainPage() {
         checkUser();
       } else if (!user) {
         setUser(null);
+        localStorage.removeItem("token");
         delete axios.defaults.headers.common["Authorization"];
         setUnidades([]);
         setClientes([]);

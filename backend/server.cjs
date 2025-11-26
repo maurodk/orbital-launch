@@ -244,6 +244,10 @@ const SHEET_NAME_IMPLANTACOES = "Implantacoes";
 
 // Middleware para verificar o Token do Supabase
 async function verifyToken(req, res, next) {
+  console.log("[AUTH] ===== VERIFICANDO TOKEN =====");
+  console.log("[AUTH] Método:", req.method, "| Path:", req.path);
+  console.log("[AUTH] Headers:", JSON.stringify(req.headers, null, 2));
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     console.error("[AUTH] Token não fornecido. Header:", authHeader);
@@ -3340,12 +3344,10 @@ app.post(
 
         if (uploadError) {
           console.error("❌ Erro ao fazer upload da imagem:", uploadError);
-          return res
-            .status(500)
-            .json({
-              error: "Falha ao fazer upload da imagem.",
-              details: uploadError.message,
-            });
+          return res.status(500).json({
+            error: "Falha ao fazer upload da imagem.",
+            details: uploadError.message,
+          });
         }
 
         // Gerar URL pública da imagem
@@ -3375,12 +3377,10 @@ app.post(
 
         if (uploadError) {
           console.error("❌ Erro ao fazer upload da logo:", uploadError);
-          return res
-            .status(500)
-            .json({
-              error: "Falha ao fazer upload da logo.",
-              details: uploadError.message,
-            });
+          return res.status(500).json({
+            error: "Falha ao fazer upload da logo.",
+            details: uploadError.message,
+          });
         }
 
         // Gerar URL pública da logo
@@ -3780,6 +3780,20 @@ app.get("/api/clientes/:implantacao_id", verifyToken, async (req, res) => {
       details: error.message,
     });
   }
+});
+
+// Middleware global de tratamento de erros (DEVE VIR APÓS TODAS AS ROTAS)
+app.use((err, req, res, next) => {
+  console.error("❌❌❌ ERRO NÃO TRATADO ❌❌❌");
+  console.error("Path:", req.method, req.path);
+  console.error("Error:", err);
+  console.error("Stack:", err.stack);
+
+  res.status(500).json({
+    error: "Erro interno do servidor",
+    message: err.message,
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+  });
 });
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)

@@ -148,12 +148,20 @@ export function EditImplantationModal({
         formData.append("logo", logoFile);
       }
 
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Token de autenticação não encontrado");
+        setIsLoading(false);
+        return;
+      }
+
       await axios.put(
         `${apiUrl}/api/implantacoes/${implantation.id}`,
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
           },
         }
       );

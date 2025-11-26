@@ -103,6 +103,17 @@ export function NewImplantationModal({
 
     setIsLoading(true);
 
+    console.log("🚀 [FRONTEND] Iniciando criação de empreendimento");
+    console.log("📋 [FRONTEND] Dados do formulário:", {
+      nome,
+      endereco,
+      cidade,
+      estado,
+      cvcrm_id: cvcrmId,
+      hasImagem: !!imagemFile,
+      hasLogo: !!logoFile,
+    });
+
     try {
       const formData = new FormData();
       formData.append("nome", nome.trim());
@@ -119,11 +130,33 @@ export function NewImplantationModal({
         formData.append("logo", logoFile);
       }
 
-      await axios.post(`${apiUrl}/api/implantacoes`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      console.log("📦 [FRONTEND] FormData preparado");
+
+      const token = localStorage.getItem("token");
+      console.log("🔑 [FRONTEND] Token existe?", !!token);
+
+      if (!token) {
+        console.error("❌ [FRONTEND] Token não encontrado!");
+        throw new Error("Token de autenticação não encontrado");
+      }
+
+      console.log(
+        "📡 [FRONTEND] Enviando requisição para:",
+        `${apiUrl}/api/implantacoes`
+      );
+
+      const response = await axios.post(
+        `${apiUrl}/api/implantacoes`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("✅ [FRONTEND] Resposta recebida:", response.data);
 
       // Limpar formulário
       setNome("");
@@ -139,7 +172,25 @@ export function NewImplantationModal({
       onSuccess();
       onClose();
     } catch (err) {
-      console.error("Erro ao criar empreendimento:", err);
+      console.error("❌ [FRONTEND] Erro ao criar empreendimento");
+
+      if (axios.isAxiosError(err)) {
+        console.error("📊 [FRONTEND] Detalhes do erro Axios:", {
+          message: err.message,
+          code: err.code,
+          status: err.response?.status,
+          statusText: err.response?.statusText,
+          data: err.response?.data,
+          config: {
+            url: err.config?.url,
+            method: err.config?.method,
+            headers: err.config?.headers,
+          },
+        });
+      } else {
+        console.error("📊 [FRONTEND] Erro não-Axios:", err);
+      }
+
       const error = err as { response?: { data?: { error?: string } } };
       setError(
         error.response?.data?.error ||
