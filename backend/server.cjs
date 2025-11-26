@@ -1000,21 +1000,29 @@ app.get("/api/public-data", async (req, res) => {
       );
     }
 
-    // Busca os dados da implantação (imagem, dotSize)
-    const implantacoesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A2:G`, // Coluna G para a sigla
-    });
+    // Busca os dados da implantação do Supabase
+    let imageUrl = "";
+    let dotSize = 16;
+    let sigla = "";
 
-    const implantacaoData = (implantacoesRes.data.values || []).find(
-      (row) => row[0] === implantacao
-    );
+    if (supabase) {
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("imagem_url, dot_size, sigla")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
 
-    const imageUrl = implantacaoData ? implantacaoData[1] : "";
-    const dotSize = implantacaoData
-      ? parseInt(implantacaoData[2], 10) || 16
-      : 16;
-    const sigla = implantacaoData ? implantacaoData[6] : ""; // Pega a sigla
+        if (implData) {
+          imageUrl = implData.imagem_url || "";
+          dotSize = implData.dot_size || 16;
+          sigla = implData.sigla || "";
+        }
+      } catch (e) {
+        console.error("Erro ao buscar dados da implantação no Supabase:", e);
+      }
+    }
 
     res.json({
       unidades,
@@ -2440,52 +2448,47 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
   }
 });
 
-// CORREÇÃO: Removido o `verifyToken` para permitir que as páginas públicas
-// (fullscreen.html e fullscreen-cvcrm.html) possam salvar o tamanho do ponto
-// sem necessidade de autenticação.
+// CORREÇÃO: Endpoint público para atualizar tamanho do ponto (dot_size)
 app.post("/api/update-dot-size", async (req, res) => {
   const { implantacaoName, newSize } = req.body;
-  const userEmail = req.user.email;
+
   if (!implantacaoName || newSize === undefined) {
     return res
       .status(400)
       .json({ error: "Nome da implantação e novo tamanho são obrigatórios." });
   }
+
   try {
-    const sheets = await getSheetsClient();
-    const rangeData = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!A:A`,
-    });
-    const allNames = (rangeData.data.values || []).flat();
-    const rowIndex = allNames.findIndex((name) => name === implantacaoName);
-    if (rowIndex === -1) {
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
+    const { data, error } = await supabase
+      .from("implantacoes")
+      .update({ dot_size: parseInt(newSize, 10) })
+      .eq("nome", implantacaoName)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro ao atualizar dot_size:", error);
+      return res
+        .status(500)
+        .json({ error: "Falha ao atualizar tamanho do ponto." });
+    }
+
+    if (!data) {
       return res
         .status(404)
         .json({ error: `Implantação '${implantacaoName}' não encontrada.` });
     }
-    const sheetRowIndex = rowIndex + 2;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_IMPLANTACOES}!C${sheetRowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [[newSize]] },
-    });
-    // Registra a mudança no histórico da própria implantação
-    await addHistoryEntry(
-      sheets,
-      implantacaoName,
-      `Config: ${implantacaoName}`,
-      `Tamanho do ponto alterado para ${newSize}px`,
-      null,
-      null,
-      userEmail
-    );
+
     res.json({
       success: true,
-      message: `Tamanho do ponto para '${implantacaoName}' atualizado.`,
+      message: `Tamanho do ponto atualizado para ${newSize}px.`,
     });
   } catch (error) {
+    console.error("Erro ao atualizar dot_size:", error);
     res.status(500).json({ error: "Falha ao atualizar o tamanho do ponto." });
   }
 });
@@ -3177,15 +3180,38 @@ app.get("/api/history/:implantacao", verifyToken, async (req, res) => {
 
 app.get("/api/user/full-name", verifyToken, async (req, res) => {
   try {
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
     const { data, error } = await supabase
       .from("users")
       .select("full_name")
       .eq("id", req.user.uid)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    // Se usuário não existe, cria um registro
+    if (!data && !error) {
+      const { error: insertError } = await supabase.from("users").insert({
+        id: req.user.uid,
+        email: req.user.email,
+        full_name: null,
+      });
+
+      if (insertError) {
+        console.error("Erro ao criar usuário:", insertError);
+      }
+      return res.json({ full_name: null });
+    }
+
+    if (error) {
+      console.error("Erro ao buscar full_name:", error);
+      return res.status(500).json({ error: "Falha ao buscar nome completo." });
+    }
+
     res.json({ full_name: data?.full_name || null });
   } catch (error) {
+    console.error("Exceção em /api/user/full-name:", error);
     res.status(500).json({ error: "Falha ao buscar nome completo." });
   }
 });
@@ -3197,14 +3223,35 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
   }
 
   try {
-    const { error } = await supabase
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
+    // Tenta atualizar, se não existir, cria
+    const { error: updateError } = await supabase
       .from("users")
       .update({ full_name: full_name.trim() })
       .eq("id", req.user.uid);
 
-    if (error) throw error;
+    // Se erro indicar que não existe, cria o registro
+    if (updateError) {
+      const { error: insertError } = await supabase.from("users").insert({
+        id: req.user.uid,
+        email: req.user.email,
+        full_name: full_name.trim(),
+      });
+
+      if (insertError) {
+        console.error("Erro ao criar usuário:", insertError);
+        return res
+          .status(500)
+          .json({ error: "Falha ao atualizar nome completo." });
+      }
+    }
+
     res.json({ success: true });
   } catch (error) {
+    console.error("Exceção em POST /api/user/full-name:", error);
     res.status(500).json({ error: "Falha ao atualizar nome completo." });
   }
 });
@@ -3316,9 +3363,9 @@ app.post(
         .from("implantacoes")
         .insert({
           nome: nome.trim(),
-          url: imageUrl,
+          imagem_url: imageUrl,
           logo_url: logoUrl,
-          tamanho_ponto: 15,
+          dot_size: 15,
           endereco: endereco.trim(),
           cidade: cidade.trim(),
           estado: estado.trim(),
@@ -3363,13 +3410,13 @@ app.put(
       // Buscar implantação atual
       const { data: currentData, error: fetchError } = await supabase
         .from("implantacoes")
-        .select("url, logo_url")
+        .select("imagem_url, logo_url")
         .eq("id", id)
         .single();
 
       if (fetchError) throw fetchError;
 
-      let imageUrl = currentData?.url || "";
+      let imageUrl = currentData?.imagem_url || "";
       let logoUrl = currentData?.logo_url || "";
 
       // Upload de nova imagem da implantação (se fornecida)
@@ -3429,7 +3476,7 @@ app.put(
         .from("implantacoes")
         .update({
           nome: nome.trim(),
-          url: imageUrl,
+          imagem_url: imageUrl,
           logo_url: logoUrl,
           endereco: endereco.trim(),
           cidade: cidade.trim(),
