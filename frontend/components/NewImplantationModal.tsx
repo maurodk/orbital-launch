@@ -63,6 +63,14 @@ export function NewImplantationModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+
+      // Validar tamanho (50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        setError("A imagem não pode exceder 50MB");
+        e.target.value = "";
+        return;
+      }
+
       setImagemFile(file);
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
@@ -73,6 +81,14 @@ export function NewImplantationModal({
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+
+      // Validar tamanho (50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        setError("A logo não pode exceder 50MB");
+        e.target.value = "";
+        return;
+      }
+
       setLogoFile(file);
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);

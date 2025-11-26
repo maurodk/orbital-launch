@@ -43,13 +43,16 @@ import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 
 const AWS_API_URL =
-  import.meta.env.VITE_AWS_API_URL || "http://34.204.204.81:3000";
+  import.meta.env.VITE_AWS_API_URL ||
+  "https://apitelaodigital.suportevca.com.br";
 const LOCALHOST_API_URL =
   import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3000";
 
-// Use AWS em produção, localhost em desenvolvimento
-const apiUrl =
-  process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
+// SEMPRE usa AWS (backend está na EC2)
+const apiUrl = AWS_API_URL;
+
+console.log("🌐 [CONFIG] Ambiente:", import.meta.env.MODE);
+console.log("🌐 [CONFIG] API URL:", apiUrl);
 
 interface ApiResponse {
   unidades: string[][];
