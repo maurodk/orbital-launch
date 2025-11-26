@@ -73,6 +73,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
     const allowedCsvTypes = /csv/;
+    const allowedXlsxTypes = /xlsx/;
 
     const extname = path.extname(file.originalname).toLowerCase();
     const isImage =
@@ -81,13 +82,17 @@ const upload = multer({
       allowedCsvTypes.test(extname) ||
       file.mimetype === "text/csv" ||
       file.mimetype === "application/vnd.ms-excel";
+    const isXlsx =
+      allowedXlsxTypes.test(extname) ||
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    if (isImage || isCsv) {
+    if (isImage || isCsv || isXlsx) {
       return cb(null, true);
     }
     cb(
       new Error(
-        "Apenas imagens (jpeg, jpg, png, gif, webp) e arquivos CSV são permitidos"
+        "Apenas imagens (jpeg, jpg, png, gif, webp), arquivos CSV e XLSX são permitidos"
       )
     );
   },
