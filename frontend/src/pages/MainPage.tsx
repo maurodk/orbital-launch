@@ -352,10 +352,10 @@ export function MainPage() {
         }
 
         try {
-          const [configRes, implantacoesRes] = await Promise.all([
-            axios.get<AppConfig>(`${apiUrl}/api/config`),
-            axios.get<Implantation[]>(`${apiUrl}/api/implantacoes`),
-          ]);
+          // Busca lista de implantações disponíveis
+          const implantacoesRes = await axios.get<Implantation[]>(
+            `${apiUrl}/api/implantacoes`
+          );
 
           // Busca full_name separadamente para não bloquear o fluxo principal
           try {
@@ -373,25 +373,46 @@ export function MainPage() {
           const allImplantations = implantacoesRes.data || [];
           setImplantacoes(allImplantations);
 
-          // CORREÇÃO: Garante que a implantação da config seja a prioritária.
-          // Se não houver, usa a primeira da lista como fallback.
-          const currentImplantationName =
-            configRes.data.implantacaoAtual ??
-            (allImplantations[0]?.nome || "");
-          setSelectedImplantationName(currentImplantationName);
-
-          const foundImplantation = allImplantations.find(
-            (imp) => imp.nome === currentImplantationName
+          // Tentar recuperar a última implantação usada pelo usuário (localStorage)
+          const lastUsedImplantacao = localStorage.getItem(
+            "selectedImplantacao"
           );
 
-          if (foundImplantation) {
-            setCurrentImplantation(foundImplantation);
-            setImageUrl(foundImplantation.url);
-            setDotSize(foundImplantation.tamanhoPonto || 16);
-            setCurrentLogoUrl(foundImplantation.logoUrl || "/logo-uni.png");
+          if (lastUsedImplantacao) {
+            // Verifica se a implantação ainda existe
+            const implExists = allImplantations.some(
+              (impl) => impl.nome === lastUsedImplantacao
+            );
 
-            await fetchUnitData(foundImplantation.nome);
-            await fetchHistory(foundImplantation.nome);
+            if (implExists) {
+              console.log(
+                "✅ Restaurando última implantação usada:",
+                lastUsedImplantacao
+              );
+              const foundImplantation = allImplantations.find(
+                (imp) => imp.nome === lastUsedImplantacao
+              );
+
+              if (foundImplantation) {
+                setSelectedImplantationName(lastUsedImplantacao);
+                setCurrentImplantation(foundImplantation);
+                setImageUrl(foundImplantation.url);
+                setDotSize(foundImplantation.tamanhoPonto || 16);
+                setCurrentLogoUrl(foundImplantation.logoUrl || "/logo-uni.png");
+
+                await fetchUnitData(foundImplantation.nome);
+                await fetchHistory(foundImplantation.nome);
+              }
+            } else {
+              console.log(
+                "⚠️ Última implantação usada não existe mais. Aguardando seleção manual."
+              );
+              localStorage.removeItem("selectedImplantacao");
+            }
+          } else {
+            console.log(
+              "ℹ️ Nenhuma implantação selecionada anteriormente. Aguardando seleção."
+            );
           }
           setError(null);
         } catch (err) {
@@ -488,27 +509,27 @@ export function MainPage() {
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
     if (!newImplantation || newName === selectedImplantationName) return;
+
+    console.log("🔄 Trocando implantação para:", newName);
+
+    // Salva a escolha no localStorage (sessão por usuário)
+    localStorage.setItem("selectedImplantacao", newName);
+
     setSelectedImplantationName(newName);
     setImageUrl(newImplantation.url);
     setDotSize(newImplantation.tamanhoPonto ?? 16);
     setCurrentImplantation(newImplantation);
     setCurrentLogoUrl(newImplantation.logoUrl || "/logo-uni.png");
-    await fetchUnitData(newName);
-    await fetchHistory(newName);
+    setSwitching(true);
 
-    // CORREÇÃO: Adiciona a chamada para salvar a implantação selecionada no backend.
     try {
-      await axios.post(`${apiUrl}/api/update-config`, {
-        key: "implantacaoAtual", // A config ainda usa o nome completo
-        value: newName,
-      });
+      await fetchUnitData(newName);
+      await fetchHistory(newName);
     } catch (error) {
-      // Log do erro sem bloquear a interface do usuário
-      console.error(
-        "Falha ao salvar a implantação selecionada no backend.",
-        error
-      );
-      // Opcional: Mostrar um toast/alerta não-bloqueante para o usuário.
+      console.error("❌ Erro ao trocar implantação:", error);
+      setError("Falha ao carregar dados da nova implantação.");
+    } finally {
+      setSwitching(false);
     }
   };
 

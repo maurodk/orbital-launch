@@ -1116,7 +1116,8 @@ app.get("/api/config", verifyToken, async (req, res) => {
 
     const { data: configRows, error } = await supabase
       .from("config")
-      .select("key, value");
+      .select("key, value")
+      .neq("key", "implantacaoAtual"); // Não retorna mais essa chave (sessão por usuário)
 
     if (error) {
       console.error("[/api/config] Erro Supabase:", error);
@@ -1151,37 +1152,8 @@ app.get("/api/config", verifyToken, async (req, res) => {
   }
 });
 
-// NOVO: Endpoint para ATUALIZAR um valor na tabela Config do Supabase
-app.post("/api/update-config", verifyToken, async (req, res) => {
-  const { key, value } = req.body;
-  if (!key || value === undefined) {
-    return res.status(400).json({ error: "Chave e valor são obrigatórios." });
-  }
-
-  try {
-    if (!supabase) {
-      return res.status(500).json({ error: "Supabase não configurado." });
-    }
-
-    const { error } = await supabase
-      .from("config")
-      .update({ value: value })
-      .eq("key", key);
-
-    if (error) {
-      console.error("Erro ao atualizar configuração:", error);
-      return res.status(500).json({
-        error: "Falha ao atualizar configuração.",
-        details: error.message,
-      });
-    }
-
-    res.json({ success: true, message: `Configuração '${key}' atualizada.` });
-  } catch (error) {
-    console.error("Erro ao atualizar configuração:", error);
-    res.status(500).json({ error: "Falha ao atualizar configuração." });
-  }
-});
+// REMOVIDO: Endpoint /api/update-config não é mais necessário
+// A implantação atual agora é armazenada no localStorage de cada usuário
 
 // SSE endpoint público para assinaturas em tempo real (fullscreen pode usar)
 app.get("/api/events", (req, res) => {
