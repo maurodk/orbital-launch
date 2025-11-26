@@ -921,11 +921,15 @@ app.get("/api/data", verifyToken, async (req, res) => {
     );
 
     if (!resolved || !resolved.found) {
-      return res.status(404).json({
-        error: `Planilha '${implantacao}' não encontrada no spreadsheet de implantação.`,
-        available: resolved.available,
-        suggestions: resolved.suggestions,
-        resolverError: resolved.error,
+      // Se a planilha não existe, retorna dados vazios ao invés de erro 404
+      console.log(
+        `⚠️ [/api/data] Planilha '${implantacao}' ainda não existe (sem unidades importadas)`
+      );
+      return res.json({
+        unidades: [],
+        clientes: [],
+        sheetNotFound: true,
+        message: "Nenhuma unidade importada ainda para esta implantação",
       });
     }
     const sheetTitle = resolved.found;

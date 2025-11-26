@@ -45,8 +45,6 @@ import { useReservationManager } from "../hooks/useReservationManager";
 const AWS_API_URL =
   import.meta.env.VITE_AWS_API_URL ||
   "https://apitelaodigital.suportevca.com.br";
-const LOCALHOST_API_URL =
-  import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3000";
 
 // SEMPRE usa AWS (backend está na EC2)
 const apiUrl = AWS_API_URL;
@@ -57,6 +55,8 @@ console.log("🌐 [CONFIG] API URL:", apiUrl);
 interface ApiResponse {
   unidades: string[][];
   clientes: string[][];
+  sheetNotFound?: boolean;
+  message?: string;
 }
 export interface AppConfig {
   implantacaoAtual?: string;
@@ -183,8 +183,7 @@ export function MainPage() {
     number | null
   >(null);
   const [showFullNameModal, setShowFullNameModal] = useState(false);
-  // @ts-ignore - userFullName is set but not currently displayed
-  const [userFullName, setUserFullName] = useState<string | null>(null);
+  // Removido userFullName - não está sendo usado no momento
   const reservationManager = useReservationManager(apiUrl);
 
   // Estados para os novos modais
@@ -226,7 +225,7 @@ export function MainPage() {
       .get(`${apiUrl}/api/implantacoes`)
       .then((res) => {
         const fullData = res.data.find(
-          (imp: any) => imp.nome === currentImplantation.nome
+          (imp: Implantation) => imp.nome === currentImplantation.nome
         );
         if (fullData) {
           setImplantationToEdit(fullData);
@@ -322,8 +321,18 @@ export function MainPage() {
       const response = await axios.get<ApiResponse>(
         `${apiUrl}/api/data?implantacao=${encodeURIComponent(implantacaoName)}`
       );
-      setUnidades(response.data.unidades.slice(1) || []);
-      setClientes(response.data.clientes.slice(1) || []);
+
+      // Verifica se a planilha existe
+      if (response.data.sheetNotFound) {
+        setUnidades([]);
+        setClientes([]);
+        console.log(
+          `ℹ️ Planilha '${implantacaoName}' ainda não existe (sem unidades importadas)`
+        );
+      } else {
+        setUnidades(response.data.unidades.slice(1) || []);
+        setClientes(response.data.clientes.slice(1) || []);
+      }
     } catch (err) {
       console.error(`Erro ao carregar dados para ${implantacaoName}`, err);
       setError(`Não foi possível carregar os dados para "${implantacaoName}".`);
@@ -363,7 +372,6 @@ export function MainPage() {
           try {
             const fullNameRes = await axios.get(`${apiUrl}/api/user/full-name`);
             const fullName = fullNameRes.data.full_name;
-            setUserFullName(fullName);
             if (!fullName) {
               setShowFullNameModal(true);
             }
@@ -407,6 +415,7 @@ export function MainPage() {
 
                 // Fetch unit count for badge display
                 try {
+                  const token = localStorage.getItem("token");
                   const countResponse = await axios.get(
                     `${apiUrl}/api/implantacoes/${encodeURIComponent(
                       foundImplantation.nome
@@ -707,9 +716,10 @@ export function MainPage() {
 
       handleCloseModals();
       await fetchHistory(selectedImplantationName);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
       const errorMessage =
-        err.response?.data?.error ||
+        error.response?.data?.error ||
         `Falha ao ${
           newStatus === "BLOQUEADA" ? "bloquear" : "desbloquear"
         } a unidade.`;
@@ -743,9 +753,10 @@ export function MainPage() {
       // Força a atualização dos dados após a troca bem-sucedida
       await fetchUnitData(selectedImplantationName);
       await fetchHistory(selectedImplantationName);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
       const errorMessage =
-        err.response?.data?.error ||
+        error.response?.data?.error ||
         "Falha ao realizar a troca de unidade. Verifique o console para mais detalhes.";
 
       // NOVO: Ativa o modal de falha
@@ -896,7 +907,7 @@ export function MainPage() {
 
         await fetchUnitData(selectedImplantationName);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro durante o processo de reserva:", error);
 
       await reservationManager.cancelTempReservation(
@@ -1024,9 +1035,10 @@ export function MainPage() {
       updatedUnidades[pixModalState.unitIndex][16] = statusPagamento; // Coluna Q
       // REMOVIDO: Coluna R não é mais usada para timestamp
       setUnidades(updatedUnidades);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
       throw new Error(
-        error.response?.data?.error || "Erro ao salvar dados do PIX."
+        err.response?.data?.error || "Erro ao salvar dados do PIX."
       );
     }
   };
@@ -1255,6 +1267,27 @@ export function MainPage() {
                       </div>
                       <div>
                         Quantidade: <strong>{unidadesCount}</strong> Unidades
+                      </div>
+                    </div>
+                  )}
+                  {!unidadesConfigured && selectedImplantationName && (
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        backgroundColor: "#2a2a2a",
+                        color: "#ffffff",
+                        borderRadius: "4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        border: "1px solid #ffa500",
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      <div style={{ fontWeight: "bold", color: "#ffa500" }}>
+                        ⚠️ Sem unidades
+                      </div>
+                      <div style={{ fontSize: "11px" }}>
+                        Importe as unidades via configurações
                       </div>
                     </div>
                   )}
@@ -1507,7 +1540,6 @@ export function MainPage() {
                     await axios.post(`${apiUrl}/api/user/full-name`, {
                       full_name: fullName,
                     });
-                    setUserFullName(fullName);
                     setShowFullNameModal(false);
                   } catch (err) {
                     console.error("Erro ao salvar full_name:", err);
