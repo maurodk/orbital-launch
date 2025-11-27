@@ -933,22 +933,22 @@ export function MainPage() {
 
       if (clientData) {
         dataToBackend = [
-          clientData[0],
-          clientData[1],
-          clientData[2],
-          clientData[3],
-          clientData[4] || "",
-          "RESERVADA",
+          clientData[0], // F: id_pre_cadastro
+          clientData[1], // G: cliente
+          clientData[2], // H: documento
+          clientData[3], // I: corretor
+          clientData[4] || "", // J: imobiliária
+          new Date().toLocaleDateString("pt-BR"), // K: data_reserva
         ];
         clientName = clientData[1];
       } else if (manualData) {
         dataToBackend = [
-          manualData.id,
-          manualData.cliente,
-          manualData.documento,
-          manualData.corretor,
-          "",
-          "RESERVADA",
+          manualData.id, // F: id_pre_cadastro
+          manualData.cliente, // G: cliente
+          manualData.documento, // H: documento
+          manualData.corretor, // I: corretor
+          "", // J: imobiliária (vazio para manual)
+          new Date().toLocaleDateString("pt-BR"), // K: data_reserva
         ];
         clientName = manualData.cliente;
       } else {

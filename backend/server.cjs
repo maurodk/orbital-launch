@@ -59,6 +59,8 @@ const allowedOrigins = [
   "https://lancamentos.vcaconstrutora.com.br", // Frontend em produção
   "http://localhost:5173", // Frontend em desenvolvimento local
   "http://localhost:5174", // Frontend em desenvolvimento local (porta alternativa)
+  "http://127.0.0.1:5500", // Live Server
+  "http://localhost:5500", // Live Server
   // Adicione outras URLs se necessário
 ];
 
@@ -1439,13 +1441,13 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
           // Build payload: include imobiliaria (sheet column index 4) and force situacao to RESERVADA
           const payload = {
             // <-- CORREÇÃO AQUI
-            id_pre_cadastro: data[0] || null, // ID Pré-Cadastro
-            cliente: data[1] || clientName || null, // Cliente
-            documento: data[2] || null, // Documento
-            corretor: data[3] || null, // Corretor
-            imobiliaria: data[4] || null, // Imobiliária
+            id_pre_cadastro: data[0] || null, // F: ID Pré-Cadastro (índice 0 do array data)
+            cliente: data[1] || clientName || null, // G: Cliente (índice 1 do array data)
+            documento: data[2] || null, // H: Documento (índice 2 do array data)
+            corretor: data[3] || null, // I: Corretor (índice 3 do array data)
+            imobiliaria: data[4] || null, // J: Imobiliária (índice 4 do array data)
             // Force reserva when this endpoint is used for a reservation flow
-            situacao: "RESERVADA", // Situação
+            situacao: "RESERVADA", // L: Situação
             implantacao_id,
             nome_unidade:
               unitName || (existingUnit && existingUnit.nome_unidade) || null,
@@ -2198,18 +2200,18 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
     // 2. Preparar dados para atualização
     const dataToTransfer = [
-      oldUnitData[0] || "", // F: id_pre_cadastro
-      oldUnitData[1] || "", // G: cliente
-      oldUnitData[2] || "", // H: documento
-      oldUnitData[3] || "", // I: corretor
-      oldUnitData[4] || "", // J: imobiliária
-      "RESERVADA", // K: situação
+      oldUnitData[0] || "", // F: id_pre_cadastro (índice 0)
+      oldUnitData[1] || "", // G: cliente (índice 1)
+      oldUnitData[2] || "", // H: documento (índice 2)
+      oldUnitData[3] || "", // I: corretor (índice 3)
+      oldUnitData[4] || "", // J: imobiliária (índice 4)
+      "RESERVADA", // K: situação (será forçada como RESERVADA)
       "", // L: coord_x (não transferir) - Limpa na nova unidade
       "", // M: coord_y (não transferir) - Limpa na nova unidade
-      oldUnitData[8] || "", // N: IDENTIFICADOR
-      oldUnitData[9] || "", // O: Payload
-      oldUnitData[10] || "", // P: Valor
-      oldUnitData[11] || "", // Q: Pagamento
+      oldUnitData[8] || "", // N: Pagamento (índice 8)
+      oldUnitData[9] || "", // O: IDENTIFICADOR (índice 9)
+      oldUnitData[10] || "", // P: Payload (índice 10)
+      oldUnitData[11] || "", // Q: Valor (índice 11)
     ];
 
     await sheets.spreadsheets.values.batchUpdate({

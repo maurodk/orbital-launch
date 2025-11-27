@@ -386,8 +386,12 @@
 
     <script>
       (function () {
-        // URL da API no EC2
-        const API_URL = "https://apitelaodigital.suportevca.com.br";
+        // Detecta automaticamente se está em desenvolvimento ou produção
+        const API_URL =
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1"
+            ? "http://localhost:3000"
+            : "https://apitelaodigital.suportevca.com.br";
 
         const wrapper = document.getElementById("floor-plan-wrapper");
         const statusEl = document.getElementById("status");
@@ -495,10 +499,10 @@
               : unidades;
 
           rows.forEach((u, index) => {
-            const coordX = u[11];
-            const coordY = u[12];
-            const letra = u[17];
-            const status = (u[10] || "DISPONÍVEL").toString().toUpperCase();
+            const coordX = u[12];
+            const coordY = u[13];
+            const letra = u[18];
+            const status = (u[11] || "DISPONÍVEL").toString().toUpperCase();
 
             if (!coordX || !coordY) {
               return;
@@ -574,10 +578,10 @@
           const unitId = `unit-indicator-${unitIndex}`;
           let indicator = document.getElementById(unitId);
 
-          const coordX = unitData[11];
-          const coordY = unitData[12];
-          const letra = unitData[17];
-          const status = (unitData[10] || "DISPONÍVEL")
+          const coordX = unitData[12];
+          const coordY = unitData[13];
+          const letra = unitData[18];
+          const status = (unitData[11] || "DISPONÍVEL")
             .toString()
             .toUpperCase();
 
