@@ -1,6 +1,13 @@
-// src/components/FloorPlan.tsx - VERSÃO COMPLETA COM FILTRO DE PONTOS
+// src/components/FloorPlan.tsx - VERSÃO OTIMIZADA COM PERFORMANCE
 
-import { type MouseEvent, useRef, useState, useEffect } from "react";
+import {
+  type MouseEvent,
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  memo,
+} from "react";
 import {
   TransformWrapper,
   TransformComponent,
@@ -50,7 +57,7 @@ const Controls = () => {
   );
 };
 
-export function FloorPlan({
+export const FloorPlan = memo(function FloorPlan({
   imageUrl,
   unidades,
   isMappingMode,
@@ -64,6 +71,39 @@ export function FloorPlan({
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
   const hideControlsTimeout = useRef<number | null>(null);
+
+  // Memoiza as unidades renderizáveis para evitar recálculos
+  const renderedUnits = useMemo(() => {
+    return unidades
+      .map((unidade, index) => {
+        const coordX = unidade[11];
+        const coordY = unidade[12];
+        const letra = unidade[17];
+        const rawStatus = unidade[10] || "disponível";
+        const normalizedStatus = rawStatus
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+        const isAvailable = normalizedStatus === "disponivel";
+
+        // Filtra unidades que não devem ser renderizadas
+        if ((isAvailable && hideAvailable) || !coordX || !coordY) {
+          return null;
+        }
+
+        return {
+          index,
+          coordX,
+          coordY,
+          letra,
+          normalizedStatus,
+          unitName: unidade[2],
+          rawStatus: unidade[10],
+        };
+      })
+      .filter(Boolean); // Remove nulls
+  }, [unidades, hideAvailable]);
 
   const scheduleHideControls = () => {
     if (hideControlsTimeout.current) {
@@ -157,28 +197,22 @@ export function FloorPlan({
               className="floor-plan-image"
             />
 
-            {unidades.map((unidade, index) => {
-              const coordX = unidade[11];
-              const coordY = unidade[12];
-              const letra = unidade[17]; // Coluna R
-              // Normaliza status: remove acentos, lowercase, trim
-              const rawStatus = unidade[10] || "disponível";
-              const normalizedStatus = rawStatus
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .trim();
-              const isAvailable = normalizedStatus === "disponivel";
+            {renderedUnits.map((unit) => {
+              if (!unit) return null;
 
-              if (isAvailable && hideAvailable) {
-                return null;
-              }
-
-              if (!coordX || !coordY) return null;
+              const {
+                index,
+                coordX,
+                coordY,
+                letra,
+                normalizedStatus,
+                unitName,
+                rawStatus,
+              } = unit;
 
               return (
                 <div
-                  key={unidade[2] || index}
+                  key={unitName || index}
                   className={`unit-indicator ${normalizedStatus}`}
                   style={{
                     left: `${coordX}%`,
@@ -187,7 +221,7 @@ export function FloorPlan({
                     height: `${dotSize}px`,
                     border: "1px solid rgba(255, 252, 252, 1)",
                   }}
-                  title={`Unidade: ${unidade[2]}\nStatus: ${unidade[10]}`}
+                  title={`Unidade: ${unitName}\nStatus: ${rawStatus}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onUnitClick(index);
@@ -236,4 +270,4 @@ export function FloorPlan({
       </TransformWrapper>
     </div>
   );
-}
+});

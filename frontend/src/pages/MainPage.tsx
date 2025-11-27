@@ -62,6 +62,7 @@ export interface AppConfig {
   implantacaoAtual?: string;
 }
 interface Implantation {
+  id?: string;
   nome: string;
   url: string;
   tamanhoPonto?: number;
@@ -149,6 +150,8 @@ export function MainPage() {
   >("all");
   const [unidadesCount, setUnidadesCount] = useState<number>(0);
   const [unidadesConfigured, setUnidadesConfigured] = useState<boolean>(false);
+  const [clientesCount, setClientesCount] = useState<number>(0);
+  const [clientesConfigured, setClientesConfigured] = useState<boolean>(false);
   const [userDisplayName, setUserDisplayName] = useState<string>("");
 
   const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
@@ -458,6 +461,27 @@ export function MainPage() {
                   setUnidadesConfigured(countResponse.data.configured || false);
                 } catch (err) {
                   console.log("Erro ao buscar contagem de unidades:", err);
+                }
+
+                // Verifica se há clientes importados no Supabase
+                if (foundImplantation?.id) {
+                  try {
+                    const { count: clientesCount, error: clientesError } =
+                      await supabase
+                        .from("clientes")
+                        .select("*", { count: "exact", head: true })
+                        .eq("implantacao_id", foundImplantation.id);
+
+                    if (clientesError) throw clientesError;
+
+                    setClientesCount(clientesCount || 0);
+                    setClientesConfigured((clientesCount || 0) > 0);
+                  } catch (error) {
+                    console.error(
+                      "Erro ao verificar clientes importados:",
+                      error
+                    );
+                  }
                 }
               }
             } else {
@@ -1210,18 +1234,28 @@ export function MainPage() {
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
+                  justifyContent:
+                    view === "list" || view === "history"
+                      ? "flex-start"
+                      : "space-between",
                   alignItems: "flex-start",
                   marginBottom: "20px",
                   gap: "20px",
+                  flexWrap: "wrap",
                 }}
+                className="main-controls-container"
               >
-                {/* Esquerda: Modo Mapeamento e Checkbox */}
+                {/* Esquerda: User greeting e Switcher quando em list/history, ou Modo Mapeamento quando em map */}
                 <div
                   style={{
                     display: "flex",
-                    flexDirection: "column",
+                    flexDirection:
+                      view === "list" || view === "history" ? "row" : "column",
                     gap: "10px",
+                    alignItems:
+                      view === "list" || view === "history"
+                        ? "center"
+                        : "flex-start",
                   }}
                 >
                   {view === "map" && (
@@ -1250,94 +1284,235 @@ export function MainPage() {
                       </div>
                     </>
                   )}
+                  {(view === "list" || view === "history") && (
+                    <>
+                      {userDisplayName && (
+                        <div className="user-greeting">
+                          Olá, <strong>{userDisplayName}</strong>
+                        </div>
+                      )}
+                      <ImplantationSwitcher
+                        implantacoes={implantacoes}
+                        selected={selectedImplantationName}
+                        onChange={handleImplantationChange}
+                      />
+                      {/* Indicadores de unidades e clientes na list/history view */}
+                      {unidadesConfigured && (
+                        <div
+                          style={{
+                            padding: "6px 10px",
+                            backgroundColor: "#2a2a2a",
+                            color: "#ffffff",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            textAlign: "center",
+                            border: "1px solid #6ad700",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                            Unidades configuradas
+                          </div>
+                          <div>
+                            Quantidade: <strong>{unidadesCount}</strong>{" "}
+                            Unidades
+                          </div>
+                        </div>
+                      )}
+                      {!unidadesConfigured && selectedImplantationName && (
+                        <div
+                          style={{
+                            padding: "6px 10px",
+                            backgroundColor: "#2a2a2a",
+                            color: "#ffffff",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            textAlign: "center",
+                            border: "1px solid #ffa500",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", color: "#ffa500" }}>
+                            ⚠️ Sem unidades
+                          </div>
+                        </div>
+                      )}
+                      {clientesConfigured && selectedImplantationName && (
+                        <div
+                          style={{
+                            padding: "6px 10px",
+                            backgroundColor: "#2a2a2a",
+                            color: "#ffffff",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            textAlign: "center",
+                            border: "1px solid #6ad700",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                            Clientes Aptos
+                          </div>
+                          <div>
+                            Quantidade: <strong>{clientesCount}</strong>{" "}
+                            Clientes
+                          </div>
+                        </div>
+                      )}
+                      {!clientesConfigured && selectedImplantationName && (
+                        <div
+                          style={{
+                            padding: "6px 10px",
+                            backgroundColor: "#2a2a2a",
+                            color: "#ffffff",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            textAlign: "center",
+                            border: "1px solid #ffa500",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", color: "#ffa500" }}>
+                            ⚠️ Sem clientes
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
-                {/* Direita: Seletor de empreendimento e configurações */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "20px",
-                  }}
-                >
-                  {userDisplayName && (
-                    <div className="user-greeting">
-                      Olá, <strong>{userDisplayName}</strong>
-                    </div>
-                  )}
-                  <ImplantationSwitcher
-                    implantacoes={implantacoes}
-                    selected={selectedImplantationName}
-                    onChange={handleImplantationChange}
-                  />
-                  {unidadesConfigured && (
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        backgroundColor: "#2a2a2a",
-                        color: "#ffffff",
-                        borderRadius: "4px",
-                        fontSize: "12px",
-                        textAlign: "center",
-                        border: "1px solid #6ad700",
-                        lineHeight: "1.4",
-                      }}
-                    >
-                      <div style={{ fontWeight: "bold", color: "#6ad700" }}>
-                        Unidades configuradas
-                      </div>
-                      <div>
-                        Quantidade: <strong>{unidadesCount}</strong> Unidades
-                      </div>
-                    </div>
-                  )}
-                  {!unidadesConfigured && selectedImplantationName && (
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        backgroundColor: "#2a2a2a",
-                        color: "#ffffff",
-                        borderRadius: "4px",
-                        fontSize: "12px",
-                        textAlign: "center",
-                        border: "1px solid #ffa500",
-                        lineHeight: "1.4",
-                      }}
-                    >
-                      <div style={{ fontWeight: "bold", color: "#ffa500" }}>
-                        ⚠️ Sem unidades
-                      </div>
-                      <div style={{ fontSize: "11px" }}>
-                        Importe as unidades via configurações
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={handleOpenEditImplantation}
+                {/* Direita: Seletor de empreendimento e configurações (apenas em map view) */}
+                {view === "map" && (
+                  <div
                     style={{
-                      padding: "8px 12px",
-                      backgroundColor: "transparent",
-                      color: "#6ad700",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      transition: "all 0.3s ease",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
+                      gap: "20px",
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#2a2a2a";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                    title="Configurar empreendimento"
                   >
-                    <Settings size={20} />
-                  </button>
-                </div>
+                    {view === "map" && userDisplayName && (
+                      <div className="user-greeting">
+                        Olá, <strong>{userDisplayName}</strong>
+                      </div>
+                    )}
+                    {view === "map" && (
+                      <ImplantationSwitcher
+                        implantacoes={implantacoes}
+                        selected={selectedImplantationName}
+                        onChange={handleImplantationChange}
+                      />
+                    )}
+                    {unidadesConfigured && (
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          backgroundColor: "#2a2a2a",
+                          color: "#ffffff",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          textAlign: "center",
+                          border: "1px solid #6ad700",
+                          lineHeight: "1.4",
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                          Unidades configuradas
+                        </div>
+                        <div>
+                          Quantidade: <strong>{unidadesCount}</strong> Unidades
+                        </div>
+                      </div>
+                    )}
+                    {!unidadesConfigured && selectedImplantationName && (
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          backgroundColor: "#2a2a2a",
+                          color: "#ffffff",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          textAlign: "center",
+                          border: "1px solid #ffa500",
+                          lineHeight: "1.4",
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold", color: "#ffa500" }}>
+                          ⚠️ Sem unidades
+                        </div>
+                        <div style={{ fontSize: "11px" }}>
+                          Importe as unidades via configurações
+                        </div>
+                      </div>
+                    )}
+                    {clientesConfigured && selectedImplantationName && (
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          backgroundColor: "#2a2a2a",
+                          color: "#ffffff",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          textAlign: "center",
+                          border: "1px solid #6ad700",
+                          lineHeight: "1.4",
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                          Clientes importados
+                        </div>
+                        <div>
+                          Quantidade: <strong>{clientesCount}</strong> Clientes
+                        </div>
+                      </div>
+                    )}
+                    {!clientesConfigured && selectedImplantationName && (
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          backgroundColor: "#2a2a2a",
+                          color: "#ffffff",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          textAlign: "center",
+                          border: "1px solid #ffa500",
+                          lineHeight: "1.4",
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold", color: "#ffa500" }}>
+                          ⚠️ Sem clientes
+                        </div>
+                        <div style={{ fontSize: "11px" }}>
+                          Importe os clientes via configurações
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleOpenEditImplantation}
+                      style={{
+                        padding: "8px 12px",
+                        backgroundColor: "transparent",
+                        color: "#6ad700",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "18px",
+                        transition: "all 0.3s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#2a2a2a";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                      title="Configurar empreendimento"
+                    >
+                      <Settings size={20} />
+                    </button>
+                  </div>
+                )}
               </div>
               <div
                 className={`mobile-menu-modal ${

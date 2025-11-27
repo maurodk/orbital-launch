@@ -251,6 +251,11 @@ export function EditImplantationModal({
         "clientes-import-input"
       ) as HTMLInputElement;
       if (fileInput) fileInput.value = "";
+
+      // Recarrega a página para atualizar a lista de clientes
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (err) {
       console.error("Erro ao importar clientes:", err);
       const error = err as { response?: { data?: { error?: string } } };

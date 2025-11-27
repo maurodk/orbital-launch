@@ -1,7 +1,17 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
 import { useState, useEffect, useRef } from "react";
-import { FiSearch, FiLock, FiPrinter, FiClock } from "react-icons/fi";
+import {
+  FiSearch,
+  FiLock,
+  FiPrinter,
+  FiClock,
+  FiUserPlus,
+  FiEdit,
+  FiCheckCircle,
+  FiXCircle,
+  FiAlertCircle,
+} from "react-icons/fi";
 
 interface ReservationListProps {
   unidades: [string[], number][];
@@ -177,8 +187,13 @@ export function ReservationList({
                             alignItems: "center",
                           }}
                         >
-                          <span className={`status-pill ${normalizedStatus}`}>
-                            {rawStatus}
+                          <span className={`status-badge ${normalizedStatus}`}>
+                            <span className="status-icon">
+                              {isAvailable && <FiCheckCircle />}
+                              {isReserved && <FiXCircle />}
+                              {!isAvailable && !isReserved && <FiAlertCircle />}
+                            </span>
+                            <span className="status-text">{rawStatus}</span>
                           </span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
@@ -200,20 +215,56 @@ export function ReservationList({
                           {/* --- Botões Condicionais (Reservar, Gerenciar, etc.) --- */}
                           {isAvailable ? (
                             <>
-                              <button
-                                className="reserve-button-in-table"
-                                onClick={() => onUnitClick(originalIndex)}
-                              >
-                                Reservar
-                              </button>
-                              <button
-                                className="reserve-button-in-table spontaneous"
-                                onClick={() =>
-                                  onSpontaneousClick(originalIndex)
-                                }
-                              >
-                                Espontâneo
-                              </button>
+                              <div className="reserve-menu-container">
+                                <button
+                                  className="reserve-button-in-table"
+                                  onClick={(e) => {
+                                    if (openMenuIndex === originalIndex) {
+                                      setOpenMenuIndex(null);
+                                    } else {
+                                      const rect =
+                                        e.currentTarget.getBoundingClientRect();
+                                      setMenuPosition({
+                                        top: rect.bottom + window.scrollY,
+                                        left: rect.left + window.scrollX,
+                                      });
+                                      setOpenMenuIndex(originalIndex);
+                                    }
+                                  }}
+                                >
+                                  <FiUserPlus
+                                    size={16}
+                                    className="button-icon"
+                                  />
+                                  <span className="button-text">Reservar</span>
+                                </button>
+                                {openMenuIndex === originalIndex && (
+                                  <div
+                                    className="reserve-dropdown-menu"
+                                    style={{
+                                      top: `${menuPosition.top}px`,
+                                      left: `${menuPosition.left}px`,
+                                    }}
+                                  >
+                                    <button
+                                      onClick={() => {
+                                        onUnitClick(originalIndex);
+                                        setOpenMenuIndex(null);
+                                      }}
+                                    >
+                                      Apto
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        onSpontaneousClick(originalIndex);
+                                        setOpenMenuIndex(null);
+                                      }}
+                                    >
+                                      Espontâneo
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                               <button
                                 className="block-button-in-table"
                                 title="Bloquear Unidade"
@@ -238,7 +289,8 @@ export function ReservationList({
                                     handleMenuToggle(originalIndex, e)
                                   }
                                 >
-                                  Gerenciar
+                                  <FiEdit size={16} className="button-icon" />
+                                  <span className="button-text">Gerenciar</span>
                                 </button>
                                 {openMenuIndex === originalIndex && (
                                   <div

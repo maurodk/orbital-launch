@@ -82,10 +82,12 @@ body {
 .page-wrapper {
   display: flex;
   align-items: flex-start;
+  justify-content: center;
   padding: 40px;
   gap: 30px;
   box-sizing: border-box;
   min-height: 100vh;
+  width: 100%;
   animation: pageTransitionFadeIn 0.6s ease-out;
 }
 
@@ -116,7 +118,29 @@ body {
   min-width: 0;
   box-sizing: border-box;
   overflow-x: hidden;
-  margin-top: 90px; /* Gap entre o header e o container */
+  margin: 90px auto 0;
+}
+
+@media (max-width: 1024px) {
+  .app-container {
+    margin-top: 80px;
+    padding: 15px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    margin-top: 70px;
+    padding: 10px;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 425px) {
+  .app-container {
+    margin-top: 65px;
+    padding: 8px;
+  }
 }
 
 /* Aumenta a largura máxima para a lista de reserva */
@@ -433,12 +457,18 @@ button:focus-visible {
   border: 1px solid var(--bg-dark-tertiary);
   border-radius: 8px;
   overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .floor-plan-container {
   position: relative;
   width: 100%;
   line-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 /* <<< NOVO: Muda o cursor quando uma unidade é selecionada para posicionamento >>> */
@@ -573,6 +603,130 @@ button:focus-visible {
   overflow: hidden;
 }
 
+@media (max-width: 1024px) {
+  .reservation-list-container {
+    height: calc(100vh - 250px);
+  }
+}
+
+@media (max-width: 768px) {
+  .reservation-list-container {
+    height: calc(100vh - 200px);
+  }
+}
+
+@media (max-width: 425px) {
+  .reservation-list-container {
+    height: calc(100vh - 170px);
+  }
+}
+
+@media (max-width: 320px) {
+  .reservation-list-container {
+    height: calc(100vh - 160px);
+  }
+}
+
+/* Garante que todo conteúdo esteja centralizado e sem overflow horizontal */
+@media (max-width: 768px) {
+  html,
+  body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  .table-wrapper,
+  .table-scroll-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .reservation-table,
+  .history-table {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  /* Garante centralização dos controles */
+  .main-controls-container {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 4px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  /* Lista de filtros */
+  .list-filters-sticky {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 4px;
+    padding-right: 4px;
+    box-sizing: border-box;
+  }
+
+  .list-filters-header {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Floor plan responsivo */
+  .floor-plan-wrapper {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .floor-plan-container {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .floor-plan-image {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  /* Botões e controles */
+  .controls-bar,
+  .view-switcher,
+  .implantation-switcher {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* Indicadores inline de status (unidades/clientes) */
+  .main-controls-container > div > div[style*="border"] {
+    font-size: 0.7rem !important;
+    padding: 6px 8px !important;
+    line-height: 1.3 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    text-align: left !important;
+  }
+
+  .main-controls-container > div > div[style*="border"] > div {
+    font-size: 0.7rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .list-filters-sticky {
   position: sticky;
   top: 0;
@@ -582,10 +736,28 @@ button:focus-visible {
   border-bottom: 1px solid var(--bg-dark-tertiary);
 }
 
+@media (max-width: 768px) {
+  .list-filters-sticky {
+    padding-bottom: 10px;
+  }
+}
+
 .table-scroll-container {
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .table-scroll-container {
+    width: 100%;
+  }
+
+  .reservation-table {
+    margin: 0 auto;
+  }
 }
 .reservation-table {
   width: 100%;
@@ -658,6 +830,13 @@ button:focus-visible {
   cursor: pointer;
   font-weight: 600;
   transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.reserve-button-in-table .button-icon {
+  flex-shrink: 0;
 }
 .reserve-button-in-table:hover:not(:disabled) {
   transform: scale(1.05);
@@ -1386,12 +1565,40 @@ button:focus-visible {
   box-sizing: border-box;
 }
 
+@media (max-width: 768px) {
+  .list-filters-header {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+}
+
+@media (max-width: 425px) {
+  .list-filters-header {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+}
+
 .search-input-wrapper {
   position: relative;
   flex-grow: 1;
   min-width: 250px;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .search-input-wrapper {
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 425px) {
+  .search-input-wrapper {
+    min-width: 100%;
+    width: 100%;
+  }
 }
 
 .search-icon {
@@ -1403,6 +1610,27 @@ button:focus-visible {
   pointer-events: none;
 }
 
+@media (max-width: 768px) {
+  .search-icon {
+    left: 12px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 425px) {
+  .search-icon {
+    left: 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 320px) {
+  .search-icon {
+    left: 8px;
+    font-size: 11px;
+  }
+}
+
 .search-input {
   width: 50%;
   background-color: var(--bg-dark-tertiary);
@@ -1412,6 +1640,28 @@ button:focus-visible {
   padding: 12px 15px 12px 45px;
   font-size: 1rem;
   transition: border-color 0.2s;
+}
+
+@media (max-width: 768px) {
+  .search-input {
+    width: 100%;
+    padding: 10px 12px 10px 40px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 425px) {
+  .search-input {
+    padding: 8px 10px 8px 35px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .search-input {
+    padding: 7px 8px 7px 32px;
+    font-size: 0.75rem;
+  }
 }
 
 .search-input:focus {
@@ -1426,6 +1676,21 @@ button:focus-visible {
   padding: 5px;
 }
 
+@media (max-width: 768px) {
+  .status-filter-buttons {
+    flex-wrap: wrap;
+    padding: 4px;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 425px) {
+  .status-filter-buttons {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 .status-filter-buttons button {
   background: transparent;
   border: none;
@@ -1436,6 +1701,29 @@ button:focus-visible {
   border-radius: 6px;
   transition: all 0.2s ease;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .status-filter-buttons button {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 425px) {
+  .status-filter-buttons button {
+    flex: 1 1 45%;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 320px) {
+  .status-filter-buttons button {
+    font-size: 0.65rem;
+    padding: 5px 6px;
+  }
 }
 
 .status-filter-buttons button:hover {
@@ -1452,6 +1740,26 @@ button:focus-visible {
   margin-bottom: 20px;
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .results-counter {
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 425px) {
+  .results-counter {
+    margin-bottom: 8px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .results-counter {
+    font-size: 0.7rem;
+  }
 }
 
 .results-counter strong {
@@ -1521,6 +1829,13 @@ button:focus-visible {
 .reserve-button-in-table.spontaneous {
   background-color: #337ab7; /* Um azul para diferenciar */
   color: white;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.reserve-button-in-table.spontaneous .button-icon {
+  flex-shrink: 0;
 }
 .reserve-button-in-table.spontaneous:hover:not(:disabled) {
   background-color: #286090;
@@ -1669,8 +1984,14 @@ button:focus-visible {
 .reserve-button-in-table.manage {
   background-color: #f0ad4e; /* Amarelo */
   color: var(--bg-dark-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
 }
-
+.reserve-button-in-table.manage .button-icon {
+  flex-shrink: 0;
+}
 .reserve-button-in-table.manage:hover {
   background-color: #ec971f;
 }
@@ -1893,39 +2214,61 @@ button:focus-visible {
   }
 }
 
-/* Para Celulares */
+/* Para Celulares e Tablets */
 @media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+
   .page-wrapper {
     padding: 0;
     gap: 0;
-    width: 100%;
-  }
-  .app-container {
-    padding: 12px;
-    width: 100%;
-    max-width: 100%;
-    margin: 0;
-    border-radius: 0;
-  }
-  h1 {
-    font-size: 1.2rem;
-  }
-  .header-container {
-    gap: 10px;
-    justify-content: center;
-  }
-  .main-logo {
-    max-width: 50px;
-  }
-  .header-separator {
-    height: 40px;
-  }
-  .reservation-list-container,
-  .history-container {
-    height: calc(100vh - 250px);
+    width: 100vw;
+    min-height: 100vh;
+    justify-content: flex-start;
+    align-items: stretch;
   }
 
-  /* Oculta mapa visual e checkbox em mobile */
+  .app-container {
+    padding: 8px;
+    width: 100vw;
+    max-width: 100vw;
+    margin: 70px 0 0 0 !important;
+    border-radius: 0;
+    min-height: calc(100vh - 70px);
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+
+  .app-container.list-view {
+    max-width: 100vw;
+  }
+
+  h1 {
+    font-size: 1rem;
+  }
+
+  .header-container {
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .main-logo {
+    max-width: 40px;
+  }
+
+  .header-separator {
+    height: 35px;
+  }
+
+  .reservation-list-container,
+  .history-container {
+    height: calc(100vh - 150px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+  } /* Oculta mapa visual e checkbox em mobile */
   .view-switcher button:first-child,
   .filter-checkbox-wrapper {
     display: none !important;
@@ -2087,12 +2430,13 @@ button:focus-visible {
   }
 
   .implantation-switcher {
-    flex: 0 0 auto;
-    max-width: calc(100% - 45px);
+    flex: 1 1 auto;
+    max-width: 100%;
+    width: 100%;
   }
 
   .implantation-switcher select {
-    width: auto;
+    width: 100%;
     max-width: 100%;
     font-size: 0.8rem;
     padding: 8px 24px 8px 8px;
@@ -2101,6 +2445,7 @@ button:focus-visible {
     text-overflow: ellipsis;
     background-size: 0.7em;
     background-position: right 0.4rem center;
+    box-sizing: border-box;
   }
 
   .mobile-menu-toggle {
@@ -2111,14 +2456,22 @@ button:focus-visible {
   }
 
   .user-greeting {
-    display: none;
+    display: block !important;
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   /* Ajustes para a tabela de reserva */
   .reservation-table th,
   .reservation-table td {
-    padding: 8px 4px; /* Reduz padding */
-    font-size: 0.8rem; /* Fonte menor */
+    padding: 6px 2px; /* Reduz padding */
+    font-size: 0.7rem; /* Fonte menor */
+    white-space: normal;
+    word-break: break-word;
   }
 
   .reservation-table th:nth-child(4),
@@ -2128,21 +2481,65 @@ button:focus-visible {
     display: none; /* Esconde Cliente e Corretor em telas pequenas */
   }
 
-  .action-buttons-cell {
-    display: flex;
-    flex-direction: column; /* Empilha botões verticalmente */
-    gap: 4px;
+  .reservation-table th:nth-child(1),
+  .reservation-table td:nth-child(1) {
+    width: 15%;
+    min-width: 50px;
   }
 
+  .reservation-table th:nth-child(2),
+  .reservation-table td:nth-child(2) {
+    width: 15%;
+    min-width: 50px;
+  }
+
+  .reservation-table th:nth-child(3),
+  .reservation-table td:nth-child(3) {
+    width: 20%;
+    min-width: 60px;
+  }
+
+  .reservation-table th:last-child,
+  .reservation-table td:last-child {
+    width: 50%;
+    min-width: 100px;
+  }
+
+  /* Ajusta botões para mostrar apenas ícones em mobile/tablet */
   .reserve-button-in-table,
   .block-button-in-table,
   .print-button-in-table,
   .pix-button-in-table,
   .history-button-in-table {
-    width: 100%;
-    height: auto;
-    padding: 8px;
-    font-size: 0.75rem;
+    padding: 4px 6px;
+    min-width: 32px;
+    min-height: 32px;
+    justify-content: center;
+    font-size: 0.65rem;
+    border-radius: 4px;
+  }
+
+  .reserve-button-in-table .button-text,
+  .block-button-in-table .button-text {
+    display: none; /* Oculta texto em mobile */
+  }
+
+  .reserve-button-in-table .button-icon,
+  .block-button-in-table .button-icon {
+    margin: 0; /* Remove margem quando só tem ícone */
+  }
+
+  .action-buttons-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .action-buttons-cell > button {
+    flex: 0 0 auto;
+    margin: 0;
   }
 
   .pix-button-in-table {
@@ -2300,6 +2697,16 @@ button:focus-visible {
   .floor-plan-wrapper {
     min-height: 300px;
     height: 50vh;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .floor-plan-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
   /* Ajustes para sidebar de mapeamento */
@@ -2320,5 +2727,321 @@ button:focus-visible {
   button,
   .button {
     min-height: 44px; /* Touch target mínimo */
+  }
+}
+
+/* Media query específica para telas muito pequenas (320px - 425px) */
+@media (max-width: 425px) {
+  html,
+  body {
+    overflow-x: hidden !important;
+  }
+
+  .app-container {
+    margin: 60px 0 0 0 !important;
+    padding: 4px !important;
+    width: 100vw;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: 0.85rem !important;
+  }
+
+  .reservation-list-container,
+  .history-container {
+    height: calc(100vh - 120px) !important;
+    overflow-x: hidden;
+    padding: 0 2px;
+  } /* Controles superiores em mobile */
+  .app-container > div > main > div:first-child {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .app-container > div > main > div:first-child > div {
+    width: 100% !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  /* Indicadores de status (unidades/clientes) */
+  .app-container > div > main > div:first-child > div > div[style*="border"] {
+    font-size: 0.65rem !important;
+    padding: 6px 8px !important;
+  }
+
+  /* Botão de configuração */
+  .app-container > div > main > div:first-child > div > button {
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .list-filters-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .search-input-wrapper {
+    width: 100%;
+  }
+
+  .status-filter-buttons {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .status-filter-buttons button {
+    flex: 1 1 45%;
+    font-size: 0.65rem;
+    padding: 6px 8px;
+    min-width: auto;
+  }
+
+  .reservation-table th,
+  .reservation-table td {
+    padding: 4px 1px !important;
+    font-size: 0.6rem !important;
+  }
+
+  .reserve-button-in-table,
+  .block-button-in-table,
+  .print-button-in-table,
+  .pix-button-in-table,
+  .history-button-in-table {
+    padding: 3px 4px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+  }
+
+  .reserve-button-in-table .button-icon,
+  .block-button-in-table .button-icon {
+    font-size: 12px;
+  }
+
+  /* Ocultar checkbox e botão de modo mapeamento */
+  .toggle-mapping-button,
+  .filter-checkbox-wrapper {
+    display: none !important;
+  }
+}
+
+/* Media query para 320px (iPhone SE e similares) */
+@media (max-width: 320px) {
+  html,
+  body {
+    overflow-x: hidden !important;
+    max-width: 100vw;
+  }
+
+  .app-container {
+    margin: 55px 0 0 0 !important;
+    padding: 3px !important;
+    width: 100vw;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: 0.75rem !important;
+  }
+
+  .reservation-list-container,
+  .history-container {
+    height: calc(100vh - 110px) !important;
+    padding: 0 1px;
+  }
+
+  .status-filter-buttons button {
+    font-size: 0.6rem;
+    padding: 4px 5px;
+  }
+
+  .reservation-table th,
+  .reservation-table td {
+    padding: 2px 1px !important;
+    font-size: 0.55rem !important;
+  }
+
+  .action-buttons-cell {
+    gap: 2px !important;
+  }
+
+  .reserve-button-in-table,
+  .block-button-in-table,
+  .print-button-in-table,
+  .pix-button-in-table,
+  .history-button-in-table {
+    padding: 2px 3px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+  }
+
+  .user-greeting {
+    font-size: 0.7rem !important;
+  }
+
+  .implantation-switcher select {
+    font-size: 0.7rem !important;
+    padding: 6px 20px 6px 6px !important;
+  }
+}
+
+/* Media query para tablets e laptops pequenos (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-container {
+    margin-top: 80px;
+    padding: 15px 25px;
+  }
+
+  .reservation-table th,
+  .reservation-table td {
+    padding: 10px 6px;
+    font-size: 0.85rem;
+  }
+
+  .reserve-button-in-table,
+  .block-button-in-table,
+  .print-button-in-table,
+  .pix-button-in-table,
+  .history-button-in-table {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Media query para laptops grandes (1024px - 1440px) */
+@media (min-width: 1025px) and (max-width: 1440px) {
+  .app-container {
+    margin-top: 85px;
+    padding: 18px 35px;
+  }
+
+  .reservation-table th,
+  .reservation-table td {
+    padding: 12px 8px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Estilos para badges de status com ícones em mobile */
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 90px;
+}
+
+.status-badge.disponivel {
+  background-color: rgba(106, 215, 0, 0.15);
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green);
+}
+
+.status-badge.reservada {
+  background-color: rgba(217, 83, 79, 0.15);
+  color: var(--status-reserved);
+  border: 1px solid var(--status-reserved);
+}
+
+.status-badge.bloqueada {
+  background-color: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+  border: 1px solid #ffc107;
+}
+
+@media (max-width: 768px) {
+  .status-badge {
+    padding: 3px 6px;
+    font-size: 0.65rem;
+    min-width: 32px;
+    border-width: 1px;
+  }
+
+  .status-badge .status-text {
+    display: none;
+  }
+
+  .status-badge .status-icon {
+    display: inline-block;
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 769px) {
+  .status-badge .status-icon {
+    display: none;
+  }
+
+  .status-badge .status-text {
+    display: inline;
+  }
+}
+
+@media (max-width: 425px) {
+  .status-badge {
+    padding: 2px 4px;
+    min-width: 28px;
+  }
+
+  .status-badge .status-icon {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 320px) {
+  .status-badge {
+    padding: 2px 3px;
+    min-width: 24px;
+  }
+
+  .status-badge .status-icon {
+    font-size: 11px;
+  }
+}
+
+/* Estilos para controles superiores em list/history view */
+.main-controls-container {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .main-controls-container {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .main-controls-container > div {
+    width: 100%;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+}
+
+/* Ajustes para menu hamburguer fixo no header */
+@media (max-width: 768px) {
+  /* Garante que o hamburguer fique no topo fixo */
+  body > div:first-child > div:first-child {
+    position: fixed !important;
+    top: 15px !important;
+    right: 15px !important;
+    z-index: 10001 !important;
+  }
+}
+
+@media (max-width: 425px) {
+  body > div:first-child > div:first-child {
+    top: 12px !important;
+    right: 12px !important;
   }
 }

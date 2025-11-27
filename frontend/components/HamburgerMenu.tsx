@@ -31,43 +31,42 @@ export function HamburgerMenu({
 
   return (
     <div
-      style={{ position: "fixed", top: "20px", right: "20px", zIndex: 10000 }}
+      style={{ position: "fixed", top: "15px", right: "20px", zIndex: 10000 }}
     >
       {/* Botão Hamburger */}
       <button
         onClick={toggleMenu}
         style={{
-          width: "50px",
-          height: "50px",
-          borderRadius: "50%",
-          border: "2px solid #6ad700",
-          backgroundColor: "#1e1e1e",
+          width: "36px",
+          height: "36px",
+          border: "none",
+          backgroundColor: "transparent",
           color: "#6ad700",
           cursor: "pointer",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: "5px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          gap: "4px",
+          padding: "8px",
           transition: "all 0.3s ease",
         }}
         aria-label="Menu"
       >
         <span
           style={{
-            width: "25px",
-            height: "3px",
+            width: "20px",
+            height: "2px",
             backgroundColor: "#6ad700",
             borderRadius: "2px",
             transition: "all 0.3s ease",
-            transform: isOpen ? "rotate(45deg) translate(5px, 5px)" : "none",
+            transform: isOpen ? "rotate(45deg) translate(4px, 4px)" : "none",
           }}
         />
         <span
           style={{
-            width: "25px",
-            height: "3px",
+            width: "20px",
+            height: "2px",
             backgroundColor: "#6ad700",
             borderRadius: "2px",
             transition: "all 0.3s ease",
@@ -76,12 +75,12 @@ export function HamburgerMenu({
         />
         <span
           style={{
-            width: "25px",
-            height: "3px",
+            width: "20px",
+            height: "2px",
             backgroundColor: "#6ad700",
             borderRadius: "2px",
             transition: "all 0.3s ease",
-            transform: isOpen ? "rotate(-45deg) translate(5px, -5px)" : "none",
+            transform: isOpen ? "rotate(-45deg) translate(4px, -4px)" : "none",
           }}
         />
       </button>
@@ -91,7 +90,7 @@ export function HamburgerMenu({
         <div
           style={{
             position: "absolute",
-            top: "60px",
+            top: "45px",
             right: 0,
             backgroundColor: "#1e1e1e",
             borderRadius: "8px",

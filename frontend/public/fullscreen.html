@@ -319,6 +319,29 @@
           ></path>
         </svg>
       </button>
+      <button
+        id="refresh-btn"
+        class="fullscreen-button"
+        title="Atualizar dados"
+        style="margin-left: 8px"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path
+            d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+          ></path>
+        </svg>
+      </button>
       <div id="status" class="small">Conectando...</div>
     </div>
 
@@ -376,6 +399,7 @@
         const dotSizeValueEl = document.getElementById("dot-size-value");
         const toast = document.getElementById("toast-notification");
         const fullscreenBtn = document.getElementById("fullscreen-btn");
+        const refreshBtn = document.getElementById("refresh-btn");
 
         const urlParams = new URLSearchParams(location.search);
         const implantacao = urlParams.get("implantacao");
@@ -389,6 +413,34 @@
 
         implantacaoNameEl.textContent = implantacao;
         empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
+
+        // Refresh inteligente que preserva o estado de fullscreen
+        function smartRefresh() {
+          const wasFullscreen = !!document.fullscreenElement;
+          const hideAvailable = hideDisponivelToggle?.checked
+            ? "true"
+            : "false";
+
+          reloadAndRender(hideAvailable).then(() => {
+            if (wasFullscreen) {
+              // Mantém em fullscreen após refresh
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {
+                  console.error("Erro ao reativar fullscreen:", err);
+                });
+              }
+            }
+          });
+        }
+
+        // Auto-refresh a cada 30 segundos para sincronizar dados
+        let autoRefreshInterval = setInterval(() => {
+          console.log("Auto-refresh executado");
+          const hideAvailable = hideDisponivelToggle?.checked
+            ? "true"
+            : "false";
+          reloadAndRender(hideAvailable);
+        }, 30000); // 30 segundos
 
         async function fetchData(hideAvailable = "false") {
           try {
@@ -604,7 +656,8 @@
           }
         }
 
-        function showToast() {
+        function showToast(message = "Tamanho do ponto salvo!") {
+          toast.textContent = message;
           toast.classList.add("show");
           setTimeout(() => toast.classList.remove("show"), 2000);
         }
@@ -624,6 +677,12 @@
               document.exitFullscreen();
             }
           }
+        });
+
+        // Botão de refresh manual
+        refreshBtn.addEventListener("click", () => {
+          smartRefresh();
+          showToast("Dados atualizados!");
         });
 
         const topbar = document.querySelector(".topbar");

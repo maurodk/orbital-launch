@@ -2269,14 +2269,26 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     );
 
     // 5. Notificar clientes SSE sobre as duas unidades
-    // Otimização: Envia os dados já conhecidos para evitar novas leituras
+    // CORREÇÃO: Ler os dados completos após a troca para enviar coordenadas corretas
+    const rangesToReadAfter = [
+      `'${sheetTitle}'!A${oldRow}:R${oldRow}`, // Unidade antiga completa (A a R)
+      `'${sheetTitle}'!A${newRow}:R${newRow}`, // Unidade nova completa (A a R)
+    ];
+    const batchGetAfter = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      ranges: rangesToReadAfter,
+    });
+
+    const [oldUnitFullData, newUnitFullData] = batchGetAfter.data.valueRanges;
+
+    // Broadcast com os dados completos incluindo coordenadas
     broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex: oldRow,
-      unitData: ["", "", "", "", "", "", "", "DISPONÍVEL", "", "", "", "", ""], // Simula linha limpa
+      unitData: oldUnitFullData.values?.[0] || [],
     });
     broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex: newRow,
-      unitData: dataToTransfer,
+      unitData: newUnitFullData.values?.[0] || [],
     });
 
     res.json({ success: true, message: "Troca de unidade realizada." });

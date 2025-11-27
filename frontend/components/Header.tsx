@@ -61,15 +61,47 @@ export function Header({
       <style>
         {`
           @media (max-width: 768px) {
+            header {
+              padding: 8px 12px !important;
+              height: 60px !important;
+              gap: 12px !important;
+            }
             header h1 {
-              font-size: 16px !important;
+              font-size: 14px !important;
             }
             header img {
-              height: 30px !important;
+              height: 28px !important;
             }
+          }
+          
+          @media (max-width: 425px) {
             header {
-              padding: 10px 15px !important;
-              height: 60px !important;
+              padding: 6px 10px !important;
+              height: 55px !important;
+              gap: 10px !important;
+            }
+            header h1 {
+              font-size: 12px !important;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            header img {
+              height: 24px !important;
+            }
+          }
+          
+          @media (max-width: 320px) {
+            header {
+              padding: 5px 8px !important;
+              height: 50px !important;
+              gap: 8px !important;
+            }
+            header h1 {
+              font-size: 11px !important;
+            }
+            header img {
+              height: 22px !important;
             }
           }
         `}
