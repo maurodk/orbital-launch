@@ -7,7 +7,7 @@
 
 -- 1. Dropar tabela existente (se necessário)
 -- CUIDADO: Isso apaga todos os dados! Use apenas se quiser recriar do zero
--- DROP TABLE IF EXISTS public.unidades CASCADE;
+DROP TABLE IF EXISTS public.unidades CASCADE;
 
 -- 2. Criar tabela de unidades
 CREATE TABLE IF NOT EXISTS public.unidades (

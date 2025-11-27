@@ -1974,7 +1974,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
         const { data: implData } = await supabase // Usa o nome completo resolvido
           .from("implantacoes")
           .select("id")
-          .eq("nome", implantacao)
+          .eq("nome", sheetTitle)
           .limit(1)
           .single();
         const implantacao_id = implData && implData.id ? implData.id : null;
@@ -1989,7 +1989,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             .single();
           if (existingUnit && existingUnit.id) {
             unitFullName = existingUnit.nome_unidade;
-            await supabase
+            const { error: updateError } = await supabase
               .from("unidades")
               .update({
                 id_pre_cadastro: null,
@@ -2000,11 +2000,21 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                 situacao: "Disponível", // CRÍTICO para SSE
               })
               .eq("id", existingUnit.id);
+
+            if (updateError) {
+              console.error(
+                "[CANCELAMENTO] Erro ao atualizar unidade no Supabase:",
+                updateError
+              );
+              supabaseOk = false;
+            } else {
+              supabaseOk = true;
+            }
           } else {
             // Se a unidade não existe no Supabase (pode acontecer se a sincronização falhou antes),
             // não há o que cancelar no banco, mas o fallback para o Sheets ainda é importante.
             console.warn(
-              `[CANCELAMENTO] Unidade com rowIndex ${unitRowIndex} não encontrada no Supabase para a implantação '${implantacao}'. Procedendo com fallback para Sheets.`
+              `[CANCELAMENTO] Unidade com rowIndex ${unitRowIndex} não encontrada no Supabase para a implantação '${sheetTitle}'. Procedendo com fallback para Sheets.`
             );
             // Define supabaseOk como false para garantir que o fallback seja executado
             supabaseOk = false;
@@ -2027,8 +2037,6 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
               .update({ status: "PODE RESERVAR" })
               .eq("nome", clientName);
           }
-          // Se chegou até aqui sem erros (mesmo que a unidade não existisse), considera sucesso parcial.
-          if (supabaseOk !== false) supabaseOk = true;
         }
       } catch (e) {
         console.error(
@@ -2039,9 +2047,11 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       }
     }
 
-    // MIGRAÇÃO SSE → SUPABASE: Broadcast baseado no Supabase
-    if (supabaseOk) {
-      // Busca os dados atualizados da unidade do Supabase para broadcast
+    // MIGRAÇÃO SSE → SUPABASE: Broadcast SEMPRE, independente de supabaseOk
+    // Tenta buscar do Supabase primeiro, fallback para Sheets se necessário
+    let broadcastSuccess = false;
+
+    if (supabase) {
       try {
         const { data: implData } = await supabase
           .from("implantacoes")
@@ -2066,9 +2076,14 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             // Broadcast IMEDIATO com dados do Supabase
             await broadcastEvent(sheetTitle, "unitUpdated", {
               rowIndex: unitRowIndex,
-              unitName: unitFullName,
+              unitName: unitFullName || unitDataFromSupabase.nome_unidade,
               unitData: unitDataArray,
             });
+
+            console.log(
+              `[SSE] Broadcast de cancelamento enviado via Supabase para linha ${unitRowIndex}`
+            );
+            broadcastSuccess = true;
           }
         }
       } catch (e) {
@@ -2076,13 +2091,22 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           "[SSE] Falha ao buscar dados do Supabase para broadcast do cancelamento:",
           e.message
         );
-        // Fallback
-        await broadcastEvent(sheetTitle, "unitUpdated", {
-          rowIndex: unitRowIndex,
-          unitName: unitFullName,
-        });
       }
+    }
 
+    // Fallback: Broadcast sem dados do Supabase (busca do Sheets)
+    if (!broadcastSuccess) {
+      await broadcastEvent(sheetTitle, "unitUpdated", {
+        rowIndex: unitRowIndex,
+        unitName: unitFullName,
+      });
+      console.log(
+        `[SSE] Broadcast de cancelamento enviado via fallback (Sheets) para linha ${unitRowIndex}`
+      );
+    }
+
+    // MIGRAÇÃO SSE → SUPABASE: Sync com Sheets em background (apenas se Supabase funcionou)
+    if (supabaseOk) {
       // Sync com Sheets em background
       (async () => {
         try {
