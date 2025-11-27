@@ -1295,7 +1295,7 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
         .json({ error: `Planilha '${implantacao}' não encontrada.` });
     }
     const sheetTitle = resolved.found;
-    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
+    const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1314,7 +1314,7 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
     // Marca a unidade como "RESERVANDO" temporariamente
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!L${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [["RESERVANDO"]] },
     });
@@ -1393,7 +1393,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     tempReservations.delete(tempReservationKey);
 
     // Verifica novamente se a unidade ainda está disponível
-    const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
+    const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
@@ -1438,14 +1438,13 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
               .eq("row_index", parseInt(rowIndex, 10))
               .limit(1)
               .single();
-          // Build payload: include imobiliaria (sheet column index 4) and force situacao to RESERVADA
+          // Build payload: o array data[] representa G:L (5 colunas + situacao)
           const payload = {
-            // <-- CORREÇÃO AQUI
-            id_pre_cadastro: data[0] || null, // F: ID Pré-Cadastro (índice 0 do array data)
-            cliente: data[1] || clientName || null, // G: Cliente (índice 1 do array data)
-            documento: data[2] || null, // H: Documento (índice 2 do array data)
-            corretor: data[3] || null, // I: Corretor (índice 3 do array data)
-            imobiliaria: data[4] || null, // J: Imobiliária (índice 4 do array data)
+            id_pre_cadastro: data[0] || null, // G: ID Pré-Cadastro (índice 0 do array data)
+            cliente: data[1] || clientName || null, // H: Cliente (índice 1 do array data)
+            documento: data[2] || null, // I: Documento (índice 2 do array data)
+            corretor: data[3] || null, // J: Corretor (índice 3 do array data)
+            imobiliaria: data[4] || null, // K: Imobiliária (índice 4 do array data)
             // Force reserva when this endpoint is used for a reservation flow
             situacao: "RESERVADA", // L: Situação
             implantacao_id,
@@ -1536,11 +1535,13 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       // Tenta sincronizar com o Sheets em background (best-effort)
       (async () => {
         try {
+          // Atualiza G:L (id_pre_cadastro, cliente, documento, corretor, imobiliária, situacao)
+          const dataWithStatus = [...data, "RESERVADA"];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
+            range: `'${sheetTitle}'!G${rowIndex}:L${rowIndex}`,
             valueInputOption: "USER_ENTERED",
-            resource: { values: [data] },
+            resource: { values: [dataWithStatus] },
           });
 
           await broadcastEvent(sheetTitle, "unitUpdated", {
@@ -1601,11 +1602,12 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     }
 
     // --- Fallback para Google Sheets se o Supabase falhou ---
+    const dataWithStatus = [...data, "RESERVADA"];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!F${rowIndex}:K${rowIndex}`,
+      range: `'${sheetTitle}'!G${rowIndex}:L${rowIndex}`,
       valueInputOption: "USER_ENTERED",
-      resource: { values: [data] },
+      resource: { values: [dataWithStatus] },
     });
 
     await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex, unitName });
@@ -1690,7 +1692,7 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
     // Restaura o status da unidade para DISPONÍVEL
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!L${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [["DISPONÍVEL"]] },
     });
@@ -2037,18 +2039,18 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       // A resposta será enviada depois para garantir que o fallback também responda
       (async () => {
         try {
-          // CORREÇÃO: Limpa os dados em duas partes para preservar as coordenadas (L e M)
+          // Limpa G:L (id_pre_cadastro, cliente, documento, corretor, imobiliária, situacao) e O:R (PIX)
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
             resource: {
               valueInputOption: "USER_ENTERED",
               data: [
                 {
-                  range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
+                  range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
                   values: [["", "", "", "", "", "DISPONÍVEL"]],
                 },
                 {
-                  range: `'${sheetTitle}'!N${unitRowIndex}:Q${unitRowIndex}`,
+                  range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
                   values: [["", "", "", ""]],
                 },
               ],
@@ -2086,18 +2088,18 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       })();
     } else {
       // fallback to Sheets (legacy)
-      // CORREÇÃO: Limpa os dados em duas partes para preservar as coordenadas (L e M)
+      // Limpa G:L (dados da reserva) e O:R (PIX), preservando M:N (coordenadas)
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         resource: {
           valueInputOption: "USER_ENTERED",
           data: [
             {
-              range: `'${sheetTitle}'!F${unitRowIndex}:K${unitRowIndex}`,
+              range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
               values: [["", "", "", "", "", "DISPONÍVEL"]],
             },
             {
-              range: `'${sheetTitle}'!N${unitRowIndex}:Q${unitRowIndex}`,
+              range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
               values: [["", "", "", ""]],
             },
           ],
@@ -2177,7 +2179,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     // 1. Otimização: Ler os dados das duas unidades de uma vez
     const rangesToRead = [
       `'${sheetTitle}'!C${oldRow}`, // Nome da unidade antiga
-      `'${sheetTitle}'!F${oldRow}:Q${oldRow}`, // Dados da unidade antiga
+      `'${sheetTitle}'!G${oldRow}:R${oldRow}`, // Dados da unidade antiga (G:R)
       `'${sheetTitle}'!C${newRow}`, // Nome da unidade nova
     ];
     const batchGetData = await sheets.spreadsheets.values.batchGet({
@@ -2198,20 +2200,20 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
         .json({ error: "Dados da unidade de origem não encontrados." });
     }
 
-    // 2. Preparar dados para atualização
+    // 2. Preparar dados para atualização (G:R = 12 colunas)
     const dataToTransfer = [
-      oldUnitData[0] || "", // F: id_pre_cadastro (índice 0)
-      oldUnitData[1] || "", // G: cliente (índice 1)
-      oldUnitData[2] || "", // H: documento (índice 2)
-      oldUnitData[3] || "", // I: corretor (índice 3)
-      oldUnitData[4] || "", // J: imobiliária (índice 4)
-      "RESERVADA", // K: situação (será forçada como RESERVADA)
-      "", // L: coord_x (não transferir) - Limpa na nova unidade
-      "", // M: coord_y (não transferir) - Limpa na nova unidade
-      oldUnitData[8] || "", // N: Pagamento (índice 8)
-      oldUnitData[9] || "", // O: IDENTIFICADOR (índice 9)
-      oldUnitData[10] || "", // P: Payload (índice 10)
-      oldUnitData[11] || "", // Q: Valor (índice 11)
+      oldUnitData[0] || "", // G: id_pre_cadastro (índice 0)
+      oldUnitData[1] || "", // H: cliente (índice 1)
+      oldUnitData[2] || "", // I: documento (índice 2)
+      oldUnitData[3] || "", // J: corretor (índice 3)
+      oldUnitData[4] || "", // K: imobiliária (índice 4)
+      "RESERVADA", // L: situação (será forçada como RESERVADA)
+      "", // M: coord_x (não transferir) - Limpa na nova unidade
+      "", // N: coord_y (não transferir) - Limpa na nova unidade
+      oldUnitData[8] || "", // O: IDENTIFICADOR (índice 8)
+      oldUnitData[9] || "", // P: Payload (índice 9)
+      oldUnitData[10] || "", // Q: Valor (índice 10)
+      oldUnitData[11] || "", // R: Pagamento (índice 11)
     ];
 
     await sheets.spreadsheets.values.batchUpdate({
@@ -2219,39 +2221,37 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       resource: {
         valueInputOption: "USER_ENTERED",
         data: [
-          // Limpa dados da unidade antiga e a torna disponível
-          // CORREÇÃO: Limpa apenas os dados da reserva (F a K), mantendo as coordenadas (L e M)
+          // Limpa dados da unidade antiga e a torna disponível (G:L e O:R)
           {
-            range: `'${sheetTitle}'!F${oldRow}:K${oldRow}`,
+            range: `'${sheetTitle}'!G${oldRow}:L${oldRow}`,
             values: [["", "", "", "", "", "DISPONÍVEL"]],
           },
           {
-            range: `'${sheetTitle}'!N${oldRow}:Q${oldRow}`,
+            range: `'${sheetTitle}'!O${oldRow}:R${oldRow}`,
             values: [["", "", "", ""]],
           },
-          // Transfere dados para a nova unidade e a reserva
-          // CORREÇÃO: Divide a atualização para não apagar as coordenadas (L e M) da nova unidade
+          // Transfere dados para a nova unidade preservando coordenadas (M:N)
           {
-            range: `'${sheetTitle}'!F${newRow}:K${newRow}`,
+            range: `'${sheetTitle}'!G${newRow}:L${newRow}`,
             values: [
               [
-                dataToTransfer[0], // F: id_pre_cadastro
-                dataToTransfer[1], // G: cliente
-                dataToTransfer[2], // H: documento
-                dataToTransfer[3], // I: corretor
-                dataToTransfer[4], // J: imobiliária
-                dataToTransfer[5], // K: situação
+                dataToTransfer[0], // G: id_pre_cadastro
+                dataToTransfer[1], // H: cliente
+                dataToTransfer[2], // I: documento
+                dataToTransfer[3], // J: corretor
+                dataToTransfer[4], // K: imobiliária
+                dataToTransfer[5], // L: situação
               ],
             ],
           },
           {
-            range: `'${sheetTitle}'!N${newRow}:Q${newRow}`,
+            range: `'${sheetTitle}'!O${newRow}:R${newRow}`,
             values: [
               [
-                dataToTransfer[8], // N: IDENTIFICADOR
-                dataToTransfer[9], // O: Payload
-                dataToTransfer[10], // P: Valor
-                dataToTransfer[11], // Q: Pagamento
+                dataToTransfer[8], // O: IDENTIFICADOR
+                dataToTransfer[9], // P: Payload
+                dataToTransfer[10], // Q: Valor
+                dataToTransfer[11], // R: Pagamento
               ],
             ],
           },

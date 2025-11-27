@@ -933,22 +933,20 @@ export function MainPage() {
 
       if (clientData) {
         dataToBackend = [
-          clientData[0], // F: id_pre_cadastro
-          clientData[1], // G: cliente
-          clientData[2], // H: documento
-          clientData[3], // I: corretor
-          clientData[4] || "", // J: imobiliária
-          new Date().toLocaleDateString("pt-BR"), // K: data_reserva
+          clientData[0], // G: id_pre_cadastro
+          clientData[1], // H: cliente
+          clientData[2], // I: documento
+          clientData[3], // J: corretor
+          clientData[4] || "", // K: imobiliária
         ];
         clientName = clientData[1];
       } else if (manualData) {
         dataToBackend = [
-          manualData.id, // F: id_pre_cadastro
-          manualData.cliente, // G: cliente
-          manualData.documento, // H: documento
-          manualData.corretor, // I: corretor
-          "", // J: imobiliária (vazio para manual)
-          new Date().toLocaleDateString("pt-BR"), // K: data_reserva
+          manualData.id, // G: id_pre_cadastro
+          manualData.cliente, // H: cliente
+          manualData.documento, // I: documento
+          manualData.corretor, // J: corretor
+          "", // K: imobiliária (vazio para manual)
         ];
         clientName = manualData.cliente;
       } else {
@@ -972,19 +970,19 @@ export function MainPage() {
             if (index === selectedUnitIndex) {
               const newUnit = [...unidade];
               if (clientData) {
-                newUnit[5] = clientData[0];
-                newUnit[6] = clientData[1];
-                newUnit[7] = clientData[2];
-                newUnit[8] = clientData[3];
-                newUnit[9] = clientData[4] || "";
-                newUnit[10] = "RESERVADA";
+                newUnit[6] = clientData[0]; // G: id_pre_cadastro
+                newUnit[7] = clientData[1]; // H: cliente
+                newUnit[8] = clientData[2]; // I: documento
+                newUnit[9] = clientData[3]; // J: corretor
+                newUnit[10] = clientData[4] || ""; // K: imobiliária
+                newUnit[11] = "RESERVADA"; // L: situacao
               } else if (manualData) {
-                newUnit[5] = manualData.id;
-                newUnit[6] = manualData.cliente;
-                newUnit[7] = manualData.documento;
-                newUnit[8] = manualData.corretor;
-                newUnit[9] = "";
-                newUnit[10] = "RESERVADA";
+                newUnit[6] = manualData.id; // G: id_pre_cadastro
+                newUnit[7] = manualData.cliente; // H: cliente
+                newUnit[8] = manualData.documento; // I: documento
+                newUnit[9] = manualData.corretor; // J: corretor
+                newUnit[10] = ""; // K: imobiliária
+                newUnit[11] = "RESERVADA"; // L: situacao
               }
               return newUnit;
             }
