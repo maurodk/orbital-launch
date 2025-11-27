@@ -214,6 +214,11 @@ export function EditImplantationModal({
       return;
     }
 
+    if (!implantation?.id) {
+      setImportError("ID da implantação não encontrado");
+      return;
+    }
+
     setIsImportingClientes(true);
     setImportError("");
 
@@ -227,6 +232,7 @@ export function EditImplantationModal({
 
       const formData = new FormData();
       formData.append("clientes", clientesFile);
+      formData.append("implantacao_id", implantation.id);
 
       const response = await axios.post(
         `${apiUrl}/api/import-clientes`,

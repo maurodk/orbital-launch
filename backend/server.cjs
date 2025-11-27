@@ -3954,11 +3954,11 @@ app.post(
     try {
       console.log("📥 [IMPORT CLIENTES] Iniciando importação...");
 
+      const { implantacao_id } = req.body;
+
       if (!req.file) {
         return res.status(400).json({ error: "Arquivo não fornecido." });
       }
-
-      console.log("📥 [IMPORT CLIENTES] Tipo de arquivo:", req.file.mimetype);
 
       // Verifica se Supabase está configurado
       if (!supabase) {
@@ -3966,6 +3966,9 @@ app.post(
           error: "Supabase não está configurado no servidor.",
         });
       }
+
+      console.log("📥 [IMPORT CLIENTES] Tipo de arquivo:", req.file.mimetype);
+      console.log("📥 [IMPORT CLIENTES] Implantação ID:", implantacao_id);
 
       let dataLines = [];
 
@@ -4025,7 +4028,7 @@ app.post(
             return null;
           }
 
-          return {
+          const clientData = {
             id_pre_cadastro: String(cols[0] || "").trim(),
             nome: String(cols[1] || "").trim(),
             documento: String(cols[2] || "")
@@ -4035,6 +4038,13 @@ app.post(
             imobiliaria: String(cols[4] || "").trim(),
             status: "ativo",
           };
+
+          // Adiciona implantacao_id se foi fornecido
+          if (implantacao_id) {
+            clientData.implantacao_id = parseInt(implantacao_id, 10);
+          }
+
+          return clientData;
         })
         .filter((row) => row !== null); // Remove linhas inválidas
 
