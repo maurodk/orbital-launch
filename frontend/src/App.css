@@ -422,7 +422,13 @@ button:focus-visible {
   background-color: var(--accent-green);
 }
 
-.unit-status.Reservada {
+.unit-status.Reservada,
+.unit-status.reservada {
+  background-color: var(--status-reserved);
+}
+
+.unit-status.Bloqueada,
+.unit-status.bloqueada {
   background-color: var(--status-reserved);
 }
 
@@ -505,7 +511,14 @@ button:focus-visible {
 .unit-indicator.disponivel {
   background-color: var(--accent-green);
 }
-.unit-indicator.Reservada {
+
+.unit-indicator.Reservada,
+.unit-indicator.reservada {
+  background-color: var(--status-reserved);
+}
+
+.unit-indicator.Bloqueada,
+.unit-indicator.bloqueada {
   background-color: var(--status-reserved);
 }
 
@@ -818,9 +831,17 @@ button:focus-visible {
   background-color: var(--accent-green);
   color: black;
 }
-.status-pill.Reservada {
+
+.status-pill.Reservada,
+.status-pill.reservada {
   background-color: var(--status-reserved);
 }
+
+.status-pill.Bloqueada,
+.status-pill.bloqueada {
+  background-color: var(--status-reserved);
+}
+
 .reserve-button-in-table {
   background: var(--accent-green);
   color: var(--bg-dark-primary);
@@ -3012,13 +3033,15 @@ button:focus-visible {
   border: 1px solid var(--accent-green);
 }
 
-.status-badge.Reservada {
+.status-badge.Reservada,
+.status-badge.reservada {
   background-color: rgba(217, 83, 79, 0.15);
   color: var(--status-reserved);
   border: 1px solid var(--status-reserved);
 }
 
-.status-badge.Bloqueada {
+.status-badge.Bloqueada,
+.status-badge.bloqueada {
   background-color: rgba(255, 193, 7, 0.15);
   color: #ffc107;
   border: 1px solid #ffc107;

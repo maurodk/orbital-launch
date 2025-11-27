@@ -182,8 +182,13 @@ export function MappingSidebar({
                         unidade[13] && // Coluna N - coord_y
                         unidade[13].trim() !== "";
                       const isSelected = originalIndex === selectedUnitIndex;
-                      // <<< MUDANÇA 1: Pega o status da unidade e converte para minúsculas >>>
-                      const status = unidade[11]?.toLowerCase() || "Disponível"; // Coluna L - situacao
+                      // Normaliza o status: minúscula + remove acentos para classe CSS
+                      const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
+                      const status = rawStatus
+                        .toLowerCase()
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .trim();
 
                       return (
                         <div

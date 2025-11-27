@@ -502,7 +502,7 @@
             const coordX = u[12];
             const coordY = u[13];
             const letra = u[18];
-            const status = (u[11] || "Disponível").toString().toUpperCase();
+            const status = (u[11] || "Disponível").toString();
 
             if (!coordX || !coordY) {
               return;
@@ -581,9 +581,7 @@
           const coordX = unitData[12];
           const coordY = unitData[13];
           const letra = unitData[18];
-          const status = (unitData[11] || "Disponível")
-            .toString()
-            .toUpperCase();
+          const status = (unitData[11] || "Disponível").toString();
 
           if (!coordX || !coordY) {
             if (indicator) {

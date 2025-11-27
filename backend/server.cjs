@@ -51,6 +51,34 @@ function normalizeStatus(status) {
 }
 
 // =================================================================
+// HELPER: Converte dados do Supabase para formato array (A-S) compatível com fullscreen
+// =================================================================
+function supabaseUnitToArray(unitData) {
+  if (!unitData) return null;
+  return [
+    unitData.torre || "", // A
+    unitData.andar || "", // B
+    unitData.nome_unidade || "", // C
+    unitData.tipo || "", // D
+    unitData.area || "", // E
+    unitData.valor || "", // F
+    unitData.id_pre_cadastro || "", // G
+    unitData.cliente || "", // H
+    unitData.documento || "", // I
+    unitData.corretor || "", // J
+    unitData.imobiliaria || "", // K
+    unitData.situacao || "Disponível", // L
+    unitData.coord_x || "", // M
+    unitData.coord_y || "", // N
+    "", // O - IDENTIFICADOR (PIX) - não está no Supabase ainda
+    "", // P - Payload
+    "", // Q - Valor PIX
+    "", // R - Pagamento
+    "", // S - Simbolo/Letra - não está no Supabase ainda
+  ];
+}
+
+// =================================================================
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
 // =================================================================
 
@@ -197,12 +225,10 @@ async function broadcastEvent(implantacao, event, data) {
   const clients = sseClients.get(implantacao);
   if (!clients) return;
 
-  // Busca os dados atualizados da unidade para enviar no payload
-  // Otimização: Se os dados já foram fornecidos, use-os diretamente.
+  // MIGRAÇÃO SSE → SUPABASE: Prioriza dados fornecidos (do Supabase), busca no Sheets apenas como fallback
   let eventPayload = data.unitData ? { ...data } : { ...data, unitData: null };
 
-  // Se os dados não foram fornecidos, busca na planilha.
-  // Isso mantém a compatibilidade com chamadas antigas.
+  // Fallback: Se os dados não foram fornecidos, busca na planilha (compatibilidade)
   if (data.rowIndex && !data.unitData) {
     try {
       const sheets = await getSheetsClient();
@@ -224,12 +250,14 @@ async function broadcastEvent(implantacao, event, data) {
 
   // Log do que está sendo enviado
   console.log(
-    `[SSE Broadcast] Enviando evento '${event}' para '${implantacao}':`,
+    `[SSE Broadcast] Enviando evento '${event}' para '${implantacao}' (fonte: ${
+      data.unitData ? "Supabase" : "Sheets"
+    }):`,
     {
       rowIndex: eventPayload.rowIndex,
       temUnitData: !!eventPayload.unitData,
       colunaG: eventPayload.unitData?.[6],
-      colunaK: eventPayload.unitData?.[10],
+      colunaL: eventPayload.unitData?.[11],
       colunaN: eventPayload.unitData?.[13],
     }
   );
@@ -1528,14 +1556,53 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       userEmail
     );
 
-    // Se o Supabase funcionou, já podemos responder e fazer o sync com Sheets em background
+    // MIGRAÇÃO SSE → SUPABASE: Broadcast baseado no Supabase (mais rápido)
     if (supabaseOk) {
-      res.json({ success: true, message: `Reserva atualizada.` });
+      // Busca os dados completos da unidade do Supabase para o broadcast
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
 
-      // Tenta sincronizar com o Sheets em background (best-effort)
+        if (implData?.id) {
+          const { data: unitDataFromSupabase } = await supabase
+            .from("unidades")
+            .select("*")
+            .eq("implantacao_id", implData.id)
+            .eq("row_index", parseInt(rowIndex, 10))
+            .limit(1)
+            .single();
+
+          if (unitDataFromSupabase) {
+            // Converte dados do Supabase para formato array
+            const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
+
+            // Broadcast IMEDIATO com dados do Supabase (não espera Sheets)
+            await broadcastEvent(sheetTitle, "unitUpdated", {
+              rowIndex,
+              unitName,
+              unitData: unitDataArray,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "[SSE] Falha ao buscar dados do Supabase para broadcast, usando fallback:",
+          e.message
+        );
+        // Fallback: broadcast sem dados (busca do Sheets)
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex,
+          unitName,
+        });
+      }
+
+      // Sync com Sheets em background (não bloqueia resposta)
       (async () => {
         try {
-          // Atualiza G:L (id_pre_cadastro, cliente, documento, corretor, imobiliária, situacao)
           const dataWithStatus = [...data, "Reservada"];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -1543,62 +1610,18 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             valueInputOption: "USER_ENTERED",
             resource: { values: [dataWithStatus] },
           });
-
-          await broadcastEvent(sheetTitle, "unitUpdated", {
-            rowIndex,
-            unitName,
-          });
-
-          if (clientName) {
-            try {
-              const allClientsData = await sheets.spreadsheets.values.get({
-                spreadsheetId: SPREADSHEET_ID_DADOS,
-                range: `${SHEET_NAME_DADOS}!A:F`, // Busca todas as colunas para encontrar o cliente
-              });
-              const allClients = allClientsData.data.values || [];
-
-              // Encontra o índice da linha do cliente pelo nome (na coluna B, índice 1)
-              const clientRowIndex = allClients.findIndex(
-                (row) => row && row[1] && row[1].trim() === clientName.trim()
-              );
-
-              // Se encontrou o cliente, atualiza a coluna F (índice 5) da linha correspondente
-              if (clientRowIndex !== -1) {
-                // O índice da planilha é baseado em 1, e o array em 0. Se o array não tem cabeçalho, é +1.
-                // Como a sua planilha de DADOS tem cabeçalho, e o slice(1) foi removido, a linha da planilha é o índice do array + 1.
-                const sheetRowToUpdate = clientRowIndex + 1;
-
-                await sheets.spreadsheets.values.update({
-                  spreadsheetId: SPREADSHEET_ID_DADOS,
-                  range: `${SHEET_NAME_DADOS}!F${sheetRowToUpdate}`, // Alvo: Coluna F da linha encontrada
-                  valueInputOption: "USER_ENTERED",
-                  resource: { values: [["JA RESERVOU"]] },
-                });
-                console.log(
-                  `[SHEETS] Status do cliente '${clientName}' atualizado para 'JA RESERVOU'.`
-                );
-              } else {
-                console.warn(
-                  `[SHEETS] Cliente '${clientName}' não encontrado na planilha de dados para atualização de status.`
-                );
-              }
-            } catch (error) {
-              console.error(
-                `[SHEETS] Erro ao tentar atualizar o status do cliente '${clientName}':`,
-                error.message
-              );
-              // Não paramos a execução, pois a reserva da unidade é mais crítica.
-            }
-          }
+          console.log(
+            `[SHEETS] Sync background concluído para reserva na linha ${rowIndex}`
+          );
         } catch (e) {
-          console.warn(
-            "Sync to Sheets or broadcast failed after Supabase write:",
+          console.error(
+            `[SHEETS] Falha no sync background da reserva:`,
             e.message
           );
         }
       })();
 
-      return;
+      return res.json({ success: true, message: `Reserva atualizada.` });
     }
 
     // --- Fallback para Google Sheets se o Supabase falhou ---
@@ -1611,24 +1634,6 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     });
 
     await broadcastEvent(sheetTitle, "unitUpdated", { rowIndex, unitName });
-
-    const allClientsData = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_DADOS,
-      range: `${SHEET_NAME_DADOS}!A:F`,
-    });
-    const allClients = allClientsData.data.values || [];
-    const clientRowIndex = allClients.findIndex(
-      (row) => row && row[1] === clientName
-    );
-    // CORREÇÃO: Atualiza o status do cliente para "JA RESERVOU" na coluna F.
-    if (clientRowIndex !== -1) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID_DADOS,
-        range: `${SHEET_NAME_DADOS}!F${clientRowIndex + 1}`, // CORREÇÃO: Atualiza a coluna F (índice 5)
-        valueInputOption: "USER_ENTERED",
-        resource: { values: [["JA RESERVOU"]] },
-      });
-    }
 
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2034,12 +2039,53 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       }
     }
 
-    // Se o Supabase funcionou, já podemos responder e fazer o sync com Sheets em background
+    // MIGRAÇÃO SSE → SUPABASE: Broadcast baseado no Supabase
     if (supabaseOk) {
-      // A resposta será enviada depois para garantir que o fallback também responda
+      // Busca os dados atualizados da unidade do Supabase para broadcast
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
+
+        if (implData?.id) {
+          const { data: unitDataFromSupabase } = await supabase
+            .from("unidades")
+            .select("*")
+            .eq("implantacao_id", implData.id)
+            .eq("row_index", parseInt(unitRowIndex, 10))
+            .limit(1)
+            .single();
+
+          if (unitDataFromSupabase) {
+            // Converte dados do Supabase para formato array
+            const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
+
+            // Broadcast IMEDIATO com dados do Supabase
+            await broadcastEvent(sheetTitle, "unitUpdated", {
+              rowIndex: unitRowIndex,
+              unitName: unitFullName,
+              unitData: unitDataArray,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "[SSE] Falha ao buscar dados do Supabase para broadcast do cancelamento:",
+          e.message
+        );
+        // Fallback
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex: unitRowIndex,
+          unitName: unitFullName,
+        });
+      }
+
+      // Sync com Sheets em background
       (async () => {
         try {
-          // Limpa G:L (id_pre_cadastro, cliente, documento, corretor, imobiliária, situacao) e O:R (PIX)
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
             resource: {
@@ -2056,33 +2102,13 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
               ],
             },
           });
-
-          await broadcastEvent(sheetTitle, "unitUpdated", {
-            rowIndex: unitRowIndex,
-            unitName: unitFullName,
-          });
-
-          // Libera o cliente na planilha de DADOS
-          const allClientsData = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID_DADOS,
-            range: `${SHEET_NAME_DADOS}!A:F`,
-          });
-          const allClients = allClientsData.data.values || [];
-          const clientRowIndex = allClients.findIndex(
-            (row) => row && row[1] === clientName
+          console.log(
+            `[SHEETS] Sync background concluído para cancelamento na linha ${unitRowIndex}`
           );
-          if (clientRowIndex !== -1) {
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: SPREADSHEET_ID_DADOS,
-              range: `${SHEET_NAME_DADOS}!F${clientRowIndex + 1}`,
-              valueInputOption: "USER_ENTERED",
-              resource: { values: [["PODE RESERVAR"]] },
-            });
-          }
         } catch (e) {
-          console.warn(
-            "Sync to Sheets failed after Supabase cancel (non-blocking)",
-            e.message || e
+          console.error(
+            `[SHEETS] Falha no sync background do cancelamento:`,
+            e.message
           );
         }
       })();
@@ -2115,24 +2141,6 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
         rowIndex: unitRowIndex,
         unitName: unitFullName,
       });
-
-      // Libera o cliente na planilha de DADOS (Funil)
-      const allClientsData = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_DADOS,
-        range: `${SHEET_NAME_DADOS}!A:F`,
-      });
-      const allClients = allClientsData.data.values || [];
-      const clientRowIndex = allClients.findIndex(
-        (row) => row && row[1] === clientName
-      );
-      if (clientRowIndex !== -1) {
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: SPREADSHEET_ID_DADOS,
-          range: `${SHEET_NAME_DADOS}!F${clientRowIndex + 1}`,
-          valueInputOption: "USER_ENTERED",
-          resource: { values: [["PODE RESERVAR"]] },
-        });
-      }
     }
     // CORREÇÃO: Garante que a resposta seja enviada em ambos os casos (Supabase OK ou fallback)
     if (!res.headersSent) {
@@ -2270,27 +2278,74 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       userEmail
     );
 
-    // 5. Notificar clientes SSE sobre as duas unidades
-    // CORREÇÃO: Ler os dados completos após a troca para enviar coordenadas corretas
-    const rangesToReadAfter = [
-      `'${sheetTitle}'!A${oldRow}:S${oldRow}`, // Unidade antiga completa (A a S)
-      `'${sheetTitle}'!A${newRow}:S${newRow}`, // Unidade nova completa (A a S)
-    ];
-    const batchGetAfter = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      ranges: rangesToReadAfter,
-    });
+    // 5. MIGRAÇÃO SSE → SUPABASE: Buscar dados do Supabase se disponível, senão usar Sheets
+    let oldUnitDataArray, newUnitDataArray;
 
-    const [oldUnitFullData, newUnitFullData] = batchGetAfter.data.valueRanges;
+    if (supabase) {
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
 
-    // Broadcast com os dados completos incluindo coordenadas
-    broadcastEvent(sheetTitle, "unitUpdated", {
+        if (implData?.id) {
+          // Busca as duas unidades do Supabase em paralelo
+          const [oldUnitResult, newUnitResult] = await Promise.all([
+            supabase
+              .from("unidades")
+              .select("*")
+              .eq("implantacao_id", implData.id)
+              .eq("row_index", parseInt(oldUnitIndex, 10) + 2)
+              .limit(1)
+              .single(),
+            supabase
+              .from("unidades")
+              .select("*")
+              .eq("implantacao_id", implData.id)
+              .eq("row_index", parseInt(newUnitIndex, 10) + 2)
+              .limit(1)
+              .single(),
+          ]);
+
+          if (oldUnitResult.data && newUnitResult.data) {
+            oldUnitDataArray = supabaseUnitToArray(oldUnitResult.data);
+            newUnitDataArray = supabaseUnitToArray(newUnitResult.data);
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "[SSE] Falha ao buscar dados do Supabase para broadcast da troca, usando Sheets:",
+          e.message
+        );
+      }
+    }
+
+    // Fallback: Se não conseguiu do Supabase, busca do Sheets
+    if (!oldUnitDataArray || !newUnitDataArray) {
+      const rangesToReadAfter = [
+        `'${sheetTitle}'!A${oldRow}:S${oldRow}`,
+        `'${sheetTitle}'!A${newRow}:S${newRow}`,
+      ];
+      const batchGetAfter = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        ranges: rangesToReadAfter,
+      });
+
+      const [oldUnitFullData, newUnitFullData] = batchGetAfter.data.valueRanges;
+      oldUnitDataArray = oldUnitFullData.values?.[0] || [];
+      newUnitDataArray = newUnitFullData.values?.[0] || [];
+    }
+
+    // Broadcast com os dados completos
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex: oldRow,
-      unitData: oldUnitFullData.values?.[0] || [],
+      unitData: oldUnitDataArray,
     });
-    broadcastEvent(sheetTitle, "unitUpdated", {
+    await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex: newRow,
-      unitData: newUnitFullData.values?.[0] || [],
+      unitData: newUnitDataArray,
     });
 
     res.json({ success: true, message: "Troca de unidade realizada." });
@@ -3799,8 +3854,8 @@ app.post(
         unidadesToInsert.length
       );
 
-      // Append no Google Sheets
-      await sheets.spreadsheets.values.append({
+      // 1. Append no Google Sheets (fonte primária)
+      const appendResult = await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${implantacao}'!A:S`,
         valueInputOption: "USER_ENTERED",
@@ -3810,11 +3865,100 @@ app.post(
         },
       });
 
-      console.log("✅ [IMPORT UNIDADES] Importação concluída");
+      console.log("✅ [IMPORT UNIDADES] Importação no Sheets concluída");
+
+      // 2. NOVO: Sincronizar com Supabase
+      if (supabase) {
+        try {
+          console.log(
+            "🔄 [IMPORT UNIDADES] Iniciando sincronização com Supabase..."
+          );
+
+          // Busca o ID da implantação no Supabase
+          const { data: implData, error: implError } = await supabase
+            .from("implantacoes")
+            .select("id")
+            .eq("nome", implantacao)
+            .limit(1)
+            .single();
+
+          if (implError || !implData) {
+            console.warn(
+              `⚠️ [IMPORT UNIDADES] Implantação '${implantacao}' não encontrada no Supabase. Sync ignorado.`
+            );
+          } else {
+            const implantacao_id = implData.id;
+
+            // Busca o número da linha inicial (onde foram inseridas as unidades)
+            const updatedRange = appendResult.data.updates.updatedRange;
+            const startRowMatch = updatedRange.match(/!A(\d+)/);
+            const startRow = startRowMatch ? parseInt(startRowMatch[1], 10) : 2;
+
+            console.log(
+              `📍 [IMPORT UNIDADES] Inserindo ${unidadesToInsert.length} unidades no Supabase a partir da linha ${startRow}`
+            );
+
+            // Prepara os dados para inserção no Supabase
+            const supabaseUnits = unidadesToInsert.map((row, index) => {
+              const rowIndex = startRow + index;
+
+              return {
+                implantacao_id,
+                row_index: rowIndex,
+                torre: row[0] || null, // A - etapa/torre
+                andar: row[1] || null, // B - bloco/andar
+                nome_unidade: row[2] || `Unidade ${rowIndex}`, // C - nome_unidade
+                area: row[3] || null, // D - area_privativa
+                tipo: row[4] || null, // E - tipologia
+                valor: row[5] || null, // F - valor_do_imovel
+                id_pre_cadastro: row[6] || null, // G
+                cliente: row[7] || null, // H
+                documento: row[8] || null, // I
+                corretor: row[9] || null, // J
+                imobiliaria: row[10] || null, // K
+                situacao: row[11] || "Disponível", // L
+                coord_x: row[12] || null, // M
+                coord_y: row[13] || null, // N
+                // Colunas antigas para compatibilidade
+                etapa: row[0] || null,
+                bloco: row[1] || null,
+                area_privativa: row[3] || null,
+                tipologia: row[4] || null,
+              };
+            });
+
+            // Insere no Supabase em lote
+            const { data: insertedData, error: insertError } = await supabase
+              .from("unidades")
+              .insert(supabaseUnits)
+              .select();
+
+            if (insertError) {
+              console.error(
+                "❌ [IMPORT UNIDADES] Erro ao inserir no Supabase:",
+                insertError.message
+              );
+              // Não falha a importação se o Supabase der erro
+            } else {
+              console.log(
+                `✅ [IMPORT UNIDADES] ${insertedData.length} unidades inseridas no Supabase`
+              );
+            }
+          }
+        } catch (supabaseError) {
+          console.error(
+            "❌ [IMPORT UNIDADES] Erro na sincronização com Supabase:",
+            supabaseError.message
+          );
+          // Não falha a importação se o Supabase der erro
+        }
+      }
+
+      console.log("✅ [IMPORT UNIDADES] Processo completo");
 
       res.json({
         success: true,
-        message: `${unidadesToInsert.length} unidades importadas com sucesso na planilha '${implantacao}'.`,
+        message: `${unidadesToInsert.length} unidades importadas com sucesso na planilha '${implantacao}' e sincronizadas com Supabase.`,
         imported: unidadesToInsert.length,
       });
     } catch (error) {
@@ -3860,6 +4004,127 @@ function mapCsvToSheets(cols) {
     "", // S - Simbolo (vazio)
   ];
 }
+
+// NOVO: Endpoint para sincronizar unidades existentes do Sheets → Supabase
+app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
+  try {
+    console.log("🔄 [SYNC] Iniciando sincronização Sheets → Supabase");
+
+    const { implantacao } = req.body;
+
+    if (!implantacao) {
+      return res
+        .status(400)
+        .json({ error: "Nome da implantação é obrigatório." });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não está configurado." });
+    }
+
+    const sheets = await getSheetsClient();
+
+    // 1. Busca o ID da implantação no Supabase
+    const { data: implData, error: implError } = await supabase
+      .from("implantacoes")
+      .select("id")
+      .eq("nome", implantacao)
+      .limit(1)
+      .single();
+
+    if (implError || !implData) {
+      return res.status(404).json({
+        error: `Implantação '${implantacao}' não encontrada no Supabase.`,
+      });
+    }
+
+    const implantacao_id = implData.id;
+    console.log("📍 [SYNC] Implantação ID:", implantacao_id);
+
+    // 2. Busca todas as unidades do Google Sheets
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${implantacao}'!A2:S`, // Ignora cabeçalho
+    });
+
+    const rows = response.data.values || [];
+
+    if (rows.length === 0) {
+      return res.json({
+        success: true,
+        message: "Nenhuma unidade encontrada no Sheets para sincronizar.",
+        synced: 0,
+      });
+    }
+
+    console.log(`📊 [SYNC] ${rows.length} linhas encontradas no Sheets`);
+
+    // 3. Prepara os dados para inserção/atualização no Supabase
+    const supabaseUnits = rows.map((row, index) => {
+      const rowIndex = index + 2; // +2 porque linha 1 é cabeçalho
+
+      return {
+        implantacao_id,
+        row_index: rowIndex,
+        torre: row[0] || null, // A
+        andar: row[1] || null, // B
+        nome_unidade: row[2] || `Unidade ${rowIndex}`, // C
+        area: row[3] || null, // D
+        tipo: row[4] || null, // E
+        valor: row[5] || null, // F
+        id_pre_cadastro: row[6] || null, // G
+        cliente: row[7] || null, // H
+        documento: row[8] || null, // I
+        corretor: row[9] || null, // J
+        imobiliaria: row[10] || null, // K
+        situacao: row[11] || "Disponível", // L
+        coord_x: row[12] || null, // M
+        coord_y: row[13] || null, // N
+        // Colunas antigas para compatibilidade
+        etapa: row[0] || null,
+        bloco: row[1] || null,
+        area_privativa: row[3] || null,
+        tipologia: row[4] || null,
+      };
+    });
+
+    // 4. Limpa unidades existentes desta implantação no Supabase
+    console.log("🗑️ [SYNC] Limpando unidades existentes no Supabase...");
+    const { error: deleteError } = await supabase
+      .from("unidades")
+      .delete()
+      .eq("implantacao_id", implantacao_id);
+
+    if (deleteError) {
+      throw new Error(`Erro ao limpar unidades: ${deleteError.message}`);
+    }
+
+    // 5. Insere todas as unidades no Supabase
+    console.log("💾 [SYNC] Inserindo unidades no Supabase...");
+    const { data: insertedData, error: insertError } = await supabase
+      .from("unidades")
+      .insert(supabaseUnits)
+      .select();
+
+    if (insertError) {
+      throw new Error(`Erro ao inserir unidades: ${insertError.message}`);
+    }
+
+    console.log(`✅ [SYNC] ${insertedData.length} unidades sincronizadas`);
+
+    res.json({
+      success: true,
+      message: `${insertedData.length} unidades sincronizadas do Sheets para o Supabase.`,
+      synced: insertedData.length,
+    });
+  } catch (error) {
+    console.error("❌ [SYNC] Erro:", error);
+    res.status(500).json({
+      error: "Falha ao sincronizar unidades.",
+      details: error.message,
+    });
+  }
+});
 
 // Endpoint para contar unidades configuradas na planilha
 app.get(
