@@ -76,10 +76,10 @@ export const FloorPlan = memo(function FloorPlan({
   const renderedUnits = useMemo(() => {
     return unidades
       .map((unidade, index) => {
-        const coordX = unidade[11];
-        const coordY = unidade[12];
-        const letra = unidade[17];
-        const rawStatus = unidade[10] || "disponível";
+        const coordX = unidade[12]; // Coluna M - coord_x
+        const coordY = unidade[13]; // Coluna N - coord_y
+        const letra = unidade[18]; // Coluna S - Simbolo
+        const rawStatus = unidade[11] || "disponível"; // Coluna L - situacao
         const normalizedStatus = rawStatus
           .toLowerCase()
           .normalize("NFD")
@@ -98,8 +98,8 @@ export const FloorPlan = memo(function FloorPlan({
           coordY,
           letra,
           normalizedStatus,
-          unitName: unidade[2],
-          rawStatus: unidade[10],
+          unitName: unidade[2], // Coluna C - nome_unidade
+          rawStatus: unidade[11], // Coluna L - situacao
         };
       })
       .filter(Boolean); // Remove nulls

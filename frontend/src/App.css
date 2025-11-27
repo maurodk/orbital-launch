@@ -1824,6 +1824,8 @@ button:focus-visible {
 .action-buttons-cell {
   display: flex;
   gap: 8px;
+  justify-content: center;
+  align-items: center;
 }
 
 .reserve-button-in-table.spontaneous {
@@ -1996,38 +1998,76 @@ button:focus-visible {
   background-color: #ec971f;
 }
 
-.manage-menu-container {
-  position: static;
-  display: inline-block;
-}
-
-.manage-dropdown-menu {
+/* Modais */
+.modal-overlay {
   position: fixed;
-  background-color: var(--bg-dark-tertiary);
-  border: 1px solid #444;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px var(--shadow-color);
-  z-index: 1000;
-  min-width: 160px;
-  padding: 5px 0;
-  margin-top: 5px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 10000;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
 }
 
-.manage-dropdown-menu button {
-  width: 100%;
-  text-align: left;
-  padding: 10px 15px;
-  background: none;
+.modal-content {
+  background: linear-gradient(
+    135deg,
+    var(--bg-dark-secondary) 0%,
+    var(--bg-dark-tertiary) 100%
+  );
+  padding: 35px 40px;
+  border-radius: 12px;
+  min-width: 320px;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-content h2 {
   color: var(--text-primary);
-  border: none;
-  cursor: pointer;
-  transition: background 0.2s;
+  margin: 0 0 25px 0;
+  font-size: 1.3em;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
-.manage-dropdown-menu button:hover {
-  background: var(--bg-dark-secondary);
+.modal-action-button {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--primary-color) 0%, #e67e22 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.05em;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(242, 126, 35, 0.3);
+}
+
+.modal-action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(242, 126, 35, 0.4);
+  background: linear-gradient(135deg, #e67e22 0%, var(--primary-color) 100%);
+}
+
+.modal-action-button:active {
+  transform: translateY(0);
+}
+
+.modal-action-button.danger {
+  background: linear-gradient(135deg, #d9534f 0%, #c9302c 100%);
+  box-shadow: 0 4px 12px rgba(217, 83, 79, 0.3);
+}
+
+.modal-action-button.danger:hover {
+  background: linear-gradient(135deg, #c9302c 0%, #d9534f 100%);
+  box-shadow: 0 6px 16px rgba(217, 83, 79, 0.4);
 }
 
 .controls-right {
@@ -2092,6 +2132,25 @@ button:focus-visible {
 }
 .block-button-in-table:hover {
   background-color: #c9302c; /* Vermelho mais escuro */
+  transform: scale(1.1);
+}
+
+.unlock-button-in-table {
+  background-color: #5cb85c; /* Verde */
+  color: white;
+  border: none;
+  width: 32px; /* Pequeno e quadrado */
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.unlock-button-in-table:hover {
+  background-color: #449d44; /* Verde mais escuro */
   transform: scale(1.1);
 }
 
@@ -2556,7 +2615,8 @@ button:focus-visible {
     font-weight: 600;
   }
 
-  .manage-dropdown-menu {
+  .manage-dropdown-menu,
+  .reserve-dropdown-menu {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -2569,7 +2629,8 @@ button:focus-visible {
     z-index: 9001;
   }
 
-  .manage-menu-container::before {
+  .manage-menu-container::before,
+  .reserve-menu-container::before {
     content: "";
     position: fixed;
     top: 0;
@@ -2581,11 +2642,13 @@ button:focus-visible {
     display: none;
   }
 
-  .manage-menu-container.active::before {
+  .manage-menu-container.active::before,
+  .reserve-menu-container.active::before {
     display: block;
   }
 
-  .manage-dropdown-menu button {
+  .manage-dropdown-menu button,
+  .reserve-dropdown-menu button {
     width: 100%;
     padding: 12px 16px;
     margin-bottom: 8px;
@@ -2595,7 +2658,8 @@ button:focus-visible {
     font-size: 0.9rem;
   }
 
-  .manage-dropdown-menu button:last-child {
+  .manage-dropdown-menu button:last-child,
+  .reserve-dropdown-menu button:last-child {
     margin-bottom: 0;
   }
 

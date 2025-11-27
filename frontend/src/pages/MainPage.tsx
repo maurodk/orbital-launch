@@ -154,6 +154,10 @@ export function MainPage() {
   const [clientesConfigured, setClientesConfigured] = useState<boolean>(false);
   const [userDisplayName, setUserDisplayName] = useState<string>("");
 
+  // Estados para seleção em cadeia
+  const [selectedUnits, setSelectedUnits] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
+
   const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
     null
   );
@@ -665,9 +669,9 @@ export function MainPage() {
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitIndexToClear][11] = "";
-    updatedUnidades[unitIndexToClear][12] = "";
-    updatedUnidades[unitIndexToClear][17] = ""; // Limpa a letra também
+    updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
+    updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
+    updatedUnidades[unitIndexToClear][18] = ""; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
@@ -683,14 +687,14 @@ export function MainPage() {
 
   const handleUnitClick = (unitIndex: number) => {
     if (isMappingMode) {
-      const hasCoords = unidades[unitIndex][11] && unidades[unitIndex][12];
+      const hasCoords = unidades[unitIndex][12] && unidades[unitIndex][13]; // Colunas M e N
       if (hasCoords) {
         handleClearCoords(unitIndex);
       }
       return;
     }
     setSelectedUnitIndex(unitIndex);
-    const rawStatus = unidades[unitIndex][10] || "disponível";
+    const rawStatus = unidades[unitIndex][11] || "disponível"; // Coluna L - situacao
     const normalizedStatus = rawStatus
       .toLowerCase()
       .normalize("NFD")
@@ -712,7 +716,10 @@ export function MainPage() {
 
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
-    setBlockModalState({ isOpen: true, isBlocking: true, apiError: "" });
+    const unitData = unidades[unitIndex];
+    const status = unitData[11]?.toUpperCase(); // Coluna L - situacao
+    const isBlocked = status === "BLOQUEADA";
+    setBlockModalState({ isOpen: true, isBlocking: !isBlocked, apiError: "" });
   };
 
   const handlePixActionClick = (unitIndex: number) => {
@@ -753,7 +760,7 @@ export function MainPage() {
       });
 
       const updatedUnidades = [...unidades];
-      updatedUnidades[selectedUnitIndex][10] = newStatus;
+      updatedUnidades[selectedUnitIndex][11] = newStatus; // Coluna L - situacao
       setUnidades(updatedUnidades);
 
       handleCloseModals();
@@ -770,6 +777,67 @@ export function MainPage() {
         apiError: errorMessage,
       }));
       console.error(err);
+    }
+  };
+
+  // Handlers para seleção em cadeia
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    if (isSelectionMode) {
+      setSelectedUnits(new Set()); // Limpa seleção ao sair do modo
+    }
+  };
+
+  const toggleUnitSelection = (unitIndex: number) => {
+    setSelectedUnits((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(unitIndex)) {
+        newSet.delete(unitIndex);
+      } else {
+        newSet.add(unitIndex);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBulkBlock = async () => {
+    if (selectedUnits.size === 0) {
+      alert("Nenhuma unidade selecionada.");
+      return;
+    }
+
+    const confirmMsg = `Tem certeza que deseja bloquear ${selectedUnits.size} unidade(s)?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const promises = Array.from(selectedUnits).map(async (unitIndex) => {
+        const sheetRowIndex = unitIndex + 2;
+        return axios.post(`${apiUrl}/api/toggle-block-unit`, {
+          rowIndex: sheetRowIndex,
+          implantacao: selectedImplantationName,
+          newStatus: "BLOQUEADA",
+          hideAvailable: hideAvailable,
+        });
+      });
+
+      await Promise.all(promises);
+
+      // Atualiza o estado local
+      const updatedUnidades = [...unidades];
+      selectedUnits.forEach((unitIndex) => {
+        updatedUnidades[unitIndex][11] = "BLOQUEADA"; // Coluna L - situacao
+      });
+      setUnidades(updatedUnidades);
+
+      // Limpa seleção e sai do modo de seleção
+      setSelectedUnits(new Set());
+      setIsSelectionMode(false);
+
+      await fetchHistory(selectedImplantationName);
+      alert(`${selectedUnits.size} unidade(s) bloqueada(s) com sucesso!`);
+    } catch (error) {
+      console.error("Erro ao bloquear unidades em cadeia:", error);
+      alert("Falha ao bloquear algumas unidades. Verifique o console.");
     }
   };
 
@@ -836,7 +904,7 @@ export function MainPage() {
       manualData = selectedClientIdOrManualData;
     }
 
-    const unitName = unidades[selectedUnitIndex][2];
+    const unitName = unidades[selectedUnitIndex][2]; // Coluna C - nome_unidade
     const sheetRowIndex = selectedUnitIndex + 2;
 
     try {
@@ -978,20 +1046,20 @@ export function MainPage() {
   const handleCancelReservation = async () => {
     if (selectedUnitIndex === null) return;
     const unidadeAlvo = unidades[selectedUnitIndex];
-    const clientNameToRelease = unidadeAlvo[6];
-    const idPreCadastro = unidadeAlvo[5];
-    const brokerNameToLog = unidadeAlvo[8] || "N/A";
+    const clientNameToRelease = unidadeAlvo[7]; // Coluna H - cliente
+    const idPreCadastro = unidadeAlvo[6]; // Coluna G - id_pre_cadastro
+    const brokerNameToLog = unidadeAlvo[9] || "N/A"; // Coluna J - corretor
 
     setUnidades(
       unidades.map((unidade, index) => {
         if (index === selectedUnitIndex) {
           const newUnit = [...unidade];
-          newUnit[5] = "";
-          newUnit[6] = "";
-          newUnit[7] = "";
-          newUnit[8] = "";
-          newUnit[9] = "";
-          newUnit[10] = "DISPONÍVEL";
+          newUnit[6] = ""; // Coluna G - id_pre_cadastro
+          newUnit[7] = ""; // Coluna H - cliente
+          newUnit[8] = ""; // Coluna I - documento
+          newUnit[9] = ""; // Coluna J - corretor
+          newUnit[10] = ""; // Coluna K - imobiliaria
+          newUnit[11] = "DISPONÍVEL"; // Coluna L - situacao
           return newUnit;
         }
         return unidade;
@@ -1027,9 +1095,9 @@ export function MainPage() {
     const coordX = x.toFixed(3);
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitToMapIndex][11] = coordX;
-    updatedUnidades[unitToMapIndex][12] = coordY;
-    updatedUnidades[unitToMapIndex][17] = unitLetter; // Salva a letra
+    updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
+    updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
+    updatedUnidades[unitToMapIndex][18] = unitLetter; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
@@ -1071,10 +1139,10 @@ export function MainPage() {
       });
       // Atualiza a UI localmente para refletir o status pendente
       const updatedUnidades = [...unidades];
-      updatedUnidades[pixModalState.unitIndex][13] = identificador; // Coluna N
-      updatedUnidades[pixModalState.unitIndex][14] = payloadEmv; // Coluna O
-      updatedUnidades[pixModalState.unitIndex][15] = String(valor); // Coluna P
-      updatedUnidades[pixModalState.unitIndex][16] = statusPagamento; // Coluna Q
+      updatedUnidades[pixModalState.unitIndex][14] = identificador; // Coluna O - IDENTIFICADOR
+      updatedUnidades[pixModalState.unitIndex][15] = payloadEmv; // Coluna P - Payload
+      updatedUnidades[pixModalState.unitIndex][16] = String(valor); // Coluna Q - Valor
+      updatedUnidades[pixModalState.unitIndex][17] = statusPagamento; // Coluna R - Pagamento
       // REMOVIDO: Coluna R não é mais usada para timestamp
       setUnidades(updatedUnidades);
     } catch (error: unknown) {
@@ -1103,8 +1171,8 @@ export function MainPage() {
       return;
     }
 
-    const unitFullName = `${unitData[2]}`;
-    const brokerName = unitData[8] || "N/A";
+    const unitFullName = `${unitData[2]}`; // Coluna C - nome_unidade
+    const brokerName = unitData[9] || "N/A"; // Coluna J - corretor
 
     const dataHoraImpressao = new Date().toLocaleString("pt-BR", {
       day: "2-digit",
@@ -1119,7 +1187,7 @@ export function MainPage() {
       axios.post(`${apiUrl}/api/log-print`, {
         implantacao: selectedImplantationName,
         unitName: unitFullName,
-        clientName: unitData[6] || "N/D",
+        clientName: unitData[7] || "N/D", // Coluna H - cliente
         brokerName: brokerName,
       });
       await fetchHistory(selectedImplantationName);
@@ -1138,15 +1206,15 @@ export function MainPage() {
     const paymentDate = today.toLocaleDateString("pt-BR");
 
     const termoData: TermoData = {
-      clienteNome: unitData[6] || "N/D",
-      clienteCpf: formatCPF(unitData[7]) || "N/D",
-      unidadeDesc: `${unitData[2]}`,
-      tipologia: unitData[4] || "N/D",
-      areaPrivativa: unitData[3] || "N/D",
-      etapa: unitData[0] || "N/D",
+      clienteNome: unitData[7] || "N/D", // Coluna H - cliente
+      clienteCpf: formatCPF(unitData[8]) || "N/D", // Coluna I - documento
+      unidadeDesc: `${unitData[2]}`, // Coluna C - nome_unidade
+      tipologia: unitData[4] || "N/D", // Coluna E - tipologia
+      areaPrivativa: unitData[3] || "N/D", // Coluna D - area_privativa
+      etapa: unitData[0] || "N/D", // Coluna A - etapa
       empreendimentoNome: impData.nome,
       empreendimentoEndereco: impData.endereco || "Endereço não informado",
-      corretorNome: unitData[8] || "N/D",
+      corretorNome: unitData[9] || "N/D", // Coluna J - corretor
       dataAtual: formattedDate,
       logoEmpreendimentoUrl: currentLogoUrl,
       dataHoraImpressao: dataHoraImpressao,
@@ -1285,99 +1353,137 @@ export function MainPage() {
                     </>
                   )}
                   {(view === "list" || view === "history") && (
-                    <>
-                      {userDisplayName && (
-                        <div className="user-greeting">
-                          Olá, <strong>{userDisplayName}</strong>
-                        </div>
-                      )}
-                      <ImplantationSwitcher
-                        implantacoes={implantacoes}
-                        selected={selectedImplantationName}
-                        onChange={handleImplantationChange}
-                      />
-                      {/* Indicadores de unidades e clientes na list/history view */}
-                      {unidadesConfigured && (
-                        <div
-                          style={{
-                            padding: "6px 10px",
-                            backgroundColor: "#2a2a2a",
-                            color: "#ffffff",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            textAlign: "center",
-                            border: "1px solid #6ad700",
-                            lineHeight: "1.3",
-                          }}
-                        >
-                          <div style={{ fontWeight: "bold", color: "#6ad700" }}>
-                            Unidades configuradas
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "20px",
+                        width: "100%",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {/* Esquerda: Saudação e Seletor */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "20px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {userDisplayName && (
+                          <div className="user-greeting">
+                            Olá, <strong>{userDisplayName}</strong>
                           </div>
-                          <div>
-                            Quantidade: <strong>{unidadesCount}</strong>{" "}
-                            Unidades
+                        )}
+                        <ImplantationSwitcher
+                          implantacoes={implantacoes}
+                          selected={selectedImplantationName}
+                          onChange={handleImplantationChange}
+                        />
+                      </div>
+
+                      {/* Direita: Indicadores */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {/* Indicadores de unidades e clientes na list/history view */}
+                        {unidadesConfigured && (
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              backgroundColor: "#2a2a2a",
+                              color: "#ffffff",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              textAlign: "center",
+                              border: "1px solid #6ad700",
+                              lineHeight: "1.3",
+                            }}
+                          >
+                            <div
+                              style={{ fontWeight: "bold", color: "#6ad700" }}
+                            >
+                              Unidades configuradas
+                            </div>
+                            <div>
+                              Quantidade: <strong>{unidadesCount}</strong>{" "}
+                              Unidades
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {!unidadesConfigured && selectedImplantationName && (
-                        <div
-                          style={{
-                            padding: "6px 10px",
-                            backgroundColor: "#2a2a2a",
-                            color: "#ffffff",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            textAlign: "center",
-                            border: "1px solid #ffa500",
-                            lineHeight: "1.3",
-                          }}
-                        >
-                          <div style={{ fontWeight: "bold", color: "#ffa500" }}>
-                            ⚠️ Sem unidades
+                        )}
+                        {!unidadesConfigured && selectedImplantationName && (
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              backgroundColor: "#2a2a2a",
+                              color: "#ffffff",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              textAlign: "center",
+                              border: "1px solid #ffa500",
+                              lineHeight: "1.3",
+                            }}
+                          >
+                            <div
+                              style={{ fontWeight: "bold", color: "#ffa500" }}
+                            >
+                              ⚠️ Sem unidades
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {clientesConfigured && selectedImplantationName && (
-                        <div
-                          style={{
-                            padding: "6px 10px",
-                            backgroundColor: "#2a2a2a",
-                            color: "#ffffff",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            textAlign: "center",
-                            border: "1px solid #6ad700",
-                            lineHeight: "1.3",
-                          }}
-                        >
-                          <div style={{ fontWeight: "bold", color: "#6ad700" }}>
-                            Clientes Aptos
+                        )}
+                        {clientesConfigured && selectedImplantationName && (
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              backgroundColor: "#2a2a2a",
+                              color: "#ffffff",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              textAlign: "center",
+                              border: "1px solid #6ad700",
+                              lineHeight: "1.3",
+                            }}
+                          >
+                            <div
+                              style={{ fontWeight: "bold", color: "#6ad700" }}
+                            >
+                              Clientes Aptos
+                            </div>
+                            <div>
+                              Quantidade: <strong>{clientesCount}</strong>{" "}
+                              Clientes
+                            </div>
                           </div>
-                          <div>
-                            Quantidade: <strong>{clientesCount}</strong>{" "}
-                            Clientes
+                        )}
+                        {!clientesConfigured && selectedImplantationName && (
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              backgroundColor: "#2a2a2a",
+                              color: "#ffffff",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              textAlign: "center",
+                              border: "1px solid #ffa500",
+                              lineHeight: "1.3",
+                            }}
+                          >
+                            <div
+                              style={{ fontWeight: "bold", color: "#ffa500" }}
+                            >
+                              ⚠️ Sem clientes
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {!clientesConfigured && selectedImplantationName && (
-                        <div
-                          style={{
-                            padding: "6px 10px",
-                            backgroundColor: "#2a2a2a",
-                            color: "#ffffff",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            textAlign: "center",
-                            border: "1px solid #ffa500",
-                            lineHeight: "1.3",
-                          }}
-                        >
-                          <div style={{ fontWeight: "bold", color: "#ffa500" }}>
-                            ⚠️ Sem clientes
-                          </div>
-                        </div>
-                      )}
-                    </>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1598,6 +1704,11 @@ export function MainPage() {
                     statusFilter={statusFilter}
                     setStatusFilter={setStatusFilter}
                     totalUnidades={unidades.length}
+                    isSelectionMode={isSelectionMode}
+                    selectedUnits={selectedUnits}
+                    onToggleUnitSelection={toggleUnitSelection}
+                    onToggleSelectionMode={toggleSelectionMode}
+                    onBulkBlock={handleBulkBlock}
                   />
                 )}
                 {view === "history" && <HistoryView history={history} />}

@@ -1,9 +1,10 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import {
   FiSearch,
   FiLock,
+  FiUnlock,
   FiPrinter,
   FiClock,
   FiUserPlus,
@@ -29,6 +30,12 @@ interface ReservationListProps {
     status: "all" | "disponível" | "reservada" | "bloqueada"
   ) => void;
   totalUnidades: number;
+  // Seleção em cadeia
+  isSelectionMode: boolean;
+  selectedUnits: Set<number>;
+  onToggleUnitSelection: (unitIndex: number) => void;
+  onToggleSelectionMode: () => void;
+  onBulkBlock: () => void;
 }
 
 export function ReservationList({
@@ -45,46 +52,18 @@ export function ReservationList({
   statusFilter,
   setStatusFilter,
   totalUnidades,
+  isSelectionMode,
+  selectedUnits,
+  onToggleUnitSelection,
+  onToggleSelectionMode,
+  onBulkBlock,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
-  const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  // Hook para fechar o menu ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenuIndex(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const handleMenuToggle = (
-    index: number,
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    if (openMenuIndex === index) {
-      setOpenMenuIndex(null);
-    } else {
-      const rect = event.currentTarget.getBoundingClientRect();
-      setMenuPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-      });
-      setOpenMenuIndex(index);
-    }
-  };
-
-  const handleMenuAction = (action: (index: number) => void, index: number) => {
-    action(index);
-    setOpenMenuIndex(null); // Fecha o menu após a ação
-  };
+  const [showReserveModal, setShowReserveModal] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
+    null
+  );
 
   return (
     <div className="reservation-list-container">
@@ -128,6 +107,54 @@ export function ReservationList({
           </div>
         </div>
 
+        {/* Botões de seleção em cadeia */}
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            marginTop: "10px",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            onClick={onToggleSelectionMode}
+            style={{
+              padding: "8px 12px",
+              backgroundColor: isSelectionMode ? "#6ad700" : "#2a2a2a",
+              color: "#ffffff",
+              border: `1px solid ${isSelectionMode ? "#6ad700" : "#444"}`,
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "11px",
+              fontWeight: "bold",
+              transition: "all 0.2s",
+            }}
+          >
+            {isSelectionMode
+              ? `Seleção: ${selectedUnits.size} unidade(s)`
+              : "Seleção em Cadeia"}
+          </button>
+
+          {isSelectionMode && selectedUnits.size > 0 && (
+            <button
+              onClick={onBulkBlock}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "#ff4444",
+                color: "#ffffff",
+                border: "1px solid #ff4444",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "11px",
+                fontWeight: "bold",
+                transition: "all 0.2s",
+              }}
+            >
+              Bloquear Selecionadas
+            </button>
+          )}
+        </div>
+
         <div className="results-counter">
           <p>
             Exibindo <strong>{totalEncontrado}</strong> de{" "}
@@ -141,6 +168,7 @@ export function ReservationList({
           <table className="reservation-table">
             <thead>
               <tr>
+                {isSelectionMode && <th style={{ width: "40px" }}></th>}
                 <th>Unidade</th>
                 <th>Tipologia</th>
                 <th>Status</th>
@@ -153,7 +181,7 @@ export function ReservationList({
               {unidades.length > 0 ? (
                 unidades.map(([unitData, originalIndex]) => {
                   // Normaliza status: remove acentos, lowercase, trim
-                  const rawStatus = unitData[10] || "disponível";
+                  const rawStatus = unitData[11] || "disponível"; // Coluna L - situacao
                   const normalizedStatus = rawStatus
                     .toLowerCase()
                     .normalize("NFD")
@@ -162,13 +190,29 @@ export function ReservationList({
 
                   const isAvailable = normalizedStatus === "disponivel";
                   const isReserved = normalizedStatus === "reservada";
-                  const paymentStatus = unitData[16]?.toUpperCase(); // Coluna Q
-                  const clientName = unitData[6] || "—";
-                  const brokerName = unitData[8] || "—";
-                  const tipologia = unitData[4] || "—"; // Coluna E - Tipologia
+                  const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
+                  const clientName = unitData[7] || "—"; // Coluna H - cliente
+                  const brokerName = unitData[9] || "—"; // Coluna J - corretor
+                  const tipologia = unitData[4] || "—"; // Coluna E - tipologia
 
                   return (
                     <tr key={unitData[2] || originalIndex}>
+                      {isSelectionMode && (
+                        <td style={{ textAlign: "center", padding: "8px" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedUnits.has(originalIndex)}
+                            onChange={() =>
+                              onToggleUnitSelection(originalIndex)
+                            }
+                            style={{
+                              cursor: "pointer",
+                              width: "16px",
+                              height: "16px",
+                            }}
+                          />
+                        </td>
+                      )}
                       <td>{unitData[2]}</td>
                       <td
                         style={{
@@ -215,56 +259,16 @@ export function ReservationList({
                           {/* --- Botões Condicionais (Reservar, Gerenciar, etc.) --- */}
                           {isAvailable ? (
                             <>
-                              <div className="reserve-menu-container">
-                                <button
-                                  className="reserve-button-in-table"
-                                  onClick={(e) => {
-                                    if (openMenuIndex === originalIndex) {
-                                      setOpenMenuIndex(null);
-                                    } else {
-                                      const rect =
-                                        e.currentTarget.getBoundingClientRect();
-                                      setMenuPosition({
-                                        top: rect.bottom + window.scrollY,
-                                        left: rect.left + window.scrollX,
-                                      });
-                                      setOpenMenuIndex(originalIndex);
-                                    }
-                                  }}
-                                >
-                                  <FiUserPlus
-                                    size={16}
-                                    className="button-icon"
-                                  />
-                                  <span className="button-text">Reservar</span>
-                                </button>
-                                {openMenuIndex === originalIndex && (
-                                  <div
-                                    className="reserve-dropdown-menu"
-                                    style={{
-                                      top: `${menuPosition.top}px`,
-                                      left: `${menuPosition.left}px`,
-                                    }}
-                                  >
-                                    <button
-                                      onClick={() => {
-                                        onUnitClick(originalIndex);
-                                        setOpenMenuIndex(null);
-                                      }}
-                                    >
-                                      Apto
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        onSpontaneousClick(originalIndex);
-                                        setOpenMenuIndex(null);
-                                      }}
-                                    >
-                                      Espontâneo
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                              <button
+                                className="reserve-button-in-table"
+                                onClick={() => {
+                                  setSelectedUnitIndex(originalIndex);
+                                  setShowReserveModal(true);
+                                }}
+                              >
+                                <FiUserPlus size={16} className="button-icon" />
+                                <span className="button-text">Reservar</span>
+                              </button>
                               <button
                                 className="block-button-in-table"
                                 title="Bloquear Unidade"
@@ -273,76 +277,54 @@ export function ReservationList({
                                 <FiLock size={16} />
                               </button>
                             </>
+                          ) : isReserved ? (
+                            <>
+                              <button
+                                className="reserve-button-in-table manage"
+                                onClick={() => {
+                                  setSelectedUnitIndex(originalIndex);
+                                  setShowManageModal(true);
+                                }}
+                              >
+                                <FiEdit size={16} className="button-icon" />
+                                <span className="button-text">Gerenciar</span>
+                              </button>
+                              <button
+                                className="print-button-in-table"
+                                title="Imprimir Termo de Reserva"
+                                onClick={() => onPrintClick(originalIndex)}
+                              >
+                                <FiPrinter size={16} />
+                              </button>
+                              {paymentStatus !== "PAGO" && (
+                                <button
+                                  className="pix-button-in-table"
+                                  title="Gerar PIX para Pagamento"
+                                  onClick={() => onPixClick(originalIndex)}
+                                >
+                                  <img src="/pix.png" alt="PIX" />
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <>
-                              <div
-                                className="manage-menu-container"
-                                ref={
-                                  openMenuIndex === originalIndex
-                                    ? menuRef
-                                    : null
-                                }
+                              <button
+                                className="reserve-button-in-table manage"
+                                onClick={() => {
+                                  setSelectedUnitIndex(originalIndex);
+                                  setShowManageModal(true);
+                                }}
                               >
-                                <button
-                                  className="reserve-button-in-table manage"
-                                  onClick={(e) =>
-                                    handleMenuToggle(originalIndex, e)
-                                  }
-                                >
-                                  <FiEdit size={16} className="button-icon" />
-                                  <span className="button-text">Gerenciar</span>
-                                </button>
-                                {openMenuIndex === originalIndex && (
-                                  <div
-                                    className="manage-dropdown-menu"
-                                    style={{
-                                      top: `${menuPosition.top}px`,
-                                      left: `${menuPosition.left}px`,
-                                    }}
-                                  >
-                                    <button
-                                      onClick={() =>
-                                        handleMenuAction(
-                                          onChangeUnitClick,
-                                          originalIndex
-                                        )
-                                      }
-                                    >
-                                      Trocar Unidade
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleMenuAction(
-                                          onUnitClick,
-                                          originalIndex
-                                        )
-                                      }
-                                    >
-                                      Cancelar Reserva
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                              {isReserved && (
-                                <>
-                                  <button
-                                    className="print-button-in-table"
-                                    title="Imprimir Termo de Reserva"
-                                    onClick={() => onPrintClick(originalIndex)}
-                                  >
-                                    <FiPrinter size={16} />
-                                  </button>
-                                  {paymentStatus !== "PAGO" && (
-                                    <button
-                                      className="pix-button-in-table"
-                                      title="Gerar PIX para Pagamento"
-                                      onClick={() => onPixClick(originalIndex)}
-                                    >
-                                      <img src="/pix.png" alt="PIX" />
-                                    </button>
-                                  )}
-                                </>
-                              )}
+                                <FiEdit size={16} className="button-icon" />
+                                <span className="button-text">Gerenciar</span>
+                              </button>
+                              <button
+                                className="unlock-button-in-table"
+                                title="Desbloquear Unidade"
+                                onClick={() => onBlockClick(originalIndex)}
+                              >
+                                <FiUnlock size={16} />
+                              </button>
                             </>
                           )}
                         </div>
@@ -361,6 +343,93 @@ export function ReservationList({
           </table>
         </div>
       </div>
+
+      {/* Modal de Reserva */}
+      {showReserveModal && selectedUnitIndex !== null && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowReserveModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Selecione o Tipo de Reserva</h2>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                marginTop: "20px",
+              }}
+            >
+              <button
+                className="modal-action-button"
+                onClick={() => {
+                  onUnitClick(selectedUnitIndex);
+                  setShowReserveModal(false);
+                  setSelectedUnitIndex(null);
+                }}
+              >
+                Apto
+              </button>
+              <button
+                className="modal-action-button"
+                onClick={() => {
+                  onSpontaneousClick(selectedUnitIndex);
+                  setShowReserveModal(false);
+                  setSelectedUnitIndex(null);
+                }}
+              >
+                Espontâneo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Gerenciar */}
+      {showManageModal && selectedUnitIndex !== null && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowManageModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Gerenciar Unidade</h2>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                marginTop: "20px",
+              }}
+            >
+              <button
+                className="modal-action-button"
+                onClick={() => {
+                  onChangeUnitClick(selectedUnitIndex);
+                  setShowManageModal(false);
+                  setSelectedUnitIndex(null);
+                }}
+              >
+                Trocar Unidade
+              </button>
+              <button
+                className="modal-action-button danger"
+                onClick={() => {
+                  // Trigger cancel reservation flow
+                  const [unitData] = unidades[selectedUnitIndex];
+                  if (unitData && unitData[11] === "RESERVADA") {
+                    // Coluna L - situacao
+                    onUnitClick(selectedUnitIndex); // This will open cancel modal
+                  }
+                  setShowManageModal(false);
+                  setSelectedUnitIndex(null);
+                }}
+              >
+                Cancelar Reserva
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
