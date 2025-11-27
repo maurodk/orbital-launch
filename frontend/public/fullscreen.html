@@ -143,6 +143,7 @@
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         min-width: 200px;
+        max-width: 250px;
         pointer-events: auto;
         transition: opacity 0.3s ease, transform 0.3s ease;
       }
@@ -183,6 +184,7 @@
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         min-width: 220px;
+        max-width: 280px;
         pointer-events: auto;
         transition: opacity 0.3s ease, transform 0.3s ease;
       }
@@ -190,6 +192,85 @@
         opacity: 0;
         transform: translateY(20px);
         pointer-events: none;
+      }
+
+      /* Responsividade para mobile */
+      @media (max-width: 768px) {
+        .topbar {
+          flex-wrap: wrap;
+          padding: 8px 12px;
+          gap: 12px;
+        }
+        .title {
+          font-size: 14px;
+        }
+        .logo {
+          height: 24px;
+        }
+        .small {
+          font-size: 12px;
+        }
+        .fullscreen-button {
+          width: 32px;
+          height: 32px;
+        }
+
+        /* Controles em telas menores */
+        .dot-size-control,
+        .dot-color-control {
+          bottom: 10px;
+          padding: 10px 14px;
+          min-width: 160px;
+          max-width: 200px;
+        }
+        .dot-size-control {
+          right: 10px;
+        }
+        .dot-color-control {
+          left: 10px;
+        }
+        .dot-size-control label,
+        .dot-color-control h3 {
+          font-size: 11px;
+        }
+        .dot-size-value {
+          font-size: 12px;
+        }
+        .color-option label {
+          font-size: 11px;
+        }
+        .color-option input[type="color"] {
+          width: 40px;
+          height: 25px;
+        }
+        .toggle-option label {
+          font-size: 11px;
+        }
+      }
+
+      /* Para telas muito pequenas (mobile portrait) */
+      @media (max-width: 480px) {
+        .topbar {
+          padding: 6px 10px;
+          gap: 8px;
+        }
+        .title {
+          font-size: 12px;
+        }
+        .logo {
+          height: 20px;
+        }
+
+        /* Empilha controles verticalmente em telas muito pequenas */
+        .dot-color-control {
+          bottom: auto;
+          top: 60px;
+          left: 10px;
+        }
+        .dot-size-control {
+          bottom: 10px;
+          right: 10px;
+        }
       }
       .dot-color-control h3 {
         margin: 0 0 8px 0;
@@ -353,7 +434,7 @@
       <input
         type="range"
         id="dot-size-slider"
-        min="8"
+        min="4"
         max="40"
         value="16"
         step="1"

@@ -1474,13 +1474,15 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.action-pill.action-Reservada,
-.action-pill.action-Reservada-espontânea {
+.action-pill.action-reservada,
+.action-pill.action-reservada-espontânea {
   background-color: #337ab7; /* Azul */
+  border: 2px solid #2868a0;
 }
 
 .action-pill.action-cancelada {
   background-color: var(--status-reserved); /* Vermelho */
+  border: 2px solid #a02222;
 }
 
 .action-pill.action-Bloqueada {

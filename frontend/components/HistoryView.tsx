@@ -27,60 +27,73 @@ export function HistoryView({ history }: HistoryViewProps) {
   return (
     <div className="history-container">
       <div className="history-filters-sticky">
-      <div className="history-search-wrapper">
-        <FiSearch className="search-icon" />
-        <input
-          type="text"
-          placeholder="Filtrar por unidade, ação, cliente..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
-      </div>
+        <div className="history-search-wrapper">
+          <FiSearch className="search-icon" />
+          <input
+            type="text"
+            placeholder="Filtrar por unidade, ação, cliente..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
       </div>
 
       <div className="history-scroll-container">
-      {filteredHistory.length > 0 ? (
-        <div className="table-wrapper">
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Data e Hora</th>
-                <th>Unidade</th>
-                <th>Ação</th>
-                <th>Cliente</th>
-                <th>Corretor</th>
-                <th>Usuário</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredHistory.map((entry, index) => (
-                <tr key={index}>
-                  <td>{entry[1]}</td>
-                  <td>{entry[2]}</td>
-                  <td>
-                    <span
-                      className={`action-pill action-${entry[3]
-                        ?.toLowerCase()
-                        .replace(/\s+/g, "-")
-                        .replace(/[()]/g, "")}`}
-                    >
-                      {entry[3]}
-                    </span>
-                  </td>
-                  <td>{entry[4]}</td>
-                  <td>{entry[5]}</td>
-                  <td>{entry[6]}</td>
+        {filteredHistory.length > 0 ? (
+          <div className="table-wrapper">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Data e Hora</th>
+                  <th>Unidade</th>
+                  <th>Ação</th>
+                  <th>Cliente</th>
+                  <th>Corretor</th>
+                  <th>Usuário</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="empty-history">
-          Nenhum registro de histórico encontrado com os filtros aplicados.
-        </p>
-      )}
+              </thead>
+              <tbody>
+                {filteredHistory.map((entry, index) => {
+                  // Extrai nome do usuário do email (parte antes do @)
+                  const userEmail = entry[6] || "";
+                  const userName = userEmail.includes("@")
+                    ? userEmail.split("@")[0]
+                    : userEmail;
+
+                  // Formata a unidade se for troca (substitui -> por seta bonita)
+                  const unidadeFormatted = entry[2]?.includes("->")
+                    ? entry[2].replace(/\s*->\s*/g, " → ")
+                    : entry[2];
+
+                  return (
+                    <tr key={index}>
+                      <td>{entry[1]}</td>
+                      <td>{unidadeFormatted}</td>
+                      <td>
+                        <span
+                          className={`action-pill action-${entry[3]
+                            ?.toLowerCase()
+                            .replace(/\s+/g, "-")
+                            .replace(/[()]/g, "")}`}
+                        >
+                          {entry[3]}
+                        </span>
+                      </td>
+                      <td>{entry[4]}</td>
+                      <td>{entry[5]}</td>
+                      <td>{userName}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="empty-history">
+            Nenhum registro de histórico encontrado com os filtros aplicados.
+          </p>
+        )}
       </div>
     </div>
   );
