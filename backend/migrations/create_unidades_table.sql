@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS public.unidades (
   row_index INTEGER NOT NULL,
   
   -- Colunas A-F: Dados básicos da unidade
-  torre TEXT,                    -- Coluna A: Torre/Bloco
-  andar TEXT,                    -- Coluna B: Andar
+  etapa TEXT,                    -- Coluna A: Etapa (antiga: torre)
+  bloco TEXT,                    -- Coluna B: Bloco (antiga: andar)
   nome_unidade TEXT NOT NULL,    -- Coluna C: Nome da Unidade
   tipo TEXT,                     -- Coluna D: Tipo/Tipologia
   area TEXT,                     -- Coluna E: Área
@@ -52,8 +52,6 @@ CREATE TABLE IF NOT EXISTS public.unidades (
   -- simbolo TEXT,               -- Coluna S
   
   -- Colunas antigas mantidas para compatibilidade (podem ser removidas após migração completa)
-  etapa TEXT,                    -- Antiga estrutura
-  bloco TEXT,                    -- Antiga estrutura
   area_privativa TEXT,           -- Antiga estrutura (usar 'area' no lugar)
   tipologia TEXT,                -- Antiga estrutura (usar 'tipo' no lugar)
   

@@ -56,8 +56,8 @@ function normalizeStatus(status) {
 function supabaseUnitToArray(unitData) {
   if (!unitData) return null;
   return [
-    unitData.torre || "", // A
-    unitData.andar || "", // B
+    unitData.etapa || "", // A
+    unitData.bloco || "", // B
     unitData.nome_unidade || "", // C
     unitData.tipo || "", // D
     unitData.area || "", // E
@@ -1473,8 +1473,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             documento: data[2] || null, // I: Documento (índice 2 do array data)
             corretor: data[3] || null, // J: Corretor (índice 3 do array data)
             imobiliaria: data[4] || null, // K: Imobiliária (índice 4 do array data)
-            // Force reserva when this endpoint is used for a reservation flow
-            situacao: "Reservada", // L: Situação
+            situacao: "Reservada", // L: Situação - CRÍTICO para SSE
             implantacao_id,
             nome_unidade:
               unitName || (existingUnit && existingUnit.nome_unidade) || null,
@@ -1997,7 +1996,8 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                 cliente: null,
                 documento: null,
                 corretor: null,
-                situacao: "Disponível",
+                imobiliaria: null,
+                situacao: "Disponível", // CRÍTICO para SSE
               })
               .eq("id", existingUnit.id);
           } else {
@@ -2277,6 +2277,59 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       oldUnitData[3], // Nome do corretor
       userEmail
     );
+
+    // 4.5. Persistir a troca no Supabase (limpar unidade antiga e transferir para nova)
+    if (supabase) {
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
+
+        if (implData?.id) {
+          const implantacao_id = implData.id;
+
+          // Limpa a unidade antiga (torna Disponível)
+          await supabase
+            .from("unidades")
+            .update({
+              id_pre_cadastro: null,
+              cliente: null,
+              documento: null,
+              corretor: null,
+              imobiliaria: null,
+              situacao: "Disponível",
+            })
+            .eq("implantacao_id", implantacao_id)
+            .eq("row_index", oldRow);
+
+          // Transfere dados para a nova unidade (torna Reservada)
+          await supabase
+            .from("unidades")
+            .update({
+              id_pre_cadastro: dataToTransfer[0] || null,
+              cliente: dataToTransfer[1] || null,
+              documento: dataToTransfer[2] || null,
+              corretor: dataToTransfer[3] || null,
+              imobiliaria: dataToTransfer[4] || null,
+              situacao: "Reservada",
+            })
+            .eq("implantacao_id", implantacao_id)
+            .eq("row_index", newRow);
+
+          console.log(
+            `[SUPABASE] Troca de unidade persistida: ${oldUnitName} (linha ${oldRow}) -> ${newUnitName} (linha ${newRow})`
+          );
+        }
+      } catch (e) {
+        console.error(
+          "[SUPABASE] Erro ao persistir troca de unidade:",
+          e.message || e
+        );
+      }
+    }
 
     // 5. MIGRAÇÃO SSE → SUPABASE: Buscar dados do Supabase se disponível, senão usar Sheets
     let oldUnitDataArray, newUnitDataArray;
@@ -3905,8 +3958,8 @@ app.post(
               return {
                 implantacao_id,
                 row_index: rowIndex,
-                torre: row[0] || null, // A - etapa/torre
-                andar: row[1] || null, // B - bloco/andar
+                etapa: row[0] || null, // A - etapa
+                bloco: row[1] || null, // B - bloco
                 nome_unidade: row[2] || `Unidade ${rowIndex}`, // C - nome_unidade
                 area: row[3] || null, // D - area_privativa
                 tipo: row[4] || null, // E - tipologia
@@ -3920,8 +3973,6 @@ app.post(
                 coord_x: row[12] || null, // M
                 coord_y: row[13] || null, // N
                 // Colunas antigas para compatibilidade
-                etapa: row[0] || null,
-                bloco: row[1] || null,
                 area_privativa: row[3] || null,
                 tipologia: row[4] || null,
               };
@@ -4066,8 +4117,8 @@ app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
       return {
         implantacao_id,
         row_index: rowIndex,
-        torre: row[0] || null, // A
-        andar: row[1] || null, // B
+        etapa: row[0] || null, // A
+        bloco: row[1] || null, // B
         nome_unidade: row[2] || `Unidade ${rowIndex}`, // C
         area: row[3] || null, // D
         tipo: row[4] || null, // E
@@ -4081,8 +4132,6 @@ app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
         coord_x: row[12] || null, // M
         coord_y: row[13] || null, // N
         // Colunas antigas para compatibilidade
-        etapa: row[0] || null,
-        bloco: row[1] || null,
         area_privativa: row[3] || null,
         tipologia: row[4] || null,
       };
