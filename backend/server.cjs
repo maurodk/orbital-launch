@@ -4036,7 +4036,7 @@ app.post(
               .replace(/[^0-9]/g, ""), // Remove formatação
             corretor: String(cols[3] || "").trim(),
             imobiliaria: String(cols[4] || "").trim(),
-            status: "ativo",
+            status: "ATIVO",
           };
 
           // Adiciona implantacao_id se foi fornecido
