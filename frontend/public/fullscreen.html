@@ -446,6 +446,54 @@
           reloadAndRender(hideAvailable);
         }, 30000); // 30 segundos
 
+        // Polling global contínuo mais lento (verifica todas as unidades a cada 5 segundos)
+        // Isso garante que mudanças que não geraram SSE sejam capturadas
+        let globalPollingInterval = setInterval(async () => {
+          try {
+            const hideAvailable = hideDisponivelToggle?.checked
+              ? "true"
+              : "false";
+            const data = await fetchData(hideAvailable);
+
+            // Verifica apenas unidades mapeadas
+            const rows =
+              data.unidades.length > 0 &&
+              data.unidades[0][0]?.toString().toLowerCase().includes("etapa")
+                ? data.unidades.slice(1)
+                : data.unidades;
+
+            rows.forEach((u, index) => {
+              const rowIndex = index + 2;
+              const coordX = u[12];
+              const coordY = u[13];
+              const status = (u[11] || "Disponível").toString();
+
+              if (!coordX || !coordY) return;
+
+              const unitIndex = index;
+              const unitId = `unit-indicator-${unitIndex}`;
+              const indicator = document.getElementById(unitId);
+
+              // Se o status mudou, atualiza
+              if (indicator) {
+                const currentStatus = indicator.className.replace(
+                  "unit-indicator status-",
+                  ""
+                );
+                if (currentStatus !== status) {
+                  console.log(
+                    `[GLOBAL-POLL] Status mudou na linha ${rowIndex}: ${currentStatus} → ${status}`
+                  );
+                  // Atualiza imediatamente
+                  indicator.className = `unit-indicator status-${status}`;
+                }
+              }
+            });
+          } catch (e) {
+            console.error("[GLOBAL-POLL] Erro:", e);
+          }
+        }, 5000); // A cada 5 segundos
+
         async function fetchData(hideAvailable = "false") {
           try {
             const url = `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
@@ -538,6 +586,98 @@
         }
 
         let es;
+        let pollingIntervals = new Map(); // Armazena intervalos de polling por unidade
+
+        // Polling agressivo para uma unidade específica
+        function startUnitPolling(rowIndex, duration = 10000) {
+          // Remove polling anterior se existir
+          if (pollingIntervals.has(rowIndex)) {
+            clearInterval(pollingIntervals.get(rowIndex));
+          }
+
+          console.log(
+            `[POLLING] Iniciando polling agressivo para linha ${rowIndex} por ${duration}ms`
+          );
+
+          // Polling a cada 500ms (muito rápido)
+          const intervalId = setInterval(async () => {
+            try {
+              const res = await fetch(
+                `${API_URL}/api/fast-poll-unit?implantacao=${encodeURIComponent(
+                  implantacao
+                )}&rowIndex=${rowIndex}`
+              );
+
+              if (!res.ok) return;
+
+              const data = await res.json();
+              console.log(
+                `[POLLING] Resposta da linha ${rowIndex} (fonte: ${data.source}):`,
+                data.status
+              );
+
+              // Atualiza a unidade com os dados mais recentes
+              updateSingleUnitFromPoll(data, rowIndex);
+            } catch (e) {
+              console.error(
+                `[POLLING] Erro ao verificar linha ${rowIndex}:`,
+                e
+              );
+            }
+          }, 500);
+
+          pollingIntervals.set(rowIndex, intervalId);
+
+          // Para o polling após a duração especificada
+          setTimeout(() => {
+            clearInterval(intervalId);
+            pollingIntervals.delete(rowIndex);
+            console.log(`[POLLING] Polling finalizado para linha ${rowIndex}`);
+          }, duration);
+        }
+
+        // Atualiza unidade com dados do polling
+        function updateSingleUnitFromPoll(pollData, rowIndex) {
+          const container = document.querySelector(".floor-plan-container");
+          if (!container) return;
+
+          const unitIndex = rowIndex - 2;
+          const unitId = `unit-indicator-${unitIndex}`;
+          let indicator = document.getElementById(unitId);
+
+          const coordX = pollData.coordX;
+          const coordY = pollData.coordY;
+          const status = pollData.status || "Disponível";
+
+          if (!coordX || !coordY) {
+            if (indicator) {
+              indicator.remove();
+            }
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            indicator.className = "unit-indicator";
+            container.appendChild(indicator);
+          }
+
+          // Atualiza status
+          indicator.className = `unit-indicator status-${status}`;
+          indicator.style.left = `${coordX}%`;
+          indicator.style.top = `${coordY}%`;
+          indicator.title = `Unidade: ${pollData.unitName}\nStatus: ${status}\nFonte: ${pollData.source}`;
+
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+
+          console.log(
+            `[POLLING] Unidade ${pollData.unitName} atualizada para status: ${status} (fonte: ${pollData.source})`
+          );
+        }
+
         function connectSse() {
           if (es) es.close();
 
@@ -563,7 +703,13 @@
                 unitData,
                 rowIndex,
               });
+
+              // Atualiza via SSE
               updateSingleUnit(unitData, rowIndex);
+
+              // DISPARA polling agressivo para garantir sincronização em tempo real
+              // Verifica por 10 segundos a cada 500ms
+              startUnitPolling(rowIndex, 10000);
             } catch (e) {
               console.error("Erro ao processar evento SSE:", e);
             }
@@ -870,6 +1016,14 @@
 
         dotSizeSlider.addEventListener("change", (event) => {
           saveDotSize(event.target.value);
+        });
+
+        // Limpa todos os intervalos quando a página for fechada
+        window.addEventListener("beforeunload", () => {
+          if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+          if (globalPollingInterval) clearInterval(globalPollingInterval);
+          pollingIntervals.forEach((intervalId) => clearInterval(intervalId));
+          if (es) es.close();
         });
       })();
     </script>

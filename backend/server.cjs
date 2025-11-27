@@ -1109,6 +1109,131 @@ app.get("/api/public-data", async (req, res) => {
   }
 });
 
+// NOVO: Endpoint de polling rápido para verificação dupla (Sheets + Supabase)
+// Retorna o status da unidade do banco que responder PRIMEIRO
+app.get("/api/fast-poll-unit", async (req, res) => {
+  const { implantacao, rowIndex } = req.query;
+
+  if (!implantacao || !rowIndex) {
+    return res
+      .status(400)
+      .json({ error: "Implantação e rowIndex são obrigatórios." });
+  }
+
+  try {
+    // Cria duas promises que competem entre si
+    const supabasePromise = (async () => {
+      if (!supabase) return null;
+
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", implantacao)
+          .limit(1)
+          .single();
+
+        if (!implData?.id) return null;
+
+        const { data: unitData } = await supabase
+          .from("unidades")
+          .select("situacao, nome_unidade, coord_x, coord_y")
+          .eq("implantacao_id", implData.id)
+          .eq("row_index", parseInt(rowIndex, 10))
+          .limit(1)
+          .single();
+
+        if (!unitData) return null;
+
+        return {
+          source: "supabase",
+          status: unitData.situacao || "Disponível",
+          unitName: unitData.nome_unidade,
+          coordX: unitData.coord_x,
+          coordY: unitData.coord_y,
+          timestamp: Date.now(),
+        };
+      } catch (e) {
+        console.error("[FAST-POLL] Erro Supabase:", e.message);
+        return null;
+      }
+    })();
+
+    const sheetsPromise = (async () => {
+      try {
+        const sheets = await getSheetsClient();
+        const resolved = await resolveSheetName(
+          sheets,
+          SPREADSHEET_ID_IMPLANTACAO,
+          implantacao
+        );
+
+        if (!resolved?.found) return null;
+
+        const sheetTitle = resolved.found;
+        const range = `'${sheetTitle}'!C${rowIndex}:N${rowIndex}`;
+
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range,
+        });
+
+        const row = response.data.values?.[0];
+        if (!row) return null;
+
+        return {
+          source: "sheets",
+          status: row[9] || "Disponível", // Coluna L (índice 9 no range C:N)
+          unitName: row[0] || "", // Coluna C
+          coordX: row[10] || "", // Coluna M
+          coordY: row[11] || "", // Coluna N
+          timestamp: Date.now(),
+        };
+      } catch (e) {
+        console.error("[FAST-POLL] Erro Sheets:", e.message);
+        return null;
+      }
+    })();
+
+    // Promise.race retorna o primeiro que resolver (mais rápido)
+    const fastestResult = await Promise.race([supabasePromise, sheetsPromise]);
+
+    // Aguarda ambos para comparação (mas não bloqueia resposta)
+    Promise.allSettled([supabasePromise, sheetsPromise]).then((results) => {
+      const [supabaseResult, sheetsResult] = results;
+
+      if (
+        supabaseResult.status === "fulfilled" &&
+        sheetsResult.status === "fulfilled"
+      ) {
+        const supabaseData = supabaseResult.value;
+        const sheetsData = sheetsResult.value;
+
+        if (supabaseData && sheetsData) {
+          const statusMatch = supabaseData.status === sheetsData.status;
+          if (!statusMatch) {
+            console.warn(
+              `[FAST-POLL] DIVERGÊNCIA detectada na linha ${rowIndex}:`,
+              `Supabase="${supabaseData.status}" vs Sheets="${sheetsData.status}"`
+            );
+          }
+        }
+      }
+    });
+
+    if (!fastestResult) {
+      return res
+        .status(404)
+        .json({ error: "Unidade não encontrada em nenhum banco." });
+    }
+
+    res.json(fastestResult);
+  } catch (error) {
+    console.error("[FAST-POLL] Erro:", error);
+    res.status(500).json({ error: "Falha no polling rápido." });
+  }
+});
+
 app.get("/api/implantacoes", verifyToken, async (req, res) => {
   try {
     console.log("[/api/implantacoes] Iniciando busca de implantações...");
