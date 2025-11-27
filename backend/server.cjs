@@ -204,7 +204,7 @@ async function broadcastEvent(implantacao, event, data) {
   if (data.rowIndex && !data.unitData) {
     try {
       const sheets = await getSheetsClient();
-      const range = `'${implantacao}'!A${data.rowIndex}:R${data.rowIndex}`;
+      const range = `'${implantacao}'!A${data.rowIndex}:S${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
@@ -949,7 +949,7 @@ app.get("/api/data", verifyToken, async (req, res) => {
     // Busca unidades da planilha (Google Sheets)
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:R`,
+      range: `'${sheetTitle}'!A:S`,
     });
 
     // Busca clientes do Supabase
@@ -1031,14 +1031,14 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:R`,
+      range: `'${sheetTitle}'!A:S`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
 
     if (hideAvailable === "true") {
       unidades = unidades.filter(
-        (u) => u[10] && normalizeStatus(u[10]) !== "disponivel"
+        (u) => u[11] && normalizeStatus(u[11]) !== "disponivel"
       );
     }
 
@@ -2271,8 +2271,8 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     // 5. Notificar clientes SSE sobre as duas unidades
     // CORREÇÃO: Ler os dados completos após a troca para enviar coordenadas corretas
     const rangesToReadAfter = [
-      `'${sheetTitle}'!A${oldRow}:R${oldRow}`, // Unidade antiga completa (A a R)
-      `'${sheetTitle}'!A${newRow}:R${newRow}`, // Unidade nova completa (A a R)
+      `'${sheetTitle}'!A${oldRow}:S${oldRow}`, // Unidade antiga completa (A a S)
+      `'${sheetTitle}'!A${newRow}:S${newRow}`, // Unidade nova completa (A a S)
     ];
     const batchGetAfter = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2321,19 +2321,19 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Atualiza coordenadas (L e M) e letra (R)
+    // Atualiza coordenadas (M e N) e letra (S)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
+      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[coordX, coordY]] },
     });
 
-    // Atualiza a letra na coluna R se fornecida
+    // Atualiza a letra na coluna S se fornecida
     if (letra !== undefined) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!R${rowIndex}`,
+        range: `'${sheetTitle}'!S${rowIndex}`,
         valueInputOption: "USER_ENTERED",
         resource: { values: [[letra || ""]] },
       });
@@ -2420,18 +2420,18 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Limpa coordenadas (L e M) e letra (R)
+    // Limpa coordenadas (M e N) e letra (S)
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       resource: {
         valueInputOption: "USER_ENTERED",
         data: [
           {
-            range: `'${sheetTitle}'!L${rowIndex}:M${rowIndex}`,
+            range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
             values: [["", ""]],
           },
           {
-            range: `'${sheetTitle}'!R${rowIndex}`,
+            range: `'${sheetTitle}'!S${rowIndex}`,
             values: [[""]],
           },
         ],
@@ -2678,30 +2678,30 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     if (error) return res.status(404).json({ error: error, ...details });
 
     // CORREÇÃO: Lê os dados atuais ANTES para garantir que F-J não serão apagadas
-    const verifyBeforeRange = `'${sheetTitle}'!F${rowIndex}:Q${rowIndex}`;
+    const verifyBeforeRange = `'${sheetTitle}'!F${rowIndex}:R${rowIndex}`;
     const beforeData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: verifyBeforeRange,
     });
     const beforeRow = beforeData.data.values?.[0] || [];
 
-    console.log(`[UPDATE-PIX-DATA] ANTES - Células F-Q linha ${rowIndex}:`, {
+    console.log(`[UPDATE-PIX-DATA] ANTES - Células F-R linha ${rowIndex}:`, {
       F: beforeRow[0],
       G: beforeRow[1],
       H: beforeRow[2],
       I: beforeRow[3],
       J: beforeRow[4],
       K: beforeRow[5],
-      N: beforeRow[8],
-      O: beforeRow[9],
-      P: beforeRow[10],
-      Q: beforeRow[11],
+      O: beforeRow[8],
+      P: beforeRow[9],
+      Q: beforeRow[10],
+      R: beforeRow[11],
     });
 
-    // Atualiza APENAS as colunas N, O, P, Q (PIX) sem tocar em F-K
+    // Atualiza APENAS as colunas O, P, Q, R (PIX) sem tocar em F-K
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!N${rowIndex}:Q${rowIndex}`,
+      range: `'${sheetTitle}'!O${rowIndex}:R${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: {
         values: [
@@ -2722,17 +2722,17 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     });
     const afterRow = afterData.data.values?.[0] || [];
 
-    console.log(`[UPDATE-PIX-DATA] DEPOIS - Células F-Q linha ${rowIndex}:`, {
+    console.log(`[UPDATE-PIX-DATA] DEPOIS - Células F-R linha ${rowIndex}:`, {
       F: afterRow[0],
       G: afterRow[1],
       H: afterRow[2],
       I: afterRow[3],
       J: afterRow[4],
       K: afterRow[5],
-      N: afterRow[8],
-      O: afterRow[9],
-      P: afterRow[10],
-      Q: afterRow[11],
+      O: afterRow[8],
+      P: afterRow[9],
+      Q: afterRow[10],
+      R: afterRow[11],
     });
 
     // Alerta se alguma célula foi apagada
@@ -2747,8 +2747,8 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       );
     }
 
-    // CRÍTICO: Busca a linha COMPLETA (A-R) para enviar via SSE
-    const fullRowRange = `'${sheetTitle}'!A${rowIndex}:R${rowIndex}`;
+    // CRÍTICO: Busca a linha COMPLETA (A-S) para enviar via SSE
+    const fullRowRange = `'${sheetTitle}'!A${rowIndex}:S${rowIndex}`;
     const fullRowData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: fullRowRange,
@@ -2760,6 +2760,7 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       F: fullRow[5],
       G: fullRow[6],
       K: fullRow[10],
+      L: fullRow[11],
       N: fullRow[13],
       Q: fullRow[16],
     });
