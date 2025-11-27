@@ -59,8 +59,8 @@ function supabaseUnitToArray(unitData) {
     unitData.etapa || "", // A
     unitData.bloco || "", // B
     unitData.nome_unidade || "", // C
-    unitData.tipo || "", // D
-    unitData.area || "", // E
+    unitData.area || "", // D - area_privativa
+    unitData.tipo || "", // E - tipologia
     unitData.valor || "", // F
     unitData.id_pre_cadastro || "", // G
     unitData.cliente || "", // H
@@ -4100,12 +4100,35 @@ app.post(
         unidadesToInsert.length
       );
 
-      // 1. Append no Google Sheets (fonte primária)
-      const appendResult = await sheets.spreadsheets.values.append({
+      // 1. LIMPA dados existentes (mantém apenas o cabeçalho)
+      console.log("🗑️ [IMPORT UNIDADES] Limpando dados existentes...");
+
+      // Busca quantas linhas existem
+      const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${implantacao}'!A:S`,
+      });
+
+      const existingRowCount = existingData.data.values?.length || 0;
+
+      if (existingRowCount > 1) {
+        // Limpa da linha 2 em diante (preserva cabeçalho)
+        await sheets.spreadsheets.values.clear({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: `'${implantacao}'!A2:S${existingRowCount}`,
+        });
+        console.log(
+          `✅ [IMPORT UNIDADES] ${
+            existingRowCount - 1
+          } linhas antigas removidas`
+        );
+      }
+
+      // 2. Insere novos dados no Google Sheets (fonte primária)
+      const appendResult = await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${implantacao}'!A2:S${unidadesToInsert.length + 1}`,
         valueInputOption: "USER_ENTERED",
-        insertDataOption: "INSERT_ROWS",
         resource: {
           values: unidadesToInsert,
         },
@@ -4113,7 +4136,7 @@ app.post(
 
       console.log("✅ [IMPORT UNIDADES] Importação no Sheets concluída");
 
-      // 2. NOVO: Sincronizar com Supabase
+      // 3. NOVO: Sincronizar com Supabase (limpa e reinsere)
       if (supabase) {
         try {
           console.log(
@@ -4135,10 +4158,28 @@ app.post(
           } else {
             const implantacao_id = implData.id;
 
-            // Busca o número da linha inicial (onde foram inseridas as unidades)
-            const updatedRange = appendResult.data.updates.updatedRange;
-            const startRowMatch = updatedRange.match(/!A(\d+)/);
-            const startRow = startRowMatch ? parseInt(startRowMatch[1], 10) : 2;
+            // LIMPA unidades existentes desta implantação no Supabase
+            console.log(
+              "🗑️ [IMPORT UNIDADES] Limpando unidades existentes no Supabase..."
+            );
+            const { error: deleteError } = await supabase
+              .from("unidades")
+              .delete()
+              .eq("implantacao_id", implantacao_id);
+
+            if (deleteError) {
+              console.error(
+                "❌ [IMPORT UNIDADES] Erro ao limpar Supabase:",
+                deleteError.message
+              );
+            } else {
+              console.log(
+                "✅ [IMPORT UNIDADES] Unidades antigas removidas do Supabase"
+              );
+            }
+
+            // Busca o número da linha inicial (sempre será 2 após limpeza)
+            const startRow = 2;
 
             console.log(
               `📍 [IMPORT UNIDADES] Inserindo ${unidadesToInsert.length} unidades no Supabase a partir da linha ${startRow}`
@@ -4199,6 +4240,12 @@ app.post(
       }
 
       console.log("✅ [IMPORT UNIDADES] Processo completo");
+
+      // Broadcast para notificar que as unidades foram atualizadas
+      await broadcastEvent(implantacao, "unitsImported", {
+        imported: unidadesToInsert.length,
+        message: "Unidades importadas com sucesso",
+      });
 
       res.json({
         success: true,
@@ -4648,6 +4695,30 @@ app.post(
       console.log(
         `✅ [IMPORT CLIENTES] Importação concluída. Total: ${totalInserted} clientes`
       );
+
+      // Broadcast para notificar que os clientes foram importados
+      // Se há implantacao_id, usa o nome da implantação; senão, broadcast genérico
+      if (implantacao_id) {
+        try {
+          const { data: implData } = await supabase
+            .from("implantacoes")
+            .select("nome")
+            .eq("id", parseInt(implantacao_id, 10))
+            .single();
+
+          if (implData?.nome) {
+            await broadcastEvent(implData.nome, "clientsImported", {
+              total: totalInserted,
+              message: "Clientes importados com sucesso",
+            });
+          }
+        } catch (e) {
+          console.warn(
+            "[IMPORT CLIENTES] Falha ao enviar broadcast:",
+            e.message
+          );
+        }
+      }
 
       res.json({
         success: true,

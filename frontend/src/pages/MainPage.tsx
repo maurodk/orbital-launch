@@ -585,12 +585,63 @@ export function MainPage() {
       fetchHistory(selectedImplantationName);
     };
 
+    // NOVO: Handler para importação de unidades
+    const handleUnitsImported = async () => {
+      console.log("SSE Recebido: unitsImported. Recarregando unidades...");
+      await fetchUnitData(selectedImplantationName);
+
+      // Atualiza o contador de unidades
+      try {
+        const token = localStorage.getItem("token");
+        const countResponse = await axios.get(
+          `${apiUrl}/api/implantacoes/${encodeURIComponent(
+            selectedImplantationName
+          )}/unidades/count`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        setUnidadesCount(countResponse.data.count || 0);
+        setUnidadesConfigured(countResponse.data.configured || false);
+      } catch (err) {
+        console.log("Erro ao buscar contagem de unidades:", err);
+      }
+    };
+
+    // NOVO: Handler para importação de clientes
+    const handleClientsImported = async () => {
+      console.log("SSE Recebido: clientsImported. Recarregando clientes...");
+
+      // Atualiza o contador de clientes
+      if (currentImplantation?.id) {
+        try {
+          const { count: clientesCount, error: clientesError } = await supabase
+            .from("clientes")
+            .select("*", { count: "exact", head: true })
+            .eq("implantacao_id", currentImplantation.id);
+
+          if (clientesError) throw clientesError;
+
+          setClientesCount(clientesCount || 0);
+          setClientesConfigured((clientesCount || 0) > 0);
+        } catch (error) {
+          console.error("Erro ao verificar clientes importados:", error);
+        }
+      }
+    };
+
     eventSource.addEventListener("unitUpdated", handleUnitUpdate);
     eventSource.addEventListener("historyUpdated", handleHistoryUpdate);
+    eventSource.addEventListener("unitsImported", handleUnitsImported);
+    eventSource.addEventListener("clientsImported", handleClientsImported);
 
     return () => {
       eventSource.removeEventListener("unitUpdated", handleUnitUpdate);
       eventSource.removeEventListener("historyUpdated", handleHistoryUpdate);
+      eventSource.removeEventListener("unitsImported", handleUnitsImported);
+      eventSource.removeEventListener("clientsImported", handleClientsImported);
       eventSource.close();
     };
   }, [selectedImplantationName, currentImplantation]);
