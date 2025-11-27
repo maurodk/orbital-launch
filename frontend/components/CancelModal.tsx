@@ -28,7 +28,7 @@ export function CancelModal({
         <h2>
           Cancelar Reserva da Unidade: <strong>{unitName}</strong>
         </h2>
-        <p>Esta unidade está reservada para o cliente:</p>
+        <p>Esta unidade está Reservada para o cliente:</p>
         <p className="client-name-display">{clientName}</p>
         <p>Tem certeza de que deseja cancelar esta reserva?</p>
 

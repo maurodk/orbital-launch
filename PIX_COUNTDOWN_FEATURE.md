@@ -25,7 +25,7 @@ await sheets.spreadsheets.values.batchUpdate({
 });
 ```
 
-**Resultado:** Coordenadas X e Y (colunas L e M) são preservadas durante o cancelamento automático.
+**Resultado:** Coordenadas X e Y (colunas L e M) são pReservadas durante o cancelamento automático.
 
 ---
 
@@ -88,7 +88,7 @@ const hasPendingPix = paymentStatus === "PENDENTE" && pixTimestamp;
 
    ```
    ┌─────────────┐
-   │  RESERVADA  │
+   │  Reservada  │
    ├─────────────┤
    │ ⏱️ 59:30   │ ← Aparece automaticamente
    └─────────────┘
@@ -98,7 +98,7 @@ const hasPendingPix = paymentStatus === "PENDENTE" && pixTimestamp;
 
    ```
    ┌─────────────┐
-   │  RESERVADA  │
+   │  Reservada  │
    ├─────────────┤
    │ ⏱️ 45:23   │ ← Verde, sem animação
    └─────────────┘
@@ -108,7 +108,7 @@ const hasPendingPix = paymentStatus === "PENDENTE" && pixTimestamp;
 
    ```
    ┌─────────────┐
-   │  RESERVADA  │
+   │  Reservada  │
    ├─────────────┤
    │ ⏱️ 15:45   │ ← Amarelo, pulsação suave
    └─────────────┘
@@ -118,7 +118,7 @@ const hasPendingPix = paymentStatus === "PENDENTE" && pixTimestamp;
 
    ```
    ┌─────────────┐
-   │  RESERVADA  │
+   │  Reservada  │
    ├─────────────┤
    │ ⏱️ 05:12   │ ← Vermelho, pulsação forte
    └─────────────┘
@@ -128,7 +128,7 @@ const hasPendingPix = paymentStatus === "PENDENTE" && pixTimestamp;
 
    ```
    ┌─────────────┐
-   │  RESERVADA  │
+   │  Reservada  │
    ├─────────────┤
    │ ⏰ Expirado │ ← Cinza, sem animação
    └─────────────┘
@@ -137,7 +137,7 @@ const hasPendingPix = paymentStatus === "PENDENTE" && pixTimestamp;
 6. **Após Cancelamento Automático**
    ```
    ┌─────────────┐
-   │ DISPONÍVEL  │ ← Contador removido
+   │ Disponível  │ ← Contador removido
    └─────────────┘
    ```
 
@@ -202,7 +202,7 @@ useEffect(() => {
 
 ---
 
-## 📊 Estrutura de Dados Preservada
+## 📊 Estrutura de Dados PReservada
 
 ### Colunas da Planilha (Cancelamento Automático)
 
@@ -213,9 +213,9 @@ useEffect(() => {
 | H      | Documento         | ❌ Limpa          | Nova reserva        |
 | I      | Corretor          | ❌ Limpa          | Nova reserva        |
 | J      | Imobiliária       | ❌ Limpa          | Nova reserva        |
-| K      | Status            | ✅ → DISPONÍVEL   | Libera unidade      |
-| **L**  | **Coordenada X**  | ✅ **PRESERVADA** | **Posição no mapa** |
-| **M**  | **Coordenada Y**  | ✅ **PRESERVADA** | **Posição no mapa** |
+| K      | Status            | ✅ → Disponível   | Libera unidade      |
+| **L**  | **Coordenada X**  | ✅ **PReservada** | **Posição no mapa** |
+| **M**  | **Coordenada Y**  | ✅ **PReservada** | **Posição no mapa** |
 | N      | Identificador PIX | ❌ Limpa          | Novo PIX            |
 | O      | Payload EMV       | ❌ Limpa          | Novo PIX            |
 | P      | Valor             | ❌ Limpa          | Novo PIX            |
@@ -313,7 +313,7 @@ pm2 logs server --lines 50
 
    - [ ] Job detecta PIX expirado após 60 minutos
    - [ ] Dados limpos (exceto L e M)
-   - [ ] Status volta para DISPONÍVEL
+   - [ ] Status volta para Disponível
    - [ ] Contador desaparece
    - [ ] Registro no histórico criado
 

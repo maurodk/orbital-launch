@@ -96,10 +96,10 @@ export function ChangeUnitModal({
             options={unitOptions}
             value={selectedUnit}
             onChange={handleSelectChange}
-            placeholder="Buscar unidade disponível..."
+            placeholder="Buscar unidade Disponível..."
             styles={customSelectStyles}
             isClearable
-            noOptionsMessage={() => "Nenhuma unidade disponível encontrada."}
+            noOptionsMessage={() => "Nenhuma unidade Disponível encontrada."}
           />
         </div>
 

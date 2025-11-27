@@ -62,12 +62,12 @@
         cursor: help;
         z-index: 11; /* Garante que os pontos fiquem acima da imagem */
       }
-      .status-DISPONÍVEL {
+      .status-Disponível {
         background: #6ad700;
       }
-      .status-RESERVADA,
+      .status-Reservada,
       .status-VENDIDO,
-      .status-BLOQUEADA {
+      .status-Bloqueada {
         background: #d9534f;
       }
       .status-other {
@@ -338,9 +338,9 @@
               const { idunidade, unidade, situacao, coord_x, coord_y } = unit;
               if (!coord_x || !coord_y) return;
 
-              const status = (situacao || "DISPONÍVEL").toUpperCase();
+              const status = (situacao || "Disponível").toUpperCase();
               const disponibilidade =
-                status === "DISPONIVEL" ? "DISPONÍVEL" : status;
+                status === "DISPONIVEL" ? "Disponível" : status;
 
               const indicator = document.createElement("div");
               indicator.id = `unit-indicator-${idunidade}`;
@@ -392,9 +392,9 @@
               `unit-indicator-${idunidade}`
             );
             if (indicator) {
-              const status = (situacao || "DISPONÍVEL").toUpperCase();
+              const status = (situacao || "Disponível").toUpperCase();
               const disponibilidade =
-                status === "DISPONIVEL" ? "DISPONÍVEL" : status;
+                status === "DISPONIVEL" ? "Disponível" : status;
 
               // Remove classes de status antigas e adiciona a nova
               indicator.className = "unit-indicator"; // Reseta
@@ -577,9 +577,9 @@
           const unitId = `unit-indicator-${idunidade}`;
           let indicator = document.getElementById(unitId);
 
-          const status = (situacao || "DISPONÍVEL").toUpperCase();
+          const status = (situacao || "Disponível").toUpperCase();
           const disponibilidade =
-            status === "DISPONIVEL" ? "DISPONÍVEL" : status;
+            status === "DISPONIVEL" ? "Disponível" : status;
 
           if (!coord_x || !coord_y) {
             if (indicator) indicator.remove();

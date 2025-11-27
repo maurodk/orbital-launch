@@ -35,7 +35,7 @@ Quando um PIX expira, o sistema:
 1. **Limpa os dados da unidade**:
 
    - Colunas F a R são resetadas
-   - Status volta para `DISPONÍVEL` (Coluna K)
+   - Status volta para `Disponível` (Coluna K)
 
 2. **Registra no histórico**:
 
@@ -74,7 +74,7 @@ A coluna de status agora exibe dois elementos quando há PIX pendente:
 
 ```
 ┌─────────────┐
-│  RESERVADA  │ ← Status pill
+│  Reservada  │ ← Status pill
 ├─────────────┤
 │ ⏱️ 45:23   │ ← Contador PIX
 └─────────────┘
@@ -91,9 +91,9 @@ A coluna de status agora exibe dois elementos quando há PIX pendente:
 | H      | Documento         | ❌ Limpa                 |
 | I      | Corretor          | ❌ Limpa                 |
 | J      | Imobiliária       | ❌ Limpa                 |
-| K      | Status            | ✅ Muda para DISPONÍVEL  |
-| L      | **Coordenada X**  | ✅ **PRESERVADA**        |
-| M      | **Coordenada Y**  | ✅ **PRESERVADA**        |
+| K      | Status            | ✅ Muda para Disponível  |
+| L      | **Coordenada X**  | ✅ **PReservada**        |
+| M      | **Coordenada Y**  | ✅ **PReservada**        |
 | N      | Identificador PIX | ❌ Limpa                 |
 | O      | Payload EMV       | ❌ Limpa                 |
 | P      | Valor             | ❌ Limpa                 |
@@ -110,7 +110,7 @@ await sheets.spreadsheets.values.batchUpdate({
     data: [
       {
         range: `'${implantacao}'!F${rowIndex}:K${rowIndex}`, // ID até Status
-        values: [["", "", "", "", "", "DISPONÍVEL"]],
+        values: [["", "", "", "", "", "Disponível"]],
       },
       {
         range: `'${implantacao}'!N${rowIndex}:R${rowIndex}`, // PIX data
@@ -180,7 +180,7 @@ Componente React que exibe o contador visual em tempo real:
 
 O contador é exibido automaticamente quando:
 
-- Status da unidade = "RESERVADA"
+- Status da unidade = "Reservada"
 - Status pagamento (coluna Q) = "PENDENTE"
 - Timestamp PIX (coluna R) existe e é válido
 
@@ -222,7 +222,7 @@ O contador é exibido automaticamente quando:
     ↓
     Job detecta expiração
     ↓
-    Status: DISPONÍVEL
+    Status: Disponível
     Dados limpos
     ✗ Reserva cancelada
     Registro no histórico

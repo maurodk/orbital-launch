@@ -11,7 +11,7 @@
     <style>
       :root {
         --color-disponivel: #6ad700;
-        --color-reservada: #d9534f;
+        --color-Reservada: #d9534f;
       }
 
       body {
@@ -94,20 +94,20 @@
         pointer-events: none;
       }
 
-      .status-RESERVADA {
-        background: var(--color-reservada);
+      .status-Reservada {
+        background: var(--color-Reservada);
       }
-      .status-DISPONÍVEL {
+      .status-Disponível {
         background: var(--color-disponivel);
       }
-      .status-BLOQUEADA {
-        background: var(--color-reservada);
+      .status-Bloqueada {
+        background: var(--color-Reservada);
       }
       .status-other {
         background: #6c757d;
       }
       /* Esconder unidades disponíveis quando toggle ativado */
-      .hide-disponivel .status-DISPONÍVEL {
+      .hide-disponivel .status-Disponível {
         display: none !important;
       }
       .small {
@@ -368,8 +368,8 @@
         <input type="color" id="color-disponivel" value="#6ad700" />
       </div>
       <div class="color-option">
-        <label for="color-reservada">Reservada</label>
-        <input type="color" id="color-reservada" value="#d9534f" />
+        <label for="color-Reservada">Reservada</label>
+        <input type="color" id="color-Reservada" value="#d9534f" />
       </div>
       <div class="toggle-option">
         <label for="hide-disponivel">Esconder Disponíveis</label>
@@ -502,7 +502,7 @@
             const coordX = u[12];
             const coordY = u[13];
             const letra = u[18];
-            const status = (u[11] || "DISPONÍVEL").toString().toUpperCase();
+            const status = (u[11] || "Disponível").toString().toUpperCase();
 
             if (!coordX || !coordY) {
               return;
@@ -581,7 +581,7 @@
           const coordX = unitData[12];
           const coordY = unitData[13];
           const letra = unitData[18];
-          const status = (unitData[11] || "DISPONÍVEL")
+          const status = (unitData[11] || "Disponível")
             .toString()
             .toUpperCase();
 
@@ -694,7 +694,7 @@
         const dotColorControl = document.querySelector(".dot-color-control");
         const colorDisponivelInput =
           document.getElementById("color-disponivel");
-        const colorReservadaInput = document.getElementById("color-reservada");
+        const colorReservadaInput = document.getElementById("color-Reservada");
         let isFullscreenMode = false;
         let hideHeaderTimeout = null;
 
@@ -780,7 +780,7 @@
         // Controles de cor
         function updateColors() {
           const disponivelColor = colorDisponivelInput.value;
-          const reservadaColor = colorReservadaInput.value;
+          const ReservadaColor = colorReservadaInput.value;
 
           // Atualiza variáveis CSS
           document.documentElement.style.setProperty(
@@ -788,19 +788,19 @@
             disponivelColor
           );
           document.documentElement.style.setProperty(
-            "--color-reservada",
-            reservadaColor
+            "--color-Reservada",
+            ReservadaColor
           );
 
           // Salva no localStorage
           localStorage.setItem("dot-color-disponivel", disponivelColor);
-          localStorage.setItem("dot-color-reservada", reservadaColor);
+          localStorage.setItem("dot-color-Reservada", ReservadaColor);
         }
 
         // Carrega cores salvas do localStorage
         function loadSavedColors() {
           const savedDisponivel = localStorage.getItem("dot-color-disponivel");
-          const savedReservada = localStorage.getItem("dot-color-reservada");
+          const savedReservada = localStorage.getItem("dot-color-Reservada");
 
           if (savedDisponivel) {
             colorDisponivelInput.value = savedDisponivel;
@@ -813,7 +813,7 @@
           if (savedReservada) {
             colorReservadaInput.value = savedReservada;
             document.documentElement.style.setProperty(
-              "--color-reservada",
+              "--color-Reservada",
               savedReservada
             );
           }

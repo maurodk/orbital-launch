@@ -220,7 +220,7 @@ Se precisar restringir mais (ex: apenas admins podem criar/editar), atualize as 
 1. **Tamanho do Ponto**: Agora fixo em 15 (não aparece no modal)
 2. **Imagens**: Armazenadas no Supabase Storage bucket "implantacoes"
 3. **Config antiga**: A dependência da aba Config (key/value) foi removida. A seleção de empreendimento agora é armazenada localmente.
-4. **Estados**: Lista completa de estados brasileiros disponível nos selects
+4. **Estados**: Lista completa de estados brasileiros Disponível nos selects
 
 ## 🐛 Troubleshooting
 

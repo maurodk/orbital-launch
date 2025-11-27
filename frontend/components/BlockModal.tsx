@@ -28,7 +28,7 @@ export function BlockModal({
   const unitName = unitData[2] || "N/A";
   const title = isBlocking ? `Bloquear Unidade` : `Desbloquear Unidade`;
   const message = isBlocking
-    ? `Tem certeza que deseja bloquear a unidade "${unitName}"? Ela ficará indisponível para reservas.`
+    ? `Tem certeza que deseja bloquear a unidade "${unitName}"? Ela ficará inDisponível para reservas.`
     : `Para desbloquear a unidade "${unitName}", digite a senha de acesso:`;
   const buttonText = isBlocking
     ? "Sim, Bloquear Unidade"

@@ -43,21 +43,21 @@ function transformCvcrmData(cvcrmUnits: CvcrmUnit[]): string[][] {
   return cvcrmUnits.map((unit) => {
     // Mapeia o status para o formato esperado
     const status = unit.situacao.toUpperCase();
-    const disponibilidade = status === "DISPONIVEL" ? "DISPONÍVEL" : status;
+    const disponibilidade = status === "DISPONIVEL" ? "Disponível" : status;
 
     // Cria um array de strings na ordem esperada pelos componentes
     // Colunas não existentes no CVCRM podem ser preenchidas com ""
     return [
-      "", // 0: Etapa/Andar (não disponível no CVCRM)
+      "", // 0: Etapa/Andar (não Disponível no CVCRM)
       unit.bloco || "", // 1: Bloco
       unit.unidade, // 2: Nome da Unidade
-      "", // 3: Área Privativa (não disponível)
-      "", // 4: Tipologia (não disponível)
-      "", // 5: ID Pré-Cadastro (não disponível)
-      "", // 6: Cliente (não disponível)
-      "", // 7: Documento (não disponível)
-      "", // 8: Corretor (não disponível)
-      "", // 9: Imobiliária (não disponível)
+      "", // 3: Área Privativa (não Disponível)
+      "", // 4: Tipologia (não Disponível)
+      "", // 5: ID Pré-Cadastro (não Disponível)
+      "", // 6: Cliente (não Disponível)
+      "", // 7: Documento (não Disponível)
+      "", // 8: Corretor (não Disponível)
+      "", // 9: Imobiliária (não Disponível)
       disponibilidade, // 10: Situação
       unit.coord_x || "", // 11: Coordenada X
       unit.coord_y || "", // 12: Coordenada Y

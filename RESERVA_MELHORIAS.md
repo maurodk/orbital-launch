@@ -38,7 +38,7 @@ O sistema anterior tinha um **delay fixo de 5 segundos** que não era robusto pa
    ↓
 4. Sistema confirma reserva definitiva
    - Verifica se token ainda é válido
-   - Atualiza status para "RESERVADA"
+   - Atualiza status para "Reservada"
    - Remove reserva temporária
    ↓
 5. Sucesso ou erro com feedback claro
@@ -48,7 +48,7 @@ O sistema anterior tinha um **delay fixo de 5 segundos** que não era robusto pa
 
 **Cenários cobertos:**
 
-- ✅ **Unidade já reservada**: Retorna erro 409 com mensagem clara
+- ✅ **Unidade já Reservada**: Retorna erro 409 com mensagem clara
 - ✅ **Reserva temporária expirada**: Token inválido, tenta novamente
 - ✅ **Múltiplos usuários simultâneos**: Apenas o primeiro consegue o lock
 - ✅ **Falhas de rede**: Sistema de retry com backoff exponencial

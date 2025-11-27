@@ -183,7 +183,7 @@ export function MappingSidebar({
                         unidade[13].trim() !== "";
                       const isSelected = originalIndex === selectedUnitIndex;
                       // <<< MUDANÇA 1: Pega o status da unidade e converte para minúsculas >>>
-                      const status = unidade[11]?.toLowerCase() || "disponível"; // Coluna L - situacao
+                      const status = unidade[11]?.toLowerCase() || "Disponível"; // Coluna L - situacao
 
                       return (
                         <div

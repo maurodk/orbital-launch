@@ -160,7 +160,7 @@ node server.cjs
 - [ ] Timestamp é salvo na coluna R quando PIX é gerado
 - [ ] Histórico registra "PIX Gerado" corretamente
 - [ ] Reservas expiram após 60 minutos
-- [ ] Coordenadas (colunas L e M) são preservadas no cancelamento
+- [ ] Coordenadas (colunas L e M) são pReservadas no cancelamento
 
 ### 3. Deploy
 

@@ -79,7 +79,7 @@ export const FloorPlan = memo(function FloorPlan({
         const coordX = unidade[12]; // Coluna M - coord_x
         const coordY = unidade[13]; // Coluna N - coord_y
         const letra = unidade[18]; // Coluna S - Simbolo
-        const rawStatus = unidade[11] || "disponível"; // Coluna L - situacao
+        const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
         const normalizedStatus = rawStatus
           .toLowerCase()
           .normalize("NFD")

@@ -417,12 +417,12 @@ button:focus-visible {
   background-color: #555;
 }
 
-.unit-status.disponível,
+.unit-status.Disponível,
 .unit-status.disponivel {
   background-color: var(--accent-green);
 }
 
-.unit-status.reservada {
+.unit-status.Reservada {
   background-color: var(--status-reserved);
 }
 
@@ -501,11 +501,11 @@ button:focus-visible {
   z-index: 6;
 }
 
-.unit-indicator.disponível,
+.unit-indicator.Disponível,
 .unit-indicator.disponivel {
   background-color: var(--accent-green);
 }
-.unit-indicator.reservada {
+.unit-indicator.Reservada {
   background-color: var(--status-reserved);
 }
 
@@ -813,12 +813,12 @@ button:focus-visible {
   font-weight: 600;
   color: white;
 }
-.status-pill.disponível,
+.status-pill.Disponível,
 .status-pill.disponivel {
   background-color: var(--accent-green);
   color: black;
 }
-.status-pill.reservada {
+.status-pill.Reservada {
   background-color: var(--status-reserved);
 }
 .reserve-button-in-table {
@@ -1453,8 +1453,8 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.action-pill.action-reservada,
-.action-pill.action-reservada-espontânea {
+.action-pill.action-Reservada,
+.action-pill.action-Reservada-espontânea {
   background-color: #337ab7; /* Azul */
 }
 
@@ -1462,11 +1462,11 @@ button:focus-visible {
   background-color: var(--status-reserved); /* Vermelho */
 }
 
-.action-pill.action-bloqueada {
+.action-pill.action-Bloqueada {
   background-color: #f0ad4e; /* Laranja */
 }
 
-.action-pill.action-desbloqueada {
+.action-pill.action-desBloqueada {
   background-color: var(--accent-green); /* Verde */
   color: var(--bg-dark-primary); /* Texto escuro para contraste */
 }
@@ -2106,13 +2106,13 @@ button:focus-visible {
   user-select: none; /* Impede que o texto seja selecionado ao clicar */
 }
 
-.unit-indicator.bloqueada,
-.status-pill.bloqueada,
-.unit-status.bloqueada {
+.unit-indicator.Bloqueada,
+.status-pill.Bloqueada,
+.unit-status.Bloqueada {
   background-color: var(--status-blocked);
 }
 
-.status-pill.bloqueada {
+.status-pill.Bloqueada {
   color: var(--bg-dark-primary); /* Texto escuro para melhor contraste */
 }
 
@@ -3012,13 +3012,13 @@ button:focus-visible {
   border: 1px solid var(--accent-green);
 }
 
-.status-badge.reservada {
+.status-badge.Reservada {
   background-color: rgba(217, 83, 79, 0.15);
   color: var(--status-reserved);
   border: 1px solid var(--status-reserved);
 }
 
-.status-badge.bloqueada {
+.status-badge.Bloqueada {
   background-color: rgba(255, 193, 7, 0.15);
   color: #ffc107;
   border: 1px solid #ffc107;

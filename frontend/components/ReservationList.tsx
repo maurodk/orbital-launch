@@ -25,9 +25,9 @@ interface ReservationListProps {
   onPixClick: (unitIndex: number) => void; // Nova prop para o PIX
   searchTerm: string;
   setSearchTerm: (term: string) => void;
-  statusFilter: "all" | "disponível" | "reservada" | "bloqueada";
+  statusFilter: "all" | "Disponível" | "Reservada" | "Bloqueada";
   setStatusFilter: (
-    status: "all" | "disponível" | "reservada" | "bloqueada"
+    status: "all" | "Disponível" | "Reservada" | "Bloqueada"
   ) => void;
   totalUnidades: number;
   // Seleção em cadeia
@@ -87,20 +87,20 @@ export function ReservationList({
               Todas
             </button>
             <button
-              className={statusFilter === "disponível" ? "active" : ""}
-              onClick={() => setStatusFilter("disponível")}
+              className={statusFilter === "Disponível" ? "active" : ""}
+              onClick={() => setStatusFilter("Disponível")}
             >
               Disponíveis
             </button>
             <button
-              className={statusFilter === "reservada" ? "active" : ""}
-              onClick={() => setStatusFilter("reservada")}
+              className={statusFilter === "Reservada" ? "active" : ""}
+              onClick={() => setStatusFilter("Reservada")}
             >
               Reservadas
             </button>
             <button
-              className={statusFilter === "bloqueada" ? "active" : ""}
-              onClick={() => setStatusFilter("bloqueada")}
+              className={statusFilter === "Bloqueada" ? "active" : ""}
+              onClick={() => setStatusFilter("Bloqueada")}
             >
               Bloqueadas
             </button>
@@ -181,7 +181,7 @@ export function ReservationList({
               {unidades.length > 0 ? (
                 unidades.map(([unitData, originalIndex]) => {
                   // Normaliza status: remove acentos, lowercase, trim
-                  const rawStatus = unitData[11] || "disponível"; // Coluna L - situacao
+                  const rawStatus = unitData[11] || "Disponível"; // Coluna L - situacao
                   const normalizedStatus = rawStatus
                     .toLowerCase()
                     .normalize("NFD")
@@ -189,7 +189,7 @@ export function ReservationList({
                     .trim();
 
                   const isAvailable = normalizedStatus === "disponivel";
-                  const isReserved = normalizedStatus === "reservada";
+                  const isReserved = normalizedStatus === "Reservada";
                   const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
                   const clientName = unitData[7] || "—"; // Coluna H - cliente
                   const brokerName = unitData[9] || "—"; // Coluna J - corretor
@@ -416,7 +416,7 @@ export function ReservationList({
                 onClick={() => {
                   // Trigger cancel reservation flow
                   const [unitData] = unidades[selectedUnitIndex];
-                  if (unitData && unitData[11] === "RESERVADA") {
+                  if (unitData && unitData[11] === "Reservada") {
                     // Coluna L - situacao
                     onUnitClick(selectedUnitIndex); // This will open cancel modal
                   }

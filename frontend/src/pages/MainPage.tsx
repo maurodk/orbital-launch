@@ -146,7 +146,7 @@ export function MainPage() {
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "disponível" | "reservada" | "bloqueada"
+    "all" | "Disponível" | "Reservada" | "Bloqueada"
   >("all");
   const [unidadesCount, setUnidadesCount] = useState<number>(0);
   const [unidadesConfigured, setUnidadesConfigured] = useState<boolean>(false);
@@ -291,7 +291,7 @@ export function MainPage() {
   const availableUnitsForChange = useMemo(() => {
     return unidades.reduce<{ unit: string[]; originalIndex: number }[]>(
       (acc, unit, index) => {
-        const normalizedStatus = (unit[10] || "disponível")
+        const normalizedStatus = (unit[10] || "Disponível")
           .toLowerCase()
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
@@ -310,7 +310,7 @@ export function MainPage() {
       .map((unidade, index) => ({ data: unidade, originalIndex: index }))
       .filter(({ data }) => {
         // Normaliza status: remove acentos, lowercase, trim
-        const rawStatus = data[10] || "disponível";
+        const rawStatus = data[10] || "Disponível";
         const normalizedStatus = rawStatus
           .toLowerCase()
           .normalize("NFD")
@@ -694,7 +694,7 @@ export function MainPage() {
       return;
     }
     setSelectedUnitIndex(unitIndex);
-    const rawStatus = unidades[unitIndex][11] || "disponível"; // Coluna L - situacao
+    const rawStatus = unidades[unitIndex][11] || "Disponível"; // Coluna L - situacao
     const normalizedStatus = rawStatus
       .toLowerCase()
       .normalize("NFD")
@@ -702,9 +702,9 @@ export function MainPage() {
       .trim();
     if (normalizedStatus === "disponivel") {
       setReservationModalState({ isOpen: true, mode: "select" });
-    } else if (normalizedStatus === "reservada") {
+    } else if (normalizedStatus === "Reservada") {
       setIsCancelModalOpen(true);
-    } else if (normalizedStatus === "bloqueada") {
+    } else if (normalizedStatus === "Bloqueada") {
       setBlockModalState({ isOpen: true, isBlocking: false, apiError: "" });
     }
   };
@@ -718,7 +718,7 @@ export function MainPage() {
     setSelectedUnitIndex(unitIndex);
     const unitData = unidades[unitIndex];
     const status = unitData[11]?.toUpperCase(); // Coluna L - situacao
-    const isBlocked = status === "BLOQUEADA";
+    const isBlocked = status === "Bloqueada";
     setBlockModalState({ isOpen: true, isBlocking: !isBlocked, apiError: "" });
   };
 
@@ -736,11 +736,11 @@ export function MainPage() {
   };
 
   const handleToggleBlockUnit = async (
-    newStatus: "BLOQUEADA" | "DISPONÍVEL",
+    newStatus: "Bloqueada" | "Disponível",
     password?: string
   ) => {
     if (selectedUnitIndex === null) return;
-    if (newStatus === "BLOQUEADA") {
+    if (newStatus === "Bloqueada") {
       password = undefined;
     }
 
@@ -770,7 +770,7 @@ export function MainPage() {
       const errorMessage =
         error.response?.data?.error ||
         `Falha ao ${
-          newStatus === "BLOQUEADA" ? "bloquear" : "desbloquear"
+          newStatus === "Bloqueada" ? "bloquear" : "desbloquear"
         } a unidade.`;
       setBlockModalState((prevState) => ({
         ...prevState,
@@ -815,7 +815,7 @@ export function MainPage() {
         return axios.post(`${apiUrl}/api/toggle-block-unit`, {
           rowIndex: sheetRowIndex,
           implantacao: selectedImplantationName,
-          newStatus: "BLOQUEADA",
+          newStatus: "Bloqueada",
           hideAvailable: hideAvailable,
         });
       });
@@ -825,7 +825,7 @@ export function MainPage() {
       // Atualiza o estado local
       const updatedUnidades = [...unidades];
       selectedUnits.forEach((unitIndex) => {
-        updatedUnidades[unitIndex][11] = "BLOQUEADA"; // Coluna L - situacao
+        updatedUnidades[unitIndex][11] = "Bloqueada"; // Coluna L - situacao
       });
       setUnidades(updatedUnidades);
 
@@ -834,7 +834,7 @@ export function MainPage() {
       setIsSelectionMode(false);
 
       await fetchHistory(selectedImplantationName);
-      alert(`${selectedUnits.size} unidade(s) bloqueada(s) com sucesso!`);
+      alert(`${selectedUnits.size} unidade(s) Bloqueada(s) com sucesso!`);
     } catch (error) {
       console.error("Erro ao bloquear unidades em cadeia:", error);
       alert("Falha ao bloquear algumas unidades. Verifique o console.");
@@ -975,14 +975,14 @@ export function MainPage() {
                 newUnit[8] = clientData[2]; // I: documento
                 newUnit[9] = clientData[3]; // J: corretor
                 newUnit[10] = clientData[4] || ""; // K: imobiliária
-                newUnit[11] = "RESERVADA"; // L: situacao
+                newUnit[11] = "Reservada"; // L: situacao
               } else if (manualData) {
                 newUnit[6] = manualData.id; // G: id_pre_cadastro
                 newUnit[7] = manualData.cliente; // H: cliente
                 newUnit[8] = manualData.documento; // I: documento
                 newUnit[9] = manualData.corretor; // J: corretor
                 newUnit[10] = ""; // K: imobiliária
-                newUnit[11] = "RESERVADA"; // L: situacao
+                newUnit[11] = "Reservada"; // L: situacao
               }
               return newUnit;
             }
@@ -1057,7 +1057,7 @@ export function MainPage() {
           newUnit[8] = ""; // Coluna I - documento
           newUnit[9] = ""; // Coluna J - corretor
           newUnit[10] = ""; // Coluna K - imobiliaria
-          newUnit[11] = "DISPONÍVEL"; // Coluna L - situacao
+          newUnit[11] = "Disponível"; // Coluna L - situacao
           return newUnit;
         }
         return unidade;
@@ -1753,7 +1753,7 @@ export function MainPage() {
                 apiError={blockModalState.apiError}
                 onConfirm={(password = "") =>
                   handleToggleBlockUnit(
-                    blockModalState.isBlocking ? "BLOQUEADA" : "DISPONÍVEL",
+                    blockModalState.isBlocking ? "Bloqueada" : "Disponível",
                     password
                   )
                 }

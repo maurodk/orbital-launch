@@ -146,12 +146,12 @@ async function cleanupExpiredReservations() {
       const [implantacao, rowIndex] = key.split("_");
 
       try {
-        // Reverte o status na planilha para "DISPONÍVEL"
+        // Reverte o status na planilha para "Disponível"
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
           range: `'${implantacao}'!K${rowIndex}`,
           valueInputOption: "USER_ENTERED",
-          resource: { values: [["DISPONÍVEL"]] },
+          resource: { values: [["Disponível"]] },
         });
 
         // Adiciona um registro no histórico
@@ -164,7 +164,7 @@ async function cleanupExpiredReservations() {
           null,
           `Sistema (Usuário: ${reservation.userEmail})`
         );
-        console.log(`[CLEANUP] Unidade ${key} revertida para DISPONÍVEL.`);
+        console.log(`[CLEANUP] Unidade ${key} revertida para Disponível.`);
       } catch (error) {
         console.error(
           `[CLEANUP] Falha ao reverter status para a unidade ${key}:`,
@@ -1301,12 +1301,12 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
       range: unitCheckRange,
     });
 
-    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "DISPONÍVEL";
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
     const currentStatus = normalizeStatus(rawStatus);
 
     if (currentStatus !== "disponivel") {
       return res.status(409).json({
-        error: `Esta unidade não está mais disponível. Status atual: ${rawStatus}.`,
+        error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
         code: "UNIT_NOT_AVAILABLE",
       });
     }
@@ -1392,19 +1392,19 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     // Remove a reserva temporária
     tempReservations.delete(tempReservationKey);
 
-    // Verifica novamente se a unidade ainda está disponível
+    // Verifica novamente se a unidade ainda está Disponível
     const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
     });
 
-    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "DISPONÍVEL";
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
     const currentStatus = normalizeStatus(rawStatus);
 
     if (currentStatus !== "reservando" && currentStatus !== "disponivel") {
       return res.status(409).json({
-        error: `Esta unidade não está mais disponível. Status atual: ${rawStatus}.`,
+        error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
         code: "UNIT_NOT_AVAILABLE",
       });
     }
@@ -1446,7 +1446,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             corretor: data[3] || null, // J: Corretor (índice 3 do array data)
             imobiliaria: data[4] || null, // K: Imobiliária (índice 4 do array data)
             // Force reserva when this endpoint is used for a reservation flow
-            situacao: "RESERVADA", // L: Situação
+            situacao: "Reservada", // L: Situação
             implantacao_id,
             nome_unidade:
               unitName || (existingUnit && existingUnit.nome_unidade) || null,
@@ -1536,7 +1536,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       (async () => {
         try {
           // Atualiza G:L (id_pre_cadastro, cliente, documento, corretor, imobiliária, situacao)
-          const dataWithStatus = [...data, "RESERVADA"];
+          const dataWithStatus = [...data, "Reservada"];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
             range: `'${sheetTitle}'!G${rowIndex}:L${rowIndex}`,
@@ -1602,7 +1602,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     }
 
     // --- Fallback para Google Sheets se o Supabase falhou ---
-    const dataWithStatus = [...data, "RESERVADA"];
+    const dataWithStatus = [...data, "Reservada"];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!G${rowIndex}:L${rowIndex}`,
@@ -1689,12 +1689,12 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
     // Remove a reserva temporária
     tempReservations.delete(tempReservationKey);
 
-    // Restaura o status da unidade para DISPONÍVEL
+    // Restaura o status da unidade para Disponível
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!L${rowIndex}`,
       valueInputOption: "USER_ENTERED",
-      resource: { values: [["DISPONÍVEL"]] },
+      resource: { values: [["Disponível"]] },
     });
 
     // Notifica outros clientes sobre a mudança
@@ -1732,19 +1732,19 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está disponível
+    // VERIFICAÇÃO PRÉVIA: Checa se a unidade ainda está Disponível
     const unitCheckRange = `'${sheetTitle}'!K${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: unitCheckRange,
     });
 
-    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "DISPONÍVEL";
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
     const currentStatus = normalizeStatus(rawStatus);
 
     if (currentStatus !== "disponivel") {
       return res.status(409).json({
-        error: `Esta unidade não está mais disponível. Status atual: ${rawStatus}.`,
+        error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
       });
     }
     let supabaseOk = false;
@@ -1774,7 +1774,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
             documento: manualData.documento || null,
             corretor: manualData.corretor || null,
             imobiliaria: manualData.imobiliaria || null,
-            situacao: "RESERVADA",
+            situacao: "Reservada",
             implantacao_id,
             nome_unidade:
               unitName || (existingUnit && existingUnit.nome_unidade) || null,
@@ -1876,7 +1876,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
             manualData.documento || "",
             manualData.corretor || "",
             "", // imobiliaria
-            "RESERVADA",
+            "Reservada",
           ];
           await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -1907,7 +1907,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
       manualData.documento || "",
       manualData.corretor || "",
       "", // imobiliaria
-      "RESERVADA",
+      "Reservada",
     ];
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -1992,7 +1992,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                 cliente: null,
                 documento: null,
                 corretor: null,
-                situacao: "DISPONÍVEL",
+                situacao: "Disponível",
               })
               .eq("id", existingUnit.id);
           } else {
@@ -2047,7 +2047,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
               data: [
                 {
                   range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
-                  values: [["", "", "", "", "", "DISPONÍVEL"]],
+                  values: [["", "", "", "", "", "Disponível"]],
                 },
                 {
                   range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
@@ -2096,7 +2096,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           data: [
             {
               range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
-              values: [["", "", "", "", "", "DISPONÍVEL"]],
+              values: [["", "", "", "", "", "Disponível"]],
             },
             {
               range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
@@ -2207,7 +2207,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       oldUnitData[2] || "", // I: documento (índice 2)
       oldUnitData[3] || "", // J: corretor (índice 3)
       oldUnitData[4] || "", // K: imobiliária (índice 4)
-      "RESERVADA", // L: situação (será forçada como RESERVADA)
+      "Reservada", // L: situação (será forçada como Reservada)
       "", // M: coord_x (não transferir) - Limpa na nova unidade
       "", // N: coord_y (não transferir) - Limpa na nova unidade
       oldUnitData[8] || "", // O: IDENTIFICADOR (índice 8)
@@ -2221,10 +2221,10 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       resource: {
         valueInputOption: "USER_ENTERED",
         data: [
-          // Limpa dados da unidade antiga e a torna disponível (G:L e O:R)
+          // Limpa dados da unidade antiga e a torna Disponível (G:L e O:R)
           {
             range: `'${sheetTitle}'!G${oldRow}:L${oldRow}`,
-            values: [["", "", "", "", "", "DISPONÍVEL"]],
+            values: [["", "", "", "", "", "Disponível"]],
           },
           {
             range: `'${sheetTitle}'!O${oldRow}:R${oldRow}`,
@@ -2526,7 +2526,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
     !implantacao ||
     !rowIndex ||
     !newStatus ||
-    !["bloqueada", "disponivel"].includes(normalizedNewStatus)
+    !["Bloqueada", "disponivel"].includes(normalizedNewStatus)
   ) {
     return res
       .status(400)
@@ -2598,7 +2598,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
 
           if (updateError) {
             console.error(
-              "Supabase: Erro ao atualizar status da unidade para BLOQUEADA/DISPONÍVEL:",
+              "Supabase: Erro ao atualizar status da unidade para Bloqueada/Disponível:",
               updateError
             );
           }
@@ -2617,7 +2617,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     const acao =
-      normalizeStatus(newStatus) === "bloqueada" ? "Bloqueada" : "Desbloqueada";
+      normalizeStatus(newStatus) === "Bloqueada" ? "Bloqueada" : "DesBloqueada";
 
     await addHistoryEntry(
       sheets,
