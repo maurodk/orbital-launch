@@ -1555,52 +1555,63 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       userEmail
     );
 
-    // MIGRAÇÃO SSE → SUPABASE: Broadcast baseado no Supabase (mais rápido)
-    if (supabaseOk) {
-      // Busca os dados completos da unidade do Supabase para o broadcast
-      try {
-        const { data: implData } = await supabase
-          .from("implantacoes")
-          .select("id")
-          .eq("nome", sheetTitle)
-          .limit(1)
-          .single();
+    // Responde IMEDIATAMENTE ao cliente (não bloqueia)
+    res.json({ success: true, message: `Reserva atualizada.` });
 
-        if (implData?.id) {
-          const { data: unitDataFromSupabase } = await supabase
-            .from("unidades")
-            .select("*")
-            .eq("implantacao_id", implData.id)
-            .eq("row_index", parseInt(rowIndex, 10))
+    // MIGRAÇÃO SSE → SUPABASE: Broadcast e sync em background (não bloqueantes)
+    if (supabaseOk) {
+      // Broadcast + Sync em background (fire-and-forget)
+      (async () => {
+        try {
+          // Busca os dados completos da unidade do Supabase para o broadcast
+          const { data: implData } = await supabase
+            .from("implantacoes")
+            .select("id")
+            .eq("nome", sheetTitle)
             .limit(1)
             .single();
 
-          if (unitDataFromSupabase) {
-            // Converte dados do Supabase para formato array
-            const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
+          if (implData?.id) {
+            const { data: unitDataFromSupabase } = await supabase
+              .from("unidades")
+              .select("*")
+              .eq("implantacao_id", implData.id)
+              .eq("row_index", parseInt(rowIndex, 10))
+              .limit(1)
+              .single();
 
-            // Broadcast IMEDIATO com dados do Supabase (não espera Sheets)
+            if (unitDataFromSupabase) {
+              // Converte dados do Supabase para formato array
+              const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
+
+              // Broadcast IMEDIATO com dados do Supabase (não espera Sheets)
+              await broadcastEvent(sheetTitle, "unitUpdated", {
+                rowIndex,
+                unitName,
+                unitData: unitDataArray,
+              });
+              console.log(
+                `[SSE] Broadcast de reserva enviado para linha ${rowIndex}`
+              );
+            }
+          }
+        } catch (e) {
+          console.warn(
+            "[SSE] Falha ao buscar dados do Supabase para broadcast:",
+            e.message
+          );
+          // Fallback: broadcast sem dados (busca do Sheets)
+          try {
             await broadcastEvent(sheetTitle, "unitUpdated", {
               rowIndex,
               unitName,
-              unitData: unitDataArray,
             });
+          } catch (err) {
+            console.error("[SSE] Falha no broadcast fallback:", err.message);
           }
         }
-      } catch (e) {
-        console.warn(
-          "[SSE] Falha ao buscar dados do Supabase para broadcast, usando fallback:",
-          e.message
-        );
-        // Fallback: broadcast sem dados (busca do Sheets)
-        await broadcastEvent(sheetTitle, "unitUpdated", {
-          rowIndex,
-          unitName,
-        });
-      }
 
-      // Sync com Sheets em background (não bloqueia resposta)
-      (async () => {
+        // Sync com Sheets em background
         try {
           const dataWithStatus = [...data, "Reservada"];
           await sheets.spreadsheets.values.update({
@@ -1620,7 +1631,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         }
       })();
 
-      return res.json({ success: true, message: `Reserva atualizada.` });
+      return;
     }
 
     // --- Fallback para Google Sheets se o Supabase falhou ---
@@ -2047,68 +2058,78 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
       }
     }
 
-    // MIGRAÇÃO SSE → SUPABASE: Broadcast SEMPRE, independente de supabaseOk
-    // Tenta buscar do Supabase primeiro, fallback para Sheets se necessário
-    let broadcastSuccess = false;
+    // Responde IMEDIATAMENTE ao cliente (não bloqueia)
+    res.json({
+      success: true,
+      message: `Cancelamento efetuado com sucesso${
+        !supabaseOk ? " (via fallback)" : ""
+      }`,
+    });
 
-    if (supabase) {
-      try {
-        const { data: implData } = await supabase
-          .from("implantacoes")
-          .select("id")
-          .eq("nome", sheetTitle)
-          .limit(1)
-          .single();
+    // MIGRAÇÃO SSE → SUPABASE: Broadcast e sync em background (não bloqueantes)
+    (async () => {
+      let broadcastSuccess = false;
 
-        if (implData?.id) {
-          const { data: unitDataFromSupabase } = await supabase
-            .from("unidades")
-            .select("*")
-            .eq("implantacao_id", implData.id)
-            .eq("row_index", parseInt(unitRowIndex, 10))
+      if (supabase) {
+        try {
+          const { data: implData } = await supabase
+            .from("implantacoes")
+            .select("id")
+            .eq("nome", sheetTitle)
             .limit(1)
             .single();
 
-          if (unitDataFromSupabase) {
-            // Converte dados do Supabase para formato array
-            const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
+          if (implData?.id) {
+            const { data: unitDataFromSupabase } = await supabase
+              .from("unidades")
+              .select("*")
+              .eq("implantacao_id", implData.id)
+              .eq("row_index", parseInt(unitRowIndex, 10))
+              .limit(1)
+              .single();
 
-            // Broadcast IMEDIATO com dados do Supabase
-            await broadcastEvent(sheetTitle, "unitUpdated", {
-              rowIndex: unitRowIndex,
-              unitName: unitFullName || unitDataFromSupabase.nome_unidade,
-              unitData: unitDataArray,
-            });
+            if (unitDataFromSupabase) {
+              // Converte dados do Supabase para formato array
+              const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
 
-            console.log(
-              `[SSE] Broadcast de cancelamento enviado via Supabase para linha ${unitRowIndex}`
-            );
-            broadcastSuccess = true;
+              // Broadcast IMEDIATO com dados do Supabase
+              await broadcastEvent(sheetTitle, "unitUpdated", {
+                rowIndex: unitRowIndex,
+                unitName: unitFullName || unitDataFromSupabase.nome_unidade,
+                unitData: unitDataArray,
+              });
+
+              console.log(
+                `[SSE] Broadcast de cancelamento enviado via Supabase para linha ${unitRowIndex}`
+              );
+              broadcastSuccess = true;
+            }
           }
+        } catch (e) {
+          console.warn(
+            "[SSE] Falha ao buscar dados do Supabase para broadcast do cancelamento:",
+            e.message
+          );
         }
-      } catch (e) {
-        console.warn(
-          "[SSE] Falha ao buscar dados do Supabase para broadcast do cancelamento:",
-          e.message
-        );
       }
-    }
 
-    // Fallback: Broadcast sem dados do Supabase (busca do Sheets)
-    if (!broadcastSuccess) {
-      await broadcastEvent(sheetTitle, "unitUpdated", {
-        rowIndex: unitRowIndex,
-        unitName: unitFullName,
-      });
-      console.log(
-        `[SSE] Broadcast de cancelamento enviado via fallback (Sheets) para linha ${unitRowIndex}`
-      );
-    }
+      // Fallback: Broadcast sem dados do Supabase (busca do Sheets)
+      if (!broadcastSuccess) {
+        try {
+          await broadcastEvent(sheetTitle, "unitUpdated", {
+            rowIndex: unitRowIndex,
+            unitName: unitFullName,
+          });
+          console.log(
+            `[SSE] Broadcast de cancelamento enviado via fallback (Sheets) para linha ${unitRowIndex}`
+          );
+        } catch (err) {
+          console.error("[SSE] Falha no broadcast fallback:", err.message);
+        }
+      }
 
-    // MIGRAÇÃO SSE → SUPABASE: Sync com Sheets em background (apenas se Supabase funcionou)
-    if (supabaseOk) {
       // Sync com Sheets em background
-      (async () => {
+      if (supabaseOk) {
         try {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2135,46 +2156,33 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             e.message
           );
         }
-      })();
-    } else {
-      // fallback to Sheets (legacy)
-      // Limpa G:L (dados da reserva) e O:R (PIX), preservando M:N (coordenadas)
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        resource: {
-          valueInputOption: "USER_ENTERED",
-          data: [
-            {
-              range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
-              values: [["", "", "", "", "", "Disponível"]],
+      } else {
+        // fallback to Sheets (legacy)
+        try {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+            resource: {
+              valueInputOption: "USER_ENTERED",
+              data: [
+                {
+                  range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
+                  values: [["", "", "", "", "", "Disponível"]],
+                },
+                {
+                  range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
+                  values: [["", "", "", ""]],
+                },
+              ],
             },
-            {
-              range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
-              values: [["", "", "", ""]],
-            },
-          ],
-        },
-      });
-      const unidadeInfo = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!C${unitRowIndex}:C${unitRowIndex}`,
-      });
-      unitFullName = `${unidadeInfo.data.values[0][0]}`;
-
-      await broadcastEvent(sheetTitle, "unitUpdated", {
-        rowIndex: unitRowIndex,
-        unitName: unitFullName,
-      });
-    }
-    // CORREÇÃO: Garante que a resposta seja enviada em ambos os casos (Supabase OK ou fallback)
-    if (!res.headersSent) {
-      res.json({
-        success: true,
-        message: `Cancelamento efetuado com sucesso${
-          !supabaseOk ? " (via fallback)" : ""
-        }`,
-      });
-    }
+          });
+          console.log(
+            `[SHEETS] Fallback sync concluído para linha ${unitRowIndex}`
+          );
+        } catch (e) {
+          console.error(`[SHEETS] Falha no fallback sync:`, e.message);
+        }
+      }
+    })();
   } catch (error) {
     console.error("Erro ao cancelar a reserva:", error);
     res.status(500).json({ error: "Falha ao cancelar a reserva." });
@@ -2415,17 +2423,31 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       newUnitDataArray = newUnitFullData.values?.[0] || [];
     }
 
-    // Broadcast com os dados completos
-    await broadcastEvent(sheetTitle, "unitUpdated", {
-      rowIndex: oldRow,
-      unitData: oldUnitDataArray,
-    });
-    await broadcastEvent(sheetTitle, "unitUpdated", {
-      rowIndex: newRow,
-      unitData: newUnitDataArray,
-    });
-
+    // Responde IMEDIATAMENTE ao cliente (não bloqueia)
     res.json({ success: true, message: "Troca de unidade realizada." });
+
+    // Broadcast em background (não bloqueante)
+    (async () => {
+      try {
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex: oldRow,
+          unitData: oldUnitDataArray,
+        });
+        console.log(
+          `[SSE] Broadcast de troca enviado para unidade antiga (linha ${oldRow})`
+        );
+
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex: newRow,
+          unitData: newUnitDataArray,
+        });
+        console.log(
+          `[SSE] Broadcast de troca enviado para unidade nova (linha ${newRow})`
+        );
+      } catch (err) {
+        console.error("[SSE] Falha no broadcast de troca:", err.message);
+      }
+    })();
   } catch (err) {
     console.error("Erro ao trocar unidade:", err);
     res.status(500).json({ error: "Falha ao realizar a troca de unidade." });
@@ -2520,15 +2542,26 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(sheetTitle, "unitUpdated", {
-      rowIndex,
-      unitName: unitFullName,
-    });
-
+    // Responde IMEDIATAMENTE ao cliente (não bloqueia)
     res.json({
       success: true,
       message: `Coordenadas atualizadas e histórico registrado para '${unitFullName}'.`,
     });
+
+    // Broadcast em background (não bloqueante)
+    (async () => {
+      try {
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex,
+          unitName: unitFullName,
+        });
+        console.log(
+          `[SSE] Broadcast de atualização de coordenadas enviado para linha ${rowIndex}`
+        );
+      } catch (err) {
+        console.error("[SSE] Falha no broadcast de coordenadas:", err.message);
+      }
+    })();
   } catch (error) {
     res.status(500).json({ error: "Falha ao atualizar coordenadas." });
   }
@@ -2589,15 +2622,26 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       userEmail
     );
 
-    await broadcastEvent(sheetTitle, "unitUpdated", {
-      rowIndex,
-      unitName: unitFullName,
-    });
-
+    // Responde IMEDIATAMENTE ao cliente (não bloqueia)
     res.json({
       success: true,
-      message: `Coordenadas e letra limpas para '${unitFullName}'.`,
+      message: `Coordenadas removidas e histórico registrado para '${unitFullName}'.`,
     });
+
+    // Broadcast em background (não bloqueante)
+    (async () => {
+      try {
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex,
+          unitName: unitFullName,
+        });
+        console.log(
+          `[SSE] Broadcast de remoção de coordenadas enviado para linha ${rowIndex}`
+        );
+      } catch (err) {
+        console.error("[SSE] Falha no broadcast de remoção:", err.message);
+      }
+    })();
   } catch (error) {
     console.error("Erro ao limpar coordenadas na planilha:", error);
     res.status(500).json({ error: "Falha ao limpar coordenadas." });
