@@ -2526,7 +2526,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
     !implantacao ||
     !rowIndex ||
     !newStatus ||
-    !["Bloqueada", "disponivel"].includes(normalizedNewStatus)
+    !["bloqueada", "disponivel"].includes(normalizedNewStatus)
   ) {
     return res
       .status(400)
@@ -2617,7 +2617,7 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
     const acao =
-      normalizeStatus(newStatus) === "Bloqueada" ? "Bloqueada" : "DesBloqueada";
+      normalizeStatus(newStatus) === "bloqueada" ? "Bloqueada" : "Desbloqueada";
 
     await addHistoryEntry(
       sheets,

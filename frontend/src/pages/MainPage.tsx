@@ -291,7 +291,7 @@ export function MainPage() {
   const availableUnitsForChange = useMemo(() => {
     return unidades.reduce<{ unit: string[]; originalIndex: number }[]>(
       (acc, unit, index) => {
-        const normalizedStatus = (unit[10] || "Disponível")
+        const normalizedStatus = (unit[11] || "Disponível")
           .toLowerCase()
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
@@ -310,7 +310,7 @@ export function MainPage() {
       .map((unidade, index) => ({ data: unidade, originalIndex: index }))
       .filter(({ data }) => {
         // Normaliza status: remove acentos, lowercase, trim
-        const rawStatus = data[10] || "Disponível";
+        const rawStatus = data[11] || "Disponível";
         const normalizedStatus = rawStatus
           .toLowerCase()
           .normalize("NFD")
@@ -331,7 +331,11 @@ export function MainPage() {
         const normalizedFilter =
           statusFilter === "all"
             ? "all"
-            : statusFilter.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            : statusFilter
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim();
 
         const statusMatch =
           normalizedFilter === "all" || normalizedStatus === normalizedFilter;
@@ -702,9 +706,9 @@ export function MainPage() {
       .trim();
     if (normalizedStatus === "disponivel") {
       setReservationModalState({ isOpen: true, mode: "select" });
-    } else if (normalizedStatus === "Reservada") {
+    } else if (normalizedStatus === "reservada") {
       setIsCancelModalOpen(true);
-    } else if (normalizedStatus === "Bloqueada") {
+    } else if (normalizedStatus === "bloqueada") {
       setBlockModalState({ isOpen: true, isBlocking: false, apiError: "" });
     }
   };
@@ -717,8 +721,13 @@ export function MainPage() {
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
     const unitData = unidades[unitIndex];
-    const status = unitData[11]?.toUpperCase(); // Coluna L - situacao
-    const isBlocked = status === "Bloqueada";
+    const rawStatus = unitData[11] || "Disponível"; // Coluna L - situacao
+    const normalizedStatus = rawStatus
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+    const isBlocked = normalizedStatus === "bloqueada";
     setBlockModalState({ isOpen: true, isBlocking: !isBlocked, apiError: "" });
   };
 

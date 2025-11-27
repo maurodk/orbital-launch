@@ -189,7 +189,7 @@ export function ReservationList({
                     .trim();
 
                   const isAvailable = normalizedStatus === "disponivel";
-                  const isReserved = normalizedStatus === "Reservada";
+                  const isReserved = normalizedStatus === "reservada";
                   const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
                   const clientName = unitData[7] || "—"; // Coluna H - cliente
                   const brokerName = unitData[9] || "—"; // Coluna J - corretor
