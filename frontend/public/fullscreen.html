@@ -21,6 +21,21 @@
         background: #221f25;
         color: #fff;
       }
+
+      /* Otimizações para evitar piscar no refresh */
+      .floor-plan-wrapper.loading {
+        background: #1a1a1a;
+      }
+
+      .floor-plan-wrapper.loading .floor-plan-image {
+        opacity: 0;
+        transition: opacity 0.15s ease-in;
+      }
+
+      .floor-plan-wrapper.loaded .floor-plan-image {
+        opacity: 0.9;
+        transition: opacity 0.2s ease-out;
+      }
       .topbar {
         padding: 10px 16px;
         background: #0b0b0b;
@@ -71,6 +86,8 @@
         height: 100%;
         object-fit: contain;
         opacity: 0.9;
+        will-change: opacity;
+        image-rendering: -webkit-optimize-contrast;
       }
       .unit-indicator {
         position: absolute;
@@ -467,6 +484,31 @@
 
     <script>
       (function () {
+        // Cache de dados para evitar piscar
+        let cachedData = null;
+        let lastImageUrl = null;
+
+        // Tenta restaurar dados do sessionStorage ao carregar
+        try {
+          const savedData = sessionStorage.getItem("fullscreenData");
+          if (savedData) {
+            cachedData = JSON.parse(savedData);
+            // Renderiza imediatamente o cache para evitar tela em branco
+            if (cachedData) {
+              setTimeout(() => renderFromCache(), 0);
+            }
+          }
+        } catch (e) {
+          console.log("Sem cache anterior disponível");
+        }
+
+        function renderFromCache() {
+          if (cachedData) {
+            console.log("Renderizando do cache para evitar piscar");
+            render(cachedData);
+          }
+        }
+
         // Detecta automaticamente se está em desenvolvimento ou produção
         const API_URL =
           window.location.hostname === "localhost" ||
@@ -585,6 +627,16 @@
               throw new Error(`Falha ao buscar dados: ${res.statusText}`);
             }
             const json = await res.json();
+
+            // Salva no cache para próximo refresh
+            cachedData = json;
+            try {
+              sessionStorage.setItem("fullscreenData", JSON.stringify(json));
+            } catch (e) {
+              // Ignora erro de quota excedida
+              console.warn("Não foi possível salvar no cache:", e);
+            }
+
             return json;
           } catch (e) {
             console.error("Erro em fetchData:", e);
@@ -595,6 +647,11 @@
 
         function render(data) {
           const { unidades, imageUrl, dotSize } = data;
+
+          // Marca como loading
+          wrapper.classList.add("loading");
+          wrapper.classList.remove("loaded");
+
           wrapper.innerHTML = "";
 
           window.currentDotSize = dotSize;
@@ -608,6 +665,8 @@
           if (!imageUrl) {
             wrapper.innerHTML =
               '<p style="padding:20px">Imagem da planta não configurada.</p>';
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
             return;
           }
 
@@ -615,8 +674,30 @@
           container.className = "floor-plan-container";
 
           const img = document.createElement("img");
-          img.src = imageUrl;
+
+          // Otimização: Usa cache do navegador e preload
+          const cachedImageUrl = sessionStorage.getItem("floorPlanImageUrl");
+          if (cachedImageUrl === imageUrl && img.complete) {
+            // Imagem já está em cache, carrega instantaneamente
+            img.src = imageUrl;
+          } else {
+            // Primeira carga ou imagem diferente
+            sessionStorage.setItem("floorPlanImageUrl", imageUrl);
+            img.src = imageUrl;
+          }
+
           img.className = "floor-plan-image";
+
+          // Remove loading state quando imagem carregar
+          img.onload = () => {
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+          };
+
+          img.onerror = () => {
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+          };
 
           container.appendChild(img);
           wrapper.appendChild(container);

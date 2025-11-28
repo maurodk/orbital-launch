@@ -326,6 +326,21 @@ export function ReservationList({
                                 </button>
                               )}
                             </>
+                          ) : isBlocked ? (
+                            // Quando bloqueada: mostrar apenas o botão de desbloqueio (e histórico já visível)
+                            <>
+                              <button
+                                className="unlock-button-in-table"
+                                title={
+                                  motivo
+                                    ? `Desbloquear Unidade — Motivo: ${motivo}`
+                                    : "Desbloquear Unidade"
+                                }
+                                onClick={() => onBlockClick(originalIndex)}
+                              >
+                                <FiUnlock size={16} />
+                              </button>
+                            </>
                           ) : (
                             <>
                               <button
@@ -340,7 +355,11 @@ export function ReservationList({
                               </button>
                               <button
                                 className="unlock-button-in-table"
-                                title="Desbloquear Unidade"
+                                title={
+                                  motivo
+                                    ? `Desbloquear Unidade — Motivo: ${motivo}`
+                                    : "Desbloquear Unidade"
+                                }
                                 onClick={() => onBlockClick(originalIndex)}
                               >
                                 <FiUnlock size={16} />
