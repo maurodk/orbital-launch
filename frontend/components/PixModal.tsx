@@ -26,8 +26,6 @@ interface PixModalProps {
   ) => Promise<void>;
 }
 
-// A cidade agora vem automaticamente da implantação cadastrada no Supabase
-
 export function PixModal({
   show,
   onClose,
