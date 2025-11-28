@@ -280,6 +280,7 @@ const SPREADSHEET_ID_IMPLANTACAO =
   "1_q-6DYUTbPKPzBFCovoOTrtKXys1TraQFzGiXiz-h9s";
 const SPREADSHEET_ID_DADOS = "1CyXDp_RpSApsh-QjJPuWUzHnQV1MZFy2W3u7jIhFPbY";
 const SPREADSHEET_ID_HISTORICO = "1LiDhvO1wJg8WZFpmMKUFE2DkzIxzouch_7aHjwlQPfI";
+const SPREADSHEET_ID_PIX = "1p2cFQIvT2Gq23VmfGUpvmCo3MK2Y5LkudR7ekrmkTdY";
 
 const SHEET_NAME_DADOS = "Página1";
 const SHEET_NAME_CONFIG = "Config";
@@ -1245,7 +1246,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const { data: implantacoes, error } = await supabase
       .from("implantacoes")
       .select(
-        "id, nome, imagem_url, dot_size, endereco, logo_url, cvcrm_id, sigla"
+        "id, nome, imagem_url, dot_size, endereco, logo_url, cvcrm_id, sigla, cidade, estado"
       )
       .order("nome", { ascending: true });
 
@@ -1266,6 +1267,8 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
       logoUrl: impl.logo_url || "/logo-uni.png",
       cvcrmId: impl.cvcrm_id || null,
       sigla: impl.sigla || null,
+      cidade: impl.cidade || null,
+      estado: impl.estado || null,
     }));
 
     console.log("[/api/implantacoes] Busca concluída. Total:", result.length);
@@ -2945,7 +2948,245 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   }
 });
 
-// NOVO: Endpoint para atualizar dados do PIX
+// =================================================================
+// NOVA LÓGICA DE PIX - Planilha Separada (ID: 1p2cFQIvT2Gq23VmfGUpvmCo3MK2Y5LkudR7ekrmkTdY)
+// =================================================================
+
+// Helper: Adiciona um novo PIX na planilha de PIX
+async function addPixToSheet(
+  sheets,
+  implantacao,
+  cliente,
+  unidade,
+  identificador,
+  payloadEmv,
+  valor,
+  statusPagamento
+) {
+  const dataHora = new Date().toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+  });
+
+  const newRow = [
+    dataHora, // A - Data e Hora
+    cliente, // B - Cliente
+    unidade, // C - Unidade
+    identificador, // D - Identificador
+    payloadEmv, // E - Payload EMV
+    valor, // F - Valor
+    statusPagamento, // G - Status Pagamento
+  ];
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID_PIX,
+    range: `'${implantacao}'!A:G`,
+    valueInputOption: "RAW",
+    resource: { values: [newRow] },
+  });
+}
+
+// Helper: Busca todos os PIX de um cliente/unidade específica
+async function getPixByClienteUnidade(sheets, implantacao, cliente, unidade) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_PIX,
+      range: `'${implantacao}'!A:G`,
+    });
+
+    const rows = response.data.values || [];
+    const pixList = [];
+
+    // Pula o cabeçalho (linha 1)
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row[1] === cliente && row[2] === unidade) {
+        pixList.push({
+          rowIndex: i + 1, // +1 porque sheets é 1-indexed
+          dataHora: row[0] || "",
+          cliente: row[1] || "",
+          unidade: row[2] || "",
+          identificador: row[3] || "",
+          payloadEmv: row[4] || "",
+          valor: parseFloat(row[5]) || 0,
+          statusPagamento: row[6] || "PENDENTE",
+        });
+      }
+    }
+
+    return pixList;
+  } catch (error) {
+    console.error("Erro ao buscar PIX:", error);
+    return [];
+  }
+}
+
+// Endpoint: Criar um novo PIX
+app.post("/api/pix/create", verifyToken, async (req, res) => {
+  const { implantacao, cliente, unidade, identificador, payloadEmv, valor } =
+    req.body;
+
+  if (
+    !implantacao ||
+    !cliente ||
+    !unidade ||
+    !identificador ||
+    !payloadEmv ||
+    !valor
+  ) {
+    return res.status(400).json({ error: "Dados incompletos para criar PIX." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // Adiciona o PIX na planilha
+    await addPixToSheet(
+      sheets,
+      implantacao,
+      cliente,
+      unidade,
+      identificador,
+      payloadEmv,
+      valor,
+      "PENDENTE"
+    );
+
+    res.json({
+      success: true,
+      message: "PIX criado com sucesso.",
+    });
+  } catch (error) {
+    console.error("Erro ao criar PIX:", error);
+    res.status(500).json({ error: "Falha ao criar PIX." });
+  }
+});
+
+// Endpoint: Buscar todos os PIX de um cliente/unidade
+app.get("/api/pix/list", verifyToken, async (req, res) => {
+  const { implantacao, cliente, unidade } = req.query;
+
+  if (!implantacao || !cliente || !unidade) {
+    return res.status(400).json({ error: "Parâmetros incompletos." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const pixList = await getPixByClienteUnidade(
+      sheets,
+      implantacao,
+      cliente,
+      unidade
+    );
+
+    // Calcula totais APENAS dos PIX com status "PAGO"
+    const pixPagos = pixList.filter(
+      (pix) => pix.statusPagamento?.toUpperCase() === "PAGO"
+    );
+    const valorTotal = pixPagos.reduce((sum, pix) => sum + pix.valor, 0);
+    const numeroParcelas = pixPagos.length;
+
+    res.json({
+      pixList, // Retorna todos os PIX (para histórico)
+      valorTotal, // Soma apenas dos pagos
+      numeroParcelas, // Conta apenas os pagos
+    });
+  } catch (error) {
+    console.error("Erro ao listar PIX:", error);
+    res.status(500).json({ error: "Falha ao listar PIX." });
+  }
+});
+
+// NOVO: Endpoint para buscar último PIX pendente de uma unidade
+app.get("/api/pix/pending", verifyToken, async (req, res) => {
+  const { implantacao, cliente, unidade } = req.query;
+
+  if (!implantacao || !cliente || !unidade) {
+    return res.status(400).json({ error: "Parâmetros incompletos." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const pixList = await getPixByClienteUnidade(
+      sheets,
+      implantacao,
+      cliente,
+      unidade
+    );
+
+    // Busca o último PIX pendente
+    const pendingPix = pixList
+      .filter((pix) => pix.statusPagamento?.toUpperCase() === "PENDENTE")
+      .sort((a, b) => b.rowIndex - a.rowIndex)[0]; // Pega o mais recente
+
+    if (pendingPix) {
+      res.json({
+        hasPending: true,
+        pixData: pendingPix,
+      });
+    } else {
+      res.json({
+        hasPending: false,
+        pixData: null,
+      });
+    }
+  } catch (error) {
+    console.error("Erro ao buscar PIX pendente:", error);
+    res.status(500).json({ error: "Falha ao buscar PIX pendente." });
+  }
+});
+
+// Endpoint: Transferir PIX de uma unidade para outra (troca de unidade)
+app.post("/api/pix/transfer", verifyToken, async (req, res) => {
+  const { implantacao, cliente, unidadeAntiga, unidadeNova } = req.body;
+
+  if (!implantacao || !cliente || !unidadeAntiga || !unidadeNova) {
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para transferência." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+
+    // Busca todos os PIX da unidade antiga
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_PIX,
+      range: `'${implantacao}'!A:G`,
+    });
+
+    const rows = response.data.values || [];
+    const updates = [];
+
+    // Atualiza todas as linhas que correspondem ao cliente e unidade antiga
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row[1] === cliente && row[2] === unidadeAntiga) {
+        updates.push({
+          range: `'${implantacao}'!C${i + 1}`, // Coluna C (Unidade)
+          values: [[unidadeNova]],
+        });
+      }
+    }
+
+    if (updates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID_PIX,
+        resource: { data: updates, valueInputOption: "RAW" },
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `${updates.length} PIX(s) transferidos com sucesso.`,
+      pixTransferidos: updates.length,
+    });
+  } catch (error) {
+    console.error("Erro ao transferir PIX:", error);
+    res.status(500).json({ error: "Falha ao transferir PIX." });
+  }
+});
+
+// ANTIGO: Endpoint para atualizar dados do PIX (DEPRECATED - manter por compatibilidade)
 app.post("/api/update-pix-data", verifyToken, async (req, res) => {
   const {
     implantacao,

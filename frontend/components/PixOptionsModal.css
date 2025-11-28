@@ -1,0 +1,111 @@
+/* frontend/components/PixOptionsModal.css */
+
+.pix-options-modal {
+  max-width: 500px;
+  padding: 2rem;
+  background-color: var(--bg-dark-secondary);
+  color: var(--text-primary);
+}
+
+.pix-options-subtitle {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.pix-options-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pix-option-button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 2px solid var(--bg-dark-tertiary);
+  border-radius: 12px;
+  background: var(--bg-dark-tertiary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.pix-option-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(106, 215, 0, 0.2);
+}
+
+.pix-option-button.pending {
+  border-color: #ffa726;
+  background: rgba(255, 167, 38, 0.1);
+}
+
+.pix-option-button.pending:hover {
+  background: rgba(255, 167, 38, 0.2);
+  border-color: #ff9800;
+  box-shadow: 0 4px 15px rgba(255, 167, 38, 0.3);
+}
+
+.pix-option-button.new {
+  border-color: var(--accent-green);
+  background: rgba(106, 215, 0, 0.1);
+}
+
+.pix-option-button.new:hover {
+  background: rgba(106, 215, 0, 0.2);
+  border-color: #7ce600;
+  box-shadow: 0 4px 15px rgba(106, 215, 0, 0.3);
+}
+
+.pix-option-button.history {
+  border-color: #42a5f5;
+  background: rgba(66, 165, 245, 0.1);
+}
+
+.pix-option-button.history:hover {
+  background: rgba(66, 165, 245, 0.2);
+  border-color: #2196f3;
+  box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+}
+
+.option-icon {
+  font-size: 2rem;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.option-text strong {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.option-text span {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .pix-options-modal {
+    max-width: 90%;
+    padding: 1.5rem;
+  }
+
+  .pix-option-button {
+    padding: 1rem;
+  }
+
+  .option-icon {
+    font-size: 1.5rem;
+    min-width: 2.5rem;
+  }
+}

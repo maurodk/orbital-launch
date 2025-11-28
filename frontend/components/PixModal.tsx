@@ -9,57 +9,43 @@ interface PixModalProps {
   show: boolean;
   onClose: () => void;
   unitData: string[] | null;
-  unidades: string[][];
   implantacaoNome: string;
   implantacaoSigla: string;
+  implantacaoCidade?: string;
+  showPending?: boolean; // NOVO: Se true, mostra PIX pendente (sem opção de gerar novo)
+  pendingPixData?: {
+    // NOVO: Dados do PIX pendente
+    identificador: string;
+    payloadEmv: string;
+    valor: number;
+  };
   onConfirm: (
-    txid: string,
     valor: number,
     identificador: string,
-    payloadEmv: string,
-    statusPagamento: string
+    payloadEmv: string
   ) => Promise<void>;
 }
 
-// Estrutura de dados para os estados e cidades permitidos
-const CIDADES_POR_ESTADO: { [key: string]: string[] } = {
-  BA: ["VITORIA DA CONQUISTA", "SALVADOR", "FEIRA DE SANTANA", "ITABUNA"],
-  SP: ["SAO PAULO", "CAMPINAS", "GUARULHOS", "SANTOS", "SAO JOSE DOS CAMPOS"],
-  RJ: ["RIO DE JANEIRO", "NITEROI", "DUQUE DE CAXIAS", "NOVA IGUACU"],
-  MG: ["BELO HORIZONTE", "UBERLANDIA", "CONTAGEM", "JUIZ DE FORA"],
-  PR: ["CURITIBA", "LONDRINA", "MARINGA"],
-  SC: ["FLORIANOPOLIS", "JOINVILLE", "BLUMENAU"],
-  RS: ["PORTO ALEGRE", "CAXIAS DO SUL", "PELOTAS"],
-  PE: ["PETROLINA", "RECIFE", "JABOATAO DOS GUARARAPES", "OLINDA"],
-  CE: ["FORTALEZA", "CAUCAIA", "JUAZEIRO DO NORTE"],
-  DF: ["BRASILIA"],
-  GO: ["GOIANIA", "APARECIDA DE GOIANIA", "ANAPOLIS"],
-  AM: ["MANAUS"],
-};
-
-const ESTADOS_PERMITIDOS = Object.keys(CIDADES_POR_ESTADO);
+// A cidade agora vem automaticamente da implantação cadastrada no Supabase
 
 export function PixModal({
   show,
   onClose,
   unitData,
-  unidades,
   implantacaoNome,
   implantacaoSigla,
+  implantacaoCidade,
+  showPending = false,
+  pendingPixData,
   onConfirm,
 }: PixModalProps) {
   const [valor, setValor] = useState(0);
   const [displayValor, setDisplayValor] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [showQr, setShowQr] = useState(false);
-  const [estado, setEstado] = useState(ESTADOS_PERMITIDOS[0]);
-  const [cidade, setCidade] = useState(
-    CIDADES_POR_ESTADO[ESTADOS_PERMITIDOS[0]][0]
-  );
   const [payload, setPayload] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [isPaid, setIsPaid] = useState(false); // NOVO: Estado para controlar a confirmação de pagamento
-  const [contatoCliente, setContatoCliente] = useState(""); // NOVO: Estado para o contato do cliente
+  const [contatoCliente, setContatoCliente] = useState("");
 
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
   const AWS_API_URL =
@@ -71,7 +57,6 @@ export function PixModal({
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
 
   useEffect(() => {
-    // Reseta o estado quando o modal é fechado ou a unidade muda
     if (!show) {
       setValor(0);
       setDisplayValor("");
@@ -79,24 +64,26 @@ export function PixModal({
       setShowQr(false);
       setPayload(null);
       setError("");
-      setIsPaid(false); // Reseta o estado de pagamento
-      // Reseta para o estado e cidade padrão
-      const defaultEstado = ESTADOS_PERMITIDOS[0];
-      setEstado(defaultEstado);
       setContatoCliente("");
-      setCidade(CIDADES_POR_ESTADO[defaultEstado][0]);
+    } else if (showPending && pendingPixData) {
+      // Se for para mostrar PIX pendente, carrega os dados
+      setPayload(pendingPixData.payloadEmv);
+      setValor(pendingPixData.valor);
+      setDisplayValor(
+        new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(pendingPixData.valor)
+      );
+      setShowQr(true);
     }
-  }, [show]);
+  }, [show, showPending, pendingPixData]);
 
-  // NOVO: Efeito para decidir a visão inicial do modal
+  // Preenche o contato do cliente automaticamente
   useEffect(() => {
     if (show && unitData) {
-      const statusPagamento = unitData[16]?.toUpperCase();
-      const payloadExistente = unitData[14]; // Coluna O
-      const valorExistente = parseFloat(unitData[15]); // Coluna P
       const telefoneCliente = (unitData?.[9] || "").replace(/\D/g, "");
 
-      // Preenche o contato do cliente
       if (telefoneCliente) {
         setContatoCliente(
           telefoneCliente.startsWith("55")
@@ -104,84 +91,14 @@ export function PixModal({
             : `55${telefoneCliente}`
         );
       }
-
-      // Se já existe um PIX pendente, mostra o QR Code diretamente
-      if (statusPagamento === "PENDENTE" && payloadExistente) {
-        setPayload(payloadExistente);
-        if (!isNaN(valorExistente)) {
-          setValor(valorExistente);
-          setDisplayValor(
-            new Intl.NumberFormat("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            }).format(valorExistente)
-          );
-        }
-        setShowQr(true);
-      }
     }
   }, [show, unitData]);
-
-  // NOVO: Efeito para reagir à atualização de status em tempo real
-  useEffect(() => {
-    // Verifica se o status do pagamento (coluna Q, índice 16) mudou para "PAGO"
-    if (show && unitData && unitData[16]?.toUpperCase() === "PAGO") {
-      setIsPaid(true); // Ativa a animação de sucesso
-
-      // Fecha o modal automaticamente após 3 segundos
-      const timer = setTimeout(() => {
-        onClose();
-      }, 3000);
-
-      return () => clearTimeout(timer); // Limpa o timer se o componente for desmontado
-    }
-  }, [unitData, show, onClose]);
-
-  // NOVO: Efeito para iniciar o polling (verificação periódica) do status do pagamento
-  useEffect(() => {
-    if (showQr && !isPaid) {
-      const sheetRowIndex = unitData
-        ? unidades.findIndex((u) => u[2] === unitData[2]) + 2
-        : null;
-      if (!sheetRowIndex) return;
-
-      const interval = setInterval(async () => {
-        try {
-          // Chama os endpoints em paralelo para otimizar
-          await Promise.all([
-            // Endpoint para forçar a atualização da UI da unidade
-            axios.post(`${apiUrl}/api/refresh-unit`, {
-              implantacao: implantacaoNome,
-              rowIndex: sheetRowIndex,
-            }),
-            // NOVO: Endpoint para verificar se o pagamento foi confirmado e registrar no histórico
-            axios.post(`${apiUrl}/api/check-and-log-payment`, {
-              implantacao: implantacaoNome,
-              rowIndex: sheetRowIndex,
-            }),
-          ]);
-        } catch (error) {
-          console.error("Falha ao verificar status do PIX:", error);
-        }
-      }, 5000); // Verifica a cada 5 segundos
-
-      // Limpa o intervalo quando o modal é fechado ou o pagamento é confirmado
-      return () => clearInterval(interval);
-    }
-  }, [showQr, isPaid, unitData, implantacaoNome, unidades, apiUrl]);
 
   const txid = useMemo(() => {
     if (!unitData || !implantacaoSigla) return "";
     const unitIdentifier = (unitData[2] || "").replace(/[^A-Z0-9]/gi, "");
     return `${implantacaoSigla}${unitIdentifier}`;
   }, [unitData, implantacaoSigla]);
-
-  // Atualiza a cidade quando o estado muda
-  useEffect(() => {
-    if (estado) {
-      setCidade(CIDADES_POR_ESTADO[estado][0]);
-    }
-  }, [estado]);
 
   const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, "");
@@ -232,7 +149,7 @@ export function PixModal({
         return cpfLimpo;
       })(),
       nome: (unitData?.[6] || "CLIENTE").slice(0, 25),
-      cidade: cidade.slice(0, 15),
+      cidade: (implantacaoCidade || "SAO PAULO").slice(0, 15),
       chave: "financeiro11@vcaconstrutora.com.br",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
       expiracao: 3600,
@@ -250,7 +167,7 @@ export function PixModal({
       const { identificador, payloadEmv } = response.data;
 
       // Chama a função onConfirm para salvar os dados na planilha
-      await onConfirm(txid, valor, identificador, payloadEmv, "PENDENTE");
+      await onConfirm(valor, identificador, payloadEmv);
 
       // NOVO: Dispara o webhook da Botmaker através do nosso backend
       try {
@@ -294,24 +211,6 @@ export function PixModal({
     return null;
   }
 
-  // Se o pagamento foi confirmado, mostra a animação de sucesso
-  if (isPaid) {
-    return (
-      <div className="modal-overlay">
-        <div className="modal-content pix-modal-content payment-success-animation">
-          <div className="success-checkmark">
-            <div className="check-icon"></div>
-          </div>
-          <h2>Pagamento Confirmado!</h2>
-          <p>
-            A reserva da unidade <strong>{unitData[2]}</strong> foi
-            oficializada.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="modal-overlay">
       <div className="modal-content pix-modal-content">
@@ -327,39 +226,6 @@ export function PixModal({
             <div className="form-group">
               <label>TXID (Gerado automaticamente)</label>
               <input type="text" value={txid} readOnly />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="pix-estado">Estado</label>
-                <select
-                  id="pix-estado"
-                  value={estado}
-                  onChange={(e) => setEstado(e.target.value)}
-                  className="modal-select"
-                >
-                  {ESTADOS_PERMITIDOS.map((est) => (
-                    <option key={est} value={est}>
-                      {est}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label htmlFor="pix-cidade">Cidade</label>
-                <select
-                  id="pix-cidade"
-                  value={cidade}
-                  onChange={(e) => setCidade(e.target.value)}
-                  className="modal-select"
-                  disabled={!estado}
-                >
-                  {(CIDADES_POR_ESTADO[estado] || []).map((cid) => (
-                    <option key={cid} value={cid}>
-                      {cid}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
             <div className="form-group">
               <label htmlFor="pix-contato">Contato (WhatsApp)</label>
@@ -407,22 +273,35 @@ export function PixModal({
               </div>
             ) : (
               <p className="modal-error">
-                Payload para o QR Code não encontrado na planilha.
+                Payload para o QR Code não encontrado.
               </p>
             )}
-            <p className="waiting-payment-text">
-              Aguardando confirmação de pagamento...
-            </p>
-            <small>
-              O status da unidade será atualizado automaticamente para "PAGO"
-              assim que o pagamento for confirmado.
-            </small>
-            <button
-              className="modal-block-button"
-              onClick={handleShowFormAgain}
-            >
-              Gerar Novo PIX
-            </button>
+            {showPending ? (
+              <>
+                <p className="waiting-payment-text">
+                  PIX pendente de pagamento
+                </p>
+                <small>
+                  Este PIX ainda está aguardando confirmação. Não é possível
+                  gerar um novo até que este seja pago ou expire.
+                </small>
+              </>
+            ) : (
+              <>
+                <p className="waiting-payment-text">
+                  Aguardando confirmação de pagamento...
+                </p>
+                <small>
+                  O PIX será registrado assim que o pagamento for confirmado.
+                </small>
+                <button
+                  className="modal-block-button"
+                  onClick={handleShowFormAgain}
+                >
+                  Gerar Novo PIX
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

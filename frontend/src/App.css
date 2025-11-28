@@ -1551,7 +1551,8 @@ button:focus-visible {
 
 /* Aumenta a largura máxima especificamente para o modal de histórico */
 .history-modal-content {
-  max-width: 900px;
+  max-width: 1200px;
+  width: 95%;
 }
 
 /* Estilos para a barra de busca dentro do modal de histórico */

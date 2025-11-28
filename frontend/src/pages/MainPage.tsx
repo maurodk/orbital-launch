@@ -31,6 +31,8 @@ import { VerifyingModal } from "../../components/VerifyingModal";
 import { ReservationFailedModal } from "../../components/ReservationFailedModal";
 import { ReservationSuccessModal } from "../../components/ReservationSuccessModal";
 import { PixModal } from "../../components/PixModal";
+import { PixOptionsModal } from "../../components/PixOptionsModal";
+import { PixHistoryModal } from "../../components/PixHistoryModal";
 import { ChangeUnitSuccessModal } from "../../components/ChangeUnitSuccessModal";
 import { ChangeUnitFailedModal } from "../../components/ChangedUnitFailedModal";
 import { ChangeUnitModal } from "../../components/ChangeUnitModal";
@@ -69,6 +71,8 @@ interface Implantation {
   endereco?: string;
   logoUrl?: string;
   sigla?: string;
+  cidade?: string;
+  estado?: string;
 }
 
 // Função para gerar sigla a partir do nome
@@ -138,6 +142,21 @@ export function MainPage() {
   const [pixModalState, setPixModalState] = useState({
     isOpen: false,
     unitIndex: null as number | null,
+    showPending: false,
+    pendingPixData: null as {
+      identificador: string;
+      payloadEmv: string;
+      valor: number;
+    } | null,
+  });
+  const [pixOptionsModalState, setPixOptionsModalState] = useState({
+    isOpen: false,
+    unitIndex: null as number | null,
+    hasPendingPix: false,
+  });
+  const [pixHistoryModalState, setPixHistoryModalState] = useState({
+    isOpen: false,
+    unitIndex: null as number | null,
   });
   const [changeUnitModalState, setChangeUnitModalState] = useState({
     // <-- NOVO
@@ -192,6 +211,11 @@ export function MainPage() {
   >(null);
   const [showFullNameModal, setShowFullNameModal] = useState(false);
   // Removido userFullName - não está sendo usado no momento
+
+  // Extrair implantacao e cliente do contexto atual
+  const implantacao = selectedImplantationName;
+  const cliente = unidades.length > 0 ? unidades[0][1] || "" : ""; // Coluna B - cliente
+
   const reservationManager = useReservationManager(apiUrl);
 
   // Estados para os novos modais
@@ -709,7 +733,18 @@ export function MainPage() {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
     setBlockModalState({ isOpen: false, isBlocking: true, apiError: "" });
-    setPixModalState({ isOpen: false, unitIndex: null });
+    setPixModalState({
+      isOpen: false,
+      unitIndex: null,
+      showPending: false,
+      pendingPixData: null,
+    });
+    setPixOptionsModalState({
+      isOpen: false,
+      unitIndex: null,
+      hasPendingPix: false,
+    });
+    setPixHistoryModalState({ isOpen: false, unitIndex: null });
     setChangeUnitModalState({ isOpen: false, unitIndex: null }); // <-- NOVO
     setIsChangeUnitSuccessModalOpen(false); // NOVO
     setIsChangeUnitFailedModalOpen(false); // NOVO
@@ -782,11 +817,108 @@ export function MainPage() {
     setBlockModalState({ isOpen: true, isBlocking: !isBlocked, apiError: "" });
   };
 
-  const handlePixActionClick = (unitIndex: number) => {
-    setPixModalState({
-      isOpen: true,
-      unitIndex: unitIndex,
+  const handlePixActionClick = async (unitIndex: number) => {
+    const unit = unidades[unitIndex];
+    if (!unit) return;
+
+    const unidade = unit[2]; // Coluna C - Nome da unidade
+
+    try {
+      // Busca se existe PIX pendente
+      const response = await axios.get(
+        `http://localhost:3001/api/pix/pending?implantacao=${encodeURIComponent(
+          implantacao
+        )}&cliente=${encodeURIComponent(cliente)}&unidade=${encodeURIComponent(
+          unidade
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      const { hasPending } = response.data;
+
+      // Abre modal de opções
+      setPixOptionsModalState({
+        isOpen: true,
+        unitIndex: unitIndex,
+        hasPendingPix: hasPending,
+      });
+    } catch (error) {
+      console.error("Erro ao verificar PIX pendente:", error);
+      // Mesmo com erro, abre o modal sem PIX pendente
+      setPixOptionsModalState({
+        isOpen: true,
+        unitIndex: unitIndex,
+        hasPendingPix: false,
+      });
+    }
+  };
+
+  const handlePixOptionSelect = async (
+    option: "pending" | "new" | "history"
+  ) => {
+    const unitIndex = pixOptionsModalState.unitIndex;
+    if (unitIndex === null) return;
+
+    const unit = unidades[unitIndex];
+    if (!unit) return;
+
+    const unidade = unit[2]; // Coluna C - Nome da unidade
+
+    // Fecha o modal de opções
+    setPixOptionsModalState({
+      isOpen: false,
+      unitIndex: null,
+      hasPendingPix: false,
     });
+
+    if (option === "pending") {
+      // Busca dados do PIX pendente e abre PixModal em modo visualização
+      try {
+        const response = await axios.get(
+          `http://localhost:3001/api/pix/pending?implantacao=${encodeURIComponent(
+            implantacao
+          )}&cliente=${encodeURIComponent(
+            cliente
+          )}&unidade=${encodeURIComponent(unidade)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }
+        );
+
+        const { pixData } = response.data;
+        if (pixData) {
+          setPixModalState({
+            isOpen: true,
+            unitIndex: unitIndex,
+            showPending: true,
+            pendingPixData: pixData,
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao buscar PIX pendente:", error);
+        alert("Erro ao buscar PIX pendente.");
+      }
+    } else if (option === "new") {
+      // Abre PixModal em modo geração
+      setPixModalState({
+        isOpen: true,
+        unitIndex: unitIndex,
+        showPending: false,
+        pendingPixData: null,
+      });
+    } else if (option === "history") {
+      // Abre PixHistoryModal
+      setPixHistoryModalState({
+        isOpen: true,
+        unitIndex: unitIndex,
+      });
+    }
   };
 
   const handleChangeUnitClick = (unitIndex: number) => {
@@ -907,6 +1039,29 @@ export function MainPage() {
     }
 
     try {
+      const oldUnitData = unidades[changeUnitModalState.unitIndex];
+      const newUnitData = unidades[newUnitIndex];
+      const cliente = oldUnitData[7]; // Nome do cliente
+      const unidadeAntiga = oldUnitData[2]; // Nome da unidade antiga
+      const unidadeNova = newUnitData[2]; // Nome da unidade nova
+
+      // Transfere os PIX para a nova unidade
+      await axios.post(
+        `${apiUrl}/api/pix/transfer`,
+        {
+          implantacao: selectedImplantationName,
+          cliente,
+          unidadeAntiga,
+          unidadeNova,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      // Realiza a troca de unidade no Sheets
       await axios.post(`${apiUrl}/api/change-unit`, {
         implantacao: selectedImplantationName,
         oldUnitIndex: changeUnitModalState.unitIndex,
@@ -1175,34 +1330,45 @@ export function MainPage() {
   };
 
   const handleConfirmPixData = async (
-    txid: string,
     valor: number,
     identificador: string,
-    payloadEmv: string,
-    statusPagamento: string
+    payloadEmv: string
   ) => {
     if (pixModalState.unitIndex === null) return;
 
-    const sheetRowIndex = pixModalState.unitIndex + 2;
+    const unitData = unidades[pixModalState.unitIndex];
+    const cliente = unitData[7]; // Nome do cliente
+    const unidade = unitData[2]; // Nome da unidade
 
     try {
-      await axios.post(`${apiUrl}/api/update-pix-data`, {
-        implantacao: selectedImplantationName,
-        rowIndex: sheetRowIndex,
-        txid, // txid original (curto)
-        valor,
-        identificador, // txid longo da resposta do Santander
-        payloadEmv,
-        statusPagamento,
+      // Salva o PIX na planilha separada
+      await axios.post(
+        `${apiUrl}/api/pix/create`,
+        {
+          implantacao: selectedImplantationName,
+          cliente,
+          unidade,
+          identificador,
+          payloadEmv,
+          valor,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      // Fecha o modal PIX após salvar
+      setPixModalState({
+        isOpen: false,
+        unitIndex: null,
+        showPending: false,
+        pendingPixData: null,
       });
-      // Atualiza a UI localmente para refletir o status pendente
-      const updatedUnidades = [...unidades];
-      updatedUnidades[pixModalState.unitIndex][14] = identificador; // Coluna O - IDENTIFICADOR
-      updatedUnidades[pixModalState.unitIndex][15] = payloadEmv; // Coluna P - Payload
-      updatedUnidades[pixModalState.unitIndex][16] = String(valor); // Coluna Q - Valor
-      updatedUnidades[pixModalState.unitIndex][17] = statusPagamento; // Coluna R - Pagamento
-      // REMOVIDO: Coluna R não é mais usada para timestamp
-      setUnidades(updatedUnidades);
+
+      // Opcional: Mostrar mensagem de sucesso
+      alert("PIX gerado com sucesso!");
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } };
       throw new Error(
@@ -1832,13 +1998,37 @@ export function MainPage() {
                     ? unidades[pixModalState.unitIndex]
                     : null
                 }
-                unidades={unidades}
                 implantacaoNome={selectedImplantationName}
                 implantacaoSigla={
                   currentImplantation?.sigla ||
                   gerarSigla(selectedImplantationName)
                 }
+                implantacaoCidade={currentImplantation?.cidade}
+                showPending={pixModalState.showPending}
+                pendingPixData={pixModalState.pendingPixData || undefined}
                 onConfirm={handleConfirmPixData}
+              />
+              <PixOptionsModal
+                show={pixOptionsModalState.isOpen}
+                onClose={handleCloseModals}
+                onSelectOption={handlePixOptionSelect}
+                hasPendingPix={pixOptionsModalState.hasPendingPix}
+                unitName={
+                  pixOptionsModalState.unitIndex !== null
+                    ? unidades[pixOptionsModalState.unitIndex]?.[2] || ""
+                    : ""
+                }
+              />
+              <PixHistoryModal
+                show={pixHistoryModalState.isOpen}
+                onClose={handleCloseModals}
+                implantacao={selectedImplantationName}
+                cliente={cliente}
+                unidade={
+                  pixHistoryModalState.unitIndex !== null
+                    ? unidades[pixHistoryModalState.unitIndex]?.[2] || ""
+                    : ""
+                }
               />
               <ChangeUnitModal
                 show={changeUnitModalState.isOpen}

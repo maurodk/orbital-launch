@@ -1,0 +1,178 @@
+/* frontend/components/PixHistoryModal.css */
+
+.pix-history-modal {
+  max-width: 900px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background-color: var(--bg-dark-secondary);
+  color: var(--text-primary);
+}
+
+.pix-history-client {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.pix-summary {
+  display: flex;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-dark-tertiary);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(106, 215, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.summary-value.total {
+  color: var(--accent-green);
+  text-shadow: 0 0 10px rgba(106, 215, 0, 0.3);
+}
+
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.pix-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.pix-record {
+  border: 1px solid var(--bg-dark-tertiary);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--bg-dark-tertiary);
+  transition: all 0.3s ease;
+}
+
+.pix-record:hover {
+  box-shadow: 0 4px 15px rgba(106, 215, 0, 0.15);
+  border-color: rgba(106, 215, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+.pix-record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pix-date {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.paid {
+  background: rgba(106, 215, 0, 0.2);
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green);
+}
+
+.status-badge.pending {
+  background: rgba(255, 167, 38, 0.2);
+  color: #ffa726;
+  border: 1px solid #ffa726;
+}
+
+.pix-record-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pix-field {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.pix-field strong {
+  color: var(--accent-green);
+  margin-right: 0.5rem;
+  font-weight: 600;
+}
+
+.pix-field code {
+  background: var(--bg-dark-primary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-close-footer-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--accent-green);
+  color: var(--bg-dark-primary);
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal-close-footer-button:hover {
+  background: #7ce600;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(106, 215, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+  .pix-history-modal {
+    max-width: 95%;
+  }
+
+  .pix-summary {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .pix-record-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

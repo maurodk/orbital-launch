@@ -342,7 +342,7 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
               className="logo-uni"
             />
             <img
-              src="/logo-vca.png"
+              src="/logotermo.png"
               alt="VCA Construtora"
               className="logo-vca"
             />
