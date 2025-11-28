@@ -32,11 +32,185 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
   );
 }
 
+// Wrapper para operações Supabase com rate limiting
+async function supabaseWithRateLimit(operation) {
+  if (!supabase) {
+    throw new Error("Supabase não configurado");
+  }
+
+  const rateLimitCheck = checkRateLimit("supabase_global", "supabase");
+  if (!rateLimitCheck.allowed) {
+    const waitSeconds = Math.ceil(rateLimitCheck.resetIn / 1000);
+    const error = new Error(
+      `Rate limit do Supabase excedido. Tente novamente em ${waitSeconds}s`
+    );
+    error.rateLimitError = true;
+    error.resetIn = rateLimitCheck.resetIn;
+    console.warn(`[SUPABASE] Rate limit atingido. Aguarde ${waitSeconds}s`);
+    throw error;
+  }
+
+  return await operation(supabase);
+}
+
 // Inicializa o Express App
 const app = express();
 
 // NOVO: Cache em memória para abas de histórico já criadas
 const createdHistorySheets = new Set();
+
+// =================================================================
+// SISTEMA INTELIGENTE DE POLLING E RATE LIMITING
+// =================================================================
+
+// Cache de dados com TTL (Time To Live)
+const dataCache = new Map();
+const CACHE_TTL = 5000; // 5 segundos de cache
+
+// Rate limiting por endpoint e implantação
+const rateLimitMap = new Map();
+const RATE_LIMIT = {
+  sheets: { maxRequests: 60, windowMs: 60000 }, // 60 req/min (Google Sheets)
+  supabase: { maxRequests: 100, windowMs: 60000 }, // 100 req/min (Supabase)
+  polling: { minInterval: 3000 }, // Mínimo 3s entre polls da mesma unidade
+};
+
+// Tracking de mudanças para backoff adaptativo
+const changeTracker = new Map();
+const BACKOFF_CONFIG = {
+  noChanges: 10000, // 10s quando não há mudanças
+  withChanges: 3000, // 3s quando há mudanças recentes
+  maxBackoff: 30000, // 30s máximo
+};
+
+// Pool de requisições pendentes para evitar duplicatas
+const requestPool = new Map();
+
+// Helper: Verifica rate limit
+function checkRateLimit(key, type = "sheets") {
+  const now = Date.now();
+  const limit = RATE_LIMIT[type];
+
+  if (!rateLimitMap.has(key)) {
+    rateLimitMap.set(key, []);
+  }
+
+  const requests = rateLimitMap.get(key);
+  const windowStart = now - limit.windowMs;
+
+  // Remove requisições antigas
+  const recentRequests = requests.filter((time) => time > windowStart);
+  rateLimitMap.set(key, recentRequests);
+
+  if (recentRequests.length >= limit.maxRequests) {
+    const oldestRequest = recentRequests[0];
+    const resetTime = oldestRequest + limit.windowMs;
+    return { allowed: false, resetIn: resetTime - now };
+  }
+
+  recentRequests.push(now);
+  rateLimitMap.set(key, recentRequests);
+  return { allowed: true };
+}
+
+// Helper: Cache com TTL
+function getCachedData(key) {
+  const cached = dataCache.get(key);
+  if (!cached) return null;
+
+  const now = Date.now();
+  if (now - cached.timestamp > CACHE_TTL) {
+    dataCache.delete(key);
+    return null;
+  }
+
+  return cached.data;
+}
+
+function setCachedData(key, data) {
+  dataCache.set(key, {
+    data,
+    timestamp: Date.now(),
+  });
+}
+
+// Helper: Backoff adaptativo baseado em mudanças
+function getAdaptiveInterval(implantacao) {
+  const tracker = changeTracker.get(implantacao);
+  if (!tracker) {
+    changeTracker.set(implantacao, {
+      lastChange: Date.now(),
+      changeCount: 0,
+    });
+    return BACKOFF_CONFIG.withChanges;
+  }
+
+  const timeSinceChange = Date.now() - tracker.lastChange;
+
+  // Se houve mudanças recentes (últimos 2 minutos), mantém intervalo curto
+  if (timeSinceChange < 120000 && tracker.changeCount > 0) {
+    return BACKOFF_CONFIG.withChanges;
+  }
+
+  // Aumenta gradualmente o backoff até o máximo
+  const backoff = Math.min(
+    BACKOFF_CONFIG.noChanges + (timeSinceChange / 10000) * 1000,
+    BACKOFF_CONFIG.maxBackoff
+  );
+
+  return Math.floor(backoff);
+}
+
+function registerChange(implantacao) {
+  const tracker = changeTracker.get(implantacao) || {
+    lastChange: 0,
+    changeCount: 0,
+  };
+  tracker.lastChange = Date.now();
+  tracker.changeCount += 1;
+  changeTracker.set(implantacao, tracker);
+}
+
+// Helper: Pool de requisições para evitar duplicatas
+async function pooledRequest(key, requestFn) {
+  if (requestPool.has(key)) {
+    // Já existe uma requisição em andamento, aguarda ela
+    return await requestPool.get(key);
+  }
+
+  const promise = requestFn().finally(() => {
+    requestPool.delete(key);
+  });
+
+  requestPool.set(key, promise);
+  return await promise;
+}
+
+// Limpeza periódica de caches antigos
+setInterval(() => {
+  const now = Date.now();
+
+  // Limpa cache expirado
+  for (const [key, value] of dataCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      dataCache.delete(key);
+    }
+  }
+
+  // Limpa rate limits antigos (mantém apenas última hora)
+  for (const [key, requests] of rateLimitMap.entries()) {
+    const recent = requests.filter((time) => now - time < 3600000);
+    if (recent.length === 0) {
+      rateLimitMap.delete(key);
+    } else {
+      rateLimitMap.set(key, recent);
+    }
+  }
+
+  console.log(
+    `[CACHE] Limpeza: ${dataCache.size} entradas em cache, ${rateLimitMap.size} rate limits ativos`
+  );
+}, 60000); // Limpa a cada 1 minuto
 
 // =================================================================
 // HELPER: Normalização de Status (case e accent insensitive)
@@ -378,6 +552,19 @@ async function gerarTimestamp() {
 
 // Cliente do Google Sheets
 async function getSheetsClient() {
+  // Verifica rate limit do Google Sheets antes de criar o cliente
+  const rateLimitCheck = checkRateLimit("sheets_global", "sheets");
+  if (!rateLimitCheck.allowed) {
+    const waitSeconds = Math.ceil(rateLimitCheck.resetIn / 1000);
+    const error = new Error(
+      `Rate limit do Google Sheets excedido. Tente novamente em ${waitSeconds}s`
+    );
+    error.rateLimitError = true;
+    error.resetIn = rateLimitCheck.resetIn;
+    console.warn(`[SHEETS] Rate limit atingido. Aguarde ${waitSeconds}s`);
+    throw error;
+  }
+
   const auth = new google.auth.GoogleAuth({
     keyFile: "credentials.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
@@ -961,7 +1148,7 @@ app.get("/api/data", verifyToken, async (req, res) => {
   console.log("📊 [/api/data] Requisição recebida");
   console.log("📊 Query params:", req.query);
 
-  const { implantacao } = req.query;
+  const { implantacao, forceRefresh } = req.query;
   if (!implantacao) {
     console.error("📊 [/api/data] Nome da implantação não fornecido");
     return res
@@ -971,78 +1158,96 @@ app.get("/api/data", verifyToken, async (req, res) => {
 
   console.log("📊 [/api/data] Buscando dados para:", implantacao);
 
-  try {
-    const sheets = await getSheetsClient();
-    const resolved = await resolveSheetName(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
+  // Verifica cache (exceto se forceRefresh=true)
+  const cacheKey = `data_${implantacao}`;
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      console.log("📊 [/api/data] Retornando dados do cache");
+      return res.json({ ...cached, fromCache: true });
+    }
+  }
 
-    if (!resolved || !resolved.found) {
-      // Se a planilha não existe, retorna dados vazios ao invés de erro 404
-      console.log(
-        `⚠️ [/api/data] Planilha '${implantacao}' ainda não existe (sem unidades importadas)`
+  // Usa pooling para evitar requisições duplicadas simultâneas
+  return pooledRequest(cacheKey, async () => {
+    try {
+      const sheets = await getSheetsClient();
+      const resolved = await resolveSheetName(
+        sheets,
+        SPREADSHEET_ID_IMPLANTACAO,
+        implantacao
       );
-      return res.json({
-        unidades: [],
-        clientes: [],
-        sheetNotFound: true,
-        message: "Nenhuma unidade importada ainda para esta implantação",
+
+      if (!resolved || !resolved.found) {
+        // Se a planilha não existe, retorna dados vazios ao invés de erro 404
+        console.log(
+          `⚠️ [/api/data] Planilha '${implantacao}' ainda não existe (sem unidades importadas)`
+        );
+        return res.json({
+          unidades: [],
+          clientes: [],
+          sheetNotFound: true,
+          message: "Nenhuma unidade importada ainda para esta implantação",
+        });
+      }
+      const sheetTitle = resolved.found;
+
+      // Busca unidades da planilha (Google Sheets)
+      const implantacaoRes = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!A:S`,
+      });
+
+      // Busca clientes do Supabase
+      let clientes = [];
+      if (supabase) {
+        try {
+          // Primeiro encontra o ID da implantação
+          const { data: implData } = await supabase
+            .from("implantacoes")
+            .select("id")
+            .eq("nome", sheetTitle)
+            .limit(1)
+            .single();
+
+          if (implData && implData.id) {
+            // Busca os clientes associados a esta implantação
+            const { data: clientesData } = await supabase
+              .from("clientes")
+              .select("*")
+              .eq("implantacao_id", implData.id);
+
+            clientes = (clientesData || []).map((c) => [
+              c.id_pre_cadastro || "",
+              c.nome || "",
+              c.documento || "",
+              c.corretor || "",
+              c.imobiliaria || "",
+              c.status || "",
+            ]);
+          }
+        } catch (e) {
+          console.error("Erro ao buscar clientes do Supabase:", e);
+          // Em caso de erro, retorna array vazio
+        }
+      }
+
+      const responseData = {
+        unidades: implantacaoRes.data.values || [],
+        clientes: clientes,
+      };
+
+      // Armazena no cache
+      setCachedData(cacheKey, responseData);
+
+      res.json(responseData);
+    } catch (error) {
+      res.status(500).json({
+        error: `Falha ao buscar dados para a implantação '${implantacao}'.`,
+        details: error && error.message ? error.message : String(error),
       });
     }
-    const sheetTitle = resolved.found;
-
-    // Busca unidades da planilha (Google Sheets)
-    const implantacaoRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:S`,
-    });
-
-    // Busca clientes do Supabase
-    let clientes = [];
-    if (supabase) {
-      try {
-        // Primeiro encontra o ID da implantação
-        const { data: implData } = await supabase
-          .from("implantacoes")
-          .select("id")
-          .eq("nome", sheetTitle)
-          .limit(1)
-          .single();
-
-        if (implData && implData.id) {
-          // Busca os clientes associados a esta implantação
-          const { data: clientesData } = await supabase
-            .from("clientes")
-            .select("*")
-            .eq("implantacao_id", implData.id);
-
-          clientes = (clientesData || []).map((c) => [
-            c.id_pre_cadastro || "",
-            c.nome || "",
-            c.documento || "",
-            c.corretor || "",
-            c.imobiliaria || "",
-            c.status || "",
-          ]);
-        }
-      } catch (e) {
-        console.error("Erro ao buscar clientes do Supabase:", e);
-        // Em caso de erro, retorna array vazio
-      }
-    }
-
-    res.json({
-      unidades: implantacaoRes.data.values || [],
-      clientes: clientes,
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: `Falha ao buscar dados para a implantação '${implantacao}'.`,
-      details: error && error.message ? error.message : String(error),
-    });
-  }
+  });
 });
 
 // Endpoint público (somente leitura) para ser usado pela página fullscreen
@@ -1137,118 +1342,193 @@ app.get("/api/fast-poll-unit", async (req, res) => {
       .json({ error: "Implantação e rowIndex são obrigatórios." });
   }
 
-  try {
-    // Cria duas promises que competem entre si
-    const supabasePromise = (async () => {
-      if (!supabase) return null;
+  // Verifica cache recente
+  const cacheKey = `poll_${implantacao}_${rowIndex}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) {
+    return res.json({ ...cached, fromCache: true });
+  }
 
-      try {
-        const { data: implData } = await supabase
-          .from("implantacoes")
-          .select("id")
-          .eq("nome", implantacao)
-          .limit(1)
-          .single();
+  // Verifica rate limit para polling
+  const pollKey = `poll_${implantacao}_${rowIndex}`;
+  const lastPoll = rateLimitMap.get(pollKey)?.[0] || 0;
+  const timeSinceLastPoll = Date.now() - lastPoll;
 
-        if (!implData?.id) return null;
+  if (timeSinceLastPoll < RATE_LIMIT.polling.minInterval) {
+    const waitTime = RATE_LIMIT.polling.minInterval - timeSinceLastPoll;
+    return res.status(429).json({
+      error: "Polling muito frequente",
+      retryAfter: waitTime,
+      suggestion: "Use cache ou aguarde antes de fazer novo polling",
+    });
+  }
 
-        const { data: unitData } = await supabase
-          .from("unidades")
-          .select("situacao, nome_unidade, coord_x, coord_y")
-          .eq("implantacao_id", implData.id)
-          .eq("row_index", parseInt(rowIndex, 10))
-          .limit(1)
-          .single();
+  // Usa pooling para evitar requisições duplicadas
+  return pooledRequest(pollKey, async () => {
+    try {
+      // Cria duas promises que competem entre si
+      const supabasePromise = (async () => {
+        if (!supabase) return null;
 
-        if (!unitData) return null;
+        try {
+          const { data: implData } = await supabase
+            .from("implantacoes")
+            .select("id")
+            .eq("nome", implantacao)
+            .limit(1)
+            .single();
 
-        return {
-          source: "supabase",
-          status: unitData.situacao || "Disponível",
-          unitName: unitData.nome_unidade,
-          coordX: unitData.coord_x,
-          coordY: unitData.coord_y,
-          timestamp: Date.now(),
-        };
-      } catch (e) {
-        console.error("[FAST-POLL] Erro Supabase:", e.message);
-        return null;
-      }
-    })();
+          if (!implData?.id) return null;
 
-    const sheetsPromise = (async () => {
-      try {
-        const sheets = await getSheetsClient();
-        const resolved = await resolveSheetName(
-          sheets,
-          SPREADSHEET_ID_IMPLANTACAO,
-          implantacao
-        );
+          const { data: unitData } = await supabase
+            .from("unidades")
+            .select("situacao, nome_unidade, coord_x, coord_y")
+            .eq("implantacao_id", implData.id)
+            .eq("row_index", parseInt(rowIndex, 10))
+            .limit(1)
+            .single();
 
-        if (!resolved?.found) return null;
+          if (!unitData) return null;
 
-        const sheetTitle = resolved.found;
-        const range = `'${sheetTitle}'!C${rowIndex}:N${rowIndex}`;
+          return {
+            source: "supabase",
+            status: unitData.situacao || "Disponível",
+            unitName: unitData.nome_unidade,
+            coordX: unitData.coord_x,
+            coordY: unitData.coord_y,
+            timestamp: Date.now(),
+          };
+        } catch (e) {
+          console.error("[FAST-POLL] Erro Supabase:", e.message);
+          return null;
+        }
+      })();
 
-        const response = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range,
-        });
+      const sheetsPromise = (async () => {
+        try {
+          const sheets = await getSheetsClient();
+          const resolved = await resolveSheetName(
+            sheets,
+            SPREADSHEET_ID_IMPLANTACAO,
+            implantacao
+          );
 
-        const row = response.data.values?.[0];
-        if (!row) return null;
+          if (!resolved?.found) return null;
 
-        return {
-          source: "sheets",
-          status: row[9] || "Disponível", // Coluna L (índice 9 no range C:N)
-          unitName: row[0] || "", // Coluna C
-          coordX: row[10] || "", // Coluna M
-          coordY: row[11] || "", // Coluna N
-          timestamp: Date.now(),
-        };
-      } catch (e) {
-        console.error("[FAST-POLL] Erro Sheets:", e.message);
-        return null;
-      }
-    })();
+          const sheetTitle = resolved.found;
+          const range = `'${sheetTitle}'!C${rowIndex}:N${rowIndex}`;
 
-    // Promise.race retorna o primeiro que resolver (mais rápido)
-    const fastestResult = await Promise.race([supabasePromise, sheetsPromise]);
+          const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+            range,
+          });
 
-    // Aguarda ambos para comparação (mas não bloqueia resposta)
-    Promise.allSettled([supabasePromise, sheetsPromise]).then((results) => {
-      const [supabaseResult, sheetsResult] = results;
+          const row = response.data.values?.[0];
+          if (!row) return null;
 
-      if (
-        supabaseResult.status === "fulfilled" &&
-        sheetsResult.status === "fulfilled"
-      ) {
-        const supabaseData = supabaseResult.value;
-        const sheetsData = sheetsResult.value;
+          return {
+            source: "sheets",
+            status: row[9] || "Disponível", // Coluna L (índice 9 no range C:N)
+            unitName: row[0] || "", // Coluna C
+            coordX: row[10] || "", // Coluna M
+            coordY: row[11] || "", // Coluna N
+            timestamp: Date.now(),
+          };
+        } catch (e) {
+          console.error("[FAST-POLL] Erro Sheets:", e.message);
+          return null;
+        }
+      })();
 
-        if (supabaseData && sheetsData) {
-          const statusMatch = supabaseData.status === sheetsData.status;
-          if (!statusMatch) {
-            console.warn(
-              `[FAST-POLL] DIVERGÊNCIA detectada na linha ${rowIndex}:`,
-              `Supabase="${supabaseData.status}" vs Sheets="${sheetsData.status}"`
-            );
+      // Promise.race retorna o primeiro que resolver (mais rápido)
+      const fastestResult = await Promise.race([
+        supabasePromise,
+        sheetsPromise,
+      ]);
+
+      // Aguarda ambos para comparação (mas não bloqueia resposta)
+      Promise.allSettled([supabasePromise, sheetsPromise]).then((results) => {
+        const [supabaseResult, sheetsResult] = results;
+
+        if (
+          supabaseResult.status === "fulfilled" &&
+          sheetsResult.status === "fulfilled"
+        ) {
+          const supabaseData = supabaseResult.value;
+          const sheetsData = sheetsResult.value;
+
+          if (supabaseData && sheetsData) {
+            const statusMatch = supabaseData.status === sheetsData.status;
+            if (!statusMatch) {
+              console.warn(
+                `[FAST-POLL] DIVERGÊNCIA detectada na linha ${rowIndex}:`,
+                `Supabase="${supabaseData.status}" vs Sheets="${sheetsData.status}"`
+              );
+            }
           }
         }
+      });
+
+      if (!fastestResult) {
+        return res
+          .status(404)
+          .json({ error: "Unidade não encontrada em nenhum banco." });
       }
-    });
 
-    if (!fastestResult) {
-      return res
-        .status(404)
-        .json({ error: "Unidade não encontrada em nenhum banco." });
+      // Armazena no cache
+      setCachedData(cacheKey, fastestResult);
+
+      // Registra como mudança potencial se o status mudou
+      const oldCached = dataCache.get(cacheKey);
+      if (oldCached && oldCached.data.status !== fastestResult.status) {
+        registerChange(implantacao);
+        console.log(
+          `[FAST-POLL] Mudança detectada em ${implantacao}/${rowIndex}: ${oldCached.data.status} → ${fastestResult.status}`
+        );
+      }
+
+      res.json(fastestResult);
+    } catch (error) {
+      console.error("[FAST-POLL] Erro:", error);
+      res.status(500).json({ error: "Falha no polling rápido." });
     }
+  });
+});
 
-    res.json(fastestResult);
-  } catch (error) {
-    console.error("[FAST-POLL] Erro:", error);
-    res.status(500).json({ error: "Falha no polling rápido." });
+// Endpoint para obter informações sobre o intervalo de polling recomendado
+app.get("/api/polling-config", async (req, res) => {
+  const { implantacao } = req.query;
+
+  if (!implantacao) {
+    return res.status(400).json({ error: "Implantação é obrigatória." });
   }
+
+  const recommendedInterval = getAdaptiveInterval(implantacao);
+  const tracker = changeTracker.get(implantacao);
+
+  res.json({
+    implantacao,
+    recommendedInterval,
+    minInterval: RATE_LIMIT.polling.minInterval,
+    cacheEnabled: true,
+    cacheTTL: CACHE_TTL,
+    recentChanges: tracker
+      ? {
+          lastChange: tracker.lastChange,
+          changeCount: tracker.changeCount,
+          timeSinceLastChange: Date.now() - tracker.lastChange,
+        }
+      : null,
+    rateLimits: {
+      sheets: `${RATE_LIMIT.sheets.maxRequests} req/${
+        RATE_LIMIT.sheets.windowMs / 1000
+      }s`,
+      supabase: `${RATE_LIMIT.supabase.maxRequests} req/${
+        RATE_LIMIT.supabase.windowMs / 1000
+      }s`,
+      polling: `1 req/${RATE_LIMIT.polling.minInterval / 1000}s por unidade`,
+    },
+  });
 });
 
 app.get("/api/implantacoes", verifyToken, async (req, res) => {
@@ -1543,11 +1823,9 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
   }
 
   console.error("[RESERVE-TEMP] Todas as tentativas falharam:", lastError);
-  res
-    .status(500)
-    .json({
-      error: "Falha ao criar reserva temporária após múltiplas tentativas.",
-    });
+  res.status(500).json({
+    error: "Falha ao criar reserva temporária após múltiplas tentativas.",
+  });
 });
 
 // Endpoint para confirmar a reserva definitiva
