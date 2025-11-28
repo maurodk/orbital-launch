@@ -929,9 +929,12 @@ export function MainPage() {
 
   const handleToggleBlockUnit = async (
     newStatus: "Bloqueada" | "Disponível",
-    password?: string
+    password?: string,
+    motivo?: string
   ) => {
     if (selectedUnitIndex === null) return;
+
+    // Se está bloqueando, não precisa de senha, mas precisa de motivo
     if (newStatus === "Bloqueada") {
       password = undefined;
     }
@@ -948,6 +951,7 @@ export function MainPage() {
         implantacao: selectedImplantationName,
         newStatus: newStatus,
         password: password,
+        motivo: motivo,
         hideAvailable: hideAvailable,
       });
 
@@ -998,7 +1002,17 @@ export function MainPage() {
       return;
     }
 
-    const confirmMsg = `Tem certeza que deseja bloquear ${selectedUnits.size} unidade(s)?`;
+    // Solicita o motivo do bloqueio em massa
+    const motivo = window.prompt(
+      `Digite o motivo do bloqueio para ${selectedUnits.size} unidade(s):`
+    );
+
+    if (!motivo || motivo.trim() === "") {
+      alert("Motivo é obrigatório para bloquear unidades.");
+      return;
+    }
+
+    const confirmMsg = `Tem certeza que deseja bloquear ${selectedUnits.size} unidade(s) com o motivo:\n"${motivo}"?`;
     if (!window.confirm(confirmMsg)) return;
 
     try {
@@ -1008,6 +1022,7 @@ export function MainPage() {
           rowIndex: sheetRowIndex,
           implantacao: selectedImplantationName,
           newStatus: "Bloqueada",
+          motivo: motivo.trim(),
           hideAvailable: hideAvailable,
         });
       });

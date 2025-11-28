@@ -427,6 +427,11 @@ button:focus-visible {
   background-color: var(--status-reserved);
 }
 
+.unit-status.Reservando,
+.unit-status.reservando {
+  background-color: #ffa500; /* Laranja para processo em andamento */
+}
+
 .unit-status.Bloqueada,
 .unit-status.bloqueada {
   background-color: var(--status-reserved);
@@ -515,6 +520,24 @@ button:focus-visible {
 .unit-indicator.Reservada,
 .unit-indicator.reservada {
   background-color: var(--status-reserved);
+}
+
+.unit-indicator.Reservando,
+.unit-indicator.reservando {
+  background-color: #ffa500; /* Laranja para indicar processo em andamento */
+  animation: pulse-reserving 1s ease-in-out infinite;
+}
+
+@keyframes pulse-reserving {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 .unit-indicator.Bloqueada,
@@ -835,6 +858,11 @@ button:focus-visible {
 .status-pill.Reservada,
 .status-pill.reservada {
   background-color: var(--status-reserved);
+}
+
+.status-pill.Reservando,
+.status-pill.reservando {
+  background-color: #ffa500; /* Laranja para processo em andamento */
 }
 
 .status-pill.Bloqueada,

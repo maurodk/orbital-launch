@@ -6,7 +6,7 @@ interface BlockModalProps {
   show: boolean;
   onClose: () => void;
   unitData: string[] | null;
-  onConfirm: (password: string) => void;
+  onConfirm: (password: string, motivo?: string) => void;
   isBlocking: boolean;
   apiError?: string;
   // A prop clearApiError não é mais necessária aqui
@@ -21,14 +21,16 @@ export function BlockModal({
   apiError,
 }: BlockModalProps) {
   const [password, setPassword] = useState("");
+  const [motivo, setMotivo] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [motivoError, setMotivoError] = useState("");
 
   if (!show || !unitData) return null;
 
   const unitName = unitData[2] || "N/A";
   const title = isBlocking ? `Bloquear Unidade` : `Desbloquear Unidade`;
   const message = isBlocking
-    ? `Tem certeza que deseja bloquear a unidade "${unitName}"? Ela ficará inDisponível para reservas.`
+    ? `Digite o motivo do bloqueio da unidade "${unitName}". Ela ficará indisponível para reservas.`
     : `Para desbloquear a unidade "${unitName}", digite a senha de acesso:`;
   const buttonText = isBlocking
     ? "Sim, Bloquear Unidade"
@@ -40,17 +42,28 @@ export function BlockModal({
     : "modal-reserve-button";
 
   const handleConfirm = () => {
+    // Validação para bloqueio: motivo obrigatório
+    if (isBlocking && !motivo.trim()) {
+      setMotivoError("Motivo é obrigatório para bloquear a unidade.");
+      return;
+    }
+
+    // Validação para desbloqueio: senha obrigatória
     if (!isBlocking && !password.trim()) {
       setPasswordError("Senha é obrigatória para esta operação.");
       return;
     }
+
     setPasswordError("");
-    onConfirm(password); // A limpeza do erro agora é feita no App.tsx antes da chamada
+    setMotivoError("");
+    onConfirm(password, motivo); // Passa o motivo também
   };
 
   const handleClose = () => {
     setPassword("");
+    setMotivo("");
     setPasswordError("");
+    setMotivoError("");
     // A limpeza do erro da API também é tratada no App.tsx ao fechar o modal
     onClose();
   };
@@ -69,6 +82,42 @@ export function BlockModal({
         >
           {message}
         </p>
+
+        {isBlocking && (
+          <div style={{ marginBottom: "20px" }}>
+            <textarea
+              placeholder="Digite o motivo do bloqueio"
+              value={motivo}
+              onChange={(e) => {
+                setMotivo(e.target.value);
+                if (motivoError) setMotivoError("");
+              }}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: motivoError ? "2px solid #d9534f" : "1px solid #ccc",
+                borderRadius: "4px",
+                fontSize: "14px",
+                boxSizing: "border-box",
+                minHeight: "80px",
+                resize: "vertical",
+                fontFamily: "inherit",
+              }}
+            />
+            {motivoError && (
+              <p
+                style={{
+                  color: "#d9534f",
+                  fontSize: "12px",
+                  marginTop: "5px",
+                  marginBottom: "0",
+                }}
+              >
+                {motivoError}
+              </p>
+            )}
+          </div>
+        )}
 
         {!isBlocking && (
           <div style={{ marginBottom: "20px" }}>

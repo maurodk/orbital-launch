@@ -3171,7 +3171,7 @@ app.post("/api/update-dot-size", async (req, res) => {
 });
 
 app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, newStatus, password } = req.body;
+  const { implantacao, rowIndex, newStatus, password, motivo } = req.body;
   const userEmail = req.user.email; // Declaração no escopo principal
 
   const normalizedNewStatus = normalizeStatus(newStatus);
@@ -3184,6 +3184,15 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
     return res
       .status(400)
       .json({ error: "Dados inválidos para bloquear/desbloquear unidade." });
+  }
+
+  // Validação de motivo obrigatório para BLOQUEAR
+  if (normalizedNewStatus === "bloqueada") {
+    if (!motivo || motivo.trim() === "") {
+      return res.status(400).json({
+        error: "Motivo é obrigatório para bloquear unidades.",
+      });
+    }
   }
 
   // Validação de senha apenas para DESBLOQUEAR
@@ -3223,9 +3232,10 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
+    // Atualiza coluna L (status/situacao) no Sheets
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!K${rowIndex}`,
+      range: `'${sheetTitle}'!L${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[newStatus]] },
     });
@@ -3243,9 +3253,21 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
         const implantacao_id = implData ? implData.id : null;
 
         if (implantacao_id) {
+          const updateData = { situacao: newStatus };
+
+          // Se está bloqueando, adiciona o motivo
+          if (normalizedNewStatus === "bloqueada" && motivo) {
+            updateData.motivo = motivo.trim();
+          }
+
+          // Se está desbloqueando, limpa o motivo
+          if (normalizedNewStatus === "disponivel") {
+            updateData.motivo = null;
+          }
+
           const { error: updateError } = await supabase
             .from("unidades")
-            .update({ situacao: newStatus })
+            .update(updateData)
             .eq("implantacao_id", implantacao_id)
             .eq("row_index", parseInt(rowIndex, 10));
 
@@ -3253,6 +3275,18 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
             console.error(
               "Supabase: Erro ao atualizar status da unidade para Bloqueada/Disponível:",
               updateError
+            );
+          } else {
+            console.log(
+              `[BLOCK] Unidade ${rowIndex} ${
+                normalizedNewStatus === "bloqueada"
+                  ? "bloqueada"
+                  : "desbloqueada"
+              } com sucesso${
+                normalizedNewStatus === "bloqueada"
+                  ? " - Motivo: " + motivo
+                  : ""
+              }`
             );
           }
         }

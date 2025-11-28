@@ -190,10 +190,12 @@ export function ReservationList({
 
                   const isAvailable = normalizedStatus === "disponivel";
                   const isReserved = normalizedStatus === "reservada";
+                  const isBlocked = normalizedStatus === "bloqueada";
                   const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
                   const clientName = unitData[7] || "—"; // Coluna H - cliente
                   const brokerName = unitData[9] || "—"; // Coluna J - corretor
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia
+                  const motivo = unitData[19] || ""; // Coluna T - motivo (assumindo que está nessa posição)
 
                   return (
                     <tr key={unitData[2] || originalIndex}>
@@ -242,8 +244,26 @@ export function ReservationList({
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
                       </td>
-                      <td>{clientName}</td>
-                      <td>{brokerName}</td>
+                      {isBlocked && motivo ? (
+                        <td
+                          colSpan={2}
+                          style={{
+                            backgroundColor: "#3a2a2a",
+                            fontStyle: "italic",
+                            color: "#ffa500",
+                            padding: "12px",
+                            textAlign: "left",
+                            borderLeft: "3px solid #ffa500",
+                          }}
+                        >
+                          <strong>Motivo do bloqueio:</strong> {motivo}
+                        </td>
+                      ) : (
+                        <>
+                          <td>{clientName}</td>
+                          <td>{brokerName}</td>
+                        </>
+                      )}
                       <td>
                         <div className="action-buttons-cell">
                           {/* --- Botão de Histórico (SEMPRE VISÍVEL) --- */}
