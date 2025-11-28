@@ -350,8 +350,6 @@ export function CVCrmMappingPage() {
           unidades={unidadesFormatadas}
           onSelectUnit={setUnitToMapIndex}
           selectedUnitIndex={unitToMapIndex}
-          currentImageUrl={imageUrl}
-          onUpdateImage={setImageUrl} // Simplificado por enquanto
           dotSize={dotSize}
           onDotSizeChange={setDotSize}
           onSaveDotSize={handleSaveDotSize}
