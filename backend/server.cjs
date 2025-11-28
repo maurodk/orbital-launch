@@ -467,10 +467,17 @@ async function broadcastEvent(implantacao, event, data) {
 // 4. CONSTANTES DAS PLANILHAS
 // =================================================================
 const SPREADSHEET_ID_IMPLANTACAO =
+  process.env.SPREADSHEET_ID_IMPLANTACAO ||
   "1_q-6DYUTbPKPzBFCovoOTrtKXys1TraQFzGiXiz-h9s";
-const SPREADSHEET_ID_DADOS = "1CyXDp_RpSApsh-QjJPuWUzHnQV1MZFy2W3u7jIhFPbY";
-const SPREADSHEET_ID_HISTORICO = "1LiDhvO1wJg8WZFpmMKUFE2DkzIxzouch_7aHjwlQPfI";
-const SPREADSHEET_ID_PIX = "1p2cFQIvT2Gq23VmfGUpvmCo3MK2Y5LkudR7ekrmkTdY";
+const SPREADSHEET_ID_DADOS =
+  process.env.SPREADSHEET_ID_DADOS ||
+  "1CyXDp_RpSApsh-QjJPuWUzHnQV1MZFy2W3u7jIhFPbY";
+const SPREADSHEET_ID_HISTORICO =
+  process.env.SPREADSHEET_ID_HISTORICO ||
+  "1LiDhvO1wJg8WZFpmMKUFE2DkzIxzouch_7aHjwlQPfI";
+const SPREADSHEET_ID_PIX =
+  process.env.SPREADSHEET_ID_PIX ||
+  "1p2cFQIvT2Gq23VmfGUpvmCo3MK2Y5LkudR7ekrmkTdY";
 
 const SHEET_NAME_DADOS = "Página1";
 const SHEET_NAME_CONFIG = "Config";

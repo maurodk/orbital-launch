@@ -20,18 +20,18 @@ export function Header({
         boxShadow: "0 2px 8px rgba(106, 215, 0, 0.3)",
         borderBottom: "2px solid #6ad700",
         zIndex: 9998,
-        padding: "15px 20px",
+        padding: "8px 16px",
         display: "flex",
         alignItems: "center",
-        gap: "20px",
-        height: "70px",
+        gap: "12px",
+        height: "56px",
       }}
     >
       <img
         src="/logo.png"
         alt="VCA Construtora"
         style={{
-          height: "40px",
+          height: "32px",
           width: "auto",
           filter:
             "drop-shadow(0 0 20px rgba(106, 215, 0, 0.6)) drop-shadow(0 0 40px rgba(106, 215, 0, 0.4))",
@@ -61,24 +61,24 @@ export function Header({
       <style>
         {`
           @media (max-width: 768px) {
-            header {
-              padding: 8px 12px !important;
-              height: 60px !important;
-              gap: 12px !important;
+              header {
+                padding: 6px 10px !important;
+                height: 52px !important;
+                gap: 10px !important;
+              }
+              header h1 {
+                font-size: 14px !important;
+              }
+              header img {
+                height: 28px !important;
+              }
             }
-            header h1 {
-              font-size: 14px !important;
-            }
-            header img {
-              height: 28px !important;
-            }
-          }
           
           @media (max-width: 425px) {
             header {
               padding: 6px 10px !important;
-              height: 55px !important;
-              gap: 10px !important;
+              height: 50px !important;
+              gap: 8px !important;
             }
             header h1 {
               font-size: 12px !important;
@@ -94,8 +94,8 @@ export function Header({
           @media (max-width: 320px) {
             header {
               padding: 5px 8px !important;
-              height: 50px !important;
-              gap: 8px !important;
+              height: 46px !important;
+              gap: 6px !important;
             }
             header h1 {
               font-size: 11px !important;

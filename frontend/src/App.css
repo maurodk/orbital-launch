@@ -71,6 +71,8 @@ body {
   font-family: "Inter", sans-serif;
   box-sizing: border-box;
   overflow-x: hidden;
+  /* Permite rolagem vertical da página para visualizar app-container maior */
+  overflow-y: auto;
 }
 
 @media (max-width: 768px) {
@@ -112,18 +114,18 @@ body {
 .app-container {
   background-color: var(--bg-dark-secondary);
   border-radius: 16px;
-  padding: 20px 40px;
-  max-width: 1400px;
+  padding: 30px 50px;
+  max-width: 1800px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
   overflow-x: hidden;
-  margin: 90px auto 0;
+  margin: 64px auto 0;
 }
 
 @media (max-width: 1024px) {
   .app-container {
-    margin-top: 80px;
+    margin-top: 72px;
     padding: 15px 20px;
   }
 }
@@ -143,9 +145,13 @@ body {
   }
 }
 
-/* Aumenta a largura máxima para a lista de reserva */
+/* Aumenta a largura máxima para a lista de reserva e eleva altura para visualização */
 .app-container.list-view {
   max-width: 2200px;
+  /* Reduzido para metade conforme solicitado (era 1400px) */
+  min-height: 700px;
+  /* Espaço interno inferior para visual balanceado */
+  padding-bottom: 40px;
 }
 
 h1 {
@@ -635,31 +641,33 @@ button:focus-visible {
 .reservation-list-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 300px);
-  overflow: hidden;
+  /* Aumenta área visível para mostrar mais unidades na lista */
+  height: calc(100vh - 140px);
+  overflow-x: hidden;
+  overflow-y: auto; /* permite rolagem interna quando necessário */
 }
 
 @media (max-width: 1024px) {
   .reservation-list-container {
-    height: calc(100vh - 250px);
+    height: calc(100vh - 120px);
   }
 }
 
 @media (max-width: 768px) {
   .reservation-list-container {
-    height: calc(100vh - 200px);
+    height: calc(100vh - 100px);
   }
 }
 
 @media (max-width: 425px) {
   .reservation-list-container {
-    height: calc(100vh - 170px);
+    height: calc(100vh - 90px);
   }
 }
 
 @media (max-width: 320px) {
   .reservation-list-container {
-    height: calc(100vh - 160px);
+    height: calc(100vh - 80px);
   }
 }
 
