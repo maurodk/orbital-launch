@@ -111,6 +111,14 @@ export function useReservationManager(apiUrl: string): ReservationManager {
             errorMessage = error.response.data.error;
           }
 
+          // Mensagens mais amigáveis para códigos específicos
+          if (error.response?.data?.code === "UNIT_BEING_RESERVED") {
+            errorMessage =
+              "Esta unidade já está sendo reservada por outro usuário. Tente novamente em alguns segundos.";
+          } else if (error.response?.data?.code === "UNIT_NOT_AVAILABLE") {
+            errorMessage = "Esta unidade não está mais disponível.";
+          }
+
           setReservationState((prev) => ({
             ...prev,
             isReserving: false,

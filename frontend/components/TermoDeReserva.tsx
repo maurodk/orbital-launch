@@ -44,14 +44,17 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
       if (saleType === "CEF") {
         return (
           <>
-            {data.paymentValue && (
-              <tr>
-                <td>{data.paymentType || "PIX"}</td>
-                <td>1</td>
-                <td>{data.paymentValue}</td>
-                <td>{data.paymentDate}</td>
-              </tr>
-            )}
+            {data.paymentValue &&
+              parseFloat(
+                data.paymentValue.replace(/[^0-9,]/g, "").replace(",", ".")
+              ) > 0 && (
+                <tr>
+                  <td>{data.paymentType || "PIX"}</td>
+                  <td>1</td>
+                  <td>{data.paymentValue}</td>
+                  <td>{data.paymentDate}</td>
+                </tr>
+              )}
             <tr>
               <td>FINANCIAMENTO CEF</td>
               <td></td>
@@ -128,14 +131,17 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
       if (saleType === "FACILITA" && planType === "PADRAO") {
         return (
           <>
-            {data.paymentValue && (
-              <tr>
-                <td>{data.paymentType || "PIX"}</td>
-                <td>1</td>
-                <td>{data.paymentValue}</td>
-                <td>{data.paymentDate}</td>
-              </tr>
-            )}
+            {data.paymentValue &&
+              parseFloat(
+                data.paymentValue.replace(/[^0-9,]/g, "").replace(",", ".")
+              ) > 0 && (
+                <tr>
+                  <td>{data.paymentType || "PIX"}</td>
+                  <td>1</td>
+                  <td>{data.paymentValue}</td>
+                  <td>{data.paymentDate}</td>
+                </tr>
+              )}
             <tr>
               <td>SINAL 1</td>
               <td></td>
@@ -218,14 +224,17 @@ export const TermoDeReserva = forwardRef<HTMLDivElement, TermoDeReservaProps>(
       if (saleType === "FACILITA" && planType === "BLACK") {
         return (
           <>
-            {data.paymentValue && (
-              <tr>
-                <td>{data.paymentType || "PIX"}</td>
-                <td>1</td>
-                <td>{data.paymentValue}</td>
-                <td>{data.paymentDate}</td>
-              </tr>
-            )}
+            {data.paymentValue &&
+              parseFloat(
+                data.paymentValue.replace(/[^0-9,]/g, "").replace(",", ".")
+              ) > 0 && (
+                <tr>
+                  <td>{data.paymentType || "PIX"}</td>
+                  <td>1</td>
+                  <td>{data.paymentValue}</td>
+                  <td>{data.paymentDate}</td>
+                </tr>
+              )}
             <tr>
               <td>SINAL</td>
               <td></td>

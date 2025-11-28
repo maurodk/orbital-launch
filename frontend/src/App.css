@@ -1551,8 +1551,8 @@ button:focus-visible {
 
 /* Aumenta a largura máxima especificamente para o modal de histórico */
 .history-modal-content {
-  max-width: 1200px;
-  width: 95%;
+  max-width: 1200px !important;
+  width: 95% !important;
 }
 
 /* Estilos para a barra de busca dentro do modal de histórico */
@@ -2759,6 +2759,11 @@ button:focus-visible {
     padding: 20px;
     max-height: 90vh;
     overflow-y: auto;
+  }
+
+  .history-modal-content {
+    max-width: 95% !important;
+    width: 95% !important;
   }
 
   .success-title,

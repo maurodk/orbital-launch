@@ -174,25 +174,41 @@ async function cleanupExpiredReservations() {
       const [implantacao, rowIndex] = key.split("_");
 
       try {
-        // Reverte o status na planilha para "Disponível"
-        await sheets.spreadsheets.values.update({
+        // Verifica o status atual antes de reverter
+        const statusCheck = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!K${rowIndex}`,
-          valueInputOption: "USER_ENTERED",
-          resource: { values: [["Disponível"]] },
+          range: `'${implantacao}'!L${rowIndex}`,
         });
 
-        // Adiciona um registro no histórico
-        await addHistoryEntry(
-          sheets,
-          implantacao,
-          reservation.unitName,
-          "Reserva Expirada",
-          null,
-          null,
-          `Sistema (Usuário: ${reservation.userEmail})`
-        );
-        console.log(`[CLEANUP] Unidade ${key} revertida para Disponível.`);
+        const currentStatus = statusCheck.data.values?.[0]?.[0] || "";
+        const normalized = normalizeStatus(currentStatus);
+
+        // Só reverte se ainda estiver "RESERVANDO"
+        if (normalized === "reservando") {
+          // Reverte o status na planilha para "Disponível"
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+            range: `'${implantacao}'!L${rowIndex}`,
+            valueInputOption: "USER_ENTERED",
+            resource: { values: [["Disponível"]] },
+          });
+
+          // Adiciona um registro no histórico
+          await addHistoryEntry(
+            sheets,
+            implantacao,
+            reservation.unitName,
+            "Reserva Expirada",
+            null,
+            null,
+            `Sistema (Usuário: ${reservation.userEmail})`
+          );
+          console.log(`[CLEANUP] Unidade ${key} revertida para Disponível.`);
+        } else {
+          console.log(
+            `[CLEANUP] Unidade ${key} já está como '${currentStatus}', não será revertida.`
+          );
+        }
       } catch (error) {
         console.error(
           `[CLEANUP] Falha ao reverter status para a unidade ${key}:`,
@@ -1438,63 +1454,100 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
       .json({ error: "Dados incompletos para reserva temporária." });
   }
 
-  try {
-    const sheets = await getSheetsClient();
-    const resolved = await resolveSheetName(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
-    if (!resolved || !resolved.found) {
-      return res
-        .status(404)
-        .json({ error: `Planilha '${implantacao}' não encontrada.` });
-    }
-    const sheetTitle = resolved.found;
-    const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
-    const unitCheckResult = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: unitCheckRange,
-    });
+  const maxRetries = 3;
+  let lastError = null;
 
-    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
-    const currentStatus = normalizeStatus(rawStatus);
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const sheets = await getSheetsClient();
+      const resolved = await resolveSheetName(
+        sheets,
+        SPREADSHEET_ID_IMPLANTACAO,
+        implantacao
+      );
+      if (!resolved || !resolved.found) {
+        return res
+          .status(404)
+          .json({ error: `Planilha '${implantacao}' não encontrada.` });
+      }
+      const sheetTitle = resolved.found;
+      const tempReservationKey = `${sheetTitle}_${rowIndex}`;
 
-    if (currentStatus !== "disponivel") {
-      return res.status(409).json({
-        error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
-        code: "UNIT_NOT_AVAILABLE",
+      // Verifica se já existe reserva para esta unidade
+      const existingReservation = tempReservations.get(tempReservationKey);
+      if (existingReservation && Date.now() < existingReservation.expiresAt) {
+        return res.status(409).json({
+          error: `Esta unidade já está sendo reservada por outro usuário.`,
+          code: "UNIT_BEING_RESERVED",
+        });
+      }
+
+      const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
+      const unitCheckResult = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: unitCheckRange,
       });
+
+      const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
+      const currentStatus = normalizeStatus(rawStatus);
+
+      if (currentStatus !== "disponivel") {
+        return res.status(409).json({
+          error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
+          code: "UNIT_NOT_AVAILABLE",
+        });
+      }
+
+      // OPERAÇÃO ATÔMICA: Marca como RESERVANDO e armazena token ANTES de responder
+      // Armazena o token de reserva temporária (em memória por 60 segundos)
+      tempReservations.set(tempReservationKey, {
+        token: reservationToken,
+        userEmail,
+        unitName,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 60000, // 60 segundos
+      });
+
+      // Marca a unidade como "RESERVANDO" temporariamente
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!L${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [["RESERVANDO"]] },
+      });
+
+      console.log(
+        `[RESERVE-TEMP] Reserva criada: ${tempReservationKey} por ${userEmail}`
+      );
+
+      return res.json({
+        success: true,
+        message: "Reserva temporária criada com sucesso.",
+        reservationToken,
+        expiresIn: 60000,
+      });
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[RESERVE-TEMP] Tentativa ${attempt + 1}/${maxRetries} falhou:`,
+        error
+      );
+
+      // Se não for a última tentativa, aguarda antes de tentar novamente
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (attempt + 1))
+        );
+      }
     }
-
-    // Marca a unidade como "RESERVANDO" temporariamente
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!L${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [["RESERVANDO"]] },
-    });
-
-    // Armazena o token de reserva temporária (em memória por 30 segundos)
-    const tempReservationKey = `${sheetTitle}_${rowIndex}`;
-    tempReservations.set(tempReservationKey, {
-      token: reservationToken,
-      userEmail,
-      unitName,
-      timestamp: Date.now(),
-      expiresAt: Date.now() + 30000, // 30 segundos
-    });
-
-    res.json({
-      success: true,
-      message: "Reserva temporária criada com sucesso.",
-      reservationToken,
-      expiresIn: 30000,
-    });
-  } catch (error) {
-    console.error("Erro ao criar reserva temporária:", error);
-    res.status(500).json({ error: "Falha ao criar reserva temporária." });
   }
+
+  console.error("[RESERVE-TEMP] Todas as tentativas falharam:", lastError);
+  res
+    .status(500)
+    .json({
+      error: "Falha ao criar reserva temporária após múltiplas tentativas.",
+    });
 });
 
 // Endpoint para confirmar a reserva definitiva
@@ -1832,19 +1885,37 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
     // Remove a reserva temporária
     tempReservations.delete(tempReservationKey);
 
-    // Restaura o status da unidade para Disponível
-    await sheets.spreadsheets.values.update({
+    // Verifica o status atual antes de reverter
+    const statusCheck = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!L${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [["Disponível"]] },
     });
 
-    // Notifica outros clientes sobre a mudança
-    await broadcastEvent(sheetTitle, "unitUpdated", {
-      rowIndex,
-      unitName: tempReservation.unitName,
-    });
+    const currentStatus = statusCheck.data.values?.[0]?.[0] || "";
+    const normalized = normalizeStatus(currentStatus);
+
+    // Só reverte se ainda estiver "RESERVANDO"
+    if (normalized === "reservando") {
+      // Restaura o status da unidade para Disponível
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!L${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [["Disponível"]] },
+      });
+
+      // Notifica outros clientes sobre a mudança
+      await broadcastEvent(sheetTitle, "unitUpdated", {
+        rowIndex,
+        unitName: tempReservation.unitName,
+      });
+
+      console.log(`[CANCEL-TEMP] Reserva cancelada: ${tempReservationKey}`);
+    } else {
+      console.log(
+        `[CANCEL-TEMP] Unidade ${tempReservationKey} já está como '${currentStatus}', não será revertida.`
+      );
+    }
 
     res.json({
       success: true,
