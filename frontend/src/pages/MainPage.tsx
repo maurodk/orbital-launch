@@ -952,7 +952,6 @@ export function MainPage() {
         newStatus: newStatus,
         password: password,
         motivo: motivo,
-        hideAvailable: hideAvailable,
       });
 
       const updatedUnidades = [...unidades];
@@ -1023,7 +1022,6 @@ export function MainPage() {
           implantacao: selectedImplantationName,
           newStatus: "Bloqueada",
           motivo: motivo.trim(),
-          hideAvailable: hideAvailable,
         });
       });
 
@@ -1992,10 +1990,11 @@ export function MainPage() {
                 }
                 isBlocking={blockModalState.isBlocking}
                 apiError={blockModalState.apiError}
-                onConfirm={(password = "") =>
+                onConfirm={(password = "", motivo = "") =>
                   handleToggleBlockUnit(
                     blockModalState.isBlocking ? "Bloqueada" : "Disponível",
-                    password
+                    password,
+                    motivo
                   )
                 }
               />
