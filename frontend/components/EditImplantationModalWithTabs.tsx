@@ -829,7 +829,7 @@ export function EditImplantationModal({
                 }}
               >
                 Formato esperado: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA,
-                TIPOLOGIA, SITUAÇÃO, VALOR DO IMÓVEL, ANDAR, POSIÇÃO
+                TIPOLOGIA, SITUAÇÃO e VALOR DO IMÓVEL
               </p>
               <p
                 style={{
@@ -917,8 +917,8 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                Formato esperado: CPF, NOME, EMAIL, TELEFONE (Esses clientes
-                poderão fazer reservas)
+                Formato esperado: ID do Pré-cadastro, Cliente, CPF/CNPJ,
+                Corretor e Imobiliária
               </p>
               <p
                 style={{

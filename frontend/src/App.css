@@ -1513,13 +1513,15 @@ button:focus-visible {
   border: 2px solid #a02222;
 }
 
-.action-pill.action-Bloqueada {
-  background-color: #f0ad4e; /* Laranja */
+.action-pill.action-bloqueada {
+  background-color: #ffa500; /* Laranja */
+  border: 2px solid #cc8400;
 }
 
-.action-pill.action-desBloqueada {
+.action-pill.action-desbloqueada {
   background-color: var(--accent-green); /* Verde */
   color: var(--bg-dark-primary); /* Texto escuro para contraste */
+  border: 2px solid #2d7a3e;
 }
 
 .action-pill.action-termo-impresso {

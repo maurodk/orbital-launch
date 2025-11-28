@@ -17,6 +17,17 @@
         color: #fff;
         overflow: hidden;
       }
+
+      /* Otimizações para evitar piscar */
+      .floor-plan-wrapper.loading .floor-plan-image {
+        opacity: 0;
+        transition: opacity 0.15s ease-in;
+      }
+
+      .floor-plan-wrapper.loaded .floor-plan-image {
+        opacity: 0.9;
+        transition: opacity 0.2s ease-out;
+      }
       .title {
         font-size: 18px;
         font-weight: 600;
@@ -49,6 +60,8 @@
         display: block;
         opacity: 0.9;
         transition: all 0.3s ease;
+        will-change: opacity;
+        image-rendering: -webkit-optimize-contrast;
       }
       .unit-indicator {
         position: absolute;
@@ -264,6 +277,25 @@
 
     <script>
       (function () {
+        // Cache de dados para evitar piscar
+        let cachedData = null;
+
+        // Tenta restaurar dados do sessionStorage ao carregar
+        try {
+          const savedData = sessionStorage.getItem("fullscreenCvcrmData");
+          if (savedData) {
+            cachedData = JSON.parse(savedData);
+            if (cachedData) {
+              setTimeout(() => {
+                console.log("Renderizando do cache para evitar piscar");
+                initialRender(cachedData);
+              }, 0);
+            }
+          }
+        } catch (e) {
+          console.log("Sem cache anterior disponível");
+        }
+
         // URL da API no EC2
         const API_URL = "https://apitelaodigital.suportevca.com.br";
 
@@ -303,7 +335,20 @@
             if (!res.ok) {
               throw new Error(`Falha ao buscar dados: ${res.statusText}`);
             }
-            return await res.json();
+            const json = await res.json();
+
+            // Salva no cache para próximo refresh
+            cachedData = json;
+            try {
+              sessionStorage.setItem(
+                "fullscreenCvcrmData",
+                JSON.stringify(json)
+              );
+            } catch (e) {
+              console.warn("Não foi possível salvar no cache:", e);
+            }
+
+            return json;
           } catch (e) {
             console.error("Erro em fetchData:", e);
             return { unidades: [], imageUrl: "", dotSize: 16 };
@@ -313,6 +358,11 @@
         // --- FUNÇÃO RENDER ATUALIZADA ---
         function initialRender(data) {
           const { unidades, imageUrl, dotSize } = data;
+
+          // Marca como loading
+          wrapper.classList.add("loading");
+          wrapper.classList.remove("loaded");
+
           wrapper.innerHTML = "";
 
           window.currentDotSize = dotSize; // Armazena o dotSize globalmente
@@ -320,6 +370,8 @@
           if (!imageUrl) {
             wrapper.innerHTML =
               '<p style="padding:20px">Imagem da planta não configurada.</p>';
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
             return;
           }
 
@@ -330,7 +382,22 @@
 
           const img = document.createElement("img");
           img.className = "floor-plan-image";
+
+          // Otimização: Usa cache do navegador
+          const cachedImageUrl = sessionStorage.getItem(
+            "cvcrmFloorPlanImageUrl"
+          );
+          if (cachedImageUrl === imageUrl) {
+            img.src = imageUrl;
+          } else {
+            sessionStorage.setItem("cvcrmFloorPlanImageUrl", imageUrl);
+            img.src = imageUrl;
+          }
+
           img.onload = () => {
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+
             const aspectRatio = (img.naturalHeight / img.naturalWidth) * 100;
             container.style.paddingBottom = `${aspectRatio}%`;
 

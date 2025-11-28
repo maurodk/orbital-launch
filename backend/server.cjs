@@ -3240,6 +3240,33 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
       resource: { values: [[newStatus]] },
     });
 
+    // Atualiza coluna P (motivo) na planilha mestre quando aplicável
+    try {
+      if (normalizedNewStatus === "bloqueada") {
+        // grava o motivo na coluna P
+        const motivoToWrite = motivo ? motivo.trim() : "";
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: `'${sheetTitle}'!P${rowIndex}`,
+          valueInputOption: "USER_ENTERED",
+          resource: { values: [[motivoToWrite]] },
+        });
+      } else if (normalizedNewStatus === "disponivel") {
+        // limpa o motivo quando desbloquear
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: `'${sheetTitle}'!P${rowIndex}`,
+          valueInputOption: "USER_ENTERED",
+          resource: { values: [[""]] },
+        });
+      }
+    } catch (sheetMotivoError) {
+      console.warn(
+        `Aviso: falha ao atualizar coluna P (motivo) na planilha ${SPREADSHEET_ID_IMPLANTACAO}:`,
+        sheetMotivoError
+      );
+    }
+
     // --- ADIÇÃO DA LÓGICA SUPABASE ---
     if (supabase) {
       try {
