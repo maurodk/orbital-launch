@@ -847,10 +847,16 @@
             } catch (e) {}
           }
 
+          // Attach token (if present) as query param because EventSource cannot set headers
+          const _token =
+            localStorage.getItem("token") || window.__READ_ONLY_TOKEN__;
+          const tokenQuery = _token
+            ? `&token=${encodeURIComponent(_token)}`
+            : "";
           es = new EventSource(
             `${API_URL}/api/events?implantacao=${encodeURIComponent(
               implantacao
-            )}`
+            )}${tokenQuery}`
           );
 
           let reconnectAttempts = 0;
@@ -879,13 +885,27 @@
 
             // polling fallback to validate data layer
             try {
+              const token =
+                localStorage.getItem("token") || window.__READ_ONLY_TOKEN__;
+              const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
               const resUnits = await fetch(
                 `${API_URL}/api/data?implantacao=${encodeURIComponent(
                   implantacao
-                )}`
+                )}`,
+                { headers }
               );
-              if (!resUnits.ok) throw new Error("Polling fallback failed");
-              consecutivePollingFailures = 0;
+
+              if (resUnits.status === 401) {
+                console.warn(
+                  "[SSE] Polling-fallback: auth 401 received (skipping reload counter)"
+                );
+                // do not increment failure counter for auth issues
+              } else if (!resUnits.ok) {
+                throw new Error("Polling fallback failed");
+              } else {
+                consecutivePollingFailures = 0;
+              }
             } catch (err) {
               console.error("[SSE] Polling-fallback falhou:", err);
               consecutivePollingFailures++;

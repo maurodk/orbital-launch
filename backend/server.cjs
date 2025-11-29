@@ -493,6 +493,16 @@ async function verifyToken(req, res, next) {
   console.log("[AUTH] ===== VERIFICANDO TOKEN =====");
   console.log("[AUTH] Método:", req.method, "| Path:", req.path);
   console.log("[AUTH] Headers:", JSON.stringify(req.headers, null, 2));
+  // Allow token via query param for clients like EventSource that cannot set headers
+  if (
+    (!req.headers || !req.headers.authorization) &&
+    req.query &&
+    req.query.token
+  ) {
+    req.headers = req.headers || {};
+    req.headers.authorization = `Bearer ${req.query.token}`;
+    console.log("[AUTH] Token extraído da query param 'token'");
+  }
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {

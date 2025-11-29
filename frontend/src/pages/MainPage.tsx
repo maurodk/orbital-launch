@@ -591,10 +591,13 @@ export function MainPage() {
         } catch (e) {}
       }
 
+      // Attach token to EventSource as query param (EventSource cannot set headers)
+      const token = localStorage.getItem("token");
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
       es = new EventSource(
         `${apiUrl}/api/events?implantacao=${encodeURIComponent(
           selectedImplantationName
-        )}`
+        )}${tokenParam}`
       );
 
       // Reset on successful open
@@ -618,12 +621,42 @@ export function MainPage() {
 
         // Try polling fallback immediately to validate data layer
         try {
-          await fetchUnitData(selectedImplantationName);
-          await fetchHistory(selectedImplantationName);
-          consecutivePollingFailures = 0;
+          // Use low-level axios checks so we can inspect HTTP status codes
+          const token = localStorage.getItem("token");
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+          const unitsResp = await axios.get(
+            `${apiUrl}/api/data?implantacao=${encodeURIComponent(
+              selectedImplantationName
+            )}`,
+            { headers }
+          );
+          const historyResp = await axios.get(
+            `${apiUrl}/api/history/${encodeURIComponent(
+              selectedImplantationName
+            )}`,
+            { headers }
+          );
+
+          // If either returned 401, treat it as auth issue (do not increment failure counter)
+          if (unitsResp.status === 401 || historyResp.status === 401) {
+            console.warn(
+              "SSE polling-fallback: auth issue (401). Skipping reload counter increment."
+            );
+          } else {
+            // successful polling -> reset failure counter
+            consecutivePollingFailures = 0;
+          }
         } catch (pollErr) {
-          console.error("Polling-fallback falhou:", pollErr);
-          consecutivePollingFailures++;
+          // If axios threw and there's a response, check status
+          if (pollErr && pollErr.response && pollErr.response.status === 401) {
+            console.warn(
+              "SSE polling-fallback: auth issue (401). Skipping reload counter increment."
+            );
+          } else {
+            console.error("Polling-fallback falhou:", pollErr);
+            consecutivePollingFailures++;
+          }
         }
 
         if (
