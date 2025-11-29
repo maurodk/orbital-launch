@@ -1733,7 +1733,7 @@ app.get("/api/debug/spreadsheet-meta", async (req, res) => {
 // Endpoint para criar uma reserva temporária (lock)
 app.post("/api/reserve-temp", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, unitName, reservationToken } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   if (!implantacao || !rowIndex || !reservationToken) {
     return res
@@ -1845,7 +1845,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     unitName,
     reservationToken,
   } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   if (!implantacao || !rowIndex || !reservationToken) {
     return res.status(400).json({ error: "Token de reserva é obrigatório." });
@@ -2129,7 +2129,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
 // Endpoint para cancelar uma reserva temporária
 app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, reservationToken } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   if (!implantacao || !rowIndex || !reservationToken) {
     return res
@@ -2216,7 +2216,7 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
 app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, unitName, manualData, hideAvailable } =
     req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
   if (!implantacao || !rowIndex || !manualData || !manualData.cliente) {
     return res
       .status(400)
@@ -2445,7 +2445,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
     brokerName,
     hideAvailable,
   } = req.body;
-  const userEmail = req.user.email; // Declaração no escopo principal da função
+  const userEmail = req.user?.email || "Sistema"; // Declaração no escopo principal da função
 
   if (!implantacao || !unitRowIndex) {
     return res
@@ -2676,7 +2676,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 // NOVO: Endpoint para TROCAR unidade
 app.post("/api/change-unit", verifyToken, async (req, res) => {
   const { implantacao, oldUnitIndex, newUnitIndex } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   if (
     !implantacao ||
@@ -2941,7 +2941,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, coordX, coordY, letra } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
   if (
     !implantacao ||
     !rowIndex ||
@@ -3055,7 +3055,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
 app.post("/api/clear-coords", verifyToken, async (req, res) => {
   // Extrai os dados
   const { implantacao, rowIndex } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   // Validação
   if (!implantacao || !rowIndex) {
@@ -3179,7 +3179,7 @@ app.post("/api/update-dot-size", async (req, res) => {
 
 app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, newStatus, password, motivo } = req.body;
-  const userEmail = req.user.email; // Declaração no escopo principal
+  const userEmail = req.user?.email || "Sistema"; // Declaração no escopo principal
 
   const normalizedNewStatus = normalizeStatus(newStatus);
   if (
@@ -3613,7 +3613,7 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     valor,
     statusPagamento,
   } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   if (
     !implantacao ||
@@ -3908,7 +3908,7 @@ app.post("/api/refresh-unit", verifyToken, async (req, res) => {
 // Isso desacopla a lógica de registro do webhook, tornando-a mais robusta.
 app.post("/api/check-and-log-payment", verifyToken, async (req, res) => {
   const { implantacao, rowIndex } = req.body;
-  const userEmail = req.user.email;
+  const userEmail = req.user?.email || "Sistema";
 
   if (!implantacao || !rowIndex) {
     return res
@@ -4119,7 +4119,7 @@ app.post("/api/santander/gerapix", verifyToken, async (req, res) => {
 
 app.post("/api/log-print", verifyToken, async (req, res) => {
   const { implantacao, unitName, clientName, brokerName } = req.body;
-  const userEmail = req.user.email; // Declaração no escopo principal
+  const userEmail = req.user?.email || "Sistema"; // Declaração no escopo principal
 
   if (!implantacao || !unitName) {
     return res
@@ -4173,14 +4173,14 @@ app.get("/api/user/full-name", verifyToken, async (req, res) => {
     const { data, error } = await supabase
       .from("users")
       .select("full_name")
-      .eq("id", req.user.uid)
+      .eq("id", req.user?.uid || null)
       .maybeSingle();
 
     // Se usuário não existe, cria um registro
     if (!data && !error) {
       const { error: insertError } = await supabase.from("users").insert({
-        id: req.user.uid,
-        email: req.user.email,
+        id: req.user?.uid || null,
+        email: req.user?.email || "Sistema",
         full_name: null,
       });
 
@@ -4217,13 +4217,13 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
     const { error: updateError } = await supabase
       .from("users")
       .update({ full_name: full_name.trim() })
-      .eq("id", req.user.uid);
+      .eq("id", req.user?.uid || null);
 
     // Se erro indicar que não existe, cria o registro
     if (updateError) {
       const { error: insertError } = await supabase.from("users").insert({
-        id: req.user.uid,
-        email: req.user.email,
+        id: req.user?.uid || null,
+        email: req.user?.email || "Sistema",
         full_name: full_name.trim(),
       });
 

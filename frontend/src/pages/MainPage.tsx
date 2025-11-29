@@ -576,97 +576,177 @@ export function MainPage() {
       return;
     }
 
-    const eventSource = new EventSource(
-      `${apiUrl}/api/events?implantacao=${encodeURIComponent(
-        selectedImplantationName
-      )}`
-    );
+    // Intelligent SSE connection with backoff, network detection and polling-fallback.
+    let es: EventSource | null = null;
+    let reconnectAttempts = 0;
+    let consecutivePollingFailures = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const MAX_POLLING_FAILURES = 3;
+    let stopped = false;
 
-    const handleUnitUpdate = async (event: MessageEvent) => {
-      try {
-        const eventData = JSON.parse(event.data);
-        const { unitData, rowIndex } = eventData;
-
-        if (!unitData || !rowIndex) return; // Ignora eventos malformados
-        console.log("SSE Recebido:", { unitData, rowIndex });
-
-        setUnidades((currentUnidades) =>
-          currentUnidades.map((unidade, index) => {
-            if (index === rowIndex - 2) {
-              return unitData;
-            }
-            return unidade;
-          })
-        );
-      } catch (e) {
-        console.error("Erro ao processar evento SSE:", e);
-      }
-    };
-
-    // NOVO: Handler para o evento de atualização do histórico
-    const handleHistoryUpdate = () => {
-      console.log("SSE Recebido: historyUpdated. Recarregando histórico...");
-      fetchHistory(selectedImplantationName);
-    };
-
-    // NOVO: Handler para importação de unidades
-    const handleUnitsImported = async () => {
-      console.log("SSE Recebido: unitsImported. Recarregando unidades...");
-      await fetchUnitData(selectedImplantationName);
-
-      // Atualiza o contador de unidades
-      try {
-        const token = localStorage.getItem("token");
-        const countResponse = await axios.get(
-          `${apiUrl}/api/implantacoes/${encodeURIComponent(
-            selectedImplantationName
-          )}/unidades/count`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        setUnidadesCount(countResponse.data.count || 0);
-        setUnidadesConfigured(countResponse.data.configured || false);
-      } catch (err) {
-        console.log("Erro ao buscar contagem de unidades:", err);
-      }
-    };
-
-    // NOVO: Handler para importação de clientes
-    const handleClientsImported = async () => {
-      console.log("SSE Recebido: clientsImported. Recarregando clientes...");
-
-      // Atualiza o contador de clientes
-      if (currentImplantation?.id) {
+    const createEventSource = () => {
+      if (es) {
         try {
-          const { count: clientesCount, error: clientesError } = await supabase
-            .from("clientes")
-            .select("*", { count: "exact", head: true })
-            .eq("implantacao_id", currentImplantation.id);
-
-          if (clientesError) throw clientesError;
-
-          setClientesCount(clientesCount || 0);
-          setClientesConfigured((clientesCount || 0) > 0);
-        } catch (error) {
-          console.error("Erro ao verificar clientes importados:", error);
-        }
+          es.close();
+        } catch (e) {}
       }
+
+      es = new EventSource(
+        `${apiUrl}/api/events?implantacao=${encodeURIComponent(
+          selectedImplantationName
+        )}`
+      );
+
+      // Reset on successful open
+      es.onopen = () => {
+        reconnectAttempts = 0;
+        consecutivePollingFailures = 0;
+        console.info("SSE conectado");
+      };
+
+      // Error handler: try reconnection with exponential backoff, and use polling fallback
+      es.onerror = async (err) => {
+        console.warn("SSE erro/fechamento detectado:", err);
+
+        // If offline, wait for navigator to come back
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          console.warn("Cliente offline, aguardando reconexão de rede...");
+          return;
+        }
+
+        reconnectAttempts++;
+
+        // Try polling fallback immediately to validate data layer
+        try {
+          await fetchUnitData(selectedImplantationName);
+          await fetchHistory(selectedImplantationName);
+          consecutivePollingFailures = 0;
+        } catch (pollErr) {
+          console.error("Polling-fallback falhou:", pollErr);
+          consecutivePollingFailures++;
+        }
+
+        if (
+          reconnectAttempts >= MAX_RECONNECT_ATTEMPTS &&
+          consecutivePollingFailures >= MAX_POLLING_FAILURES
+        ) {
+          console.error(
+            "SSE instável e polling-fallback falhando — acionando hard refresh"
+          );
+          // Controlled hard refresh: preserve sessionStorage if possible
+          try {
+            window.location.reload();
+          } catch (reloadErr) {
+            console.error("Falha ao recarregar página:", reloadErr);
+          }
+          return;
+        }
+
+        // schedule reconnect with exponential backoff (cap 30s)
+        const delay = Math.min(
+          2000 * Math.pow(2, reconnectAttempts - 1),
+          30000
+        );
+        setTimeout(() => {
+          if (!stopped) createEventSource();
+        }, delay);
+      };
+
+      const handleUnitUpdate = async (event: MessageEvent) => {
+        try {
+          const eventData = JSON.parse(event.data);
+          const { unitData, rowIndex } = eventData;
+
+          if (!unitData || !rowIndex) return; // Ignore malformed
+          setUnidades((currentUnidades) =>
+            currentUnidades.map((unidade, index) => {
+              if (index === rowIndex - 2) {
+                return unitData;
+              }
+              return unidade;
+            })
+          );
+        } catch (e) {
+          console.error("Erro ao processar evento SSE:", e);
+        }
+      };
+
+      const handleHistoryUpdate = () => {
+        fetchHistory(selectedImplantationName).catch((e) =>
+          console.error("Erro ao recarregar histórico via SSE:", e)
+        );
+      };
+
+      const handleUnitsImported = async () => {
+        await fetchUnitData(selectedImplantationName).catch((e) =>
+          console.error("Erro ao recarregar unidades via SSE:", e)
+        );
+        try {
+          const token = localStorage.getItem("token");
+          const countResponse = await axios.get(
+            `${apiUrl}/api/implantacoes/${encodeURIComponent(
+              selectedImplantationName
+            )}/unidades/count`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setUnidadesCount(countResponse.data.count || 0);
+          setUnidadesConfigured(countResponse.data.configured || false);
+        } catch (err) {
+          console.log("Erro ao buscar contagem de unidades:", err);
+        }
+      };
+
+      const handleClientsImported = async () => {
+        if (currentImplantation?.id) {
+          try {
+            const { count: clientesCount, error: clientesError } =
+              await supabase
+                .from("clientes")
+                .select("*", { count: "exact", head: true })
+                .eq("implantacao_id", currentImplantation.id);
+
+            if (clientesError) throw clientesError;
+
+            setClientesCount(clientesCount || 0);
+            setClientesConfigured((clientesCount || 0) > 0);
+          } catch (error) {
+            console.error("Erro ao verificar clientes importados:", error);
+          }
+        }
+      };
+
+      es.addEventListener("unitUpdated", handleUnitUpdate);
+      es.addEventListener("historyUpdated", handleHistoryUpdate);
+      es.addEventListener("unitsImported", handleUnitsImported);
+      es.addEventListener("clientsImported", handleClientsImported);
     };
 
-    eventSource.addEventListener("unitUpdated", handleUnitUpdate);
-    eventSource.addEventListener("historyUpdated", handleHistoryUpdate);
-    eventSource.addEventListener("unitsImported", handleUnitsImported);
-    eventSource.addEventListener("clientsImported", handleClientsImported);
+    // start SSE
+    createEventSource();
+
+    // network oscillation detection
+    const handleOnline = () => {
+      console.info("Network online — attempting SSE reconnect");
+      reconnectAttempts = 0;
+      createEventSource();
+    };
+
+    const handleOffline = () => {
+      console.warn("Network offline detected");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      eventSource.removeEventListener("unitUpdated", handleUnitUpdate);
-      eventSource.removeEventListener("historyUpdated", handleHistoryUpdate);
-      eventSource.removeEventListener("unitsImported", handleUnitsImported);
-      eventSource.removeEventListener("clientsImported", handleClientsImported);
-      eventSource.close();
+      stopped = true;
+      try {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      } catch (e) {}
+      try {
+        if (es) es.close();
+      } catch (e) {}
     };
   }, [selectedImplantationName, currentImplantation]);
 
