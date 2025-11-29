@@ -454,10 +454,16 @@ export function ReservationList({
                 className="modal-action-button danger"
                 onClick={() => {
                   // Trigger cancel reservation flow
-                  const [unitData] = unidades[selectedUnitIndex];
-                  if (unitData && unitData[11] === "Reservada") {
-                    // Coluna L - situacao
-                    onUnitClick(selectedUnitIndex); // This will open cancel modal
+                  // Find the tuple with matching originalIndex
+                  const unitTuple = unidades.find(
+                    ([_, idx]) => idx === selectedUnitIndex
+                  );
+                  if (unitTuple) {
+                    const [unitData] = unitTuple;
+                    if (unitData && unitData[11] === "Reservada") {
+                      // Coluna L - situacao
+                      onUnitClick(selectedUnitIndex); // Pass the originalIndex
+                    }
                   }
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
