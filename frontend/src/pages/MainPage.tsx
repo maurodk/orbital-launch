@@ -648,8 +648,8 @@ export function MainPage() {
             consecutivePollingFailures = 0;
           }
         } catch (pollErr) {
-          // If axios threw and there's a response, check status
-          if (pollErr && pollErr.response && pollErr.response.status === 401) {
+          // If axios threw and there's a response, check status using axios.isAxiosError
+          if (axios.isAxiosError(pollErr) && pollErr.response?.status === 401) {
             console.warn(
               "SSE polling-fallback: auth issue (401). Skipping reload counter increment."
             );
