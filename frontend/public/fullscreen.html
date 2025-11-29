@@ -841,7 +841,11 @@
         }
 
         function connectSse() {
-          if (es) es.close();
+          if (es) {
+            try {
+              es.close();
+            } catch (e) {}
+          }
 
           es = new EventSource(
             `${API_URL}/api/events?implantacao=${encodeURIComponent(
@@ -849,13 +853,64 @@
             )}`
           );
 
+          let reconnectAttempts = 0;
+          let consecutivePollingFailures = 0;
+          const MAX_RECONNECT_ATTEMPTS = 5;
+          const MAX_POLLING_FAILURES = 3;
+
           es.onopen = () => {
             statusEl.textContent = "Conectado em tempo real";
+            reconnectAttempts = 0;
+            consecutivePollingFailures = 0;
           };
 
-          es.onerror = () => {
-            statusEl.textContent = "Erro na conexão. Reconectando...";
-            setTimeout(connectSse, 5000);
+          es.onerror = async () => {
+            statusEl.textContent = "Erro na conexão. Tentando reconectar...";
+
+            // If offline, just wait for 'online' event
+            if (typeof navigator !== "undefined" && !navigator.onLine) {
+              console.warn(
+                "[SSE] Cliente offline, aguardando reconexão de rede"
+              );
+              return;
+            }
+
+            reconnectAttempts++;
+
+            // polling fallback to validate data layer
+            try {
+              const resUnits = await fetch(
+                `${API_URL}/api/data?implantacao=${encodeURIComponent(
+                  implantacao
+                )}`
+              );
+              if (!resUnits.ok) throw new Error("Polling fallback failed");
+              consecutivePollingFailures = 0;
+            } catch (err) {
+              console.error("[SSE] Polling-fallback falhou:", err);
+              consecutivePollingFailures++;
+            }
+
+            if (
+              reconnectAttempts >= MAX_RECONNECT_ATTEMPTS &&
+              consecutivePollingFailures >= MAX_POLLING_FAILURES
+            ) {
+              console.error("[SSE] Falha persistente — acionando hard refresh");
+              try {
+                window.location.reload();
+              } catch (e) {
+                console.error("Reload failed", e);
+              }
+              return;
+            }
+
+            const delay = Math.min(
+              2000 * Math.pow(2, reconnectAttempts - 1),
+              30000
+            );
+            setTimeout(() => {
+              connectSse();
+            }, delay);
           };
 
           es.addEventListener("unitUpdated", async (ev) => {
@@ -870,11 +925,17 @@
               updateSingleUnit(unitData, rowIndex);
 
               // DISPARA polling agressivo para garantir sincronização em tempo real
-              // Verifica por 10 segundos a cada 500ms
               startUnitPolling(rowIndex, 10000);
             } catch (e) {
               console.error("Erro ao processar evento SSE:", e);
             }
+          });
+
+          // network events
+          window.addEventListener("online", () => {
+            console.info("[SSE] Network online — tentando reconectar");
+            reconnectAttempts = 0;
+            connectSse();
           });
         }
 
