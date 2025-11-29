@@ -1420,7 +1420,6 @@ export function MainPage() {
         implantacao: selectedImplantationName,
         idPreCadastro: idPreCadastro,
         brokerName: brokerNameToLog,
-        hideAvailable: hideAvailable,
       });
     } catch (err) {
       setError("Falha ao cancelar a reserva.");
