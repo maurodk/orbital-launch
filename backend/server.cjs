@@ -11,6 +11,7 @@ const { createClient } = require("@supabase/supabase-js");
 const multer = require("multer");
 const path = require("path");
 const XLSX = require("xlsx");
+const { spawn } = require("child_process");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
@@ -111,6 +112,44 @@ function checkRateLimit(key, type = "sheets") {
   recentRequests.push(now);
   rateLimitMap.set(key, recentRequests);
   return { allowed: true };
+}
+
+// Helper: Disparar worker Python em background
+function dispararWorkerBackground() {
+  try {
+    console.log("[WORKER] Disparando worker em background...");
+    
+    // Usar spawn para não bloquear a aplicação
+    const worker = spawn("python", ["worker_automacao.py", "--modo", "unico"], {
+      cwd: path.join(__dirname, ".."),
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    // Capturar logs do worker
+    worker.stdout.on("data", (data) => {
+      console.log(`[WORKER stdout] ${data}`);
+    });
+
+    worker.stderr.on("data", (data) => {
+      console.log(`[WORKER stderr] ${data}`);
+    });
+
+    worker.on("close", (code) => {
+      console.log(`[WORKER] Finalizado com código ${code}`);
+    });
+
+    worker.on("error", (err) => {
+      console.error(`[WORKER] Erro ao executar: ${err.message}`);
+    });
+
+    // Desanexar o processo para ele continuar rodando
+    worker.unref();
+    console.log("[WORKER] Worker disparado com sucesso");
+    
+  } catch (error) {
+    console.error(`[WORKER] Erro ao disparar worker: ${error.message}`);
+  }
 }
 
 // Helper: Cache com TTL
@@ -1234,6 +1273,9 @@ app.get("/api/data", verifyToken, async (req, res) => {
               .select("*")
               .eq("implantacao_id", implData.id);
 
+            console.log(`📊 [/api/data] Clientes encontrados para implantação ID ${implData.id}:`, clientesData?.length || 0);
+            console.log(`📊 [/api/data] Dados dos clientes:`, JSON.stringify(clientesData, null, 2));
+
             clientes = (clientesData || []).map((c) => [
               c.id_pre_cadastro || "",
               c.nome || "",
@@ -1242,6 +1284,8 @@ app.get("/api/data", verifyToken, async (req, res) => {
               c.imobiliaria || "",
               c.status || "",
             ]);
+            
+            console.log(`📊 [/api/data] Clientes mapeados:`, JSON.stringify(clientes, null, 2));
           }
         } catch (e) {
           console.error("Erro ao buscar clientes do Supabase:", e);
@@ -1854,6 +1898,7 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     clientName,
     unitName,
     reservationToken,
+    pagamento,
   } = req.body;
   const userEmail = req.user?.email || "Sistema";
 
@@ -1986,22 +2031,202 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             unitFullName = (inserted && inserted.nome_unidade) || unitFullName;
           }
 
-          // Update cliente status and try to store imobiliaria/documento there as well (best-effort)
+          // Update cliente status
           if (clientName) {
             try {
+              const clientePayload = {
+                status: "JA RESERVOU",
+                imobiliaria: payload.imobiliaria || null,
+                documento: payload.documento || null,
+                corretor: payload.corretor || null,
+                id_pre_cadastro: payload.id_pre_cadastro || null,
+              };
+
               const { error: clienteErr } = await supabase // eslint-disable-line no-unused-vars
                 .from("clientes")
-                .update({
-                  status: "JA RESERVOU",
-                  imobiliaria: payload.imobiliaria || null,
-                  documento: payload.documento || null,
-                })
+                .update(clientePayload)
                 .eq("nome", clientName);
               if (clienteErr)
                 console.error("Supabase: error updating cliente", clienteErr);
+              else
+                console.log(`[SUPABASE] Cliente '${clientName}' atualizado com status 'JA RESERVOU'`);
             } catch (e) {
               console.error(
                 "Supabase: exception updating cliente",
+                e && e.message ? e.message : e
+              );
+            }
+          }
+
+          // Insert payment data into pagamentos table if provided
+          if (pagamento) {
+            try {
+              // First, get the cliente_id from the nome
+              const { data: clienteData } = await supabase
+                .from("clientes")
+                .select("id")
+                .eq("nome", clientName)
+                .single();
+
+              if (clienteData && clienteData.id) {
+                let valorUnidadeEncontrado = pagamento.valorUnidade ? parseFloat(pagamento.valorUnidade) : null;
+
+                // Se não veio do front, tenta buscar na tabela unidades
+                if (!valorUnidadeEncontrado) {
+                  try {
+                    console.log(
+                      `[SUPABASE DEBUG] Iniciando busca valor_unidade: clientName='${clientName}', implantacao_id=${implantacao_id}, rowIndex=${rowIndex}, unitFullName='${unitFullName}', unitName='${unitName}'`
+                    );
+
+                    // 1) Busca direta pela chave primária (implantacao_id + row_index)
+                    console.log(
+                      `[SUPABASE DEBUG] Tentativa 1: eq(implantacao_id, ${implantacao_id}) + eq(row_index, ${parseInt(rowIndex, 10)})`
+                    );
+                    const respRowIndex = await supabase
+                      .from("unidades")
+                      .select("valor, nome_unidade")
+                      .eq("implantacao_id", implantacao_id)
+                      .eq("row_index", parseInt(rowIndex, 10))
+                      .maybeSingle();
+
+                    console.log(
+                      `[SUPABASE DEBUG] Resposta Tentativa 1: data=${JSON.stringify(respRowIndex.data)}, error=${respRowIndex.error ? respRowIndex.error.message : 'null'}`
+                    );
+
+                    if (respRowIndex.data && respRowIndex.data.valor) {
+                      valorUnidadeEncontrado = parseFloat(respRowIndex.data.valor);
+                      console.log(
+                        `[SUPABASE] ✓ valor_unidade obtido via implantacao_id/row_index: ${valorUnidadeEncontrado}`
+                      );
+                    }
+
+                    // 2) Se ainda não achou, tenta match por cliente + nome_unidade e fallback por cliente
+                    if (!valorUnidadeEncontrado) {
+                      const nomeParaBusca = unitFullName || unitName || null;
+                      let unidadeRow = null;
+                      let unidadeErr = null;
+
+                      if (nomeParaBusca) {
+                        console.log(
+                          `[SUPABASE DEBUG] Tentativa 2a: eq(cliente, '${clientName}') + eq(nome_unidade, '${nomeParaBusca}')`
+                        );
+                        const respComNome = await supabase
+                          .from("unidades")
+                          .select("valor, nome_unidade")
+                          .eq("cliente", clientName)
+                          .eq("nome_unidade", nomeParaBusca)
+                          .maybeSingle();
+                        unidadeRow = respComNome.data;
+                        unidadeErr = respComNome.error;
+                        console.log(
+                          `[SUPABASE DEBUG] Resposta Tentativa 2a: data=${JSON.stringify(unidadeRow)}, error=${unidadeErr ? unidadeErr.message : 'null'}`
+                        );
+
+                        // Se nada encontrado com nome, tenta apenas por cliente (fallback)
+                        if (!unidadeRow || unidadeRow.valor === undefined) {
+                          console.log(
+                            `[SUPABASE DEBUG] Tentativa 2b (fallback): eq(cliente, '${clientName}')`
+                          );
+                          const respCliente = await supabase
+                            .from("unidades")
+                            .select("valor, nome_unidade")
+                            .eq("cliente", clientName)
+                            .maybeSingle();
+                          unidadeRow = respCliente.data;
+                          unidadeErr = respCliente.error;
+                          console.log(
+                            `[SUPABASE DEBUG] Resposta Tentativa 2b: data=${JSON.stringify(unidadeRow)}, error=${unidadeErr ? unidadeErr.message : 'null'}`
+                          );
+                        }
+                      } else {
+                        console.log(
+                          `[SUPABASE DEBUG] Tentativa 2c (nomeParaBusca vazio): eq(cliente, '${clientName}')`
+                        );
+                        const respCliente = await supabase
+                          .from("unidades")
+                          .select("valor, nome_unidade")
+                          .eq("cliente", clientName)
+                          .maybeSingle();
+                        unidadeRow = respCliente.data;
+                        unidadeErr = respCliente.error;
+                        console.log(
+                          `[SUPABASE DEBUG] Resposta Tentativa 2c: data=${JSON.stringify(unidadeRow)}, error=${unidadeErr ? unidadeErr.message : 'null'}`
+                        );
+                      }
+
+                      if (unidadeErr) {
+                        console.warn("Supabase: falha ao buscar valor da unidade por cliente", unidadeErr);
+                      } else if (unidadeRow && unidadeRow.valor) {
+                        valorUnidadeEncontrado = parseFloat(unidadeRow.valor);
+                        console.log(
+                          `[SUPABASE] ✓ valor_unidade obtido via cliente/nome: ${valorUnidadeEncontrado}`
+                        );
+                      } else {
+                        console.log(
+                          `[SUPABASE DEBUG] Nenhuma unidade encontrada com valor preenchido: ${JSON.stringify(unidadeRow)}`
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    console.warn(
+                      "Supabase: exceção ao buscar valor_unidade em unidades",
+                      e && e.message ? e.message : e
+                    );
+                  }
+                }
+
+                const pagamentoPayload = {
+                  cliente_id: clienteData.id,
+                  unidade: unitFullName || unitName || null,
+                  valor_unidade: valorUnidadeEncontrado,
+                  dia_vencimento: pagamento.diaVencimento ? parseInt(pagamento.diaVencimento, 10) : null,
+                  plano_padrao: pagamento.planoSelecionado || null,
+                  valor: pagamento.valor ? parseFloat(pagamento.valor) : null,
+                  tipo_pagamento: pagamento.pagamentoPresencial ? (pagamento.tipoPagamento || null) : null,
+                  tipo_venda: pagamento.tipoVenda || null,
+                  status: "pendente", // Inicia como pendente para o worker processar
+                };
+
+                console.log(
+                  `[SUPABASE DEBUG] Payload para inserção em pagamentos: ${JSON.stringify(pagamentoPayload)}`
+                );
+
+                // Inserção com fallback: se a coluna dia_vencimento não existir no banco, remove e tenta novamente.
+                let pagamentoErr = null;
+                try {
+                  const respInsert = await supabase
+                    .from("pagamentos")
+                    .insert(pagamentoPayload);
+                  pagamentoErr = respInsert.error || null;
+                } catch (e) {
+                  pagamentoErr = e;
+                }
+
+                if (pagamentoErr && String(pagamentoErr.message || pagamentoErr).includes("dia_vencimento")) {
+                  console.warn(
+                    "[SUPABASE] Coluna dia_vencimento não existe; inserindo sem ela (aplique a migration depois)."
+                  );
+                  const payloadSemDia = { ...pagamentoPayload };
+                  delete payloadSemDia.dia_vencimento;
+                  const respRetry = await supabase
+                    .from("pagamentos")
+                    .insert(payloadSemDia);
+                  pagamentoErr = respRetry.error || null;
+                }
+
+                if (pagamentoErr) {
+                  console.error("Supabase: error inserting pagamento", pagamentoErr);
+                } else {
+                  console.log(`[SUPABASE] ✓ Pagamento inserido com sucesso - cliente='${clientName}', valor_unidade=${valorUnidadeEncontrado}, dia_vencimento=${pagamentoPayload.dia_vencimento}, valor=${pagamento.valor}`);
+                  
+                  // Disparar worker em background para processar a reserva
+                  console.log(`[AUTOMATION] Disparando worker para processar pagamento...`);
+                  dispararWorkerBackground();
+                }
+              }
+            } catch (e) {
+              console.error(
+                "Supabase: exception inserting pagamento",
                 e && e.message ? e.message : e
               );
             }
@@ -2331,6 +2556,9 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
                   status: "JA RESERVOU",
                   imobiliaria: payload.imobiliaria || null,
                   documento: payload.documento || null,
+                  unidade: unitFullName || unitName || null, // ADICIONA A UNIDADE
+                  corretor: payload.corretor || null, // ADICIONA O CORRETOR
+                  id_pre_cadastro: payload.id_pre_cadastro || null, // ADICIONA O ID PRÉ-CADASTRO
                 })
                 .or(
                   `id_pre_cadastro.eq.${manualData.id},nome.eq.${manualData.cliente}`
@@ -2340,6 +2568,8 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
                   "Supabase: error updating cliente (spontaneous)",
                   clienteErr
                 );
+              else
+                console.log(`[SUPABASE] Cliente '${manualData.cliente}' (espontânea) atualizado com unidade '${unitFullName || unitName}'`);
             } catch (e) {
               console.error(
                 "Supabase: exception updating cliente (spontaneous)",
@@ -5484,6 +5714,141 @@ app.post(
     }
   }
 );
+
+// =================================================================
+// ENDPOINT: Acionar Worker de Automação de Reservas
+// =================================================================
+app.post("/api/worker/processar-reserva", verifyToken, async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  try {
+    const { id_pre_cadastro, unidade, corretor, implantacao_id } = req.body;
+    
+    if (!id_pre_cadastro || !unidade || !corretor) {
+      return res.status(400).json({
+        error: "Dados incompletos: id_pre_cadastro, unidade e corretor são obrigatórios"
+      });
+    }
+    
+    console.log(`[WORKER] Solicitação de automação recebida:`, {
+      id_pre_cadastro,
+      unidade,
+      corretor,
+      implantacao_id
+    });
+    
+    // Atualiza o status no Supabase para 'pendente'
+    if (supabase && implantacao_id) {
+      try {
+        await supabase
+          .table("clientes")
+          .update({
+            status_reserva: "pendente",
+            id_pre_cadastro,
+            unidade,
+            corretor
+          })
+          .eq("implantacao_id", implantacao_id)
+          .eq("id_pre_cadastro", id_pre_cadastro);
+        
+        console.log(`[WORKER] Status atualizado para 'pendente' no Supabase`);
+      } catch (error) {
+        console.error(`[WORKER] Erro ao atualizar status no Supabase:`, error);
+      }
+    }
+    
+    // Caminho para o worker Python
+    const workerPath = path.join(__dirname, '..', 'worker_automacao.py');
+    
+    // Inicia o worker em modo único (processa uma vez)
+    const worker = spawn('python', [workerPath, '--modo', 'unico'], {
+      cwd: path.join(__dirname, '..'),
+      env: {
+        ...process.env,
+        CVCRM_EMAIL: process.env.CVCRM_EMAIL,
+        CVCRM_SENHA: process.env.CVCRM_SENHA,
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_KEY: process.env.SUPABASE_SERVICE_ROLE
+      }
+    });
+    
+    // Captura logs do worker
+    worker.stdout.on('data', (data) => {
+      console.log(`[WORKER OUTPUT] ${data.toString()}`);
+    });
+    
+    worker.stderr.on('data', (data) => {
+      console.error(`[WORKER ERROR] ${data.toString()}`);
+    });
+    
+    worker.on('close', (code) => {
+      console.log(`[WORKER] Processo finalizado com código ${code}`);
+    });
+    
+    // Responde imediatamente (worker continua em background)
+    res.json({
+      success: true,
+      message: "Worker de automação iniciado com sucesso",
+      data: {
+        id_pre_cadastro,
+        unidade,
+        corretor,
+        status: "processando"
+      }
+    });
+    
+  } catch (error) {
+    console.error("[WORKER] Erro ao iniciar worker:", error);
+    res.status(500).json({
+      error: "Erro ao iniciar worker de automação",
+      details: error.message
+    });
+  }
+});
+
+// Endpoint para verificar status de uma reserva em processamento
+app.get("/api/worker/status/:id_pre_cadastro", verifyToken, async (req, res) => {
+  try {
+    const { id_pre_cadastro } = req.params;
+    
+    if (!supabase) {
+      return res.status(500).json({
+        error: "Supabase não está configurado"
+      });
+    }
+    
+    const { data, error } = await supabase
+      .table("clientes")
+      .select("status_reserva, erro_automacao, data_processamento")
+      .eq("id_pre_cadastro", id_pre_cadastro)
+      .single();
+    
+    if (error) {
+      return res.status(404).json({
+        error: "Reserva não encontrada",
+        details: error.message
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        id_pre_cadastro,
+        status: data.status_reserva,
+        erro: data.erro_automacao,
+        data_processamento: data.data_processamento
+      }
+    });
+    
+  } catch (error) {
+    console.error("[WORKER] Erro ao verificar status:", error);
+    res.status(500).json({
+      error: "Erro ao verificar status da reserva",
+      details: error.message
+    });
+  }
+});
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
 const PORT = process.env.PORT || 3001;

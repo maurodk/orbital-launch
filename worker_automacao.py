@@ -1,0 +1,1015 @@
+"""
+Worker de Automação de Reservas - CVCrm
+Processa reservas da tabela 'clientes' do Supabase sem interface gráfica
+"""
+
+import sys
+import time
+import logging
+import os
+from datetime import datetime
+from typing import Dict, List, Optional
+
+# Carregar variáveis de ambiente do arquivo .env
+from dotenv import load_dotenv
+load_dotenv()
+
+# Selenium
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import (
+    TimeoutException,
+    StaleElementReferenceException,
+    NoSuchWindowException,
+)
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+
+# Supabase
+from supabase import create_client, Client
+
+# ==============================================================================
+# --- CONFIGURAÇÕES ---
+# ==============================================================================
+URL_BASE_SISTEMA = "https://vca.cvcrm.com.br/gestor/"
+
+# Variáveis de ambiente para credenciais
+CVCRM_EMAIL = os.getenv("CVCRM_EMAIL")
+CVCRM_SENHA = os.getenv("CVCRM_SENHA")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('worker_automacao.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# --- CLIENTE SUPABASE ---
+# ==============================================================================
+def get_supabase_client() -> Client:
+    """Inicializa e retorna cliente do Supabase"""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise ValueError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ==============================================================================
+# --- FUNÇÕES DE AUTOMAÇÃO (ADAPTADAS) ---
+# ==============================================================================
+def criar_driver_headless() -> webdriver.Chrome:
+    """Cria driver Chrome em modo headless para execução em background"""
+    logger.info("Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...")
+    chrome_options = Options()
+    # chrome_options.add_argument("--headless")  # DESABILITADO PARA DEBUG
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    # chrome_options.add_argument("--disable-gpu")  # DESABILITADO PARA DEBUG
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--start-maximized")  # Inicia maximizado
+    
+    service = ChromeService(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    return driver
+
+
+def fazer_login(driver: webdriver.Chrome, usuario: str, senha: str) -> bool:
+    """Realiza login no CVCrm"""
+    logger.info("Iniciando login no CVCrm...")
+    try:
+        driver.get(URL_BASE_SISTEMA)
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "email"))
+        ).send_keys(usuario)
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "senha"))
+        ).send_keys(senha)
+        WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.XPATH, '//*[@id="formLogin"]/button'))
+        ).click()
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="global"]/div/div/h1'))
+        )
+        logger.info("Login realizado com sucesso!")
+        return True
+    except Exception as e:
+        logger.error(f"Login falhou: {str(e)}")
+        driver.save_screenshot("erro_login.png")
+        return False
+
+
+def selecionar_corretor_e_confirmar(driver: webdriver.Chrome, nome_corretor: str) -> bool:
+    """Seleciona corretor e confirma"""
+    logger.info(f"Selecionando corretor '{nome_corretor}'...")
+    try:
+        xpath_botao_corretor = '//input[@value="Selecionar corretor"]'
+        max_tentativas = 3
+        
+        for tentativa in range(max_tentativas):
+            try:
+                botao_selecionar = WebDriverWait(driver, 15).until(
+                    EC.element_to_be_clickable((By.XPATH, xpath_botao_corretor))
+                )
+                driver.execute_script("arguments[0].click();", botao_selecionar)
+                logger.info("Botão 'Selecionar corretor' clicado")
+                break
+            except StaleElementReferenceException:
+                logger.warning(f"Elemento obsoleto, tentando novamente ({tentativa + 1}/{max_tentativas})")
+                time.sleep(1)
+        else:
+            raise Exception("Não foi possível clicar no botão 'Selecionar corretor'")
+
+        WebDriverWait(driver, 10).until(EC.alert_is_present())
+        alerta = driver.switch_to.alert
+        alerta.accept()
+        logger.info("Seleção de corretor concluída")
+        return True
+    except Exception as e:
+        logger.error(f"Falha na seleção do corretor: {str(e)}")
+        driver.save_screenshot("erro_selecao_corretor.png")
+        return False
+
+
+def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict = None) -> bool:
+    """Preenche formulário final da reserva e configura séries de pagamento"""
+    logger.info("Preenchendo formulário final...")
+    try:
+        Select(
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "idmidia"))
+            )
+        ).select_by_index(4)
+        Select(
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "idmotivo_escolha"))
+            )
+        ).select_by_index(3)
+        Select(
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "idpdv"))
+            )
+        ).select_by_index(1)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "form_descricao_outro_pdv"))
+        ).send_keys(".")
+        
+        botao_salvar = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable(
+                (By.XPATH, '//*[@id="form_semassociado"]/div/button')
+            )
+        )
+        driver.execute_script("arguments[0].click();", botao_salvar)
+    except Exception as e:
+        logger.warning(f"Etapa 1 do formulário: {str(e)}")
+    
+    # Preparar dados de pagamento (sem selecionar tipo de venda ainda)
+    tipo_venda = None
+    if dados_pagamento and "tipo_venda" in dados_pagamento:
+        try:
+            tipo_venda = dados_pagamento.get("tipo_venda")
+            plano_selecionado = dados_pagamento.get("plano_selecionado")
+            # Interpretar valores de forma flexível:
+            # - Se houver 'valor_unidade' usar como total do imóvel
+            # - Se houver 'valor_pix' usar como Sinal 1
+            # - Se não houver 'valor_pix' mas existir 'tipo_pagamento', assumir que 'valor' é o PIX
+            # - Caso contrário, assumir que 'valor' é o valor total da unidade (fallback)
+            valor_unidade_total = None
+            valor_pix = 0.0
+            dia_vencimento = 15
+
+            if "valor_unidade" in dados_pagamento and dados_pagamento.get("valor_unidade") is not None:
+                valor_unidade_total = float(dados_pagamento.get("valor_unidade"))
+            elif "valor" in dados_pagamento and dados_pagamento.get("valor") is not None and not dados_pagamento.get("tipo_pagamento"):
+                # 'valor' sem tipo_pagamento → provavelmente valor da unidade
+                valor_unidade_total = float(dados_pagamento.get("valor"))
+
+            if "valor_pix" in dados_pagamento and dados_pagamento.get("valor_pix") is not None:
+                valor_pix = float(dados_pagamento.get("valor_pix"))
+            elif dados_pagamento.get("tipo_pagamento") and dados_pagamento.get("valor") is not None:
+                # 'valor' com tipo_pagamento → provavelmente PIX/Sinal 1
+                valor_pix = float(dados_pagamento.get("valor"))
+
+            if dados_pagamento.get("dia_vencimento") is not None:
+                try:
+                    dia_vencimento = int(dados_pagamento.get("dia_vencimento"))
+                except Exception:
+                    dia_vencimento = 15
+
+            logger.info(f"Configurando pagamento - Tipo: {tipo_venda}, Plano: {plano_selecionado}, valor_unidade_total={valor_unidade_total}, valor_pix={valor_pix}")
+            
+            # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
+            if plano_selecionado == "plano1":
+                if valor_unidade_total is None:
+                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
+                elif not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                    logger.warning("Falha ao adicionar séries do plano 1")
+            # Outros planos serão implementados depois
+            
+        except Exception as e:
+            logger.warning(f"Erro ao configurar pagamento/séries: {str(e)}")
+    
+    # Última etapa: Selecionar tipo de venda (se houver)
+    if tipo_venda:
+        try:
+            logger.info(f"[Etapa Final] Selecionando tipo de venda: {tipo_venda}")
+            if not selecionar_tipo_venda(driver, tipo_venda):
+                logger.warning("Falha ao selecionar tipo de venda, continuando...")
+        except Exception as e:
+            logger.warning(f"Erro ao selecionar tipo de venda na etapa final: {str(e)}")
+    
+    try:
+        botao_finalizar = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.XPATH, '//*[@id="finalizar"]'))
+        )
+        driver.execute_script("arguments[0].click();", botao_finalizar)
+        time.sleep(2)
+        logger.info("Formulário finalizado com sucesso!")
+        return True
+    except Exception as e:
+        logger.error(f"Falha ao finalizar formulário: {e}")
+        driver.save_screenshot("erro_formulario_final.png")
+        return False
+
+
+def selecionar_tipo_venda(driver: webdriver.Chrome, tipo_venda: str) -> bool:
+    """
+    Seleciona o tipo de venda no dropdown
+    
+    Args:
+        driver: WebDriver
+        tipo_venda: "cef" ou "facilita"
+        
+    Returns:
+        True se bem-sucedido, False caso contrário
+    """
+    try:
+        logger.info(f"Selecionando tipo de venda: {tipo_venda}")
+        
+        select_element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "idtipovenda"))
+        )
+        select = Select(select_element)
+        
+        if tipo_venda.lower() == "facilita":
+            # Procurar por PARCELAMENTO INCORPORADORA
+            for option in select.options:
+                if "PARCELAMENTO INCORPORADORA" in option.text.upper():
+                    select.select_by_value(option.get_attribute("value"))
+                    logger.info("Tipo de venda 'PARCELAMENTO INCORPORADORA' selecionado")
+                    return True
+        elif tipo_venda.lower() == "cef":
+            # Procurar por FINANCIAMENTO BANCÁRIO CEF
+            for option in select.options:
+                if "FINANCIAMENTO BANCÁRIO CEF" in option.text.upper():
+                    select.select_by_value(option.get_attribute("value"))
+                    logger.info("Tipo de venda 'FINANCIAMENTO BANCÁRIO CEF' selecionado")
+                    return True
+        
+        logger.warning(f"Tipo de venda '{tipo_venda}' não encontrado nas opções")
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao selecionar tipo de venda: {e}")
+        return False
+
+
+def selecionar_opcao_dropdown(driver: webdriver.Chrome, element_id: str, texto_busca: str) -> bool:
+    """
+    Seleciona uma opção em um dropdown pelo texto (ignorando espaços)
+    
+    Args:
+        driver: WebDriver
+        element_id: ID do elemento select
+        texto_busca: Texto a buscar na opção (ignorará espaços)
+        
+    Returns:
+        True se encontrado e selecionado, False caso contrário
+    """
+    try:
+        select_element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, element_id))
+        )
+        select = Select(select_element)
+        
+        # Normalizar texto de busca (remover espaços extras)
+        texto_normalizado = ' '.join(texto_busca.split()).upper()
+        
+        for option in select.options:
+            option_normalizado = ' '.join(option.text.split()).upper()
+            if texto_normalizado in option_normalizado:
+                select.select_by_value(option.get_attribute("value"))
+                logger.info(f"Opção '{option.text}' selecionada em {element_id}")
+                return True
+        
+        logger.warning(f"Opção contendo '{texto_busca}' não encontrada em {element_id}")
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao selecionar opção em {element_id}: {e}")
+        return False
+
+
+def preencher_input_texto(driver: webdriver.Chrome, element_id: str, valor: str) -> bool:
+    """Preenche um input de texto e limpa antes"""
+    try:
+        input_element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, element_id))
+        )
+
+        # Garantir foco e limpar de forma robusta (alguns campos têm máscara/validação)
+        try:
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", input_element)
+        except Exception:
+            pass
+
+        try:
+            input_element.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", input_element)
+
+        # Múltiplas estratégias de limpeza antes de escrever
+        try:
+            input_element.clear()
+        except Exception:
+            pass
+
+        # CTRL+A para selecionar tudo antes de digitar (importante para campos com valores pré-preenchidos)
+        try:
+            input_element.send_keys(Keys.CONTROL + "a")
+        except Exception:
+            pass
+
+        # Agora escrever o novo valor
+        input_element.send_keys(str(valor))
+
+        # Para campos com máscara (ex.: vencimento), disparar eventos e blur.
+        if element_id in {"vencimento"}:
+            driver.execute_script(
+                """
+                const el = arguments[0];
+                const v = arguments[1];
+                el.value = v;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.blur();
+                """,
+                input_element,
+                str(valor),
+            )
+            time.sleep(0.2)
+
+        current_value = None
+        try:
+            current_value = input_element.get_attribute("value")
+        except Exception:
+            pass
+
+        if element_id == "vencimento" and current_value:
+            if str(valor).strip() not in str(current_value).strip():
+                logger.warning(
+                    f"Campo vencimento não refletiu valor esperado: esperado='{valor}', atual='{current_value}'"
+                )
+
+        logger.info(f"Input {element_id} preenchido com: {valor}")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao preencher input {element_id}: {e}")
+        return False
+
+
+def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int, valor: float, vencimento: str, forma_pagamento: str) -> bool:
+    """
+    Adiciona uma série de pagamento
+    
+    Args:
+        driver: WebDriver
+        serie_nome: Nome da série (ex: "Sinal 1", "PARCELAMENTO INCORPORADORA")
+        qtd_parcelas: Quantidade de parcelas
+        valor: Valor da série
+        vencimento: Data de vencimento (formato DD/MM/YYYY)
+        forma_pagamento: Forma de pagamento (ex: "PIX")
+        
+    Returns:
+        True se série foi adicionada com sucesso, False caso contrário
+    """
+    try:
+        logger.info(f"Adicionando série: {serie_nome}")
+        
+        # Garantir que o painel de adição esteja aberto: se o dropdown "idserie" já estiver clicável, não reabrir.
+        try:
+            WebDriverWait(driver, 2).until(
+                EC.element_to_be_clickable((By.ID, "idserie"))
+            )
+            logger.info("Painel de adição já aberto; seguindo para seleção de série")
+        except TimeoutException:
+            # Abrir painel apenas se necessário
+            botao_adicionar = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.ID, "botao_adicionar_manual"))
+            )
+            driver.execute_script("arguments[0].click();", botao_adicionar)
+            time.sleep(1)
+        
+        # Selecionar série no dropdown
+        if not selecionar_opcao_dropdown(driver, "idserie", serie_nome):
+            return False
+        time.sleep(0.5)
+        
+        # Preencher quantidade de parcelas
+        if not preencher_input_texto(driver, "qtd_parcelas", qtd_parcelas):
+            return False
+        time.sleep(0.5)
+        
+        # Preencher valor
+        if not preencher_input_texto(driver, "valor", f"{valor:.2f}"):
+            return False
+        time.sleep(0.5)
+        
+        # Preencher data de vencimento
+        if not preencher_input_texto(driver, "vencimento", vencimento):
+            return False
+        time.sleep(0.5)
+        
+        # Selecionar forma de pagamento
+        if not selecionar_opcao_dropdown(driver, "forma_pagamento", forma_pagamento):
+            return False
+        time.sleep(0.5)
+        
+        # Clicar no botão de adicionar série
+        botao_add_serie = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "btAddSerie") and contains(@class, "-primario")]'))
+        )
+        driver.execute_script("arguments[0].click();", botao_add_serie)
+        
+        # Aguardar mensagem de sucesso
+        try:
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Série cadastrada com sucesso')]"))
+            )
+            logger.info(f"Série '{serie_nome}' adicionada com sucesso!")
+            time.sleep(1)
+            return True
+        except TimeoutException:
+            logger.warning(f"Mensagem de sucesso não apareceu para série '{serie_nome}'")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Erro ao adicionar série '{serie_nome}': {e}")
+        driver.save_screenshot(f"erro_serie_{serie_nome}.png")
+        return False
+
+
+def obter_proximo_vencimento_valido(data_base, dias_apos=0):
+    """
+    Retorna o próximo vencimento válido (05, 15 ou 25) após data_base + dias_apos.
+    
+    Args:
+        data_base: datetime da data de referência
+        dias_apos: dias a somar à data_base antes de arredondar
+        
+    Returns:
+        str no formato DD/MM/YYYY
+    """
+    from datetime import datetime, timedelta
+    
+    data_calc = data_base + timedelta(days=dias_apos)
+    dia = data_calc.day
+    mes = data_calc.month
+    ano = data_calc.year
+    
+    # Dias válidos: 05, 15, 25
+    dias_validos = [5, 15, 25]
+    
+    # Se o dia atual é válido, usa ele
+    if dia in dias_validos:
+        return data_calc.strftime("%d/%m/%Y")
+    
+    # Encontra o próximo dia válido no mês atual
+    for dia_valido in dias_validos:
+        if dia_valido > dia:
+            try:
+                data_result = datetime(ano, mes, dia_valido)
+                return data_result.strftime("%d/%m/%Y")
+            except ValueError:
+                pass
+    
+    # Se nenhum dia válido no mês atual, usa dia 05 do próximo mês
+    if mes == 12:
+        data_result = datetime(ano + 1, 1, 5)
+    else:
+        data_result = datetime(ano, mes + 1, 5)
+    
+    return data_result.strftime("%d/%m/%Y")
+
+
+def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+    """
+    Adiciona séries para o plano 1 seguindo a regra do negócio:
+    - Sinal 1: 1 parcela com valor do PIX (hoje)
+    - Sinal 2: 1 parcela de 10%/3, vence 7 dias após Sinal 1
+    - Sinal 3: 1 parcela de 10%/3, vence no dia escolhido (05/15/25) do mês seguinte ao Sinal 2
+    - Sinal 4: 1 parcela de 10%/3, vence no mesmo dia escolhido do mês seguinte ao Sinal 3
+    - PARCELAMENTO INCORPORADORA: 100 parcelas, vence no mesmo dia escolhido do mês seguinte ao Sinal 4
+    
+    Args:
+        driver: WebDriver
+        valor_unidade_total: Valor total da unidade
+        valor_pix: Valor do PIX (Sinal 1)
+        
+    Returns:
+        True se todas as séries foram adicionadas, False caso contrário
+    """
+    try:
+        import calendar
+        from datetime import datetime, timedelta
+        
+        logger.info("Iniciando adição de séries para Plano 1...")
+
+        # Regra de cálculo:
+        # - Sinal 1: valor_pix (hoje)
+        # - Sinais 2,3,4: 10% do valor do imóvel dividido em 3 parcelas iguais
+        # - Parcelamento: (valor_unidade_total - valor_pix) - 10% do valor do imóvel, em 100x
+
+        valor_dez_porcento = round(valor_unidade_total * 0.10, 2)
+        valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
+        hoje = datetime.now()
+
+        if dia_vencimento not in (5, 15, 25):
+            logger.warning(f"dia_vencimento inválido ({dia_vencimento}); usando 15")
+            dia_vencimento = 15
+
+        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
+            mes = ref.month + 1
+            ano = ref.year
+            if mes > 12:
+                mes = 1
+                ano += 1
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            dia_ok = min(dia, ultimo_dia)
+            return datetime(ano, mes, dia_ok)
+        
+        # Sinal 1 - PIX imediato (hoje)
+        data_sinal1 = hoje.strftime("%d/%m/%Y")
+        logger.info(f"[Plano1] Sinal 1: qtd=1, valor={valor_pix:.2f}, venc={data_sinal1}, forma=PIX")
+        if not adicionar_serie(driver, "Sinal 1", 1, valor_pix, data_sinal1, "PIX"):
+            return False
+        
+        # Sinal 2 - vence exatamente 7 dias após Sinal 1
+        data_sinal2_obj = hoje + timedelta(days=7)
+        data_sinal2 = data_sinal2_obj.strftime("%d/%m/%Y")
+        logger.info(f"[Plano1] Sinal 2: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal2}, forma=PIX")
+        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2, "PIX"):
+            return False
+        
+        # Sinal 3 - no mês seguinte ao Sinal 2, no dia escolhido
+        data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
+        data_sinal3 = data_sinal3_obj.strftime("%d/%m/%Y")
+        logger.info(f"[Plano1] Sinal 3: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal3}, forma=PIX")
+        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3, "PIX"):
+            return False
+        
+        # Sinal 4 - no mês seguinte ao Sinal 3, no mesmo dia escolhido
+        data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
+        data_sinal4 = data_sinal4_obj.strftime("%d/%m/%Y")
+        logger.info(f"[Plano1] Sinal 4: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal4}, forma=PIX")
+        if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4, "PIX"):
+            return False
+        
+        # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido
+        data_parcelamento_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
+        data_parcelamento = data_parcelamento_obj.strftime("%d/%m/%Y")
+        valor_parcelamento_total = (valor_unidade_total - valor_pix) - valor_dez_porcento
+        valor_parcela_100x = round(valor_parcelamento_total / 100.0, 2)
+        logger.info(f"[Plano1] Parcelamento: total={valor_parcelamento_total:.2f}, 100x de {valor_parcela_100x:.2f}, venc={data_parcelamento}, forma=TRANSFERÊNCIA BANCÁRIA")
+
+        if not adicionar_serie(
+            driver, 
+            "PARCELAMENTO INCORPORADORA", 
+            100, 
+            valor_parcela_100x, 
+            data_parcelamento, 
+            "TRANSFERÊNCIA BANCÁRIA"
+        ):
+            return False
+        
+        logger.info("Todas as séries do Plano 1 foram adicionadas com sucesso!")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Erro ao adicionar séries do Plano 1: {e}")
+        return False
+
+
+def processar_dados_conjuge(driver: webdriver.Chrome, dados_pagamento: Dict = None) -> bool:
+    """Avança para a etapa de finalização"""
+    logger.info("Avançando para finalização...")
+    try:
+        botoes_de_avanco = [
+            {'xpath': '//*[@id="formulario_cliente"]/div[2]/form/div/input[4]'},
+            {'xpath': '//*[@id="form_campo_semcpf"]/div[2]/div/input'},
+            {'xpath': '//*[@id="formulario_cliente"]/form/div[4]/input[2]'},
+        ]
+        
+        marcador_pagina_detalhes = EC.presence_of_element_located((By.ID, "idmidia"))
+        marcador_pagina_final = EC.presence_of_element_located(
+            (By.XPATH, '//*[@id="formulario_formadepagamento"]/div[3]/strong')
+        )
+        avanco_bem_sucedido = False
+
+        for i, botao_info in enumerate(botoes_de_avanco):
+            try:
+                botao_para_clicar = WebDriverWait(driver, 3).until(
+                    EC.element_to_be_clickable((By.XPATH, botao_info['xpath']))
+                )
+                driver.execute_script("arguments[0].click();", botao_para_clicar)
+                WebDriverWait(driver, 5).until(
+                    EC.any_of(marcador_pagina_detalhes, marcador_pagina_final)
+                )
+                logger.info(f"Avanço com botão {i+1} bem-sucedido")
+                avanco_bem_sucedido = True
+                break
+            except TimeoutException:
+                continue
+
+        if not avanco_bem_sucedido:
+            raise Exception("Nenhum botão de avanço funcionou")
+
+        return preencher_formulario_final(driver, dados_pagamento)
+    except Exception as e:
+        logger.error(f"Falha ao avançar: {e}")
+        driver.save_screenshot("erro_avanco_final.png")
+        return False
+
+
+def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict:
+    """
+    Processa um pré-cadastro completo
+    
+    Args:
+        driver: Instância do Selenium WebDriver
+        dados_reserva: Dicionário com dados da reserva do Supabase
+            - id_pre_cadastro
+            - unidade
+            - corretor
+            - tipo_venda (para automação de séries)
+            - plano_padrao
+            - valor
+        
+    Returns:
+        Dict com resultado do processamento
+    """
+    id_precadastro = dados_reserva.get("id_pre_cadastro")
+    unidade = dados_reserva.get("unidade")
+    corretor = dados_reserva.get("corretor")
+    
+    resultado = {
+        "id_pre_cadastro": id_precadastro,
+        "pagamento_id": dados_reserva.get("pagamento_id"),
+        "sucesso": False,
+        "erro": None,
+        "etapa": None
+    }
+    
+    janela_principal = driver.current_window_handle
+    
+    try:
+        if not all([id_precadastro, unidade, corretor]):
+            raise ValueError("Dados essenciais faltando (ID, Unidade ou Corretor)")
+        
+        logger.info(f"Processando ID: {id_precadastro} | Unidade: {unidade} | Plano: {dados_reserva.get('plano_padrao')}")
+        
+        # Abrir página do pré-cadastro
+        url_precadastro = f"{URL_BASE_SISTEMA}comercial/precadastro/{id_precadastro}/administrar"
+        driver.get(url_precadastro)
+        logger.info("Página de pré-cadastro carregada")
+        
+        # Aprovar pré-cadastro se necessário
+        logger.info("Verificando necessidade de aprovação...")
+        xpath_botao_aprovar = "//a[contains(@class, '-primario') and normalize-space()='Aprovar']"
+        botoes_aprovar = driver.find_elements(By.XPATH, xpath_botao_aprovar)
+        
+        if botoes_aprovar:
+            logger.info("Botão 'Aprovar' encontrado. Clicando...")
+            driver.execute_script("arguments[0].click();", botoes_aprovar[0])
+            try:
+                WebDriverWait(driver, 10).until(EC.alert_is_present())
+                alerta = driver.switch_to.alert
+                alerta.accept()
+                logger.info("Pré-cadastro aprovado!")
+            except Exception as e:
+                logger.warning(f"Alerta não apareceu: {e}")
+            time.sleep(2)
+        else:
+            logger.info("Pré-cadastro já aprovado")
+        
+        # Clicar em 'Iniciar Reserva'
+        logger.info("Buscando botão 'Iniciar Reserva'...")
+        botoes_iniciar = driver.find_elements(By.XPATH, "//a[contains(text(), 'Iniciar Reserva')]")
+        if not botoes_iniciar:
+            botoes_iniciar = driver.find_elements(By.XPATH, "//a[contains(@class, 'mapadisponibilidade')]")
+        
+        if botoes_iniciar:
+            for botao in botoes_iniciar:
+                try:
+                    driver.execute_script("arguments[0].scrollIntoView();", botao)
+                    driver.execute_script("arguments[0].click();", botao)
+                    logger.info("Botão 'Iniciar Reserva' clicado!")
+                    time.sleep(2)
+                    break
+                except Exception as e:
+                    logger.warning(f"Falha ao clicar: {e}")
+        
+        # Trocar para nova janela
+        logger.info("Aguardando abertura do mapa...")
+        WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
+        novas_janelas = [w for w in driver.window_handles if w != janela_principal]
+        if not novas_janelas:
+            raise Exception("Nova janela não encontrada")
+        
+        driver.switch_to.window(novas_janelas[0])
+        logger.info("Foco na janela do mapa")
+        
+        # Selecionar unidade
+        texto_limpo = unidade.lower().strip()
+        xpath_unidade = f"//span[normalize-space(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')) = '{texto_limpo}']/ancestor::div[contains(@class, 'disp-bloco')]"
+        unidade_div = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable((By.XPATH, xpath_unidade))
+        )
+        driver.execute_script("arguments[0].click();", unidade_div)
+        logger.info(f"Unidade '{unidade}' selecionada")
+        
+        WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.ID, "linkReserva"))
+        ).click()
+        logger.info("Botão 'Reservar' clicado")
+        
+        # Selecionar corretor
+        if not selecionar_corretor_e_confirmar(driver, corretor):
+            raise Exception("Falha na seleção do corretor")
+        
+        # Extrair dados de pagamento da reserva
+        dados_pagamento = {
+            "tipo_venda": dados_reserva.get("tipo_venda"),
+            "plano_selecionado": dados_reserva.get("plano_padrao"),
+            "valor_unidade": dados_reserva.get("valor_unidade"),
+            "dia_vencimento": dados_reserva.get("dia_vencimento"),
+            "valor": dados_reserva.get("valor"),
+            "tipo_pagamento": dados_reserva.get("tipo_pagamento"),
+            # Valor do PIX/Sinal 1 explícito quando a reserva veio com pagamento presencial
+            "valor_pix": dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None,
+        }
+        
+        logger.info(f"Dados de pagamento: plano={dados_pagamento['plano_selecionado']}, tipo_venda={dados_pagamento['tipo_venda']}, valor_unidade={dados_pagamento['valor_unidade']}, dia_vencimento={dados_pagamento.get('dia_vencimento')}, valor_pix={dados_pagamento['valor_pix']}, valor_bruto={dados_pagamento['valor']}")
+        
+        # Finalizar com dados de pagamento
+        if not processar_dados_conjuge(driver, dados_pagamento):
+            raise Exception("Falha no formulário final")
+        
+        resultado["sucesso"] = True
+        logger.info(f"SUCESSO TOTAL para o ID {id_precadastro}!")
+        
+    except Exception as e:
+        resultado["erro"] = str(e)
+        resultado["etapa"] = "Processamento"
+        logger.error(f"ERRO no ID {id_precadastro}: {str(e)}")
+        driver.save_screenshot(f"erro_{id_precadastro}.png")
+    
+    finally:
+        # Fechar janelas extras e voltar para a principal
+        if len(driver.window_handles) > 1:
+            try:
+                driver.close()
+            except NoSuchWindowException:
+                pass
+        driver.switch_to.window(janela_principal)
+    
+    return resultado
+
+
+# ==============================================================================
+# --- FUNÇÕES DE INTEGRAÇÃO COM SUPABASE ---
+# ==============================================================================
+def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
+    """
+    Busca pagamentos pendentes de processamento no Supabase
+    
+    Busca na table pagamentos com status = 'pendente'
+    e faz JOIN com a table clientes para obter dados do cliente
+    """
+    try:
+        # Busca pagamentos pendentes com informações do cliente
+        response = supabase.table("pagamentos").select(
+            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor, tipo_pagamento, tipo_venda, "
+            "clientes(id, id_pre_cadastro, nome, documento, corretor)"
+        ).eq("status", "pendente").execute()
+        
+        # Mapeia os dados para incluir cliente info no resultado
+        reservas = []
+        for pag in response.data:
+            cliente_info = pag.get("clientes", {})
+            reserva = {
+                "pagamento_id": pag.get("id"),
+                "cliente_id": pag.get("cliente_id"),
+                "id_pre_cadastro": cliente_info.get("id_pre_cadastro"),
+                "cliente_nome": cliente_info.get("nome"),
+                "documento": cliente_info.get("documento"),
+                "corretor": cliente_info.get("corretor"),
+                "unidade": pag.get("unidade"),
+                "valor_unidade": pag.get("valor_unidade"),
+                "dia_vencimento": pag.get("dia_vencimento"),
+                "plano_padrao": pag.get("plano_padrao"),
+                "valor": pag.get("valor"),
+                "tipo_pagamento": pag.get("tipo_pagamento"),
+                "tipo_venda": pag.get("tipo_venda"),
+            }
+
+            # Fallback: buscar valor da unidade na tabela unidades (prioriza cliente + nome_unidade)
+            if reserva["valor_unidade"] is None and reserva["cliente_nome"]:
+                try:
+                    nome_para_busca = reserva.get("unidade")
+                    unidade_resp = None
+
+                    if nome_para_busca:
+                        unidade_resp = (
+                            supabase.table("unidades")
+                            .select("valor, nome_unidade")
+                            .eq("cliente", reserva["cliente_nome"])
+                            .eq("nome_unidade", nome_para_busca)
+                            .maybeSingle()
+                            .execute()
+                        )
+
+                        if unidade_resp.data is None or unidade_resp.data.get("valor") is None:
+                            unidade_resp = (
+                                supabase.table("unidades")
+                                .select("valor, nome_unidade")
+                                .eq("cliente", reserva["cliente_nome"])
+                                .maybeSingle()
+                                .execute()
+                            )
+                    else:
+                        unidade_resp = (
+                            supabase.table("unidades")
+                            .select("valor, nome_unidade")
+                            .eq("cliente", reserva["cliente_nome"])
+                            .maybeSingle()
+                            .execute()
+                        )
+
+                    unidade_valor = unidade_resp.data.get("valor") if unidade_resp and unidade_resp.data else None
+                    if unidade_valor is not None:
+                        reserva["valor_unidade"] = float(unidade_valor)
+                        logger.info(f"[Queue] valor_unidade obtido de unidades para cliente={reserva['cliente_nome']}, unidade={nome_para_busca}: {reserva['valor_unidade']}")
+                except Exception as e:
+                    logger.warning(f"[Queue] Falha ao buscar valor_unidade em unidades para cliente={reserva['cliente_nome']}: {e}")
+
+            reservas.append(reserva)
+            logger.info(
+                f"[Queue] pagamento_id={reserva['pagamento_id']}, cliente={reserva['cliente_nome']}, unidade={reserva['unidade']}, "
+                f"valor_unidade={reserva['valor_unidade']}, dia_vencimento={reserva.get('dia_vencimento')}, plano={reserva['plano_padrao']}, valor={reserva['valor']}, tipo_pagamento={reserva['tipo_pagamento']}, tipo_venda={reserva['tipo_venda']}"
+            )
+        
+        logger.info(f"Encontradas {len(reservas)} reservas pendentes de processamento")
+        return reservas
+    except Exception as e:
+        logger.error(f"Erro ao buscar reservas pendentes: {e}")
+        return []
+
+
+def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: bool, erro: Optional[str] = None):
+    """Atualiza o status da reserva na table pagamentos"""
+    try:
+        dados_atualizacao = {
+            "status": "processado" if sucesso else "erro",
+            "data_processamento": datetime.now().isoformat(),
+        }
+        
+        if erro:
+            dados_atualizacao["erro_msg"] = erro
+        
+        supabase.table("pagamentos").update(dados_atualizacao).eq("id", pagamento_id).execute()
+        logger.info(f"Pagamento {pagamento_id} atualizado: {'processado' if sucesso else 'erro'}")
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status do pagamento: {e}")
+
+
+# ==============================================================================
+# --- WORKER PRINCIPAL ---
+# ==============================================================================
+def processar_fila_reservas():
+    """
+    Função principal do worker
+    Processa todas as reservas pendentes na fila
+    """
+    logger.info("=" * 60)
+    logger.info("Iniciando Worker de Automação de Reservas")
+    logger.info("=" * 60)
+    
+    # Validar variáveis de ambiente
+    if not CVCRM_EMAIL or not CVCRM_SENHA:
+        logger.error("Variáveis CVCRM_EMAIL e CVCRM_SENHA devem estar definidas")
+        return
+    
+    # Conectar ao Supabase
+    supabase = get_supabase_client()
+    
+    # Buscar reservas pendentes
+    reservas_pendentes = buscar_reservas_pendentes(supabase)
+    
+    if not reservas_pendentes:
+        logger.info("Nenhuma reserva pendente encontrada")
+        return
+    
+    logger.info(f"Processando {len(reservas_pendentes)} reservas...")
+    
+    # Criar driver
+    driver = None
+    try:
+        driver = criar_driver_headless()
+        
+        # Fazer login uma vez
+        if not fazer_login(driver, CVCRM_EMAIL, CVCRM_SENHA):
+            logger.error("Falha no login. Abortando processamento.")
+            return
+        
+        # Processar cada reserva
+        for i, reserva in enumerate(reservas_pendentes, 1):
+            logger.info(f"\n--- Processando {i}/{len(reservas_pendentes)} ---")
+            
+            resultado = processar_precadastro(driver, reserva)
+            
+            # Atualizar status no Supabase (table pagamentos)
+            atualizar_status_pagamento(
+                supabase,
+                reserva["pagamento_id"],
+                resultado["sucesso"],
+                resultado.get("erro")
+            )
+            
+            # Pequena pausa entre processamentos
+            time.sleep(2)
+        
+        logger.info("\n" + "=" * 60)
+        logger.info("Worker finalizado com sucesso!")
+        logger.info("=" * 60)
+        
+    except Exception as e:
+        logger.error(f"Erro fatal no worker: {e}")
+    finally:
+        if driver:
+            logger.info("Fechando navegador...")
+            driver.quit()
+
+
+def worker_loop(intervalo_segundos: int = 60):
+    """
+    Loop contínuo do worker
+    Verifica a fila a cada intervalo de tempo
+    
+    Args:
+        intervalo_segundos: Tempo entre cada verificação
+    """
+    logger.info(f"Worker em modo contínuo (verificando a cada {intervalo_segundos}s)")
+    logger.info("Pressione Ctrl+C para parar")
+    
+    try:
+        while True:
+            processar_fila_reservas()
+            logger.info(f"\nAguardando {intervalo_segundos} segundos até próxima verificação...\n")
+            time.sleep(intervalo_segundos)
+    except KeyboardInterrupt:
+        logger.info("\nWorker interrompido pelo usuário")
+
+
+# ==============================================================================
+# --- EXECUÇÃO ---
+# ==============================================================================
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Worker de Automação de Reservas')
+    parser.add_argument(
+        '--modo',
+        choices=['unico', 'continuo'],
+        default='unico',
+        help='Modo de execução: unico (processa uma vez) ou continuo (loop)'
+    )
+    parser.add_argument(
+        '--intervalo',
+        type=int,
+        default=60,
+        help='Intervalo em segundos para modo contínuo (padrão: 60)'
+    )
+    
+    args = parser.parse_args()
+    
+    if args.modo == 'continuo':
+        worker_loop(args.intervalo)
+    else:
+        processar_fila_reservas()

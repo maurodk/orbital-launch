@@ -49,7 +49,7 @@ const AWS_API_URL =
   "https://apitelaodigital.suportevca.com.br";
 
 // SEMPRE usa AWS (backend está na EC2)
-const apiUrl = AWS_API_URL;
+const apiUrl = "http://localhost:3001";
 
 console.log("🌐 [CONFIG] Ambiente:", import.meta.env.MODE);
 console.log("🌐 [CONFIG] API URL:", apiUrl);
@@ -91,6 +91,16 @@ interface ManualData {
   cliente: string;
   documento: string;
   corretor: string;
+}
+
+interface PaymentData {
+  pagamentoPresencial: boolean;
+  valor: string;
+  tipoPagamento: "pix" | "dinheiro" | "cartao" | "cheque" | null;
+  tipoVenda: "cef" | "facilita" | null;
+  planosPadrao: boolean;
+  planoSelecionado: string | null;
+  diaVencimento: 5 | 15 | 25;
 }
 
 const formatCPF = (cpf: string | null | undefined): string => {
@@ -307,8 +317,15 @@ export function MainPage() {
   const clientesDisponiveis = useMemo(() => {
     // Alteração: Remover o filtro de status para que todos os clientes
     // apareçam na lista, independentemente de já terem reservado ou não.
-    // A verificação `c && c[0]` garante que apenas linhas de cliente válidas sejam incluídas.
-    return clientes.filter((c) => c && c[0]);
+    // A verificação `c && c[1]` garante que apenas clientes com nome sejam incluídos.
+    // Índice [0] = id_pre_cadastro (pode ser null), [1] = nome (obrigatório)
+    console.log("🔍 [MainPage] clientesDisponiveis - Total recebido:", clientes.length);
+    console.log("🔍 [MainPage] clientesDisponiveis - Dados:", clientes);
+    
+    const filtered = clientes.filter((c) => c && c[1] && c[1].trim() !== "");
+    console.log("🔍 [MainPage] clientesDisponiveis - Após filtro:", filtered.length, filtered);
+    
+    return filtered;
   }, [clientes]);
 
   // NOVO: Memo para unidades disponíveis para o modal de troca
@@ -390,8 +407,18 @@ export function MainPage() {
           `ℹ️ Planilha '${implantacaoName}' ainda não existe (sem unidades importadas)`
         );
       } else {
-        setUnidades(response.data.unidades.slice(1) || []);
-        setClientes(response.data.clientes.slice(1) || []);
+        // Unidades vêm do Google Sheets (tem header) → remove com .slice(1)
+        const unidadesData = response.data.unidades.slice(1) || [];
+        // Clientes vêm do Supabase (sem header) → NÃO remove primeiro elemento
+        const clientesData = response.data.clientes || [];
+        
+        console.log("📊 [MainPage] Dados recebidos para:", implantacaoName);
+        console.log("📊 [MainPage] Unidades:", unidadesData.length);
+        console.log("📊 [MainPage] Clientes RAW:", response.data.clientes);
+        console.log("📊 [MainPage] Clientes (processados):", clientesData);
+        
+        setUnidades(unidadesData);
+        setClientes(clientesData);
       }
     } catch (err) {
       console.error(`Erro ao carregar dados para ${implantacaoName}`, err);
@@ -1224,7 +1251,8 @@ export function MainPage() {
   };
 
   const handleReserveUnit = async (
-    selectedClientIdOrManualData: string | ManualData
+    selectedClientIdOrManualData: string | ManualData,
+    paymentData: PaymentData
   ) => {
     if (selectedUnitIndex === null) return;
 
@@ -1247,6 +1275,9 @@ export function MainPage() {
 
     const unitName = unidades[selectedUnitIndex][2]; // Coluna C - nome_unidade
     const sheetRowIndex = selectedUnitIndex + 2;
+
+    // Log dos dados de pagamento
+    console.log("💳 [ReservationFlow] Dados de Pagamento:", paymentData);
 
     try {
       const tempReservationResult =
@@ -1300,7 +1331,8 @@ export function MainPage() {
         dataToBackend,
         clientName,
         unitName,
-        tempReservationResult.token!
+        tempReservationResult.token!,
+        paymentData
       );
 
       if (confirmSuccess) {
@@ -1374,11 +1406,12 @@ export function MainPage() {
     }
   };
 
-  const handleReserve = (data: string | ManualData) => {
-    if (typeof data === "string") {
-      handleReserveUnit(data);
+  const handleReserve = (data: { cliente: string | ManualData; pagamento: PaymentData }) => {
+    const { cliente, pagamento } = data;
+    if (typeof cliente === "string") {
+      handleReserveUnit(cliente, pagamento);
     } else {
-      handleReserveUnit(data);
+      handleReserveUnit(cliente, pagamento);
     }
   };
 
@@ -2095,6 +2128,8 @@ export function MainPage() {
                     ? unidades[selectedUnitIndex]
                     : null
                 }
+                implantacaoId={currentImplantation?.id ?? null}
+                sheetRowIndex={selectedUnitIndex !== null ? selectedUnitIndex + 2 : null}
                 clientes={clientesDisponiveis}
                 onReserve={handleReserve}
                 initialMode={reservationModalState.mode}

@@ -21,7 +21,8 @@ interface ReservationManager {
     data: any,
     clientName: string,
     unitName: string,
-    reservationToken: string
+    reservationToken: string,
+    pagamento?: any
   ) => Promise<boolean>;
   cancelTempReservation: (
     implantacao: string,
@@ -169,6 +170,7 @@ export function useReservationManager(apiUrl: string): ReservationManager {
       clientName: string,
       unitName: string,
       reservationToken: string,
+      pagamento?: any,
       retryCount = 0
     ): Promise<boolean> => {
       const maxRetries = 3;
@@ -186,6 +188,7 @@ export function useReservationManager(apiUrl: string): ReservationManager {
           clientName,
           unitName,
           reservationToken,
+          pagamento,
         });
 
         if (response.data.success) {
@@ -245,6 +248,7 @@ export function useReservationManager(apiUrl: string): ReservationManager {
             clientName,
             unitName,
             reservationToken,
+            pagamento,
             retryCount + 1
           );
         }

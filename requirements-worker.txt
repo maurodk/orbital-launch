@@ -1,0 +1,11 @@
+# Dependências do Worker de Automação de Reservas
+
+# Selenium para automação web
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+
+# Supabase para banco de dados
+supabase>=2.3.0
+
+# Utilidades
+python-dotenv>=1.0.0
