@@ -49,6 +49,33 @@
   border-color: var(--accent-green);
 }
 
+/* Informações do cliente */
+.info-cliente {
+  background-color: var(--bg-dark-secondary);
+  border: 2px solid var(--accent-green);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.info-cliente p {
+  margin: 5px 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.info-cliente strong {
+  color: var(--accent-green);
+  margin-right: 8px;
+}
+
+.loading-cliente {
+  text-align: center;
+  padding: 15px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 .modal-error {
   color: var(--status-reserved);
   background-color: rgba(217, 83, 79, 0.1);

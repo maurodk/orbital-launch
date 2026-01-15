@@ -3613,6 +3613,88 @@ app.post("/api/pix/transfer", verifyToken, async (req, res) => {
   }
 });
 
+// NOVO: Endpoint para atualizar status do PIX (Supabase + Google Sheets)
+app.post("/api/pix/update-status", verifyToken, async (req, res) => {
+  const { identificador, status, dataPagamento } = req.body;
+
+  if (!identificador || !status) {
+    return res.status(400).json({ error: "Identificador e status são obrigatórios." });
+  }
+
+  try {
+    // 1. Atualiza no Supabase
+    const updateData = {
+      status_pagamento: status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (status === 'PAGO' && dataPagamento) {
+      updateData.data_pagamento = dataPagamento;
+    }
+
+    const { data: pixData, error: supabaseError } = await supabase
+      .from('historico_pix')
+      .update(updateData)
+      .eq('identificador', identificador)
+      .select()
+      .single();
+
+    if (supabaseError) {
+      console.error('Erro ao atualizar PIX no Supabase:', supabaseError);
+      return res.status(500).json({ error: 'Erro ao atualizar no Supabase', details: supabaseError.message });
+    }
+
+    console.log('✅ PIX atualizado no Supabase:', pixData);
+
+    // 2. Atualiza no Google Sheets (se existir)
+    try {
+      const sheets = await getSheetsClient();
+      const implantacao = pixData.implantacao_nome;
+      
+      if (implantacao && SPREADSHEET_ID_PIX) {
+        // Busca a linha do PIX na planilha
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID_PIX,
+          range: `'${implantacao}'!A:G`,
+        });
+
+        const rows = response.data.values || [];
+        
+        // Encontra a linha com o identificador
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row[3] === identificador) { // Coluna D = identificador
+            // Atualiza o status na coluna G
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SPREADSHEET_ID_PIX,
+              range: `'${implantacao}'!G${i + 1}`,
+              valueInputOption: "RAW",
+              resource: {
+                values: [[status]],
+              },
+            });
+            
+            console.log(`✅ Status atualizado no Google Sheets: Linha ${i + 1}`);
+            break;
+          }
+        }
+      }
+    } catch (sheetsError) {
+      console.warn('⚠️ Erro ao atualizar Google Sheets (continuando):', sheetsError.message);
+      // Não retorna erro, pois o Supabase foi atualizado com sucesso
+    }
+
+    res.json({
+      success: true,
+      message: "Status do PIX atualizado com sucesso.",
+      data: pixData,
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar status do PIX:", error);
+    res.status(500).json({ error: "Falha ao atualizar status do PIX." });
+  }
+});
+
 // ANTIGO: Endpoint para atualizar dados do PIX (DEPRECATED - manter por compatibilidade)
 app.post("/api/update-pix-data", verifyToken, async (req, res) => {
   const {
@@ -5404,7 +5486,7 @@ app.post(
 );
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`✓ Servidor rodando na porta ${PORT}`);
   console.log(`✓ Acesse em http://localhost:${PORT}`);

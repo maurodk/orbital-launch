@@ -1462,27 +1462,51 @@ export function MainPage() {
     if (pixModalState.unitIndex === null) return;
 
     const unitData = unidades[pixModalState.unitIndex];
-    const cliente = unitData[7]; // Nome do cliente
+    const idPreCadastro = unitData[6]; // ID do pré-cadastro
     const unidade = unitData[2]; // Nome da unidade
 
     try {
-      // Salva o PIX na planilha separada
-      await axios.post(
-        `${apiUrl}/api/pix/create`,
-        {
-          implantacao: selectedImplantationName,
-          cliente,
-          unidade,
-          identificador,
-          payloadEmv,
-          valor,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+      // Busca o nome correto do cliente no Supabase usando id_pre_cadastro
+      let clienteNome = unitData[7] || "N/A"; // Fallback para o nome do unitData
+      
+      if (idPreCadastro) {
+        const { data: clienteData } = await supabase
+          .from('clientes')
+          .select('nome')
+          .eq('id_pre_cadastro', idPreCadastro)
+          .single();
+        
+        if (clienteData?.nome) {
+          clienteNome = clienteData.nome;
         }
-      );
+      }
+
+      // Salva o PIX diretamente no Supabase na tabela historico_pix
+      const { error: pixError } = await supabase
+        .from('historico_pix')
+        .insert({
+          implantacao_id: currentImplantation?.id || null,
+          implantacao_nome: selectedImplantationName,
+          cliente: clienteNome,
+          unidade: unidade,
+          identificador: identificador,
+          payload_emv: payloadEmv,
+          valor: valor,
+          status_pagamento: 'PENDENTE',
+          data_criacao: new Date().toISOString(),
+        });
+
+      if (pixError) {
+        console.error('Erro ao salvar PIX no Supabase:', pixError);
+        throw new Error(pixError.message || "Erro ao salvar PIX no banco de dados.");
+      }
+
+      console.log("✅ PIX salvo com sucesso no Supabase:", {
+        identificador,
+        cliente: clienteNome,
+        unidade,
+        valor,
+      });
 
       // Fecha o modal PIX após salvar
       setPixModalState({
@@ -1493,11 +1517,12 @@ export function MainPage() {
       });
 
       // Opcional: Mostrar mensagem de sucesso
-      alert("PIX gerado com sucesso!");
+      alert("PIX gerado com sucesso e salvo no banco de dados!");
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: string } } };
+      console.error("Erro ao salvar PIX:", error);
+      const err = error as Error;
       throw new Error(
-        err.response?.data?.error || "Erro ao salvar dados do PIX."
+        err.message || "Erro ao salvar dados do PIX."
       );
     }
   };

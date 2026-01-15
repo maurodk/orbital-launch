@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import axios from "axios";
+import { supabase } from "../src/supabaseClient";
 import "./PixModal.css";
 
 interface PixModalProps {
@@ -44,12 +45,17 @@ export function PixModal({
   const [payload, setPayload] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [contatoCliente, setContatoCliente] = useState("");
+  const [clienteNome, setClienteNome] = useState("");
+  const [clienteDocumento, setClienteDocumento] = useState("");
+  const [loadingCliente, setLoadingCliente] = useState(false);
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [currentPixId, setCurrentPixId] = useState<string | null>(null);
 
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
   const AWS_API_URL =
     import.meta.env.VITE_AWS_API_URL || "http://34.204.204.81:3000";
   const LOCALHOST_API_URL =
-    import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3000";
+    import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3001";
   const apiUrl =
     process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
@@ -77,6 +83,41 @@ export function PixModal({
     }
   }, [show, showPending, pendingPixData]);
 
+  // Busca os dados do cliente no Supabase usando id_pre_cadastro
+  useEffect(() => {
+    const buscarDadosCliente = async () => {
+      if (show && unitData && unitData[6]) {
+        const idPreCadastro = unitData[6]; // Coluna G - id_pre_cadastro
+        
+        setLoadingCliente(true);
+        try {
+          const { data, error } = await supabase
+            .from('clientes')
+            .select('nome, documento')
+            .eq('id_pre_cadastro', idPreCadastro)
+            .single();
+
+          if (error) {
+            console.error('Erro ao buscar dados do cliente:', error);
+            setClienteNome("");
+            setClienteDocumento("");
+          } else if (data) {
+            setClienteNome(data.nome || "");
+            setClienteDocumento(data.documento || "");
+          }
+        } catch (err) {
+          console.error('Erro ao buscar cliente no Supabase:', err);
+          setClienteNome("");
+          setClienteDocumento("");
+        } finally {
+          setLoadingCliente(false);
+        }
+      }
+    };
+
+    buscarDadosCliente();
+  }, [show, unitData]);
+
   // Preenche o contato do cliente automaticamente
   useEffect(() => {
     if (show && unitData) {
@@ -91,6 +132,54 @@ export function PixModal({
       }
     }
   }, [show, unitData]);
+
+  // Monitora mudanças no status do PIX no Supabase em tempo real
+  useEffect(() => {
+    if (!show || !currentPixId) return;
+
+    console.log("🔍 Iniciando monitoramento do PIX:", currentPixId);
+
+    // Polling a cada 3 segundos para verificar o status
+    const checkPixStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('historico_pix')
+          .select('status_pagamento, data_pagamento')
+          .eq('identificador', currentPixId)
+          .single();
+
+        if (error) {
+          console.error('Erro ao verificar status do PIX:', error);
+          return;
+        }
+
+        if (data && data.status_pagamento === 'PAGO') {
+          console.log('✅ PIX PAGO! Mostrando animação...');
+          setShowPaymentSuccess(true);
+          
+          // Fecha o modal após 4 segundos
+          setTimeout(() => {
+            onClose();
+            setShowPaymentSuccess(false);
+            setCurrentPixId(null);
+          }, 4000);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar PIX:', err);
+      }
+    };
+
+    // Verifica imediatamente
+    checkPixStatus();
+
+    // Depois verifica a cada 3 segundos
+    const intervalId = setInterval(checkPixStatus, 3000);
+
+    return () => {
+      console.log('🛑 Parando monitoramento do PIX');
+      clearInterval(intervalId);
+    };
+  }, [show, currentPixId, onClose]);
 
   const txid = useMemo(() => {
     if (!unitData || !implantacaoSigla) return "";
@@ -136,22 +225,36 @@ export function PixModal({
     setError("");
     setIsGenerating(true);
 
+    // Debug: Mostra os dados que serão enviados
+    console.log("Dados do cliente carregados do Supabase:", {
+      nome: clienteNome,
+      documento: clienteDocumento,
+      idPreCadastro: unitData?.[6],
+    });
+
     const requestBody = {
       txid: txid,
       valor: valor.toFixed(2),
       cpf: (() => {
-        let cpfLimpo = (unitData?.[7] || "").replace(/\D/g, "");
+        // Usa o documento do Supabase, se disponível
+        let cpfLimpo = (clienteDocumento || "").replace(/\D/g, "");
+        if (!cpfLimpo) {
+          // Fallback para unitData se não encontrou no Supabase
+          cpfLimpo = (unitData?.[7] || "").replace(/\D/g, "");
+        }
         if (cpfLimpo.length <= 10) {
           cpfLimpo = cpfLimpo.padStart(11, "0");
         }
         return cpfLimpo;
       })(),
-      nome: (unitData?.[6] || "CLIENTE").slice(0, 25),
+      nome: (clienteNome || unitData?.[7] || "CLIENTE").slice(0, 25),
       cidade: (implantacaoCidade || "SAO PAULO").slice(0, 15),
       chave: "financeiro11@vcaconstrutora.com.br",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
       expiracao: 3600,
     };
+
+    console.log("Request Body enviado para API:", requestBody);
 
     try {
       const response = await axios.post(PIX_API_URL, requestBody);
@@ -164,14 +267,17 @@ export function PixModal({
 
       const { identificador, payloadEmv } = response.data;
 
-      // Chama a função onConfirm para salvar os dados na planilha
+      // Guarda o identificador para monitoramento
+      setCurrentPixId(identificador);
+
+      // Chama a função onConfirm para salvar os dados no Supabase
       await onConfirm(valor, identificador, payloadEmv);
 
       // NOVO: Dispara o webhook da Botmaker através do nosso backend
       try {
         if (contatoCliente) {
           await axios.post(`${apiUrl}/api/botmaker/trigger-intent`, {
-            nomeCliente: unitData?.[6] || "N/A",
+            nomeCliente: clienteNome || unitData?.[7] || "N/A",
             nomeEmpreendimento: implantacaoNome,
             unidade: unitData?.[2] || "N/A",
             contatoCliente: contatoCliente, // Usa o valor do estado
@@ -215,12 +321,37 @@ export function PixModal({
         <button className="modal-close-button" onClick={onClose}>
           &times;
         </button>
-        <h2>
-          Pagamento PIX para Unidade <strong>{unitData[2]}</strong>
-        </h2>
-
-        {!showQr ? (
+        
+        {showPaymentSuccess ? (
+          <div className="payment-success-animation">
+            <div className="success-checkmark">
+              <div className="check-icon"></div>
+            </div>
+            <h2>Pagamento Confirmado!</h2>
+            <p>O PIX foi recebido com sucesso.</p>
+          </div>
+        ) : (
           <>
+            <h2>
+              Pagamento PIX para Unidade <strong>{unitData[2]}</strong>
+            </h2>
+
+            {!showQr ? (
+          <>
+            {loadingCliente ? (
+              <div className="loading-cliente">
+                <p>Carregando dados do cliente...</p>
+              </div>
+            ) : (
+              <>
+                {clienteNome && (
+                  <div className="info-cliente">
+                    <p><strong>Cliente:</strong> {clienteNome}</p>
+                    <p><strong>CPF:</strong> {clienteDocumento.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</p>
+                  </div>
+                )}
+              </>
+            )}
             <div className="form-group">
               <label>TXID (Gerado automaticamente)</label>
               <input type="text" value={txid} readOnly />
@@ -301,6 +432,8 @@ export function PixModal({
               </>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
