@@ -384,7 +384,7 @@ def preencher_input_texto(driver: webdriver.Chrome, element_id: str, valor: str)
         return False
 
 
-def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int, valor: float, vencimento: str, forma_pagamento: str) -> bool:
+def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int, valor: float, vencimento: str, forma_pagamento: str = None) -> bool:
     """
     Adiciona uma série de pagamento
     
@@ -394,7 +394,7 @@ def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int
         qtd_parcelas: Quantidade de parcelas
         valor: Valor da série
         vencimento: Data de vencimento (formato DD/MM/YYYY)
-        forma_pagamento: Forma de pagamento (ex: "PIX")
+        forma_pagamento: Forma de pagamento (ex: "PIX"). Se None, não preenche este campo.
         
     Returns:
         True se série foi adicionada com sucesso, False caso contrário
@@ -436,10 +436,11 @@ def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int
             return False
         time.sleep(0.5)
         
-        # Selecionar forma de pagamento
-        if not selecionar_opcao_dropdown(driver, "forma_pagamento", forma_pagamento):
-            return False
-        time.sleep(0.5)
+        # Selecionar forma de pagamento (apenas se fornecido)
+        if forma_pagamento:
+            if not selecionar_opcao_dropdown(driver, "forma_pagamento", forma_pagamento):
+                return False
+            time.sleep(0.5)
         
         # Clicar no botão de adicionar série
         botao_add_serie = WebDriverWait(driver, 5).until(
@@ -508,6 +509,150 @@ def obter_proximo_vencimento_valido(data_base, dias_apos=0):
     return data_result.strftime("%d/%m/%Y")
 
 
+def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float, data_vencimento: str) -> bool:
+    """
+    Edita a primeira série existente para transformá-la em Sinal 1 com PIX
+    
+    Args:
+        driver: WebDriver
+        valor_pix: Valor do PIX (Sinal 1)
+        data_vencimento: Data de vencimento (formato DD/MM/YYYY)
+        
+    Returns:
+        True se série foi editada com sucesso, False caso contrário
+    """
+    try:
+        logger.info("Editando primeira série existente para Sinal 1...")
+        
+        # Clicar no botão de editar primeira série (editarserie0)
+        botao_editar = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//a[@href="#editarserie0" and contains(@class, "cv-btn-block")]'))
+        )
+        driver.execute_script("arguments[0].click();", botao_editar)
+        logger.info("Clicado no botão de editar primeira série")
+        time.sleep(2)
+        
+        # Entrar no iframe do facebox
+        iframe = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="facebox"]/div/div/iframe'))
+        )
+        driver.switch_to.frame(iframe)
+        logger.info("Entrou no iframe do facebox")
+        time.sleep(1)
+        
+        # Selecionar "Sinal 1" no dropdown de série
+        dropdown_serie = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "idserie"))
+        )
+        select_serie = Select(dropdown_serie)
+        
+        # Procurar opção que contém "Sinal 1" (ignorando espaços)
+        opcao_encontrada = False
+        for opcao in select_serie.options:
+            if "sinal" in opcao.text.lower().replace(" ", "") and "1" in opcao.text:
+                select_serie.select_by_visible_text(opcao.text)
+                logger.info(f"Selecionado série: {opcao.text}")
+                opcao_encontrada = True
+                break
+        
+        if not opcao_encontrada:
+            logger.error("Opção 'Sinal 1' não encontrada no dropdown")
+            driver.switch_to.default_content()
+            return False
+        
+        time.sleep(0.5)
+        
+        # Selecionar "PIX" no dropdown de forma de pagamento
+        dropdown_forma = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "forma_pagamento"))
+        )
+        select_forma = Select(dropdown_forma)
+        
+        opcao_pix_encontrada = False
+        for opcao in select_forma.options:
+            if "pix" in opcao.text.lower():
+                select_forma.select_by_visible_text(opcao.text)
+                logger.info(f"Selecionado forma de pagamento: {opcao.text}")
+                opcao_pix_encontrada = True
+                break
+        
+        if not opcao_pix_encontrada:
+            logger.error("Opção 'PIX' não encontrada no dropdown")
+            driver.switch_to.default_content()
+            return False
+        
+        time.sleep(0.5)
+        
+        # Preencher quantidade de parcelas com "1"
+        input_qtd = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "qtd_parcelas"))
+        )
+        input_qtd.clear()
+        input_qtd.send_keys("1")
+        logger.info("Preenchido quantidade de parcelas: 1")
+        time.sleep(0.5)
+        
+        # Preencher valor
+        input_valor = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "valor_condicoes"))
+        )
+        input_valor.clear()
+        input_valor.send_keys(f"{valor_pix:.2f}")
+        logger.info(f"Preenchido valor: {valor_pix:.2f}")
+        time.sleep(0.5)
+        
+        # Preencher data de vencimento
+        input_vencimento = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "vencimento_condicoes"))
+        )
+        # Focar no campo primeiro
+        driver.execute_script("arguments[0].focus();", input_vencimento)
+        time.sleep(0.3)
+        
+        # Limpar campo com JavaScript (mais confiável)
+        driver.execute_script("arguments[0].value = '';", input_vencimento)
+        time.sleep(0.3)
+        
+        # Preencher data caractere por caractere (melhor para campos com máscara)
+        for char in data_vencimento:
+            input_vencimento.send_keys(char)
+            time.sleep(0.05)
+        
+        logger.info(f"Preenchido vencimento: {data_vencimento}")
+        
+        # Remover foco do campo de data clicando em outro elemento
+        driver.execute_script("document.activeElement.blur();")
+        time.sleep(0.5)
+        
+        # Clicar em submit
+        botao_submit = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.ID, "btn_submit"))
+        )
+        driver.execute_script("arguments[0].click();", botao_submit)
+        logger.info("Clicado em submit para salvar série editada")
+        time.sleep(2)
+        
+        # Sair do iframe (aguardar um pouco antes)
+        time.sleep(1)
+        driver.switch_to.default_content()
+        logger.info("Saiu do iframe, primeira série editada com sucesso!")
+        
+        # Aguardar um pouco para a página atualizar
+        time.sleep(2)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Erro ao editar primeira série: {e}")
+        driver.save_screenshot("erro_editar_primeira_serie.png")
+        # Garantir que sai do iframe em caso de erro
+        try:
+            driver.switch_to.default_content()
+        except:
+            pass
+        return False
+
+
 def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
     """
     Adiciona séries para o plano 1 seguindo a regra do negócio:
@@ -532,8 +677,8 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         logger.info("Iniciando adição de séries para Plano 1...")
 
         # Regra de cálculo:
-        # - Sinal 1: valor_pix (hoje)
-        # - Sinais 2,3,4: 10% do valor do imóvel dividido em 3 parcelas iguais
+        # - Sinal 1: valor_pix (hoje) - Será editado da série existente
+        # - Sinais 2,3,4: 10% do valor do imóvel dividido em 3 parcelas iguais - SEM forma de pagamento
         # - Parcelamento: (valor_unidade_total - valor_pix) - 10% do valor do imóvel, em 100x
 
         valor_dez_porcento = round(valor_unidade_total * 0.10, 2)
@@ -554,31 +699,32 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
             dia_ok = min(dia, ultimo_dia)
             return datetime(ano, mes, dia_ok)
         
-        # Sinal 1 - PIX imediato (hoje)
+        # PASSO 1: Editar a primeira série existente para transformá-la em Sinal 1 com PIX
         data_sinal1 = hoje.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 1: qtd=1, valor={valor_pix:.2f}, venc={data_sinal1}, forma=PIX")
-        if not adicionar_serie(driver, "Sinal 1", 1, valor_pix, data_sinal1, "PIX"):
+        logger.info(f"[Plano1] EDITANDO primeira série para Sinal 1: qtd=1, valor={valor_pix:.2f}, venc={data_sinal1}, forma=PIX")
+        if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
+            logger.error("Falha ao editar primeira série para Sinal 1")
             return False
         
-        # Sinal 2 - vence exatamente 7 dias após Sinal 1
+        # Sinal 2 - vence exatamente 7 dias após Sinal 1 - SEM forma de pagamento
         data_sinal2_obj = hoje + timedelta(days=7)
         data_sinal2 = data_sinal2_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 2: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal2}, forma=PIX")
-        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2, "PIX"):
+        logger.info(f"[Plano1] Sinal 2: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal2}, forma=None")
+        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2):
             return False
         
-        # Sinal 3 - no mês seguinte ao Sinal 2, no dia escolhido
+        # Sinal 3 - no mês seguinte ao Sinal 2, no dia escolhido - SEM forma de pagamento
         data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
         data_sinal3 = data_sinal3_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 3: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal3}, forma=PIX")
-        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3, "PIX"):
+        logger.info(f"[Plano1] Sinal 3: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal3}, forma=None")
+        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3):
             return False
         
-        # Sinal 4 - no mês seguinte ao Sinal 3, no mesmo dia escolhido
+        # Sinal 4 - no mês seguinte ao Sinal 3, no mesmo dia escolhido - SEM forma de pagamento
         data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
         data_sinal4 = data_sinal4_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 4: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal4}, forma=PIX")
-        if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4, "PIX"):
+        logger.info(f"[Plano1] Sinal 4: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal4}, forma=None")
+        if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4):
             return False
         
         # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido

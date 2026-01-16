@@ -1,0 +1,309 @@
+2026-01-16 14:32:51,362 - INFO - ============================================================
+2026-01-16 14:32:51,362 - INFO - Iniciando Worker de Automação de Reservas
+2026-01-16 14:32:51,363 - INFO - ============================================================
+2026-01-16 14:32:52,606 - INFO - HTTP Request: GET https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?select=id%2Ccliente_id%2Cunidade%2Cvalor_unidade%2Cdia_vencimento%2Cplano_padrao%2Cvalor%2Ctipo_pagamento%2Ctipo_venda%2Cclientes%28id%2Cid_pre_cadastro%2Cnome%2Cdocumento%2Ccorretor%29&status=eq.pendente "HTTP/2 200 OK"
+2026-01-16 14:32:52,611 - INFO - [Queue] pagamento_id=d0b66a78-9b8f-4a07-9d38-3f1212e50fcb, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 02, valor_unidade=790900, dia_vencimento=25, plano=plano1, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-16 14:32:52,611 - INFO - [Queue] pagamento_id=f3e0be98-8ea9-4e00-9a5e-4f689f212c2c, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 02, valor_unidade=790900, dia_vencimento=25, plano=plano1, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-16 14:32:52,611 - INFO - Encontradas 2 reservas pendentes de processamento
+2026-01-16 14:32:52,611 - INFO - Processando 2 reservas...
+2026-01-16 14:32:52,611 - INFO - Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...
+2026-01-16 14:32:52,612 - INFO - ====== WebDriver manager ======
+2026-01-16 14:32:54,049 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 14:32:54,455 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 14:32:54,648 - INFO - Driver [C:\Users\carlosmauricio\.wdm\drivers\chromedriver\win64\143.0.7499.192\chromedriver-win32/chromedriver.exe] found in cache
+2026-01-16 14:32:55,849 - INFO - Iniciando login no CVCrm...
+2026-01-16 14:32:58,256 - ERROR - Login falhou: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0xba1213
+	0xba1254
+	0x98e6dd
+	0x96ca8d
+	0xa01ffb
+	0xa1d44c
+	0x9fb2e6
+	0x9cd321
+	0x9ce1d4
+	0xdf5254
+	0xdf080b
+	0xe0d0ea
+	0xbbb118
+	0xbc311d
+	0xba9518
+	0xba96d9
+	0xb93a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 14:32:58,259 - ERROR - Erro fatal no worker: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0xba1213
+	0xba1254
+	0x98e6dd
+	0x96ca8d
+	0xa01ffb
+	0xa1d44c
+	0x9fb2e6
+	0x9cd321
+	0x9ce1d4
+	0xdf5254
+	0xdf080b
+	0xe0d0ea
+	0xbbb118
+	0xbc311d
+	0xba9518
+	0xba96d9
+	0xb93a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 14:32:58,259 - INFO - Fechando navegador...
+2026-01-16 15:04:36,140 - INFO - ============================================================
+2026-01-16 15:04:36,141 - INFO - Iniciando Worker de Automação de Reservas
+2026-01-16 15:04:36,141 - INFO - ============================================================
+2026-01-16 15:04:37,848 - INFO - HTTP Request: GET https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?select=id%2Ccliente_id%2Cunidade%2Cvalor_unidade%2Cdia_vencimento%2Cplano_padrao%2Cvalor%2Ctipo_pagamento%2Ctipo_venda%2Cclientes%28id%2Cid_pre_cadastro%2Cnome%2Cdocumento%2Ccorretor%29&status=eq.pendente "HTTP/2 200 OK"
+2026-01-16 15:04:37,858 - INFO - [Queue] pagamento_id=e600f3fe-04d5-4e7c-bc9c-7ab22563ae24, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 02, valor_unidade=790900, dia_vencimento=25, plano=plano1, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-16 15:04:37,858 - INFO - Encontradas 1 reservas pendentes de processamento
+2026-01-16 15:04:37,858 - INFO - Processando 1 reservas...
+2026-01-16 15:04:37,858 - INFO - Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...
+2026-01-16 15:04:37,858 - INFO - ====== WebDriver manager ======
+2026-01-16 15:04:39,230 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 15:04:39,427 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 15:04:39,551 - INFO - Driver [C:\Users\carlosmauricio\.wdm\drivers\chromedriver\win64\143.0.7499.192\chromedriver-win32/chromedriver.exe] found in cache
+2026-01-16 15:04:41,829 - INFO - Iniciando login no CVCrm...
+2026-01-16 15:04:50,323 - INFO - Login realizado com sucesso!
+2026-01-16 15:04:50,323 - INFO - 
+--- Processando 1/1 ---
+2026-01-16 15:04:50,325 - INFO - Processando ID: 40279 | Unidade: QD01 - CASA 02 | Plano: plano1
+2026-01-16 15:04:52,347 - INFO - Página de pré-cadastro carregada
+2026-01-16 15:04:52,347 - INFO - Verificando necessidade de aprovação...
+2026-01-16 15:04:52,372 - INFO - Pré-cadastro já aprovado
+2026-01-16 15:04:52,372 - INFO - Buscando botão 'Iniciar Reserva'...
+2026-01-16 15:04:52,486 - INFO - Botão 'Iniciar Reserva' clicado!
+2026-01-16 15:04:54,487 - INFO - Aguardando abertura do mapa...
+2026-01-16 15:04:54,516 - INFO - Foco na janela do mapa
+2026-01-16 15:04:55,470 - INFO - Unidade 'QD01 - CASA 02' selecionada
+2026-01-16 15:04:59,519 - INFO - Botão 'Reservar' clicado
+2026-01-16 15:04:59,519 - INFO - Selecionando corretor 'RODRIGO RUAS TESTE'...
+2026-01-16 15:04:59,582 - INFO - Botão 'Selecionar corretor' clicado
+2026-01-16 15:04:59,592 - INFO - Seleção de corretor concluída
+2026-01-16 15:04:59,592 - INFO - Dados de pagamento: plano=plano1, tipo_venda=facilita, valor_unidade=790900, dia_vencimento=25, valor_pix=10000, valor_bruto=10000
+2026-01-16 15:04:59,592 - INFO - Avançando para finalização...
+2026-01-16 15:05:09,274 - INFO - Avanço com botão 2 bem-sucedido
+2026-01-16 15:05:09,274 - INFO - Preenchendo formulário final...
+2026-01-16 15:05:10,969 - INFO - Configurando pagamento - Tipo: facilita, Plano: plano1, valor_unidade_total=790900.0, valor_pix=10000.0
+2026-01-16 15:05:10,969 - INFO - Iniciando adição de séries para Plano 1...
+2026-01-16 15:05:10,969 - INFO - [Plano1] EDITANDO primeira série para Sinal 1: qtd=1, valor=10000.00, venc=16/01/2026, forma=PIX
+2026-01-16 15:05:10,969 - INFO - Editando primeira série existente para Sinal 1...
+2026-01-16 15:05:12,666 - INFO - Clicado no botão de editar primeira série
+2026-01-16 15:05:14,724 - INFO - Entrou no iframe do facebox
+2026-01-16 15:05:16,322 - INFO - Selecionado série: Sinal 1
+2026-01-16 15:05:17,081 - INFO - Selecionado forma de pagamento: PIX
+2026-01-16 15:05:17,773 - INFO - Preenchido quantidade de parcelas: 1
+2026-01-16 15:05:18,461 - INFO - Preenchido valor: 10000.00
+2026-01-16 15:05:20,658 - INFO - Preenchido vencimento: 16/01/2026
+2026-01-16 15:05:22,090 - INFO - Clicado em submit para salvar série editada
+2026-01-16 15:05:25,098 - INFO - Saiu do iframe, primeira série editada com sucesso!
+2026-01-16 15:05:27,098 - INFO - [Plano1] Sinal 2: qtd=1, valor=26363.33, venc=23/01/2026, forma=None
+2026-01-16 15:05:27,099 - INFO - Adicionando série: Sinal 2
+2026-01-16 15:05:30,899 - INFO - Opção 'Sinal 2' selecionada em idserie
+2026-01-16 15:05:31,656 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 15:05:32,384 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 15:05:33,404 - INFO - Input vencimento preenchido com: 23/01/2026
+2026-01-16 15:05:34,721 - ERROR - Erro ao adicionar série 'Sinal 2': Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x39ca8d
+	0x431ffb
+	0x44d44c
+	0x42b2e6
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,725 - ERROR - Erro ao adicionar séries do Plano 1: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x39ca8d
+	0x431ffb
+	0x44d44c
+	0x42b2e6
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,725 - WARNING - Falha ao adicionar séries do plano 1
+2026-01-16 15:05:34,726 - INFO - [Etapa Final] Selecionando tipo de venda: facilita
+2026-01-16 15:05:34,726 - INFO - Selecionando tipo de venda: facilita
+2026-01-16 15:05:34,730 - ERROR - Erro ao selecionar tipo de venda: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x39ca8d
+	0x431ffb
+	0x44d44c
+	0x42b2e6
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,730 - WARNING - Falha ao selecionar tipo de venda, continuando...
+2026-01-16 15:05:34,734 - ERROR - Falha ao finalizar formulário: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x39ca8d
+	0x431ffb
+	0x44d44c
+	0x42b2e6
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,740 - ERROR - Falha ao avançar: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x39ca8d
+	0x431ffb
+	0x44d44c
+	0x42b2e6
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,743 - ERROR - ERRO no ID 40279: Message: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=143.0.7499.193)
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x39ca8d
+	0x431ffb
+	0x44d44c
+	0x42b2e6
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,882 - ERROR - Erro fatal no worker: Message: invalid session id: session deleted as the browser has closed the connection
+from disconnected: Unable to receive message from renderer
+  (Session info: chrome=143.0.7499.193); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#invalidsessionidexception
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0x5d1213
+	0x5d1254
+	0x3be6dd
+	0x3aed49
+	0x3ac94f
+	0x3ad456
+	0x3bf167
+	0x39c5bb
+	0x43b539
+	0x42b4b3
+	0x3fd321
+	0x3fe1d4
+	0x825254
+	0x82080b
+	0x83d0ea
+	0x5eb118
+	0x5f311d
+	0x5d9518
+	0x5d96d9
+	0x5c3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-16 15:05:34,882 - INFO - Fechando navegador...

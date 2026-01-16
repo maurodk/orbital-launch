@@ -22,7 +22,8 @@ interface ReservationListProps {
   onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
   onPrintClick: (unitIndex: number) => void;
-  onPixClick: (unitIndex: number) => void; // Nova prop para o PIX
+  onPixClick: (unitIndex: number) => void;
+  onPaymentClick: (unitIndex: number) => void; // Nova prop para o botão Pagamento
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   statusFilter: "all" | "Disponível" | "Reservada" | "Bloqueada";
@@ -47,6 +48,7 @@ export function ReservationList({
   onHistoryClick,
   onPrintClick,
   onPixClick,
+  onPaymentClick,
   searchTerm,
   setSearchTerm,
   statusFilter,
@@ -440,6 +442,16 @@ export function ReservationList({
                 marginTop: "20px",
               }}
             >
+              <button
+                className="modal-action-button"
+                onClick={() => {
+                  onPaymentClick(selectedUnitIndex);
+                  setShowManageModal(false);
+                  setSelectedUnitIndex(null);
+                }}
+              >
+                Pagamento
+              </button>
               <button
                 className="modal-action-button"
                 onClick={() => {

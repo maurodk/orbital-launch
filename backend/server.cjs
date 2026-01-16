@@ -2181,7 +2181,13 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
                   valor_unidade: valorUnidadeEncontrado,
                   dia_vencimento: pagamento.diaVencimento ? parseInt(pagamento.diaVencimento, 10) : null,
                   plano_padrao: pagamento.planoSelecionado || null,
-                  valor: pagamento.valor ? parseFloat(pagamento.valor) : null,
+                  valor: pagamento.valor ? parseFloat(
+                    String(pagamento.valor)
+                      .replace(/R\$/g, "")  // Remove R$
+                      .replace(/\s/g, "")   // Remove espaços
+                      .replace(/\./g, "")   // Remove pontos (milhares)
+                      .replace(",", ".")    // Substitui vírgula por ponto (decimal)
+                  ) : null,
                   tipo_pagamento: pagamento.pagamentoPresencial ? (pagamento.tipoPagamento || null) : null,
                   tipo_venda: pagamento.tipoVenda || null,
                   status: "pendente", // Inicia como pendente para o worker processar
@@ -2444,6 +2450,230 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Erro ao cancelar reserva temporária:", error);
     res.status(500).json({ error: "Falha ao cancelar reserva temporária." });
+  }
+});
+
+// Endpoint para adicionar pagamento a uma unidade já reservada
+app.post("/api/add-payment", verifyToken, async (req, res) => {
+  const {
+    implantacao,
+    rowIndex,
+    clientName,
+    unitName,
+    pagamento,
+  } = req.body;
+  const userEmail = req.user?.email || "Sistema";
+
+  if (!implantacao || !rowIndex || !pagamento) {
+    return res.status(400).json({ error: "Dados incompletos." });
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    const resolved = await resolveSheetName(
+      sheets,
+      SPREADSHEET_ID_IMPLANTACAO,
+      implantacao
+    );
+    if (!resolved || !resolved.found) {
+      return res
+        .status(404)
+        .json({ error: `Planilha '${implantacao}' não encontrada.` });
+    }
+    const sheetTitle = resolved.found;
+
+    // Verifica se a unidade está reservada
+    const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
+    const unitCheckResult = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: unitCheckRange,
+    });
+
+    const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
+    const currentStatus = normalizeStatus(rawStatus);
+
+    if (currentStatus !== "reservada") {
+      return res.status(409).json({
+        error: `Esta unidade não está reservada. Status atual: ${rawStatus}.`,
+        code: "UNIT_NOT_RESERVED",
+      });
+    }
+
+    // Persiste pagamento no Supabase
+    let supabaseOk = false;
+    let unitFullName = unitName || null;
+    
+    if (supabase) {
+      try {
+        const { data: implData, error: implDataError } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .maybeSingle();
+
+        if (implDataError) {
+          throw new Error(
+            `Erro ao buscar implantação no Supabase: ${implDataError.message}`
+          );
+        }
+
+        const implantacao_id = implData?.id;
+        if (implantacao_id) {
+          // Buscar a unidade existente
+          const { data: existingUnit, error: existingUnitError } =
+            await supabase
+              .from("unidades")
+              .select("id, nome_unidade")
+              .eq("implantacao_id", implantacao_id)
+              .eq("row_index", parseInt(rowIndex, 10))
+              .limit(1)
+              .single();
+
+          if (existingUnitError) {
+            throw new Error(`Erro ao buscar unidade: ${existingUnitError.message}`);
+          }
+
+          unitFullName = (existingUnit && existingUnit.nome_unidade) || unitFullName;
+
+          // Buscar cliente
+          const { data: clienteData, error: clienteError } = await supabase
+            .from("clientes")
+            .select("id")
+            .eq("nome", clientName)
+            .single();
+
+          if (clienteError || !clienteData?.id) {
+            throw new Error(`Cliente '${clientName}' não encontrado.`);
+          }
+
+          // Buscar valor da unidade
+          let valorUnidadeEncontrado = pagamento.valorUnidade ? parseFloat(pagamento.valorUnidade) : null;
+
+          if (!valorUnidadeEncontrado) {
+            try {
+              console.log(
+                `[ADD-PAYMENT] Buscando valor_unidade: implantacao_id=${implantacao_id}, rowIndex=${rowIndex}`
+              );
+
+              const respRowIndex = await supabase
+                .from("unidades")
+                .select("valor, nome_unidade")
+                .eq("implantacao_id", implantacao_id)
+                .eq("row_index", parseInt(rowIndex, 10))
+                .maybeSingle();
+
+              if (respRowIndex.data && respRowIndex.data.valor) {
+                valorUnidadeEncontrado = parseFloat(respRowIndex.data.valor);
+                console.log(
+                  `[ADD-PAYMENT] ✓ valor_unidade encontrado: ${valorUnidadeEncontrado}`
+                );
+              }
+            } catch (e) {
+              console.warn(
+                "[ADD-PAYMENT] Erro ao buscar valor_unidade",
+                e && e.message ? e.message : e
+              );
+            }
+          }
+
+          // Preparar payload de pagamento
+          const pagamentoPayload = {
+            cliente_id: clienteData.id,
+            unidade: unitFullName || unitName || null,
+            valor_unidade: valorUnidadeEncontrado,
+            dia_vencimento: pagamento.diaVencimento ? parseInt(pagamento.diaVencimento, 10) : null,
+            plano_padrao: pagamento.planoSelecionado || null,
+            valor: pagamento.valor ? parseFloat(
+              String(pagamento.valor)
+                .replace(/R\$/g, "")
+                .replace(/\s/g, "")
+                .replace(/\./g, "")
+                .replace(",", ".")
+            ) : null,
+            tipo_pagamento: pagamento.pagamentoPresencial ? (pagamento.tipoPagamento || null) : null,
+            tipo_venda: pagamento.tipoVenda || null,
+            status: "pendente",
+          };
+
+          console.log(
+            `[ADD-PAYMENT] Payload para inserção: ${JSON.stringify(pagamentoPayload)}`
+          );
+
+          // Inserir pagamento
+          let pagamentoErr = null;
+          try {
+            const respInsert = await supabase
+              .from("pagamentos")
+              .insert(pagamentoPayload);
+            pagamentoErr = respInsert.error || null;
+          } catch (e) {
+            pagamentoErr = e;
+          }
+
+          if (pagamentoErr && String(pagamentoErr.message || pagamentoErr).includes("dia_vencimento")) {
+            console.warn(
+              "[ADD-PAYMENT] Coluna dia_vencimento não existe; inserindo sem ela."
+            );
+            const payloadSemDia = { ...pagamentoPayload };
+            delete payloadSemDia.dia_vencimento;
+            const respRetry = await supabase
+              .from("pagamentos")
+              .insert(payloadSemDia);
+            pagamentoErr = respRetry.error || null;
+          }
+
+          if (pagamentoErr) {
+            console.error("[ADD-PAYMENT] Erro ao inserir pagamento:", pagamentoErr);
+            throw new Error(`Erro ao salvar pagamento: ${pagamentoErr.message}`);
+          } else {
+            console.log(`[ADD-PAYMENT] ✓ Pagamento inserido com sucesso`);
+            
+            // Disparar worker em background
+            console.log(`[AUTOMATION] Disparando worker para processar pagamento...`);
+            dispararWorkerBackground();
+            
+            supabaseOk = true;
+          }
+        } else {
+          console.warn(
+            `[ADD-PAYMENT] Implantação '${implantacao}' não encontrada.`
+          );
+        }
+      } catch (e) {
+        console.error(
+          "[ADD-PAYMENT] Erro ao processar pagamento:",
+          e.message || e
+        );
+        throw e;
+      }
+    }
+
+    if (!supabaseOk) {
+      throw new Error("Falha ao salvar dados no banco.");
+    }
+
+    // Adiciona ao histórico
+    await addHistoryEntry(
+      sheets,
+      sheetTitle,
+      unitName,
+      "Pagamento adicionado",
+      clientName,
+      null, // Corretor
+      userEmail
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Pagamento adicionado com sucesso." 
+    });
+
+  } catch (error) {
+    console.error("[ADD-PAYMENT] Erro:", error);
+    res.status(500).json({
+      error: error.message || "Erro ao adicionar pagamento.",
+      details: error.message,
+    });
   }
 });
 
@@ -3602,6 +3832,62 @@ app.post("/api/toggle-block-unit", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Erro ao bloquear/desbloquear unidade:", error);
     res.status(500).json({ error: "Falha ao atualizar o status da unidade." });
+  }
+});
+
+// NOVO: Endpoint para verificar o status de um pagamento
+app.get("/api/payment-status/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const userEmail = req.user?.email || "N/A";
+
+  console.log(
+    `[PAYMENT-STATUS] Usuário ${userEmail} verificando pagamento ID: ${id}`
+  );
+
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase não configurado." });
+  }
+
+  if (!id) {
+    return res.status(400).json({ error: "O ID do pagamento é obrigatório." });
+  }
+
+  try {
+    const { data: pagamento, error } = await supabase
+      .from("pagamentos")
+      .select("status")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      // Se o erro for "PGRST116" (PostgREST), significa que não encontrou a linha.
+      if (error.code === "PGRST116") {
+        console.warn(
+          `[PAYMENT-STATUS] Pagamento com ID ${id} não encontrado.`
+        );
+        return res.status(404).json({ error: "Pagamento não encontrado." });
+      }
+      // Outros erros de banco
+      console.error(
+        `[PAYMENT-STATUS] Erro no Supabase ao buscar pagamento ${id}:`,
+        error
+      );
+      throw error;
+    }
+
+    if (!pagamento) {
+      return res.status(404).json({ error: "Pagamento não encontrado." });
+    }
+
+    console.log(
+      `[PAYMENT-STATUS] Status do pagamento ${id} é: ${pagamento.status}`
+    );
+    res.json({ status: pagamento.status });
+  } catch (error) {
+    res.status(500).json({
+      error: "Falha ao verificar status do pagamento.",
+      details: error.message,
+    });
   }
 });
 

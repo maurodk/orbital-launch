@@ -5,6 +5,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import axios from "axios";
 import { supabase } from "../src/supabaseClient";
 import "./PixModal.css";
+import "./ReservationModal.css";
 
 interface PixModalProps {
   show: boolean;
@@ -38,6 +39,7 @@ export function PixModal({
   pendingPixData,
   onConfirm,
 }: PixModalProps) {
+  const [step, setStep] = useState<"payment" | "qrcode">("payment");
   const [valor, setValor] = useState(0);
   const [displayValor, setDisplayValor] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -50,6 +52,12 @@ export function PixModal({
   const [loadingCliente, setLoadingCliente] = useState(false);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [currentPixId, setCurrentPixId] = useState<string | null>(null);
+  
+  const [tipoPagamento, setTipoPagamento] = useState<"pix" | "dinheiro" | "cartao" | "cheque" | null>(null);
+  const [tipoVenda, setTipoVenda] = useState<"cef" | "facilita" | null>(null);
+  const [planosPadrao, setPlanosPadrao] = useState(false);
+  const [planoSelecionado, setPlanoSelecionado] = useState<string | null>(null);
+  const [diaVencimento, setDiaVencimento] = useState<5 | 15 | 25>(15);
 
   // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
   const AWS_API_URL =
@@ -62,6 +70,7 @@ export function PixModal({
 
   useEffect(() => {
     if (!show) {
+      setStep("payment");
       setValor(0);
       setDisplayValor("");
       setIsGenerating(false);
@@ -69,8 +78,12 @@ export function PixModal({
       setPayload(null);
       setError("");
       setContatoCliente("");
+      setTipoPagamento(null);
+      setTipoVenda(null);
+      setPlanosPadrao(false);
+      setPlanoSelecionado(null);
+      setDiaVencimento(15);
     } else if (showPending && pendingPixData) {
-      // Se for para mostrar PIX pendente, carrega os dados
       setPayload(pendingPixData.payloadEmv);
       setValor(pendingPixData.valor);
       setDisplayValor(
@@ -80,6 +93,7 @@ export function PixModal({
         }).format(pendingPixData.valor)
       );
       setShowQr(true);
+      setStep("qrcode");
     }
   }, [show, showPending, pendingPixData]);
 
@@ -205,6 +219,18 @@ export function PixModal({
     }).format(numericValue);
 
     setDisplayValor(formattedValue);
+  };
+
+  const handleAdvanceToQrCode = () => {
+    if (!displayValor.trim() || !tipoPagamento || !tipoVenda) {
+      alert("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (tipoVenda === "facilita" && planosPadrao && !planoSelecionado) {
+      alert("Selecione um plano de pagamento.");
+      return;
+    }
+    setStep("qrcode");
   };
 
   // NOVO: Função para voltar à tela de geração de um novo PIX

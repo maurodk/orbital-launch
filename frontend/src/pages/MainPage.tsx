@@ -8,6 +8,9 @@ import { Settings } from "lucide-react";
 
 import { FloorPlan } from "../../components/FloorPlan";
 import { ReservationModal } from "../../components/ReservationModal";
+import { PaymentModal } from "../../components/PaymentModal";
+import { ProcessingPaymentModal } from "../../components/ProcessingPaymentModal";
+import { PaymentSuccessModal } from "../../components/PaymentSuccessModal";
 import { ReservationList } from "../../components/ReservationList";
 import { CancelModal } from "../../components/CancelModal";
 import { BlockModal } from "../../components/BlockModal";
@@ -173,6 +176,20 @@ export function MainPage() {
     isOpen: false,
     unitIndex: null as number | null,
   });
+  const [paymentModalState, setPaymentModalState] = useState({
+    isOpen: false,
+    unitIndex: null as number | null,
+  });
+  // Estados para modais de processamento e sucesso do pagamento
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [processingPaymentState, setProcessingPaymentState] = useState({
+    isProcessing: false,
+    currentStep: '',
+    progress: 0,
+    error: null as string | null,
+    success: false,
+  });
+  const [isPaymentSuccessModalOpen, setIsPaymentSuccessModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "Disponível" | "Reservada" | "Bloqueada"
@@ -885,9 +902,10 @@ export function MainPage() {
       hasPendingPix: false,
     });
     setPixHistoryModalState({ isOpen: false, unitIndex: null });
-    setChangeUnitModalState({ isOpen: false, unitIndex: null }); // <-- NOVO
-    setIsChangeUnitSuccessModalOpen(false); // NOVO
-    setIsChangeUnitFailedModalOpen(false); // NOVO
+    setChangeUnitModalState({ isOpen: false, unitIndex: null });
+    setPaymentModalState({ isOpen: false, unitIndex: null });
+    setIsChangeUnitSuccessModalOpen(false);
+    setIsChangeUnitFailedModalOpen(false);
     setSelectedUnitIndex(null);
   };
 
@@ -1065,6 +1083,89 @@ export function MainPage() {
     // <-- NOVO
     setSelectedUnitIndex(unitIndex);
     setChangeUnitModalState({ isOpen: true, unitIndex: unitIndex });
+  };
+
+  const handlePaymentClick = (unitIndex: number) => {
+    setSelectedUnitIndex(unitIndex);
+    setPaymentModalState({ isOpen: true, unitIndex: unitIndex });
+  };
+
+  const handleConfirmPayment = async (paymentData: PaymentData) => {
+    if (paymentModalState.unitIndex === null) return;
+
+    const unitIndex = paymentModalState.unitIndex;
+    const unitData = unidades[unitIndex];
+    const sheetRowIndex = unitIndex + 2;
+
+    // Fechar PaymentModal e abrir ProcessingPaymentModal
+    setPaymentModalState({ isOpen: false, unitIndex: null });
+    setIsProcessingPayment(true);
+    setProcessingPaymentState({
+      isProcessing: true,
+      currentStep: 'Iniciando processamento...',
+      progress: 10,
+      error: null,
+      success: false,
+    });
+
+    try {
+      // Simular etapas do processamento (pode ser substituído por SSE ou polling real)
+      setProcessingPaymentState((prev) => ({ ...prev, currentStep: 'Salvando dados de pagamento...', progress: 30 }));
+
+      const clientName = unitData[7] || ""; // Coluna H - cliente
+      const unitName = unitData[2] || ""; // Coluna C - nome_unidade
+      const idPreCadastro = unitData[6] || ""; // Coluna G - id_pre_cadastro
+
+      const requestPayload = {
+        implantacao: selectedImplantationName,
+        implantacaoId: currentImplantation?.id,
+        rowIndex: sheetRowIndex,
+        clientName: clientName,
+        unitName: unitName,
+        idPreCadastro: idPreCadastro,
+        pagamento: {
+          pagamentoPresencial: paymentData.pagamentoPresencial,
+          valor: paymentData.valor,
+          tipoPagamento: paymentData.tipoPagamento,
+          tipoVenda: paymentData.tipoVenda,
+          planoSelecionado: paymentData.planoSelecionado,
+          diaVencimento: paymentData.diaVencimento,
+        },
+      };
+
+      const response = await axios.post(
+        `${apiUrl}/api/add-payment`,
+        requestPayload
+      );
+
+      setProcessingPaymentState((prev) => ({ ...prev, currentStep: 'Gerando plano de pagamento...', progress: 60 }));
+      // Simular delay/processamento
+      await new Promise((res) => setTimeout(res, 600));
+      setProcessingPaymentState((prev) => ({ ...prev, currentStep: 'Finalizando processo...', progress: 90 }));
+      await new Promise((res) => setTimeout(res, 400));
+
+      setProcessingPaymentState((prev) => ({ ...prev, currentStep: 'Pagamento concluído!', progress: 100, isProcessing: false, success: true }));
+
+      // Fechar modal de processamento e abrir de sucesso
+      setTimeout(() => {
+        setIsProcessingPayment(false);
+        setIsPaymentSuccessModalOpen(true);
+      }, 800);
+
+      // Recarregar dados
+      await fetchUnitData(selectedImplantationName);
+      await fetchHistory(selectedImplantationName);
+    } catch (error: any) {
+      setProcessingPaymentState((prev) => ({
+        ...prev,
+        isProcessing: false,
+        error: error.response?.data?.error || error.message || 'Erro desconhecido',
+        currentStep: 'Erro ao processar pagamento',
+      }));
+      setTimeout(() => {
+        setIsProcessingPayment(false);
+      }, 2000);
+    }
   };
 
   const handleToggleBlockUnit = async (
@@ -1251,8 +1352,7 @@ export function MainPage() {
   };
 
   const handleReserveUnit = async (
-    selectedClientIdOrManualData: string | ManualData,
-    paymentData: PaymentData
+    selectedClientIdOrManualData: string | ManualData
   ) => {
     if (selectedUnitIndex === null) return;
 
@@ -1275,9 +1375,6 @@ export function MainPage() {
 
     const unitName = unidades[selectedUnitIndex][2]; // Coluna C - nome_unidade
     const sheetRowIndex = selectedUnitIndex + 2;
-
-    // Log dos dados de pagamento
-    console.log("💳 [ReservationFlow] Dados de Pagamento:", paymentData);
 
     try {
       const tempReservationResult =
@@ -1331,8 +1428,7 @@ export function MainPage() {
         dataToBackend,
         clientName,
         unitName,
-        tempReservationResult.token!,
-        paymentData
+        tempReservationResult.token!
       );
 
       if (confirmSuccess) {
@@ -1406,12 +1502,12 @@ export function MainPage() {
     }
   };
 
-  const handleReserve = (data: { cliente: string | ManualData; pagamento: PaymentData }) => {
-    const { cliente, pagamento } = data;
+  const handleReserve = (data: { cliente: string | ManualData }) => {
+    const { cliente } = data;
     if (typeof cliente === "string") {
-      handleReserveUnit(cliente, pagamento);
+      handleReserveUnit(cliente);
     } else {
-      handleReserveUnit(cliente, pagamento);
+      handleReserveUnit(cliente);
     }
   };
 
@@ -2105,6 +2201,7 @@ export function MainPage() {
                     onPrintClick={handleOpenPrintConfig}
                     onChangeUnitClick={handleChangeUnitClick}
                     onPixClick={handlePixActionClick}
+                    onPaymentClick={handlePaymentClick}
                     onHistoryClick={handleOpenUnitHistory}
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
@@ -2128,7 +2225,7 @@ export function MainPage() {
                     ? unidades[selectedUnitIndex]
                     : null
                 }
-                implantacaoId={currentImplantation?.id ?? null}
+                implantacaoId={currentImplantation?.id ? Number(currentImplantation.id) : null}
                 sheetRowIndex={selectedUnitIndex !== null ? selectedUnitIndex + 2 : null}
                 clientes={clientesDisponiveis}
                 onReserve={handleReserve}
@@ -2236,6 +2333,39 @@ export function MainPage() {
                 show={isChangeUnitFailedModalOpen}
                 onClose={handleCloseModals}
                 message={changeUnitFailedMessage}
+              />
+
+
+              <PaymentModal
+                show={paymentModalState.isOpen}
+                onClose={handleCloseModals}
+                unitData={
+                  paymentModalState.unitIndex !== null
+                    ? unidades[paymentModalState.unitIndex]
+                    : null
+                }
+                implantacaoId={currentImplantation?.id ? Number(currentImplantation.id) : null}
+                sheetRowIndex={
+                  paymentModalState.unitIndex !== null
+                    ? paymentModalState.unitIndex + 2
+                    : null
+                }
+                onConfirm={handleConfirmPayment}
+              />
+
+              <ProcessingPaymentModal
+                show={isProcessingPayment}
+                paymentState={processingPaymentState}
+              />
+
+              <PaymentSuccessModal
+                show={isPaymentSuccessModalOpen}
+                onClose={() => setIsPaymentSuccessModalOpen(false)}
+                unitName={
+                  paymentModalState.unitIndex !== null
+                    ? unidades[paymentModalState.unitIndex]?.[2] || null
+                    : null
+                }
               />
 
               <VerifyingModal
