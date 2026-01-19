@@ -92,19 +92,34 @@ export function ReservationModal({
 
 
   const handleConfirmReservation = () => {
+    let clientDataToSubmit: string | ManualData;
+
     if (view === "select") {
       if (!selectedClient) {
         alert("Selecione um cliente.");
         return;
+      }
+      // CORREÇÃO: Buscar dados completos do cliente para enviar o Nome e não o ID
+      const foundClient = clientes.find(c => c[0] === selectedClient.value);
+      if (foundClient) {
+        clientDataToSubmit = {
+          id: foundClient[0],
+          cliente: foundClient[1], // Nome
+          documento: foundClient[2],
+          corretor: foundClient[3] || ""
+        };
+      } else {
+        clientDataToSubmit = selectedClient.value;
       }
     } else {
       if (!manualData.cliente.trim()) {
         alert("O nome do Cliente é obrigatório.");
         return;
       }
+      clientDataToSubmit = manualData;
     }
-    const clientData = view === "select" ? selectedClient!.value : manualData;
-    onReserve({ cliente: clientData });
+    
+    onReserve({ cliente: clientDataToSubmit });
   };
 
   const clientSelectDisabled = view === "select" ? !selectedClient : !manualData.cliente.trim();

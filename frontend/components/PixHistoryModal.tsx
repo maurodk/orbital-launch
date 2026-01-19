@@ -1,7 +1,7 @@
 // frontend/components/PixHistoryModal.tsx
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../src/supabaseClient";
 import "./PixHistoryModal.css";
 
 interface PixRecord {
@@ -27,11 +27,6 @@ interface PixHistoryModalProps {
 }
 
 
-// Supabase config
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 
 export function PixHistoryModal({
   show,
@@ -44,27 +39,72 @@ export function PixHistoryModal({
   const [loading, setLoading] = useState(false);
   const [valorTotal, setValorTotal] = useState(0);
   const [numeroParcelas, setNumeroParcelas] = useState(0);
+  const [displayClientName, setDisplayClientName] = useState(cliente);
+
+  // Atualiza o nome exibido quando a prop muda
+  useEffect(() => {
+    setDisplayClientName(cliente);
+  }, [cliente]);
 
   // Busca histórico de PIX do Supabase
   const fetchPixHistory = async () => {
     setLoading(true);
     try {
+      // RESOLUÇÃO DE NOME: Se o cliente for um ID (ex: "1"), buscamos o nome real na tabela de clientes
+      let clienteNomeBusca = cliente;
+      let clientResolved = false;
+      
+      if (cliente) {
+        // Tenta buscar por id_pre_cadastro para garantir que temos o nome correto
+        // Usando .select() e .limit(1) ao invés de maybeSingle para evitar erros se houver duplicatas
+        const { data: clienteData, error: clientError } = await supabase
+          .from("clientes")
+          .select("nome")
+          .eq("id_pre_cadastro", cliente)
+          .limit(1);
+
+        if (clientError) {
+           console.error("[PixHistoryModal] Erro ao buscar cliente:", clientError);
+        }
+
+        if (clienteData && clienteData.length > 0 && clienteData[0].nome) {
+          console.log(`[PixHistoryModal] Cliente "${cliente}" resolvido para "${clienteData[0].nome}"`);
+          clienteNomeBusca = clienteData[0].nome;
+          clientResolved = true;
+          setDisplayClientName(clienteNomeBusca);
+        } else if (/^\d+$/.test(cliente)) {
+           console.warn(`[PixHistoryModal] Cliente com ID "${cliente}" não encontrado na tabela 'clientes'. Usando fallback.`);
+        }
+      }
+
       // Loga os valores usados no filtro
       // eslint-disable-next-line no-console
-      console.log("[PixHistoryModal] Filtro cliente:", cliente, "unidade:", unidade);
+      console.log("[PixHistoryModal] Filtro cliente:", clienteNomeBusca, "unidade:", unidade, "resolved:", clientResolved);
 
       let query = supabase
         .from("historico_pix")
         .select("*")
         .order("data_criacao", { ascending: false });
 
-      if (cliente) {
-        query = query.eq("cliente", cliente);
+      // Lógica de filtro aprimorada:
+      // 1. Se o nome foi resolvido (ou se o cliente original já parecia um nome), filtra pelo nome.
+      // 2. Se o cliente parece um ID numérico e NÃO foi resolvido, ignoramos o filtro de cliente e usamos apenas a unidade (fallback).
+      // 3. Se o cliente não é numérico (é um nome), usamos ele.
+      
+      const isNumericId = /^\d+$/.test(cliente);
+      const shouldUseClientFilter = clientResolved || !isNumericId;
+
+      if (shouldUseClientFilter && clienteNomeBusca) {
+        query = query.eq("cliente", clienteNomeBusca);
       }
       if (implantacao) {
         query = query.eq("implantacao_nome", implantacao);
       }
-      if (unidade) {
+      
+      // Se não estamos filtrando por cliente (porque falhou a resolução de ID),
+      // OU se temos a unidade e o filtro de cliente não foi aplicado (fallback), filtramos por unidade.
+      // Isso garante que se o ID do cliente não for encontrado, ao menos mostramos o histórico da unidade.
+      if (unidade && !shouldUseClientFilter) {
         query = query.eq("unidade", unidade);
       }
 
@@ -74,6 +114,14 @@ export function PixHistoryModal({
       // DEBUG: Mostra o que veio do Supabase
       // eslint-disable-next-line no-console
       console.log("[PixHistoryModal] Supabase data:", data);
+
+      // Se encontramos dados e o nome do cliente não foi resolvido (fallback),
+      // usamos o nome do cliente do primeiro registro encontrado para exibir na UI.
+      if (data && data.length > 0 && !clientResolved && isNumericId) {
+        if (data[0].cliente) {
+          setDisplayClientName(data[0].cliente);
+        }
+      }
 
       if ((data || []).length === 0) {
         // Busca todos os registros para debug
@@ -143,7 +191,7 @@ export function PixHistoryModal({
           &times;
         </button>
         <h2>Histórico de PIX - {unidade}</h2>
-        <p className="pix-history-client">Cliente: {cliente}</p>
+        <p className="pix-history-client">Cliente: {displayClientName}</p>
 
         {loading ? (
           <div className="loading-state">Carregando...</div>
