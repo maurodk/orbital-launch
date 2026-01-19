@@ -12,6 +12,9 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiAlertCircle,
+  FiDollarSign,
+  FiRefreshCw,
+  FiTrash2,
 } from "react-icons/fi";
 
 interface ReservationListProps {
@@ -61,7 +64,6 @@ export function ReservationList({
   onBulkBlock,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
-  const [showReserveModal, setShowReserveModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
@@ -194,6 +196,8 @@ export function ReservationList({
                   const isReserved = normalizedStatus === "reservada";
                   const isBlocked = normalizedStatus === "bloqueada";
                   const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
+                  // Novo: status do worker na tabela pagamentos (coluna 20, S)
+                  const workerStatus = unitData[20]?.toLowerCase(); // Ex: 'processado' ou 'erro'
                   const clientName = unitData[7] || "—"; // Coluna H - cliente
                   const brokerName = unitData[9] || "—"; // Coluna J - corretor
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia
@@ -242,6 +246,15 @@ export function ReservationList({
                               {!isAvailable && !isReserved && <FiAlertCircle />}
                             </span>
                             <span className="status-text">{rawStatus}</span>
+                            {/* Ícone do worker se status for processado e reservada */}
+                            {isReserved && workerStatus === 'processado' && (
+                              <img
+                                src="/cvcrm.ico"
+                                alt="Processado pelo Worker"
+                                title="Pagamento processado pelo worker"
+                                style={{ width: 18, height: 18, marginLeft: 6, verticalAlign: 'middle' }}
+                              />
+                            )}
                           </span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
@@ -284,8 +297,7 @@ export function ReservationList({
                               <button
                                 className="reserve-button-in-table"
                                 onClick={() => {
-                                  setSelectedUnitIndex(originalIndex);
-                                  setShowReserveModal(true);
+                                  onUnitClick(originalIndex);
                                 }}
                               >
                                 <FiUserPlus size={16} className="button-icon" />
@@ -385,85 +397,51 @@ export function ReservationList({
         </div>
       </div>
 
-      {/* Modal de Reserva */}
-      {showReserveModal && selectedUnitIndex !== null && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowReserveModal(false)}
-        >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Selecione o Tipo de Reserva</h2>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                marginTop: "20px",
-              }}
-            >
-              <button
-                className="modal-action-button"
-                onClick={() => {
-                  onUnitClick(selectedUnitIndex);
-                  setShowReserveModal(false);
-                  setSelectedUnitIndex(null);
-                }}
-              >
-                Apto
-              </button>
-              <button
-                className="modal-action-button"
-                onClick={() => {
-                  onSpontaneousClick(selectedUnitIndex);
-                  setShowReserveModal(false);
-                  setSelectedUnitIndex(null);
-                }}
-              >
-                Espontâneo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal de Gerenciar */}
       {showManageModal && selectedUnitIndex !== null && (
         <div
           className="modal-overlay"
           onClick={() => setShowManageModal(false)}
         >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Gerenciar Unidade</h2>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                marginTop: "20px",
-              }}
-            >
+          <div className="modal-content manage-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="manage-modal-header">
+              <h2>Gerenciar Unidade</h2>
+              <p className="manage-modal-subtitle">Selecione uma ação para a unidade selecionada</p>
+            </div>
+            
+            <div className="manage-actions-grid">
               <button
-                className="modal-action-button"
+                className="manage-action-card payment"
                 onClick={() => {
                   onPaymentClick(selectedUnitIndex);
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
                 }}
               >
-                Pagamento
+                <div className="action-icon-wrapper"><FiDollarSign size={24} /></div>
+                <div className="action-details">
+                  <span className="action-title">Pagamento</span>
+                  <span className="action-desc">Registrar ou visualizar pagamentos</span>
+                </div>
               </button>
+
               <button
-                className="modal-action-button"
+                className="manage-action-card change"
                 onClick={() => {
                   onChangeUnitClick(selectedUnitIndex);
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
                 }}
               >
-                Trocar Unidade
+                <div className="action-icon-wrapper"><FiRefreshCw size={24} /></div>
+                <div className="action-details">
+                  <span className="action-title">Trocar Unidade</span>
+                  <span className="action-desc">Mover reserva para outra unidade</span>
+                </div>
               </button>
+
               <button
-                className="modal-action-button danger"
+                className="manage-action-card cancel"
                 onClick={() => {
                   // Trigger cancel reservation flow
                   // Find the tuple with matching originalIndex
@@ -481,10 +459,131 @@ export function ReservationList({
                   setSelectedUnitIndex(null);
                 }}
               >
-                Cancelar Reserva
+                <div className="action-icon-wrapper"><FiTrash2 size={24} /></div>
+                <div className="action-details">
+                  <span className="action-title">Cancelar Reserva</span>
+                  <span className="action-desc">Liberar unidade para venda</span>
+                </div>
               </button>
             </div>
+            
+            <button className="modal-close-text-btn" onClick={() => setShowManageModal(false)}>
+              Fechar
+            </button>
           </div>
+          <style>{`
+            .manage-modal-content {
+              max-width: 600px;
+              width: 95%;
+              padding: 30px;
+              background: #1e1e1e;
+              border: 1px solid #333;
+            }
+            .manage-modal-header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            .manage-modal-header h2 {
+              font-size: 1.5rem;
+              margin-bottom: 8px;
+              color: #eaeaea;
+            }
+            .manage-modal-subtitle {
+              color: #888;
+              font-size: 0.9rem;
+              margin: 0;
+            }
+            .manage-actions-grid {
+              display: grid;
+              grid-template-columns: 1fr;
+              gap: 15px;
+            }
+            @media (min-width: 500px) {
+              .manage-actions-grid {
+                grid-template-columns: 1fr 1fr;
+              }
+              .manage-action-card.cancel {
+                grid-column: span 2;
+              }
+            }
+            .manage-action-card {
+              display: flex;
+              align-items: center;
+              gap: 15px;
+              padding: 20px;
+              background: #2a2a2a;
+              border: 1px solid #333;
+              border-radius: 12px;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              text-align: left;
+            }
+            .manage-action-card:hover {
+              transform: translateY(-2px);
+              border-color: #444;
+              background: #333;
+            }
+            .action-icon-wrapper {
+              width: 48px;
+              height: 48px;
+              border-radius: 10px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+            }
+            .manage-action-card.payment .action-icon-wrapper {
+              background: rgba(106, 215, 0, 0.1);
+              color: #6ad700;
+            }
+            .manage-action-card.change .action-icon-wrapper {
+              background: rgba(59, 130, 246, 0.1);
+              color: #3b82f6;
+            }
+            .manage-action-card.cancel .action-icon-wrapper {
+              background: rgba(239, 68, 68, 0.1);
+              color: #ef4444;
+            }
+            .manage-action-card:hover.payment .action-icon-wrapper {
+              background: #6ad700;
+              color: #121212;
+            }
+            .manage-action-card:hover.change .action-icon-wrapper {
+              background: #3b82f6;
+              color: white;
+            }
+            .manage-action-card:hover.cancel .action-icon-wrapper {
+              background: #ef4444;
+              color: white;
+            }
+            .action-details {
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+            }
+            .action-title {
+              font-weight: 600;
+              font-size: 1rem;
+              color: #eaeaea;
+            }
+            .action-desc {
+              font-size: 0.8rem;
+              color: #888;
+            }
+            .modal-close-text-btn {
+              background: none;
+              border: none;
+              color: #666;
+              width: 100%;
+              padding: 15px;
+              margin-top: 10px;
+              cursor: pointer;
+              font-size: 0.9rem;
+            }
+            .modal-close-text-btn:hover {
+              color: #eaeaea;
+            }
+          `}</style>
         </div>
       )}
     </div>

@@ -307,3 +307,338 @@ Symbols not available. Dumping unresolved backtrace:
 	0x7750c32f
 
 2026-01-16 15:05:34,882 - INFO - Fechando navegador...
+2026-01-16 15:22:53,495 - INFO - ============================================================
+2026-01-16 15:22:53,496 - INFO - Iniciando Worker de Automação de Reservas
+2026-01-16 15:22:53,496 - INFO - ============================================================
+2026-01-16 15:22:55,181 - INFO - HTTP Request: GET https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?select=id%2Ccliente_id%2Cunidade%2Cvalor_unidade%2Cdia_vencimento%2Cplano_padrao%2Cvalor%2Ctipo_pagamento%2Ctipo_venda%2Cclientes%28id%2Cid_pre_cadastro%2Cnome%2Cdocumento%2Ccorretor%29&status=eq.pendente "HTTP/2 200 OK"
+2026-01-16 15:22:55,183 - INFO - [Queue] pagamento_id=58863a0e-2220-4d17-b5d9-d26468e62f58, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 02, valor_unidade=790900, dia_vencimento=25, plano=plano1, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-16 15:22:55,183 - INFO - Encontradas 1 reservas pendentes de processamento
+2026-01-16 15:22:55,183 - INFO - Processando 1 reservas...
+2026-01-16 15:22:55,183 - INFO - Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...
+2026-01-16 15:22:55,183 - INFO - ====== WebDriver manager ======
+2026-01-16 15:22:56,795 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 15:22:57,247 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 15:22:57,498 - INFO - Driver [C:\Users\carlosmauricio\.wdm\drivers\chromedriver\win64\143.0.7499.192\chromedriver-win32/chromedriver.exe] found in cache
+2026-01-16 15:22:59,555 - INFO - Iniciando login no CVCrm...
+2026-01-16 15:23:11,782 - INFO - Login realizado com sucesso!
+2026-01-16 15:23:11,782 - INFO - 
+--- Processando 1/1 ---
+2026-01-16 15:23:11,787 - INFO - Processando ID: 40279 | Unidade: QD01 - CASA 02 | Plano: plano1
+2026-01-16 15:23:13,079 - INFO - Página de pré-cadastro carregada
+2026-01-16 15:23:13,079 - INFO - Verificando necessidade de aprovação...
+2026-01-16 15:23:13,094 - INFO - Pré-cadastro já aprovado
+2026-01-16 15:23:13,094 - INFO - Buscando botão 'Iniciar Reserva'...
+2026-01-16 15:23:13,177 - INFO - Botão 'Iniciar Reserva' clicado!
+2026-01-16 15:23:15,178 - INFO - Aguardando abertura do mapa...
+2026-01-16 15:23:15,201 - INFO - Foco na janela do mapa
+2026-01-16 15:23:15,276 - INFO - Unidade 'QD01 - CASA 02' selecionada
+2026-01-16 15:23:19,252 - INFO - Botão 'Reservar' clicado
+2026-01-16 15:23:19,252 - INFO - Selecionando corretor 'RODRIGO RUAS TESTE'...
+2026-01-16 15:23:19,305 - INFO - Botão 'Selecionar corretor' clicado
+2026-01-16 15:23:19,310 - INFO - Seleção de corretor concluída
+2026-01-16 15:23:19,311 - INFO - Dados de pagamento: plano=plano1, tipo_venda=facilita, valor_unidade=790900, dia_vencimento=25, valor_pix=10000, valor_bruto=10000
+2026-01-16 15:23:19,311 - INFO - Avançando para finalização...
+2026-01-16 15:23:28,894 - INFO - Avanço com botão 2 bem-sucedido
+2026-01-16 15:23:28,895 - INFO - Preenchendo formulário final...
+2026-01-16 15:23:30,578 - INFO - Configurando pagamento - Tipo: facilita, Plano: plano1, valor_unidade_total=790900.0, valor_pix=10000.0
+2026-01-16 15:23:30,578 - INFO - Iniciando adição de séries para Plano 1...
+2026-01-16 15:23:30,578 - INFO - [Plano1] EDITANDO primeira série para Sinal 1: qtd=1, valor=10000.00, venc=16/01/2026, forma=PIX
+2026-01-16 15:23:30,578 - INFO - Editando primeira série existente para Sinal 1...
+2026-01-16 15:23:31,546 - INFO - Clicado no botão de editar primeira série
+2026-01-16 15:23:33,603 - INFO - Entrou no iframe do facebox
+2026-01-16 15:23:35,086 - INFO - Selecionado série: Sinal 1
+2026-01-16 15:23:35,828 - INFO - Selecionado forma de pagamento: PIX
+2026-01-16 15:23:36,421 - INFO - Preenchido quantidade de parcelas: 1
+2026-01-16 15:23:37,027 - INFO - Preenchido valor: 10000.00
+2026-01-16 15:23:39,166 - INFO - Preenchido vencimento: 16/01/2026
+2026-01-16 15:23:40,251 - INFO - Clicado em submit para salvar série editada
+2026-01-16 15:23:43,261 - INFO - Saiu do iframe, primeira série editada com sucesso!
+2026-01-16 15:23:45,262 - INFO - [Plano1] Sinal 2: qtd=1, valor=26363.33, venc=23/01/2026, forma=None
+2026-01-16 15:23:45,262 - INFO - Adicionando série: Sinal 2
+2026-01-16 15:23:48,810 - INFO - Opção 'Sinal 2' selecionada em idserie
+2026-01-16 15:23:49,577 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 15:23:50,262 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 15:23:51,238 - INFO - Input vencimento preenchido com: 23/01/2026
+2026-01-16 15:23:54,194 - INFO - Série 'Sinal 2' adicionada com sucesso!
+2026-01-16 15:23:55,195 - INFO - [Plano1] Sinal 3: qtd=1, valor=26363.33, venc=25/02/2026, forma=None
+2026-01-16 15:23:55,196 - INFO - Adicionando série: Sinal 3
+2026-01-16 15:23:55,235 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-16 15:23:55,725 - INFO - Opção 'Sinal 3' selecionada em idserie
+2026-01-16 15:23:56,486 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 15:23:57,148 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 15:23:58,066 - INFO - Input vencimento preenchido com: 25/02/2026
+2026-01-16 15:24:00,804 - INFO - Série 'Sinal 3' adicionada com sucesso!
+2026-01-16 15:24:01,804 - INFO - [Plano1] Sinal 4: qtd=1, valor=26363.33, venc=25/03/2026, forma=None
+2026-01-16 15:24:01,804 - INFO - Adicionando série: Sinal 4
+2026-01-16 15:24:01,842 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-16 15:24:02,370 - INFO - Opção 'Sinal 4' selecionada em idserie
+2026-01-16 15:24:03,062 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 15:24:03,798 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 15:24:04,772 - INFO - Input vencimento preenchido com: 25/03/2026
+2026-01-16 15:24:07,498 - INFO - Série 'Sinal 4' adicionada com sucesso!
+2026-01-16 15:24:08,499 - INFO - [Plano1] Parcelamento: total=701810.00, 100x de 7018.10, venc=25/04/2026, forma=TRANSFERÊNCIA BANCÁRIA
+2026-01-16 15:24:08,499 - INFO - Adicionando série: PARCELAMENTO INCORPORADORA
+2026-01-16 15:24:08,540 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-16 15:24:08,935 - INFO - Opção 'PARCELAMENTO INCORPORADORA' selecionada em idserie
+2026-01-16 15:24:09,643 - INFO - Input qtd_parcelas preenchido com: 100
+2026-01-16 15:24:10,386 - INFO - Input valor preenchido com: 7018.10
+2026-01-16 15:24:11,350 - INFO - Input vencimento preenchido com: 25/04/2026
+2026-01-16 15:24:12,028 - INFO - Opção 'Transferência bancária' selecionada em forma_pagamento
+2026-01-16 15:24:14,820 - INFO - Série 'PARCELAMENTO INCORPORADORA' adicionada com sucesso!
+2026-01-16 15:24:15,821 - INFO - Todas as séries do Plano 1 foram adicionadas com sucesso!
+2026-01-16 15:24:15,822 - INFO - [Etapa Final] Selecionando tipo de venda: facilita
+2026-01-16 15:24:15,822 - INFO - Selecionando tipo de venda: facilita
+2026-01-16 15:24:15,976 - INFO - Tipo de venda 'PARCELAMENTO INCORPORADORA' selecionado
+2026-01-16 15:24:24,156 - INFO - Formulário finalizado com sucesso!
+2026-01-16 15:24:24,156 - INFO - SUCESSO TOTAL para o ID 40279!
+2026-01-16 15:24:24,775 - INFO - HTTP Request: PATCH https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?id=eq.58863a0e-2220-4d17-b5d9-d26468e62f58 "HTTP/2 200 OK"
+2026-01-16 15:24:24,777 - INFO - Pagamento 58863a0e-2220-4d17-b5d9-d26468e62f58 atualizado: processado
+2026-01-16 15:24:26,778 - INFO - 
+============================================================
+2026-01-16 15:24:26,778 - INFO - Worker finalizado com sucesso!
+2026-01-16 15:24:26,778 - INFO - ============================================================
+2026-01-16 15:24:26,778 - INFO - Fechando navegador...
+2026-01-16 16:21:18,731 - INFO - ============================================================
+2026-01-16 16:21:18,731 - INFO - Iniciando Worker de Automação de Reservas
+2026-01-16 16:21:18,731 - INFO - ============================================================
+2026-01-16 16:21:20,733 - INFO - HTTP Request: GET https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?select=id%2Ccliente_id%2Cunidade%2Cvalor_unidade%2Cdia_vencimento%2Cplano_padrao%2Cvalor%2Ctipo_pagamento%2Ctipo_venda%2Cclientes%28id%2Cid_pre_cadastro%2Cnome%2Cdocumento%2Ccorretor%29&status=eq.pendente "HTTP/2 200 OK"
+2026-01-16 16:21:20,739 - INFO - [Queue] pagamento_id=8fd4dbba-ee80-4673-bb70-41e71e05e875, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 02, valor_unidade=790900, dia_vencimento=25, plano=plano1, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-16 16:21:20,739 - INFO - Encontradas 1 reservas pendentes de processamento
+2026-01-16 16:21:20,739 - INFO - Processando 1 reservas...
+2026-01-16 16:21:20,740 - INFO - Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...
+2026-01-16 16:21:20,740 - INFO - ====== WebDriver manager ======
+2026-01-16 16:21:23,205 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 16:21:23,606 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-16 16:21:23,918 - INFO - Driver [C:\Users\carlosmauricio\.wdm\drivers\chromedriver\win64\143.0.7499.192\chromedriver-win32/chromedriver.exe] found in cache
+2026-01-16 16:21:26,608 - INFO - Iniciando login no CVCrm...
+2026-01-16 16:21:40,476 - INFO - Login realizado com sucesso!
+2026-01-16 16:21:40,477 - INFO - 
+--- Processando 1/1 ---
+2026-01-16 16:21:40,481 - INFO - Processando ID: 40279 | Unidade: QD01 - CASA 02 | Plano: plano1
+2026-01-16 16:21:42,557 - INFO - Página de pré-cadastro carregada
+2026-01-16 16:21:42,557 - INFO - Verificando necessidade de aprovação...
+2026-01-16 16:21:42,583 - INFO - Pré-cadastro já aprovado
+2026-01-16 16:21:42,584 - INFO - Buscando botão 'Iniciar Reserva'...
+2026-01-16 16:21:42,721 - INFO - Botão 'Iniciar Reserva' clicado!
+2026-01-16 16:21:44,722 - INFO - Aguardando abertura do mapa...
+2026-01-16 16:21:44,766 - INFO - Foco na janela do mapa
+2026-01-16 16:21:45,013 - INFO - Unidade 'QD01 - CASA 02' selecionada
+2026-01-16 16:21:49,933 - INFO - Botão 'Reservar' clicado
+2026-01-16 16:21:49,933 - INFO - Selecionando corretor 'RODRIGO RUAS TESTE'...
+2026-01-16 16:21:50,097 - INFO - Botão 'Selecionar corretor' clicado
+2026-01-16 16:21:50,115 - INFO - Seleção de corretor concluída
+2026-01-16 16:21:50,115 - INFO - Dados de pagamento: plano=plano1, tipo_venda=facilita, valor_unidade=790900, dia_vencimento=25, valor_pix=10000, valor_bruto=10000
+2026-01-16 16:21:50,115 - INFO - Avançando para finalização...
+2026-01-16 16:22:02,074 - INFO - Avanço com botão 2 bem-sucedido
+2026-01-16 16:22:02,075 - INFO - Preenchendo formulário final...
+2026-01-16 16:22:05,101 - INFO - Configurando pagamento - Tipo: facilita, Plano: plano1, valor_unidade_total=790900.0, valor_pix=10000.0
+2026-01-16 16:22:05,101 - INFO - Iniciando adição de séries para Plano 1...
+2026-01-16 16:22:05,101 - INFO - [Plano1] EDITANDO primeira série para Sinal 1: qtd=1, valor=10000.00, venc=16/01/2026, forma=PIX
+2026-01-16 16:22:05,102 - INFO - Editando primeira série existente para Sinal 1...
+2026-01-16 16:22:06,731 - INFO - Clicado no botão de editar primeira série
+2026-01-16 16:22:08,797 - INFO - Entrou no iframe do facebox
+2026-01-16 16:22:11,138 - INFO - Selecionado série: Sinal 1
+2026-01-16 16:22:12,189 - INFO - Selecionado forma de pagamento: PIX
+2026-01-16 16:22:12,935 - INFO - Preenchido quantidade de parcelas: 1
+2026-01-16 16:22:13,721 - INFO - Preenchido valor: 10000.00
+2026-01-16 16:22:16,292 - INFO - Preenchido vencimento: 16/01/2026
+2026-01-16 16:22:17,306 - INFO - Clicado em submit para salvar série editada
+2026-01-16 16:22:20,319 - INFO - Saiu do iframe, primeira série editada com sucesso!
+2026-01-16 16:22:22,321 - INFO - [Plano1] Sinal 2: qtd=1, valor=26363.33, venc=23/01/2026, forma=None
+2026-01-16 16:22:22,321 - INFO - Adicionando série: Sinal 2
+2026-01-16 16:22:26,951 - INFO - Opção 'Sinal 2' selecionada em idserie
+2026-01-16 16:22:27,847 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 16:22:28,804 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 16:22:30,103 - INFO - Input vencimento preenchido com: 23/01/2026
+2026-01-16 16:22:32,850 - INFO - Série 'Sinal 2' adicionada com sucesso!
+2026-01-16 16:22:33,851 - INFO - [Plano1] Sinal 3: qtd=1, valor=26363.33, venc=25/02/2026, forma=None
+2026-01-16 16:22:33,852 - INFO - Adicionando série: Sinal 3
+2026-01-16 16:22:33,945 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-16 16:22:35,439 - INFO - Opção 'Sinal 3' selecionada em idserie
+2026-01-16 16:22:36,712 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 16:22:37,737 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 16:22:39,084 - INFO - Input vencimento preenchido com: 25/02/2026
+2026-01-16 16:22:41,835 - INFO - Série 'Sinal 3' adicionada com sucesso!
+2026-01-16 16:22:42,836 - INFO - [Plano1] Sinal 4: qtd=1, valor=26363.33, venc=25/03/2026, forma=None
+2026-01-16 16:22:42,836 - INFO - Adicionando série: Sinal 4
+2026-01-16 16:22:42,925 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-16 16:22:44,348 - INFO - Opção 'Sinal 4' selecionada em idserie
+2026-01-16 16:22:45,412 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-16 16:22:46,513 - INFO - Input valor preenchido com: 26363.33
+2026-01-16 16:22:47,943 - INFO - Input vencimento preenchido com: 25/03/2026
+2026-01-16 16:22:50,828 - INFO - Série 'Sinal 4' adicionada com sucesso!
+2026-01-16 16:22:51,829 - INFO - [Plano1] Parcelamento: total=701810.00, 100x de 7018.10, venc=25/04/2026, forma=TRANSFERÊNCIA BANCÁRIA
+2026-01-16 16:22:51,829 - INFO - Adicionando série: PARCELAMENTO INCORPORADORA
+2026-01-16 16:22:51,915 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-16 16:22:53,150 - INFO - Opção 'PARCELAMENTO INCORPORADORA' selecionada em idserie
+2026-01-16 16:22:54,164 - INFO - Input qtd_parcelas preenchido com: 100
+2026-01-16 16:22:55,201 - INFO - Input valor preenchido com: 7018.10
+2026-01-16 16:22:56,568 - INFO - Input vencimento preenchido com: 25/04/2026
+2026-01-16 16:22:57,548 - INFO - Opção 'Transferência bancária' selecionada em forma_pagamento
+2026-01-16 16:23:01,482 - INFO - Série 'PARCELAMENTO INCORPORADORA' adicionada com sucesso!
+2026-01-16 16:23:02,483 - INFO - Todas as séries do Plano 1 foram adicionadas com sucesso!
+2026-01-16 16:23:02,484 - INFO - [Etapa Final] Selecionando tipo de venda: facilita
+2026-01-16 16:23:02,484 - INFO - Selecionando tipo de venda: facilita
+2026-01-16 16:23:02,889 - INFO - Tipo de venda 'PARCELAMENTO INCORPORADORA' selecionado
+2026-01-16 16:23:12,318 - INFO - Formulário finalizado com sucesso!
+2026-01-16 16:23:12,319 - INFO - SUCESSO TOTAL para o ID 40279!
+2026-01-16 16:23:13,065 - INFO - HTTP Request: PATCH https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?id=eq.8fd4dbba-ee80-4673-bb70-41e71e05e875 "HTTP/2 200 OK"
+2026-01-16 16:23:13,068 - INFO - Pagamento 8fd4dbba-ee80-4673-bb70-41e71e05e875 atualizado: processado
+2026-01-16 16:23:15,069 - INFO - 
+============================================================
+2026-01-16 16:23:15,070 - INFO - Worker finalizado com sucesso!
+2026-01-16 16:23:15,070 - INFO - ============================================================
+2026-01-16 16:23:15,071 - INFO - Fechando navegador...
+2026-01-19 10:10:58,056 - INFO - ============================================================
+2026-01-19 10:10:58,057 - INFO - Iniciando Worker de Automação de Reservas
+2026-01-19 10:10:58,057 - INFO - ============================================================
+2026-01-19 10:11:00,092 - INFO - HTTP Request: GET https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?select=id%2Ccliente_id%2Cunidade%2Cvalor_unidade%2Cdia_vencimento%2Cplano_padrao%2Cvalor%2Ctipo_pagamento%2Ctipo_venda%2Cclientes%28id%2Cid_pre_cadastro%2Cnome%2Cdocumento%2Ccorretor%29&status=eq.pendente "HTTP/2 200 OK"
+2026-01-19 10:11:00,100 - INFO - [Queue] pagamento_id=1cf65ef7-a930-4253-a2c0-b939046af389, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 01, valor_unidade=795900, dia_vencimento=25, plano=plano2, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-19 10:11:00,100 - INFO - Encontradas 1 reservas pendentes de processamento
+2026-01-19 10:11:00,100 - INFO - Processando 1 reservas...
+2026-01-19 10:11:00,100 - INFO - Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...
+2026-01-19 10:11:00,100 - INFO - ====== WebDriver manager ======
+2026-01-19 10:11:02,217 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-19 10:11:02,676 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-19 10:11:02,948 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-19 10:11:03,890 - INFO - WebDriver version 143.0.7499.192 selected
+2026-01-19 10:11:03,894 - INFO - Modern chrome version https://storage.googleapis.com/chrome-for-testing-public/143.0.7499.192/win32/chromedriver-win32.zip
+2026-01-19 10:11:03,894 - INFO - About to download new driver from https://storage.googleapis.com/chrome-for-testing-public/143.0.7499.192/win32/chromedriver-win32.zip
+2026-01-19 10:11:04,136 - INFO - Driver downloading response is 200
+2026-01-19 10:11:05,965 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-19 10:11:06,209 - INFO - Driver has been saved in cache [C:\Users\carlosmauricio\.wdm\drivers\chromedriver\win64\143.0.7499.192]
+2026-01-19 10:11:10,256 - INFO - Iniciando login no CVCrm...
+2026-01-19 10:11:19,691 - INFO - Login realizado com sucesso!
+2026-01-19 10:11:19,691 - INFO - 
+--- Processando 1/1 ---
+2026-01-19 10:11:19,692 - INFO - Processando ID: 40279 | Unidade: QD01 - CASA 01 | Plano: plano2
+2026-01-19 10:11:21,192 - INFO - Página de pré-cadastro carregada
+2026-01-19 10:11:21,193 - INFO - Verificando necessidade de aprovação...
+2026-01-19 10:11:21,223 - INFO - Pré-cadastro já aprovado
+2026-01-19 10:11:21,223 - INFO - Buscando botão 'Iniciar Reserva'...
+2026-01-19 10:11:21,311 - INFO - Botão 'Iniciar Reserva' clicado!
+2026-01-19 10:11:23,312 - INFO - Aguardando abertura do mapa...
+2026-01-19 10:11:23,345 - INFO - Foco na janela do mapa
+2026-01-19 10:11:23,492 - INFO - Unidade 'QD01 - CASA 01' selecionada
+2026-01-19 10:11:38,889 - ERROR - ERRO no ID 40279: Message: 
+Stacktrace:
+Symbols not available. Dumping unresolved backtrace:
+	0xec1213
+	0xec1254
+	0xcae6dd
+	0xcf93a5
+	0xcf977b
+	0xd40382
+	0xd1b534
+	0xd3db13
+	0xd1b2e6
+	0xced321
+	0xcee1d4
+	0x1115254
+	0x111080b
+	0x112d0ea
+	0xedb118
+	0xee311d
+	0xec9518
+	0xec96d9
+	0xeb3a68
+	0x75867ba9
+	0x7750c3ab
+	0x7750c32f
+
+2026-01-19 10:11:39,549 - INFO - HTTP Request: PATCH https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?id=eq.1cf65ef7-a930-4253-a2c0-b939046af389 "HTTP/2 200 OK"
+2026-01-19 10:11:39,550 - INFO - Pagamento 1cf65ef7-a930-4253-a2c0-b939046af389 atualizado: erro
+2026-01-19 10:11:41,551 - INFO - 
+============================================================
+2026-01-19 10:11:41,551 - INFO - Worker finalizado com sucesso!
+2026-01-19 10:11:41,551 - INFO - ============================================================
+2026-01-19 10:11:41,551 - INFO - Fechando navegador...
+2026-01-19 10:26:11,229 - INFO - ============================================================
+2026-01-19 10:26:11,230 - INFO - Iniciando Worker de Automação de Reservas
+2026-01-19 10:26:11,230 - INFO - ============================================================
+2026-01-19 10:26:13,650 - INFO - HTTP Request: GET https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?select=id%2Ccliente_id%2Cunidade%2Cvalor_unidade%2Cdia_vencimento%2Cplano_padrao%2Cvalor%2Ctipo_pagamento%2Ctipo_venda%2Cclientes%28id%2Cid_pre_cadastro%2Cnome%2Cdocumento%2Ccorretor%29&status=eq.pendente "HTTP/2 200 OK"
+2026-01-19 10:26:13,653 - INFO - [Queue] pagamento_id=58e61a3b-d5de-4c31-ae7d-8e55c18eaa47, cliente=RODRIGO RUAS TESTE TESTE TESTE, unidade=QD01 - CASA 02, valor_unidade=790900, dia_vencimento=15, plano=plano2, valor=10000, tipo_pagamento=pix, tipo_venda=facilita
+2026-01-19 10:26:13,654 - INFO - Encontradas 1 reservas pendentes de processamento
+2026-01-19 10:26:13,654 - INFO - Processando 1 reservas...
+2026-01-19 10:26:13,654 - INFO - Iniciando Chrome em MODO VISUAL (headless desabilitado para debug)...
+2026-01-19 10:26:13,654 - INFO - ====== WebDriver manager ======
+2026-01-19 10:26:16,987 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-19 10:26:17,343 - INFO - Get LATEST chromedriver version for google-chrome
+2026-01-19 10:26:17,642 - INFO - Driver [C:\Users\carlosmauricio\.wdm\drivers\chromedriver\win64\143.0.7499.192\chromedriver-win32/chromedriver.exe] found in cache
+2026-01-19 10:26:20,274 - INFO - Iniciando login no CVCrm...
+2026-01-19 10:26:29,783 - INFO - Login realizado com sucesso!
+2026-01-19 10:26:29,783 - INFO - 
+--- Processando 1/1 ---
+2026-01-19 10:26:29,786 - INFO - Processando ID: 40279 | Unidade: QD01 - CASA 02 | Plano: plano2
+2026-01-19 10:26:31,314 - INFO - Página de pré-cadastro carregada
+2026-01-19 10:26:31,314 - INFO - Verificando necessidade de aprovação...
+2026-01-19 10:26:31,356 - INFO - Pré-cadastro já aprovado
+2026-01-19 10:26:31,356 - INFO - Buscando botão 'Iniciar Reserva'...
+2026-01-19 10:26:31,521 - INFO - Botão 'Iniciar Reserva' clicado!
+2026-01-19 10:26:33,522 - INFO - Aguardando abertura do mapa...
+2026-01-19 10:26:33,560 - INFO - Foco na janela do mapa
+2026-01-19 10:26:33,695 - INFO - Unidade 'QD01 - CASA 02' selecionada
+2026-01-19 10:26:38,385 - INFO - Botão 'Reservar' clicado
+2026-01-19 10:26:38,385 - INFO - Selecionando corretor 'RODRIGO RUAS TESTE'...
+2026-01-19 10:26:38,474 - INFO - Botão 'Selecionar corretor' clicado
+2026-01-19 10:26:38,483 - INFO - Seleção de corretor concluída
+2026-01-19 10:26:38,483 - INFO - Dados de pagamento: plano=plano2, tipo_venda=facilita, valor_unidade=790900, dia_vencimento=15, valor_pix=10000, valor_bruto=10000
+2026-01-19 10:26:38,483 - INFO - Avançando para finalização...
+2026-01-19 10:26:49,352 - INFO - Avanço com botão 2 bem-sucedido
+2026-01-19 10:26:49,352 - INFO - Preenchendo formulário final...
+2026-01-19 10:26:51,230 - INFO - Configurando pagamento - Tipo: facilita, Plano: plano2, valor_unidade_total=790900.0, valor_pix=10000.0
+2026-01-19 10:26:51,230 - INFO - Iniciando adição de séries para Plano 2...
+2026-01-19 10:26:51,230 - INFO - [Plano] EDITANDO primeira série para Sinal 1: qtd=1, valor=10000.00, venc=19/01/2026
+2026-01-19 10:26:51,230 - INFO - Editando primeira série existente para Sinal 1...
+2026-01-19 10:26:52,301 - INFO - Clicado no botão de editar primeira série
+2026-01-19 10:26:54,360 - INFO - Entrou no iframe do facebox
+2026-01-19 10:26:56,150 - INFO - Selecionado série: Sinal 1
+2026-01-19 10:26:56,758 - INFO - Preenchido quantidade de parcelas: 1
+2026-01-19 10:26:57,380 - INFO - Preenchido valor: 10000.00
+2026-01-19 10:26:59,478 - INFO - Preenchido vencimento: 19/01/2026
+2026-01-19 10:27:00,038 - INFO - Clicado em submit para salvar série editada
+2026-01-19 10:27:03,044 - INFO - Saiu do iframe, primeira série editada com sucesso!
+2026-01-19 10:27:05,045 - INFO - [Plano] Sinal 2: qtd=1, valor=26363.33, venc=26/01/2026
+2026-01-19 10:27:05,045 - INFO - Adicionando série: Sinal 2
+2026-01-19 10:27:09,048 - INFO - Opção 'Sinal 2' selecionada em idserie
+2026-01-19 10:27:09,911 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-19 10:27:10,664 - INFO - Input valor preenchido com: 26363.33
+2026-01-19 10:27:11,630 - INFO - Input vencimento preenchido com: 26/01/2026
+2026-01-19 10:27:14,456 - INFO - Série 'Sinal 2' adicionada com sucesso!
+2026-01-19 10:27:15,457 - INFO - [Plano] Sinal 3: qtd=1, valor=26363.33, venc=15/02/2026
+2026-01-19 10:27:15,457 - INFO - Adicionando série: Sinal 3
+2026-01-19 10:27:15,547 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-19 10:27:16,436 - INFO - Opção 'Sinal 3' selecionada em idserie
+2026-01-19 10:27:17,229 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-19 10:27:17,970 - INFO - Input valor preenchido com: 26363.33
+2026-01-19 10:27:18,968 - INFO - Input vencimento preenchido com: 15/02/2026
+2026-01-19 10:27:21,675 - INFO - Série 'Sinal 3' adicionada com sucesso!
+2026-01-19 10:27:22,676 - INFO - [Plano] Sinal 4: qtd=1, valor=26363.33, venc=15/03/2026
+2026-01-19 10:27:22,676 - INFO - Adicionando série: Sinal 4
+2026-01-19 10:27:22,708 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-19 10:27:23,501 - INFO - Opção 'Sinal 4' selecionada em idserie
+2026-01-19 10:27:24,371 - INFO - Input qtd_parcelas preenchido com: 1
+2026-01-19 10:27:25,168 - INFO - Input valor preenchido com: 26363.33
+2026-01-19 10:27:26,161 - INFO - Input vencimento preenchido com: 15/03/2026
+2026-01-19 10:27:28,931 - INFO - Série 'Sinal 4' adicionada com sucesso!
+2026-01-19 10:27:29,931 - INFO - [Plano] Parcelamento: total=701810.00, 36x de 19494.72, venc=15/04/2026, forma=TRANSFERÊNCIA BANCÁRIA
+2026-01-19 10:27:29,931 - INFO - Adicionando série: PARCELAMENTO INCORPORADORA
+2026-01-19 10:27:29,967 - INFO - Painel de adição já aberto; seguindo para seleção de série
+2026-01-19 10:27:30,592 - INFO - Opção 'PARCELAMENTO INCORPORADORA' selecionada em idserie
+2026-01-19 10:27:31,453 - INFO - Input qtd_parcelas preenchido com: 36
+2026-01-19 10:27:32,294 - INFO - Input valor preenchido com: 19494.72
+2026-01-19 10:27:33,315 - INFO - Input vencimento preenchido com: 15/04/2026
+2026-01-19 10:27:36,992 - INFO - Série 'PARCELAMENTO INCORPORADORA' adicionada com sucesso!
+2026-01-19 10:27:37,993 - INFO - Todas as séries do Plano foram adicionadas com sucesso!
+2026-01-19 10:27:37,993 - INFO - [Etapa Final] Selecionando tipo de venda: facilita
+2026-01-19 10:27:37,993 - INFO - Selecionando tipo de venda: facilita
+2026-01-19 10:27:38,181 - INFO - Tipo de venda 'PARCELAMENTO INCORPORADORA' selecionado
+2026-01-19 10:27:46,816 - INFO - Formulário finalizado com sucesso!
+2026-01-19 10:27:46,816 - INFO - SUCESSO TOTAL para o ID 40279!
+2026-01-19 10:27:47,613 - INFO - HTTP Request: PATCH https://xedjenxobpxhuoqqteed.supabase.co/rest/v1/pagamentos?id=eq.58e61a3b-d5de-4c31-ae7d-8e55c18eaa47 "HTTP/2 200 OK"
+2026-01-19 10:27:47,615 - INFO - Pagamento 58e61a3b-d5de-4c31-ae7d-8e55c18eaa47 atualizado: processado
+2026-01-19 10:27:49,615 - INFO - 
+============================================================
+2026-01-19 10:27:49,615 - INFO - Worker finalizado com sucesso!
+2026-01-19 10:27:49,615 - INFO - ============================================================
+2026-01-19 10:27:49,616 - INFO - Fechando navegador...

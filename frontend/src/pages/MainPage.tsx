@@ -8,7 +8,7 @@ import { Settings } from "lucide-react";
 
 import { FloorPlan } from "../../components/FloorPlan";
 import { ReservationModal } from "../../components/ReservationModal";
-import { PaymentModal } from "../../components/PaymentModal";
+import { PaymentModal, type PaymentData } from "../../components/PaymentModal";
 import { ProcessingPaymentModal } from "../../components/ProcessingPaymentModal";
 import { PaymentSuccessModal } from "../../components/PaymentSuccessModal";
 import { ReservationList } from "../../components/ReservationList";
@@ -94,16 +94,6 @@ interface ManualData {
   cliente: string;
   documento: string;
   corretor: string;
-}
-
-interface PaymentData {
-  pagamentoPresencial: boolean;
-  valor: string;
-  tipoPagamento: "pix" | "dinheiro" | "cartao" | "cheque" | null;
-  tipoVenda: "cef" | "facilita" | null;
-  planosPadrao: boolean;
-  planoSelecionado: string | null;
-  diaVencimento: 5 | 15 | 25;
 }
 
 const formatCPF = (cpf: string | null | undefined): string => {
@@ -1125,8 +1115,11 @@ export function MainPage() {
         idPreCadastro: idPreCadastro,
         pagamento: {
           pagamentoPresencial: paymentData.pagamentoPresencial,
-          valor: paymentData.valor,
-          tipoPagamento: paymentData.tipoPagamento,
+          valorTotal: paymentData.valorTotal,
+          valorPix: paymentData.valorPix,
+          valorDinheiro: paymentData.valorDinheiro,
+          valorCartao: paymentData.valorCartao,
+          valorCheque: paymentData.valorCheque,
           tipoVenda: paymentData.tipoVenda,
           planoSelecionado: paymentData.planoSelecionado,
           diaVencimento: paymentData.diaVencimento,

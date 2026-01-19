@@ -1,18 +1,21 @@
 // frontend/components/PixHistoryModal.tsx
 
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { createClient } from "@supabase/supabase-js";
 import "./PixHistoryModal.css";
 
 interface PixRecord {
-  rowIndex: number;
-  dataHora: string;
-  cliente: string;
-  unidade: string;
+  id: string;
+  implantacao_id: number | null;
+  implantacao_nome: string | null;
+  cliente: string | null;
+  unidade: string | null;
   identificador: string;
-  payloadEmv: string;
+  payload_emv: string;
   valor: number;
-  statusPagamento: string;
+  status_pagamento: string | null;
+  data_criacao: string | null;
+  data_pagamento: string | null;
 }
 
 interface PixHistoryModalProps {
@@ -23,10 +26,12 @@ interface PixHistoryModalProps {
   unidade: string;
 }
 
-const AWS_API_URL =
-  import.meta.env.VITE_AWS_API_URL ||
-  "https://apitelaodigital.suportevca.com.br";
-const apiUrl = AWS_API_URL;
+
+// Supabase config
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 
 export function PixHistoryModal({
   show,
@@ -40,20 +45,61 @@ export function PixHistoryModal({
   const [valorTotal, setValorTotal] = useState(0);
   const [numeroParcelas, setNumeroParcelas] = useState(0);
 
+  // Busca histórico de PIX do Supabase
   const fetchPixHistory = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${apiUrl}/api/pix/list`, {
-        params: { implantacao, cliente, unidade },
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Loga os valores usados no filtro
+      // eslint-disable-next-line no-console
+      console.log("[PixHistoryModal] Filtro cliente:", cliente, "unidade:", unidade);
 
-      setPixList(response.data.pixList || []);
-      setValorTotal(response.data.valorTotal || 0);
-      setNumeroParcelas(response.data.numeroParcelas || 0);
+      let query = supabase
+        .from("historico_pix")
+        .select("*")
+        .order("data_criacao", { ascending: false });
+
+      if (cliente) {
+        query = query.eq("cliente", cliente);
+      }
+      if (implantacao) {
+        query = query.eq("implantacao_nome", implantacao);
+      }
+      if (unidade) {
+        query = query.eq("unidade", unidade);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // DEBUG: Mostra o que veio do Supabase
+      // eslint-disable-next-line no-console
+      console.log("[PixHistoryModal] Supabase data:", data);
+
+      if ((data || []).length === 0) {
+        // Busca todos os registros para debug
+        const { data: allData, error: allError } = await supabase
+          .from("historico_pix")
+          .select("*")
+          .order("data_criacao", { ascending: false });
+        // eslint-disable-next-line no-console
+        console.log("[PixHistoryModal] TODOS OS REGISTROS historico_pix:", allData);
+      }
+
+      // Garante que valor é número
+      const parsedData = (data || []).map((item) => ({
+        ...item,
+        valor: typeof item.valor === "string" ? Number(item.valor.replace(/,/g, ".")) : Number(item.valor)
+      }));
+
+      setPixList(parsedData);
+
+      // Calcula totais apenas dos PIX pagos
+      const pixPagos = parsedData.filter((pix) => pix.status_pagamento?.toUpperCase() === "PAGO");
+
+      setValorTotal(
+        pixPagos.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0)
+      );
+      setNumeroParcelas(pixPagos.length);
     } catch (error) {
       console.error("Erro ao buscar histórico PIX:", error);
     } finally {
@@ -62,13 +108,14 @@ export function PixHistoryModal({
   };
 
   useEffect(() => {
-    if (show && implantacao && cliente && unidade) {
+    if (show && cliente && unidade) {
       fetchPixHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, implantacao, cliente, unidade]);
+  }, [show, cliente, unidade]);
 
   if (!show) return null;
+
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -77,7 +124,8 @@ export function PixHistoryModal({
     }).format(value);
   };
 
-  const getStatusBadge = (status: string) => {
+
+  const getStatusBadge = (status: string | null) => {
     const normalized = status?.toUpperCase();
     if (normalized === "PAGO") {
       return <span className="status-badge paid">✓ PAGO</span>;
@@ -120,15 +168,15 @@ export function PixHistoryModal({
               </div>
             ) : (
               <div className="pix-list">
-                {pixList.map((pix, index) => (
-                  <div key={index} className="pix-record">
+                {pixList.map((pix) => (
+                  <div key={pix.id} className="pix-record">
                     <div className="pix-record-header">
-                      <span className="pix-date">{pix.dataHora}</span>
-                      {getStatusBadge(pix.statusPagamento)}
+                      <span className="pix-date">{pix.data_pagamento ? new Date(pix.data_pagamento).toLocaleString("pt-BR") : (pix.data_criacao ? new Date(pix.data_criacao).toLocaleString("pt-BR") : "-")}</span>
+                      {getStatusBadge(pix.status_pagamento)}
                     </div>
                     <div className="pix-record-body">
                       <div className="pix-field">
-                        <strong>Valor:</strong> {formatCurrency(pix.valor)}
+                        <strong>Valor:</strong> {formatCurrency(Number(pix.valor))}
                       </div>
                       <div className="pix-field">
                         <strong>Identificador:</strong>{" "}

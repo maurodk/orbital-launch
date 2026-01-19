@@ -210,8 +210,17 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
             if plano_selecionado == "plano1":
                 if valor_unidade_total is None:
                     logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
-                elif not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
-                    logger.warning("Falha ao adicionar séries do plano 1")
+                else:
+                    setattr(adicionar_series_plano1, "plano2", False)
+                    if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        logger.warning("Falha ao adicionar séries do plano 1")
+            elif plano_selecionado == "plano2":
+                if valor_unidade_total is None:
+                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 2 corretamente")
+                else:
+                    setattr(adicionar_series_plano1, "plano2", True)
+                    if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        logger.warning("Falha ao adicionar séries do plano 2")
             # Outros planos serão implementados depois
             
         except Exception as e:
@@ -436,11 +445,7 @@ def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int
             return False
         time.sleep(0.5)
         
-        # Selecionar forma de pagamento (apenas se fornecido)
-        if forma_pagamento:
-            if not selecionar_opcao_dropdown(driver, "forma_pagamento", forma_pagamento):
-                return False
-            time.sleep(0.5)
+        # Não selecionar forma de pagamento explicitamente
         
         # Clicar no botão de adicionar série
         botao_add_serie = WebDriverWait(driver, 5).until(
@@ -562,26 +567,7 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
         
         time.sleep(0.5)
         
-        # Selecionar "PIX" no dropdown de forma de pagamento
-        dropdown_forma = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.ID, "forma_pagamento"))
-        )
-        select_forma = Select(dropdown_forma)
-        
-        opcao_pix_encontrada = False
-        for opcao in select_forma.options:
-            if "pix" in opcao.text.lower():
-                select_forma.select_by_visible_text(opcao.text)
-                logger.info(f"Selecionado forma de pagamento: {opcao.text}")
-                opcao_pix_encontrada = True
-                break
-        
-        if not opcao_pix_encontrada:
-            logger.error("Opção 'PIX' não encontrada no dropdown")
-            driver.switch_to.default_content()
-            return False
-        
-        time.sleep(0.5)
+        # Não selecionar forma de pagamento explicitamente
         
         # Preencher quantidade de parcelas com "1"
         input_qtd = WebDriverWait(driver, 5).until(
@@ -655,12 +641,12 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
 
 def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
     """
-    Adiciona séries para o plano 1 seguindo a regra do negócio:
+    Adiciona séries para o plano 1 (ou 2) seguindo a regra do negócio:
     - Sinal 1: 1 parcela com valor do PIX (hoje)
     - Sinal 2: 1 parcela de 10%/3, vence 7 dias após Sinal 1
     - Sinal 3: 1 parcela de 10%/3, vence no dia escolhido (05/15/25) do mês seguinte ao Sinal 2
     - Sinal 4: 1 parcela de 10%/3, vence no mesmo dia escolhido do mês seguinte ao Sinal 3
-    - PARCELAMENTO INCORPORADORA: 100 parcelas, vence no mesmo dia escolhido do mês seguinte ao Sinal 4
+    - PARCELAMENTO INCORPORADORA: 100 parcelas (plano1) ou 36 parcelas (plano2), vence no mesmo dia escolhido do mês seguinte ao Sinal 4
     
     Args:
         driver: WebDriver
@@ -673,13 +659,12 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
     try:
         import calendar
         from datetime import datetime, timedelta
-        
-        logger.info("Iniciando adição de séries para Plano 1...")
 
-        # Regra de cálculo:
-        # - Sinal 1: valor_pix (hoje) - Será editado da série existente
-        # - Sinais 2,3,4: 10% do valor do imóvel dividido em 3 parcelas iguais - SEM forma de pagamento
-        # - Parcelamento: (valor_unidade_total - valor_pix) - 10% do valor do imóvel, em 100x
+        # Detectar plano: padrão = 1 (100x), se global 'plano2' = True, então 36x
+        plano2 = getattr(adicionar_series_plano1, "plano2", False)
+        n_parcelas_parcelamento = 36 if plano2 else 100
+
+        logger.info(f"Iniciando adição de séries para {'Plano 2' if plano2 else 'Plano 1'}...")
 
         valor_dez_porcento = round(valor_unidade_total * 0.10, 2)
         valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
@@ -698,57 +683,57 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
             ultimo_dia = calendar.monthrange(ano, mes)[1]
             dia_ok = min(dia, ultimo_dia)
             return datetime(ano, mes, dia_ok)
-        
+
         # PASSO 1: Editar a primeira série existente para transformá-la em Sinal 1 com PIX
         data_sinal1 = hoje.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] EDITANDO primeira série para Sinal 1: qtd=1, valor={valor_pix:.2f}, venc={data_sinal1}, forma=PIX")
+        logger.info(f"[Plano] EDITANDO primeira série para Sinal 1: qtd=1, valor={valor_pix:.2f}, venc={data_sinal1}")
         if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
             logger.error("Falha ao editar primeira série para Sinal 1")
             return False
-        
+
         # Sinal 2 - vence exatamente 7 dias após Sinal 1 - SEM forma de pagamento
         data_sinal2_obj = hoje + timedelta(days=7)
         data_sinal2 = data_sinal2_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 2: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal2}, forma=None")
+        logger.info(f"[Plano] Sinal 2: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal2}")
         if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2):
             return False
-        
+
         # Sinal 3 - no mês seguinte ao Sinal 2, no dia escolhido - SEM forma de pagamento
         data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
         data_sinal3 = data_sinal3_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 3: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal3}, forma=None")
+        logger.info(f"[Plano] Sinal 3: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal3}")
         if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3):
             return False
-        
+
         # Sinal 4 - no mês seguinte ao Sinal 3, no mesmo dia escolhido - SEM forma de pagamento
         data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
         data_sinal4 = data_sinal4_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano1] Sinal 4: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal4}, forma=None")
+        logger.info(f"[Plano] Sinal 4: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal4}")
         if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4):
             return False
-        
+
         # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido
         data_parcelamento_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
         data_parcelamento = data_parcelamento_obj.strftime("%d/%m/%Y")
         valor_parcelamento_total = (valor_unidade_total - valor_pix) - valor_dez_porcento
-        valor_parcela_100x = round(valor_parcelamento_total / 100.0, 2)
-        logger.info(f"[Plano1] Parcelamento: total={valor_parcelamento_total:.2f}, 100x de {valor_parcela_100x:.2f}, venc={data_parcelamento}, forma=TRANSFERÊNCIA BANCÁRIA")
+        valor_parcela = round(valor_parcelamento_total / n_parcelas_parcelamento, 2)
+        logger.info(f"[Plano] Parcelamento: total={valor_parcelamento_total:.2f}, {n_parcelas_parcelamento}x de {valor_parcela:.2f}, venc={data_parcelamento}, forma=TRANSFERÊNCIA BANCÁRIA")
 
         if not adicionar_serie(
-            driver, 
-            "PARCELAMENTO INCORPORADORA", 
-            100, 
-            valor_parcela_100x, 
-            data_parcelamento, 
+            driver,
+            "PARCELAMENTO INCORPORADORA",
+            n_parcelas_parcelamento,
+            valor_parcela,
+            data_parcelamento,
             "TRANSFERÊNCIA BANCÁRIA"
         ):
             return False
-        
-        logger.info("Todas as séries do Plano 1 foram adicionadas com sucesso!")
+
+        logger.info("Todas as séries do Plano foram adicionadas com sucesso!")
         return True
-        
+
     except Exception as e:
-        logger.error(f"Erro ao adicionar séries do Plano 1: {e}")
+        logger.error(f"Erro ao adicionar séries do Plano: {e}")
         return False
 
 
