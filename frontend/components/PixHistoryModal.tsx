@@ -68,18 +68,11 @@ export function PixHistoryModal({
         }
 
         if (clienteData && clienteData.length > 0 && clienteData[0].nome) {
-          console.log(`[PixHistoryModal] Cliente "${cliente}" resolvido para "${clienteData[0].nome}"`);
           clienteNomeBusca = clienteData[0].nome;
           clientResolved = true;
           setDisplayClientName(clienteNomeBusca);
-        } else if (/^\d+$/.test(cliente)) {
-           console.warn(`[PixHistoryModal] Cliente com ID "${cliente}" não encontrado na tabela 'clientes'. Usando fallback.`);
         }
       }
-
-      // Loga os valores usados no filtro
-      // eslint-disable-next-line no-console
-      console.log("[PixHistoryModal] Filtro cliente:", clienteNomeBusca, "unidade:", unidade, "resolved:", clientResolved);
 
       let query = supabase
         .from("historico_pix")
@@ -111,26 +104,12 @@ export function PixHistoryModal({
       const { data, error } = await query;
       if (error) throw error;
 
-      // DEBUG: Mostra o que veio do Supabase
-      // eslint-disable-next-line no-console
-      console.log("[PixHistoryModal] Supabase data:", data);
-
       // Se encontramos dados e o nome do cliente não foi resolvido (fallback),
       // usamos o nome do cliente do primeiro registro encontrado para exibir na UI.
       if (data && data.length > 0 && !clientResolved && isNumericId) {
         if (data[0].cliente) {
           setDisplayClientName(data[0].cliente);
         }
-      }
-
-      if ((data || []).length === 0) {
-        // Busca todos os registros para debug
-        const { data: allData, error: allError } = await supabase
-          .from("historico_pix")
-          .select("*")
-          .order("data_criacao", { ascending: false });
-        // eslint-disable-next-line no-console
-        console.log("[PixHistoryModal] TODOS OS REGISTROS historico_pix:", allData);
       }
 
       // Garante que valor é número

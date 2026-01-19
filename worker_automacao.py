@@ -12,7 +12,16 @@ from typing import Dict, List, Optional
 
 # Carregar variáveis de ambiente do arquivo .env
 from dotenv import load_dotenv
-load_dotenv()
+
+# Determinar o diretório onde o script está localizado para encontrar o .env de forma robusta
+script_dir = os.path.dirname(os.path.abspath(__file__))
+env_path_root = os.path.join(script_dir, '.env')
+env_path_backend = os.path.join(script_dir, 'backend', '.env')
+
+if os.path.exists(env_path_root):
+    load_dotenv(env_path_root)
+elif os.path.exists(env_path_backend):
+    load_dotenv(env_path_backend)
 
 # Selenium
 from selenium import webdriver
@@ -41,7 +50,7 @@ URL_BASE_SISTEMA = "https://vca.cvcrm.com.br/gestor/"
 CVCRM_EMAIL = os.getenv("CVCRM_EMAIL")
 CVCRM_SENHA = os.getenv("CVCRM_SENHA")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE")
 
 # Configuração de logging
 logging.basicConfig(
@@ -221,6 +230,11 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                     setattr(adicionar_series_plano1, "plano2", True)
                     if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
                         logger.warning("Falha ao adicionar séries do plano 2")
+            elif plano_selecionado == "plano3":
+                if valor_unidade_total is None:
+                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 3")
+                elif not adicionar_series_plano3(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                    logger.warning("Falha ao adicionar séries do plano 3")
             # Outros planos serão implementados depois
             
         except Exception as e:
@@ -666,7 +680,8 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
 
         logger.info(f"Iniciando adição de séries para {'Plano 2' if plano2 else 'Plano 1'}...")
 
-        valor_dez_porcento = round(valor_unidade_total * 0.10, 2)
+        saldo_restante = valor_unidade_total - valor_pix
+        valor_dez_porcento = round(saldo_restante * 0.10, 2)
         valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
         hoje = datetime.now()
 
@@ -715,7 +730,7 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido
         data_parcelamento_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
         data_parcelamento = data_parcelamento_obj.strftime("%d/%m/%Y")
-        valor_parcelamento_total = (valor_unidade_total - valor_pix) - valor_dez_porcento
+        valor_parcelamento_total = saldo_restante - (valor_sinal_234 * 3)
         valor_parcela = round(valor_parcelamento_total / n_parcelas_parcelamento, 2)
         logger.info(f"[Plano] Parcelamento: total={valor_parcelamento_total:.2f}, {n_parcelas_parcelamento}x de {valor_parcela:.2f}, venc={data_parcelamento}, forma=TRANSFERÊNCIA BANCÁRIA")
 
@@ -736,6 +751,85 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         logger.error(f"Erro ao adicionar séries do Plano: {e}")
         return False
 
+
+def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+    """
+    Adiciona séries para o Plano 3 (10% + 36x + 03 Intermediárias + 64x)
+    """
+    try:
+        import calendar
+        from datetime import datetime, timedelta
+
+        logger.info("Iniciando adição de séries para Plano 3...")
+
+        # Cálculos de valores baseados nas porcentagens do SALDO RESTANTE (Total - Sinal 1)
+        saldo_restante = valor_unidade_total - valor_pix
+        valor_dez_porcento = round(saldo_restante * 0.10, 2)
+        valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
+        
+        valor_p1_total = round(saldo_restante * 0.24, 2)
+        valor_parcela_p1 = round(valor_p1_total / 36, 2)
+        
+        valor_inter_total = round(saldo_restante * 0.08, 2)
+        valor_parcela_inter = round(valor_inter_total / 3, 2)
+        
+        # O último parcelamento deve ser o saldo restante para fechar a conta
+        valor_p2_total = saldo_restante - (valor_sinal_234 * 3) - valor_p1_total - valor_inter_total
+        valor_parcela_p2 = round(valor_p2_total / 64, 2)
+
+        hoje = datetime.now()
+
+        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
+            mes = ref.month + 1
+            ano = ref.year
+            if mes > 12:
+                mes = 1
+                ano += 1
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            dia_ok = min(dia, ultimo_dia)
+            return datetime(ano, mes, dia_ok)
+
+        # 1. Sinais 1, 2, 3, 4 (Padrão)
+        data_sinal1 = hoje.strftime("%d/%m/%Y")
+        if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
+            return False
+
+        data_sinal2_obj = hoje + timedelta(days=7)
+        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2_obj.strftime("%d/%m/%Y")):
+            return False
+
+        data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
+        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3_obj.strftime("%d/%m/%Y")):
+            return False
+
+        data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
+        if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4_obj.strftime("%d/%m/%Y")):
+            return False
+
+        # 2. Parcelamento Incorporadora 1 (36x) - 24%
+        data_p1_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
+        if not adicionar_serie(driver, "PARCELAMENTO INCORPORADORA", 36, valor_parcela_p1, data_p1_obj.strftime("%d/%m/%Y"), "TRANSFERÊNCIA BANCÁRIA"):
+            return False
+
+        # 3. Intermediária (3x) - 8%
+        # Regra: Data de vencimento definida no seletor + 1 ano após o vencimento do Sinal 4
+        # data_sinal4_obj já respeita o dia_vencimento
+        data_inter_obj = data_sinal4_obj.replace(year=data_sinal4_obj.year + 1)
+        if not adicionar_serie(driver, "Intermediária", 3, valor_parcela_inter, data_inter_obj.strftime("%d/%m/%Y")):
+            return False
+
+        # 4. Parcelamento Incorporadora 2 (64x) - 58% - Começa após o fim do P1 (36 meses depois)
+        data_p2_obj = data_p1_obj
+        for _ in range(36):
+            data_p2_obj = proximo_mes_no_dia(data_p2_obj, dia_vencimento)
+            
+        if not adicionar_serie(driver, "PARCELAMENTO INCORPORADORA", 64, valor_parcela_p2, data_p2_obj.strftime("%d/%m/%Y"), "TRANSFERÊNCIA BANCÁRIA"):
+            return False
+
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao adicionar séries do Plano 3: {e}")
+        return False
 
 def processar_dados_conjuge(driver: webdriver.Chrome, dados_pagamento: Dict = None) -> bool:
     """Avança para a etapa de finalização"""
@@ -934,9 +1028,11 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
     e faz JOIN com a table clientes para obter dados do cliente
     """
     try:
+        logger.info("Consultando Supabase por reservas pendentes...")
+        
         # Busca pagamentos pendentes com informações do cliente
         response = supabase.table("pagamentos").select(
-            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor, tipo_pagamento, tipo_venda, "
+            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, tipo_pagamento, tipo_venda, "
             "clientes(id, id_pre_cadastro, nome, documento, corretor)"
         ).eq("status", "pendente").execute()
         
@@ -955,7 +1051,7 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
                 "valor_unidade": pag.get("valor_unidade"),
                 "dia_vencimento": pag.get("dia_vencimento"),
                 "plano_padrao": pag.get("plano_padrao"),
-                "valor": pag.get("valor"),
+                "valor": pag.get("valor_total"),
                 "tipo_pagamento": pag.get("tipo_pagamento"),
                 "tipo_venda": pag.get("tipo_venda"),
             }
@@ -1049,6 +1145,7 @@ def processar_fila_reservas():
     
     # Conectar ao Supabase
     supabase = get_supabase_client()
+    logger.info(f"Conectado ao Supabase: {SUPABASE_URL}")
     
     # Buscar reservas pendentes
     reservas_pendentes = buscar_reservas_pendentes(supabase)
@@ -1140,6 +1237,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    print(f"Iniciando worker em modo: {args.modo}")
     if args.modo == 'continuo':
         worker_loop(args.intervalo)
     else:

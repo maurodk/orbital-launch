@@ -151,8 +151,6 @@ export function PixModal({
   useEffect(() => {
     if (!show || !currentPixId) return;
 
-    console.log("🔍 Iniciando monitoramento do PIX:", currentPixId);
-
     // Polling a cada 3 segundos para verificar o status
     const checkPixStatus = async () => {
       try {
@@ -168,7 +166,6 @@ export function PixModal({
         }
 
         if (data && data.status_pagamento === 'PAGO') {
-          console.log('✅ PIX PAGO! Mostrando animação...');
           setShowPaymentSuccess(true);
           
           // Fecha o modal após 4 segundos
@@ -190,7 +187,6 @@ export function PixModal({
     const intervalId = setInterval(checkPixStatus, 3000);
 
     return () => {
-      console.log('🛑 Parando monitoramento do PIX');
       clearInterval(intervalId);
     };
   }, [show, currentPixId, onClose]);
@@ -251,13 +247,6 @@ export function PixModal({
     setError("");
     setIsGenerating(true);
 
-    // Debug: Mostra os dados que serão enviados
-    console.log("Dados do cliente carregados do Supabase:", {
-      nome: clienteNome,
-      documento: clienteDocumento,
-      idPreCadastro: unitData?.[6],
-    });
-
     const requestBody = {
       txid: txid,
       valor: valor.toFixed(2),
@@ -279,8 +268,6 @@ export function PixModal({
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
       expiracao: 3600,
     };
-
-    console.log("Request Body enviado para API:", requestBody);
 
     try {
       const response = await axios.post(PIX_API_URL, requestBody);

@@ -11,6 +11,7 @@ const { createClient } = require("@supabase/supabase-js");
 const multer = require("multer");
 const path = require("path");
 const XLSX = require("xlsx");
+const { spawn } = require("child_process");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
@@ -1955,11 +1956,6 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
               unitName || (existingUnit && existingUnit.nome_unidade) || null,
           };
 
-          console.log(
-            "[SUPABASE] Tentando atualizar/inserir unidade com payload:",
-            payload
-          );
-
           if (existingUnit && existingUnit.id) {
             const { data: updatedData, error: updateErr } = await supabase
               .from("unidades")
@@ -2014,8 +2010,6 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
 
             if (pixUpdateError) {
               console.error("[SUPABASE] Erro ao transferir PIX na reserva:", pixUpdateError);
-            } else {
-              console.log(`[SUPABASE] PIX transferido para ${unitFullName} (Cliente: ${clientNameForPix})`);
             }
           }
 
@@ -2322,12 +2316,6 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
               unitName || (existingUnit && existingUnit.nome_unidade) || null,
           };
 
-          console.log("[SUPABASE] spontaneous-unidades payload:", {
-            implantacao,
-            rowIndex,
-            payload,
-          });
-
           if (existingUnit && existingUnit.id) {
             const { data: updatedData, error: updateErr } = await supabase
               .from("unidades")
@@ -2380,9 +2368,7 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
               .eq('cliente', clientNameForPix)
               .neq('unidade', unitFullName);
 
-            if (!pixUpdateError) {
-              console.log(`[SUPABASE] PIX transferido (Espontânea) para ${unitFullName} (Cliente: ${clientNameForPix})`);
-            }
+            if (pixUpdateError) console.error("[SUPABASE] Erro ao transferir PIX (Espontânea):", pixUpdateError);
           }
 
           if (manualData.cliente) {
@@ -2935,8 +2921,6 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
             if (pixUpdateError) {
               console.error("[SUPABASE] Erro ao transferir PIX:", pixUpdateError);
-            } else {
-              console.log(`[SUPABASE] PIX transferido de ${oldUnitName} para ${newUnitName} (Cliente: ${clientNameForPix})`);
             }
           }
 
@@ -3742,8 +3726,6 @@ app.post("/api/pix/update-status", verifyToken, async (req, res) => {
       return res.status(500).json({ error: 'Erro ao atualizar no Supabase', details: supabaseError.message });
     }
 
-    console.log('✅ PIX atualizado no Supabase:', pixData);
-
     // 2. Atualiza no Google Sheets (se existir)
     try {
       const sheets = await getSheetsClient();
@@ -3772,7 +3754,6 @@ app.post("/api/pix/update-status", verifyToken, async (req, res) => {
               },
             });
             
-            console.log(`✅ Status atualizado no Google Sheets: Linha ${i + 1}`);
             break;
           }
         }
@@ -3835,20 +3816,6 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       range: verifyBeforeRange,
     });
     const beforeRow = beforeData.data.values?.[0] || [];
-
-    console.log(`[UPDATE-PIX-DATA] ANTES - Células F-R linha ${rowIndex}:`, {
-      F: beforeRow[0],
-      G: beforeRow[1],
-      H: beforeRow[2],
-      I: beforeRow[3],
-      J: beforeRow[4],
-      K: beforeRow[5],
-      O: beforeRow[8],
-      P: beforeRow[9],
-      Q: beforeRow[10],
-      R: beforeRow[11],
-    });
-
     // Atualiza APENAS as colunas O, P, Q, R (PIX) sem tocar em F-K
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -3872,32 +3839,6 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       range: verifyBeforeRange,
     });
     const afterRow = afterData.data.values?.[0] || [];
-
-    console.log(`[UPDATE-PIX-DATA] DEPOIS - Células F-R linha ${rowIndex}:`, {
-      F: afterRow[0],
-      G: afterRow[1],
-      H: afterRow[2],
-      I: afterRow[3],
-      J: afterRow[4],
-      K: afterRow[5],
-      O: afterRow[8],
-      P: afterRow[9],
-      Q: afterRow[10],
-      R: afterRow[11],
-    });
-
-    // Alerta se alguma célula foi apagada
-    if (beforeRow[1] && !afterRow[1]) {
-      console.error(
-        `[UPDATE-PIX-DATA] ⚠️ ERRO: Coluna G (Cliente) foi APAGADA!`
-      );
-    }
-    if (beforeRow[3] && !afterRow[3]) {
-      console.error(
-        `[UPDATE-PIX-DATA] ⚠️ ERRO: Coluna I (Corretor) foi APAGADA!`
-      );
-    }
-
     // CRÍTICO: Busca a linha COMPLETA (A-S) para enviar via SSE
     const fullRowRange = `'${sheetTitle}'!A${rowIndex}:S${rowIndex}`;
     const fullRowData = await sheets.spreadsheets.values.get({
@@ -3905,17 +3846,6 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
       range: fullRowRange,
     });
     const fullRow = fullRowData.data.values?.[0] || [];
-
-    console.log(`[UPDATE-PIX-DATA] Linha completa para broadcast:`, {
-      totalColunas: fullRow.length,
-      F: fullRow[5],
-      G: fullRow[6],
-      K: fullRow[10],
-      L: fullRow[11],
-      N: fullRow[13],
-      Q: fullRow[16],
-    });
-
     // CORREÇÃO CRÍTICA: Envia broadcast SSE com dados COMPLETOS da unidade
     await broadcastEvent(sheetTitle, "unitUpdated", {
       rowIndex,
@@ -4220,12 +4150,6 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
     },
   };
 
-  // Log para depuração: mostra o corpo da requisição que será enviada
-  console.log(
-    "[BOTMAKER] Corpo da requisição para a API externa:",
-    JSON.stringify(body, null, 2)
-  );
-
   try {
     const response = await fetch(BOTMAKER_API_URL, {
       method: "POST",
@@ -4239,12 +4163,6 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
 
     const responseData = await response.json();
 
-    // Log para depuração: mostra a resposta recebida da API externa
-    console.log(
-      `[BOTMAKER] Resposta da API externa (Status: ${response.status}):`,
-      JSON.stringify(responseData, null, 2)
-    );
-
     // Repassa o status da API da Botmaker, se não for sucesso.
     res.status(response.status).json({
       success: response.ok,
@@ -4257,36 +4175,138 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
   }
 });
 
+// NOVO: Endpoint para registrar pagamento (Sinal/Entrada)
+app.post("/api/add-payment", verifyToken, async (req, res) => {
+  const {
+    implantacao,
+    implantacaoId,
+    clientName,
+    unitName,
+    idPreCadastro,
+    pagamento
+  } = req.body;
+  const userEmail = req.user?.email || "Sistema";
+
+  if (!pagamento) {
+    return res.status(400).json({ error: "Dados de pagamento incompletos." });
+  }
+
+  try {
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não configurado." });
+    }
+
+    // Resolver implantacao_id se não vier no body
+    let finalImplantacaoId = implantacaoId;
+    if (!finalImplantacaoId && implantacao) {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", implantacao)
+          .maybeSingle();
+        finalImplantacaoId = implData?.id;
+    }
+
+    // 1. Buscar cliente_id
+    let clienteId = null;
+    if (idPreCadastro) {
+      const { data: clientData } = await supabase
+        .from("clientes")
+        .select("id")
+        .eq("id_pre_cadastro", idPreCadastro)
+        .maybeSingle();
+      clienteId = clientData?.id;
+    }
+    
+    if (!clienteId && clientName && finalImplantacaoId) {
+       const { data: clientData } = await supabase
+        .from("clientes")
+        .select("id")
+        .eq("nome", clientName)
+        .eq("implantacao_id", finalImplantacaoId)
+        .maybeSingle();
+       clienteId = clientData?.id;
+    }
+
+    // 2. Inserir em pagamentos
+    const { error } = await supabase.from("pagamentos").insert({
+      cliente_id: clienteId,
+      unidade: unitName,
+      valor_total: pagamento.valorTotal,
+      valor_unidade: pagamento.valorUnidade,
+      valor_pix: pagamento.valorPix,
+      valor_dinheiro: pagamento.valorDinheiro,
+      valor_cartao: pagamento.valorCartao,
+      valor_cheque: pagamento.valorCheque,
+      tipo_pagamento: "presencial",
+      tipo_venda: pagamento.tipoVenda,
+      plano_padrao: pagamento.planoSelecionado,
+      dia_vencimento: pagamento.diaVencimento,
+      status: "pendente",
+      created_at: new Date().toISOString()
+    });
+
+    if (error) {
+        console.error("Erro Supabase ao inserir pagamento:", error);
+        throw error;
+    }
+
+    // 3. Adicionar ao histórico
+    const sheets = await getSheetsClient();
+    await addHistoryEntry(
+        sheets,
+        implantacao,
+        unitName,
+        "Pagamento Registrado",
+        clientName,
+        null, 
+        userEmail
+    );
+
+    // 4. Disparar Worker de Automação (Python)
+    // Executa em modo 'unico' para processar o pagamento recém-adicionado e encerrar
+    try {
+      const workerScript = path.resolve(__dirname, "../worker_automacao.py");
+      console.log(`[API] Disparando worker de automação: python ${workerScript} --modo unico`);
+      
+      const workerProcess = spawn("python", [workerScript, "--modo", "unico"], {
+        env: { ...process.env }
+      });
+      
+      workerProcess.stdout.on("data", (data) => {
+        console.log(`[WORKER] ${data.toString().trim()}`);
+      });
+      
+      workerProcess.stderr.on("data", (data) => {
+        console.error(`[WORKER ERRO] ${data.toString().trim()}`);
+      });
+    } catch (workerErr) {
+      console.error("[API] Falha ao iniciar worker:", workerErr);
+    }
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error("Erro ao adicionar pagamento:", error);
+    res.status(500).json({ error: "Falha ao registrar pagamento." });
+  }
+});
+
 // NOVO: Endpoint para atuar como proxy para a API do Santander
 app.post("/api/santander/gerapix", verifyToken, async (req, res) => {
   const SANTANDER_API_URL = "https://gatewaypix.suportevca.com.br/api/gerapix";
-
-  // Log para depuração: mostra o corpo da requisição recebida do frontend
-  console.log(
-    "[PROXY /api/santander/gerapix] Corpo da requisição para a API externa:",
-    JSON.stringify(req.body, null, 2)
-  );
-
   try {
     // O corpo da requisição (req.body) já vem do frontend no formato correto.
     // Apenas repassamos para a API do Santander.
     const response = await fetch(SANTANDER_API_URL, {
       method: "POST",
       headers: {
-        // GARANTIR que apenas os cabeçalhos necessários sejam enviados,
-        // evitando repassar o token de autorização do Firebase.
         "Content-Type": "application/json",
       },
       body: JSON.stringify(req.body),
     });
 
     const responseData = await response.json();
-
-    // Log para depuração: mostra a resposta recebida da API externa
-    console.log(
-      `[PROXY /api/santander/gerapix] Resposta da API externa (Status: ${response.status}):`,
-      JSON.stringify(responseData, null, 2)
-    );
 
     if (!response.ok) {
       // Se a API do Santander retornar um erro, repassamos o status e a mensagem.

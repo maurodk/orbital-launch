@@ -63,18 +63,12 @@ export function ReservationModal({
 
   const clientOptions: OptionType[] = useMemo(
     () => {
-      console.log("🔍 [ReservationModal] Total de clientes recebidos:", clientes.length);
-      console.log("🔍 [ReservationModal] Clientes:", clientes);
-      
       const filtered = clientes.filter((cliente) => cliente && cliente[1] && cliente[1].trim() !== "");
-      console.log("🔍 [ReservationModal] Clientes após filtro:", filtered.length);
       
       const options = filtered.map((cliente, index) => ({
         value: cliente[0] || `temp_${index}`,
         label: `${cliente[1]} - (Doc: ${cliente[2] || "Sem documento"})`,
       }));
-      
-      console.log("🔍 [ReservationModal] Opções geradas:", options);
       return options;
     },
     [clientes]

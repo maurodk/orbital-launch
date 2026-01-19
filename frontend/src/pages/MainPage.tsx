@@ -54,9 +54,6 @@ const AWS_API_URL =
 // SEMPRE usa AWS (backend está na EC2)
 const apiUrl = "http://localhost:3001";
 
-console.log("🌐 [CONFIG] Ambiente:", import.meta.env.MODE);
-console.log("🌐 [CONFIG] API URL:", apiUrl);
-
 interface ApiResponse {
   unidades: string[][];
   clientes: string[][];
@@ -326,11 +323,8 @@ export function MainPage() {
     // apareçam na lista, independentemente de já terem reservado ou não.
     // A verificação `c && c[1]` garante que apenas clientes com nome sejam incluídos.
     // Índice [0] = id_pre_cadastro (pode ser null), [1] = nome (obrigatório)
-    console.log("🔍 [MainPage] clientesDisponiveis - Total recebido:", clientes.length);
-    console.log("🔍 [MainPage] clientesDisponiveis - Dados:", clientes);
     
     const filtered = clientes.filter((c) => c && c[1] && c[1].trim() !== "");
-    console.log("🔍 [MainPage] clientesDisponiveis - Após filtro:", filtered.length, filtered);
     
     return filtered;
   }, [clientes]);
@@ -410,19 +404,11 @@ export function MainPage() {
       if (response.data.sheetNotFound) {
         setUnidades([]);
         setClientes([]);
-        console.log(
-          `ℹ️ Planilha '${implantacaoName}' ainda não existe (sem unidades importadas)`
-        );
       } else {
         // Unidades vêm do Google Sheets (tem header) → remove com .slice(1)
         const unidadesData = response.data.unidades.slice(1) || [];
         // Clientes vêm do Supabase (sem header) → NÃO remove primeiro elemento
         const clientesData = response.data.clientes || [];
-        
-        console.log("📊 [MainPage] Dados recebidos para:", implantacaoName);
-        console.log("📊 [MainPage] Unidades:", unidadesData.length);
-        console.log("📊 [MainPage] Clientes RAW:", response.data.clientes);
-        console.log("📊 [MainPage] Clientes (processados):", clientesData);
         
         setUnidades(unidadesData);
         setClientes(clientesData);
@@ -473,7 +459,6 @@ export function MainPage() {
               setShowFullNameModal(true);
             }
           } catch (err) {
-            console.log("Erro ao buscar full_name (não crítico):", err);
             setShowFullNameModal(true);
           }
 
@@ -492,10 +477,6 @@ export function MainPage() {
             );
 
             if (implExists) {
-              console.log(
-                "✅ Restaurando última implantação usada:",
-                lastUsedImplantacao
-              );
               const foundImplantation = allImplantations.find(
                 (imp) => imp.nome === lastUsedImplantacao
               );
@@ -551,15 +532,8 @@ export function MainPage() {
                 }
               }
             } else {
-              console.log(
-                "⚠️ Última implantação usada não existe mais. Aguardando seleção manual."
-              );
               localStorage.removeItem("selectedImplantacao");
             }
-          } else {
-            console.log(
-              "ℹ️ Nenhuma implantação selecionada anteriormente. Aguardando seleção."
-            );
           }
           setError(null);
         } catch (err) {
@@ -638,7 +612,6 @@ export function MainPage() {
       es.onopen = () => {
         reconnectAttempts = 0;
         consecutivePollingFailures = 0;
-        console.info("SSE conectado");
       };
 
       // Error handler: try reconnection with exponential backoff, and use polling fallback
@@ -759,7 +732,6 @@ export function MainPage() {
           setUnidadesCount(countResponse.data.count || 0);
           setUnidadesConfigured(countResponse.data.configured || false);
         } catch (err) {
-          console.log("Erro ao buscar contagem de unidades:", err);
         }
       };
 
@@ -793,7 +765,6 @@ export function MainPage() {
 
     // network oscillation detection
     const handleOnline = () => {
-      console.info("Network online — attempting SSE reconnect");
       reconnectAttempts = 0;
       createEventSource();
     };
@@ -820,8 +791,6 @@ export function MainPage() {
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
     if (!newImplantation || newName === selectedImplantationName) return;
-
-    console.log("🔄 Trocando implantação para:", newName);
 
     // Salva a escolha no localStorage (sessão por usuário)
     localStorage.setItem("selectedImplantacao", newName);
@@ -1123,6 +1092,7 @@ export function MainPage() {
           tipoVenda: paymentData.tipoVenda,
           planoSelecionado: paymentData.planoSelecionado,
           diaVencimento: paymentData.diaVencimento,
+          valorUnidade: paymentData.valorUnidade,
         },
       };
 
@@ -1622,13 +1592,6 @@ export function MainPage() {
         console.error('Erro ao salvar PIX no Supabase:', pixError);
         throw new Error(pixError.message || "Erro ao salvar PIX no banco de dados.");
       }
-
-      console.log("✅ PIX salvo com sucesso no Supabase:", {
-        identificador,
-        cliente: clienteNome,
-        unidade,
-        valor,
-      });
 
       // Fecha o modal PIX após salvar
       setPixModalState({
