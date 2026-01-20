@@ -282,12 +282,19 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // Permite requisições sem origin (como Postman, curl, etc)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Origem bloqueada: ${origin}`);
       callback(new Error("Acesso não permitido pela política de CORS"));
     }
   },
+  credentials: true,
   optionsSuccessStatus: 200,
 };
 
