@@ -292,8 +292,9 @@ const corsOptions = {
     }
 
     // ⚠️ CORREÇÃO: Use callback(null, false) ao invés de Error
-    console.warn(`[CORS] Origem bloqueada: ${origin}`);
-    return callback(null, false); // ✅ Não envia Error
+const error = new Error(`Origem bloqueada: ${origin}`);
+error.statusCode = 403;
+return callback(error);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -315,6 +316,12 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ✅ Preflight handler explícito ANTES das rotas
 app.options("*", cors(corsOptions));
+
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  console.log(`   Origin: ${req.headers.origin || 'sem origin'}`);
+  next();
+});
 
 // Configuração do multer para upload de arquivos
 const upload = multer({
@@ -4465,41 +4472,7 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
   }
 });
 
-// =================================================================
-// CRUD DE IMPLANTAÇÕES (EMPREENDIMENTOS)
-// =================================================================
 
-// Listar todas as implantações
-app.get("/api/implantacoes", verifyToken, async (req, res) => {
-  try {
-    console.log("[/api/implantacoes] Iniciando busca...");
-
-    if (!supabase) {
-      return res.status(500).json({ error: "Supabase não configurado." });
-    }
-
-    const { data: implantacoes, error } = await supabase
-      .from("implantacoes")
-      .select("*")
-      .order("nome", { ascending: true });
-
-    if (error) {
-      console.error("[/api/implantacoes] Erro Supabase:", error);
-      return res.status(500).json({
-        error: "Falha ao buscar implantações.",
-        details: error.message,
-      });
-    }
-
-    res.json(implantacoes || []);
-  } catch (error) {
-    console.error("[/api/implantacoes] ERRO:", error);
-    res.status(500).json({
-      error: "Falha ao buscar implantações.",
-      details: error.message,
-    });
-  }
-});
 
 // Criar nova implantação
 app.post(
