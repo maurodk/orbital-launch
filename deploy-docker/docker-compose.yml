@@ -11,6 +11,12 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --bind 0.0.0.0 --protected-mode no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   # Workers Python (Escalável)
   worker1:
@@ -26,7 +32,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   worker2:
     build: ./worker
@@ -41,7 +48,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
 volumes:
   redis_data:
