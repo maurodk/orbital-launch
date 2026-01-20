@@ -275,30 +275,46 @@ function supabaseUnitToArray(unitData) {
 const allowedOrigins = [
   "https://lancamentos.vcaconstrutora.com.br",
   "https://apitelaodigital.suportevca.com.br",
+  "http://localhost:5173", // Desenvolvimento
 ];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permite requisições sem origin (Postman, curl, cron, etc)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
+    // Permite requisições sem origin (Postman, curl, servidores)
+    if (!origin) {
+      console.log("[CORS] Requisição sem origin - PERMITIDO");
       return callback(null, true);
     }
 
+    if (allowedOrigins.includes(origin)) {
+      console.log(`[CORS] Origem permitida: ${origin}`);
+      return callback(null, true);
+    }
+
+    // ⚠️ CORREÇÃO: Use callback(null, false) ao invés de Error
     console.warn(`[CORS] Origem bloqueada: ${origin}`);
-    return callback(new Error("Não permitido pelo CORS"));
+    return callback(null, false); // ✅ Não envia Error
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 200,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "X-Requested-With",
+    "Accept"
+  ],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
+  maxAge: 86400, // Cache preflight por 24h
+  optionsSuccessStatus: 204, // ✅ Usa 204 para OPTIONS
 };
 
-// ORDEM CORRETA DOS MIDDLEWARES
-app.use(cors(corsOptions));           // 1️⃣ CORS primeiro
-app.use(express.json());              // 2️⃣ Body parser depois
-app.options("*", cors(corsOptions));  // 3️⃣ Preflight explícito por último
+// ⚠️ CORREÇÃO: Ordem CORRETA e SEM duplicação
+app.use(cors(corsOptions));  // 1️⃣ CORS PRIMEIRO
+app.use(express.json({ limit: '50mb' })); // 2️⃣ Body parser
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// ✅ Preflight handler explícito ANTES das rotas
+app.options("*", cors(corsOptions));
 
 // Configuração do multer para upload de arquivos
 const upload = multer({
@@ -510,63 +526,56 @@ const SHEET_NAME_IMPLANTACOES = "Implantacoes";
 
 // Middleware para verificar o Token do Supabase
 async function verifyToken(req, res, next) {
-  console.log("[AUTH] ===== VERIFICANDO TOKEN =====");
-  console.log("[AUTH] Método:", req.method, "| Path:", req.path);
-  console.log("[AUTH] Headers:", JSON.stringify(req.headers, null, 2));
-  // Allow token via query param for clients like EventSource that cannot set headers
-  if (
-    (!req.headers || !req.headers.authorization) &&
-    req.query &&
-    req.query.token
-  ) {
-    req.headers = req.headers || {};
-    req.headers.authorization = `Bearer ${req.query.token}`;
-    console.log("[AUTH] Token extraído da query param 'token'");
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.error("[AUTH] Token não fornecido. Header:", authHeader);
-    return res.status(401).send("Acesso não autorizado: Token não fornecido.");
-  }
-
-  const token = authHeader.split("Bearer ")[1];
-
   try {
-    if (!supabase) {
-      console.error("[AUTH] Supabase não configurado");
-      return res.status(500).send("Supabase não configurado.");
+    console.log("[AUTH] Verificando token...");
+    
+    // Extrai token da query ou header
+    let token = null;
+    
+    if (req.query?.token) {
+      token = req.query.token;
+      console.log("[AUTH] Token da query param");
+    } else if (req.headers.authorization?.startsWith("Bearer ")) {
+      token = req.headers.authorization.split("Bearer ")[1];
+      console.log("[AUTH] Token do header");
     }
 
-    console.log("[AUTH] Verificando token...");
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
-
-    if (error) {
-      console.error("[AUTH] Erro ao verificar token:", error.message);
-      return res.status(403).json({
-        error: "Acesso proibido: Token inválido.",
-        details: error.message,
+    if (!token) {
+      console.error("[AUTH] Token não fornecido");
+      return res.status(401).json({ 
+        error: "Token não fornecido",
+        code: "NO_TOKEN" 
       });
     }
 
-    if (!user) {
-      console.error("[AUTH] Usuário não encontrado");
-      return res.status(403).send("Acesso proibido: Token inválido.");
+    if (!supabase) {
+      console.error("[AUTH] Supabase não configurado");
+      return res.status(500).json({ 
+        error: "Servidor não configurado",
+        code: "SERVER_ERROR" 
+      });
     }
 
-    console.log(
-      "[AUTH] Token verificado com sucesso para usuário:",
-      user.email
-    );
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      console.error("[AUTH] Token inválido:", error?.message);
+      return res.status(403).json({
+        error: "Token inválido ou expirado",
+        code: "INVALID_TOKEN",
+        details: error?.message,
+      });
+    }
+
+    console.log("[AUTH] ✅ Autenticado:", user.email);
     req.user = { email: user.email, uid: user.id };
-    return next();
+    next();
+    
   } catch (error) {
-    console.error("[AUTH] Exceção ao verificar token:", error);
+    console.error("[AUTH] Exceção:", error);
     return res.status(403).json({
-      error: "Acesso proibido: Token inválido.",
+      error: "Falha na autenticação",
+      code: "AUTH_ERROR",
       details: error.message,
     });
   }
@@ -1766,66 +1775,59 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
   const userEmail = req.user?.email || "Sistema";
 
   if (!implantacao || !rowIndex || !reservationToken) {
-    return res
-      .status(400)
-      .json({ error: "Dados incompletos para reserva temporária." });
+    return res.status(400).json({ 
+      error: "Dados incompletos",
+      code: "MISSING_DATA" 
+    });
   }
 
   const maxRetries = 3;
-  let lastError = null;
-
+  
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const sheets = await getSheetsClient();
-      const resolved = await resolveSheetName(
-        sheets,
-        SPREADSHEET_ID_IMPLANTACAO,
+      const { found: sheetTitle } = await resolveSheetName(
+        sheets, 
+        SPREADSHEET_ID_IMPLANTACAO, 
         implantacao
       );
-      if (!resolved || !resolved.found) {
-        return res
-          .status(404)
-          .json({ error: `Planilha '${implantacao}' não encontrada.` });
+
+      if (!sheetTitle) {
+        return res.status(404).json({ 
+          error: `Planilha '${implantacao}' não encontrada`,
+          code: "SHEET_NOT_FOUND" 
+        });
       }
-      const sheetTitle = resolved.found;
+
       const tempReservationKey = `${sheetTitle}_${rowIndex}`;
 
-      // Verifica se já existe reserva para esta unidade
+      // ✅ Verifica reserva existente
       const existingReservation = tempReservations.get(tempReservationKey);
       if (existingReservation && Date.now() < existingReservation.expiresAt) {
         return res.status(409).json({
-          error: `Esta unidade já está sendo reservada por outro usuário.`,
-          code: "UNIT_BEING_RESERVED",
+          error: "Unidade já está sendo reservada",
+          code: "ALREADY_RESERVED",
         });
       }
 
-      const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
-      const unitCheckResult = await sheets.spreadsheets.values.get({
+      // ✅ Verifica status atual
+      const statusCheck = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: unitCheckRange,
+        range: `'${sheetTitle}'!L${rowIndex}`,
       });
 
-      const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
-      const currentStatus = normalizeStatus(rawStatus);
+      const currentStatus = normalizeStatus(
+        statusCheck.data.values?.[0]?.[0] || "Disponível"
+      );
 
       if (currentStatus !== "disponivel") {
         return res.status(409).json({
-          error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
-          code: "UNIT_NOT_AVAILABLE",
+          error: `Unidade não disponível. Status: ${statusCheck.data.values?.[0]?.[0]}`,
+          code: "NOT_AVAILABLE",
         });
       }
 
-      // OPERAÇÃO ATÔMICA: Marca como RESERVANDO e armazena token ANTES de responder
-      // Armazena o token de reserva temporária (em memória por 60 segundos)
-      tempReservations.set(tempReservationKey, {
-        token: reservationToken,
-        userEmail,
-        unitName,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + 60000, // 60 segundos
-      });
-
-      // Marca a unidade como "RESERVANDO" temporariamente
+      // ✅ CORREÇÃO: Atualiza Sheets ANTES de armazenar no mapa
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${sheetTitle}'!L${rowIndex}`,
@@ -1833,35 +1835,36 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
         resource: { values: [["RESERVANDO"]] },
       });
 
-      console.log(
-        `[RESERVE-TEMP] Reserva criada: ${tempReservationKey} por ${userEmail}`
-      );
+      // ✅ Só armazena após sucesso no Sheets
+      tempReservations.set(tempReservationKey, {
+        token: reservationToken,
+        userEmail,
+        unitName,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 60000,
+      });
+
+      console.log(`[RESERVE-TEMP] ✅ Reserva criada: ${tempReservationKey}`);
 
       return res.json({
         success: true,
-        message: "Reserva temporária criada com sucesso.",
+        message: "Reserva temporária criada",
         reservationToken,
         expiresIn: 60000,
       });
-    } catch (error) {
-      lastError = error;
-      console.error(
-        `[RESERVE-TEMP] Tentativa ${attempt + 1}/${maxRetries} falhou:`,
-        error
-      );
 
-      // Se não for a última tentativa, aguarda antes de tentar novamente
+    } catch (error) {
+      console.error(`[RESERVE-TEMP] Tentativa ${attempt + 1} falhou:`, error);
+      
       if (attempt < maxRetries - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, 500 * (attempt + 1))
-        );
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
       }
     }
   }
 
-  console.error("[RESERVE-TEMP] Todas as tentativas falharam:", lastError);
-  res.status(500).json({
-    error: "Falha ao criar reserva temporária após múltiplas tentativas.",
+  return res.status(500).json({
+    error: "Falha após múltiplas tentativas",
+    code: "MAX_RETRIES_EXCEEDED"
   });
 });
 
@@ -4467,22 +4470,34 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
 // =================================================================
 
 // Listar todas as implantações
-app.get("/api/implantacoes", async (req, res) => {
+app.get("/api/implantacoes", verifyToken, async (req, res) => {
   try {
+    console.log("[/api/implantacoes] Iniciando busca...");
+
     if (!supabase) {
-      return res.status(500).json({ error: "Supabase não está configurado." });
+      return res.status(500).json({ error: "Supabase não configurado." });
     }
 
-    const { data, error } = await supabase
+    const { data: implantacoes, error } = await supabase
       .from("implantacoes")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("nome", { ascending: true });
 
-    if (error) throw error;
-    res.json(data || []);
+    if (error) {
+      console.error("[/api/implantacoes] Erro Supabase:", error);
+      return res.status(500).json({
+        error: "Falha ao buscar implantações.",
+        details: error.message,
+      });
+    }
+
+    res.json(implantacoes || []);
   } catch (error) {
-    console.error("Erro ao listar implantações:", error);
-    res.status(500).json({ error: "Falha ao listar implantações." });
+    console.error("[/api/implantacoes] ERRO:", error);
+    res.status(500).json({
+      error: "Falha ao buscar implantações.",
+      details: error.message,
+    });
   }
 });
 
@@ -5378,15 +5393,36 @@ app.get("/api/clientes/:implantacao_id", verifyToken, async (req, res) => {
 
 // Middleware global de tratamento de erros (DEVE VIR APÓS TODAS AS ROTAS)
 app.use((err, req, res, next) => {
-  console.error("❌❌❌ ERRO NÃO TRATADO ❌❌❌");
+  console.error("❌ ERRO NÃO TRATADO:");
   console.error("Path:", req.method, req.path);
-  console.error("Error:", err);
+  console.error("Error:", err.message);
   console.error("Stack:", err.stack);
 
-  res.status(500).json({
+  // Se já enviou headers, delega para handler padrão
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // Trata erros específicos
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({
+      error: "Não autorizado",
+      code: "UNAUTHORIZED"
+    });
+  }
+
+  if (err.message?.includes('CORS')) {
+    return res.status(403).json({
+      error: "Origem não permitida",
+      code: "CORS_ERROR"
+    });
+  }
+
+  // Erro genérico
+  res.status(err.status || 500).json({
     error: "Erro interno do servidor",
-    message: err.message,
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    code: err.code || "INTERNAL_ERROR",
   });
 });
 
@@ -5612,6 +5648,19 @@ app.post(
     }
   }
 );
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    supabase: !!supabase,
+    redis: redis.status === 'ready',
+    cors: {
+      allowedOrigins,
+      origin: req.headers.origin || 'no-origin'
+    }
+  });
+});
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
 const PORT = process.env.PORT || 3001;
