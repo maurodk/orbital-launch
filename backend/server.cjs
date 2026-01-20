@@ -274,33 +274,27 @@ function supabaseUnitToArray(unitData) {
 
 // Configuração de CORS atualizada
 const allowedOrigins = [
-  "https://lancamentos.vcaconstrutora.com.br",
-  "https://apitelaodigital.suportevca.com.br",
-  "http://localhost:5173",
+  "https://lancamentos.vcaconstrutora.com.br", // Frontend em produção
+  "http://localhost:5173", // Frontend em desenvolvimento local
+  "http://localhost:5174", // Frontend em desenvolvimento local (porta alternativa)
+  "http://127.0.0.1:5500", // Live Server
+  "http://localhost:5500", // Live Server
+  // Adicione outras URLs se necessário
 ];
 
 const corsOptions = {
-  origin: (origin, callback) => {
-    // Permite sem origin (Postman/Server-side)
-    if (!origin) return callback(null, true);
-
-    // Verifica se a origem está na lista ou é um subdomínio seu
-    if (allowedOrigins.includes(origin) || origin.endsWith(".vcaconstrutora.com.br")) {
-      return callback(null, true);
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
     } else {
-      console.warn(`[CORS] Bloqueado origin não permitido: ${origin}`);
-      return callback(null, false); // O Nginx agora vai segurar a barra se o Node falhar
+      callback(new Error("Acesso não permitido pela política de CORS"));
     }
   },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-  optionsSuccessStatus: 204,
+  optionsSuccessStatus: 200,
 };
 
-// APLICAÇÃO (Mantenha nesta ordem exata)
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+app.use(express.json());
 
 // Configuração do multer para upload de arquivos
 const upload = multer({
