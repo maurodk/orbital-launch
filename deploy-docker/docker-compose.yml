@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Banco de dados em memória para a fila (Redis)
+  redis:
+    image: redis:alpine
+    container_name: telao_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --bind 0.0.0.0 --protected-mode no
+
+  # Workers Python (Escalável)
+  worker1:
+    build: ./worker
+    container_name: telao_worker1
+    restart: always
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+      - CVCRM_USER=${CVCRM_USER_1}
+      - CVCRM_PASSWORD=${CVCRM_PASSWORD_1}
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+  worker2:
+    build: ./worker
+    container_name: telao_worker2
+    restart: always
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+      - CVCRM_USER=${CVCRM_USER_2}
+      - CVCRM_PASSWORD=${CVCRM_PASSWORD_2}
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:

@@ -49,8 +49,8 @@ from supabase import create_client, Client
 URL_BASE_SISTEMA = "https://vca.cvcrm.com.br/gestor/"
 
 # Variáveis de ambiente para credenciais
-CVCRM_EMAIL = os.getenv("CVCRM_EMAIL")
-CVCRM_SENHA = os.getenv("CVCRM_SENHA")
+CVCRM_EMAIL = os.getenv("CVCRM_USER") or os.getenv("CVCRM_EMAIL")
+CVCRM_SENHA = os.getenv("CVCRM_PASSWORD") or os.getenv("CVCRM_SENHA")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")

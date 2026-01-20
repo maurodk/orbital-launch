@@ -52,7 +52,7 @@ const AWS_API_URL =
   "https://apitelaodigital.suportevca.com.br";
 
 // SEMPRE usa AWS (backend está na EC2)
-const apiUrl = "http://localhost:3001";
+const apiUrl = AWS_API_URL;
 
 interface ApiResponse {
   unidades: string[][];

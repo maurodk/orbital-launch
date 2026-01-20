@@ -13,6 +13,7 @@ const path = require("path");
 const XLSX = require("xlsx");
 const { spawn } = require("child_process");
 const Redis = require("ioredis");
+const fs = require("fs");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
@@ -595,6 +596,21 @@ async function getSheetsClient() {
     console.warn(`[SHEETS] Rate limit atingido. Aguarde ${waitSeconds}s`);
     throw error;
   }
+
+  // --- VERIFICAÇÃO DE SEGURANÇA PARA DOCKER ---
+  const keyPath = path.resolve("credentials.json");
+  try {
+    if (fs.existsSync(keyPath) && fs.lstatSync(keyPath).isDirectory()) {
+       throw new Error(
+         `ERRO CRÍTICO: O arquivo 'credentials.json' foi montado como um DIRETÓRIO. \n` +
+         `Isso ocorre quando o arquivo não existe no host ao rodar o docker-compose. \n` +
+         `SOLUÇÃO: No host, apague a pasta 'backend/credentials.json', coloque o arquivo correto e reinicie.`
+       );
+    }
+  } catch (e) {
+     if (e.message.includes("ERRO CRÍTICO")) throw e;
+  }
+  // -------------------------------------------
 
   const auth = new google.auth.GoogleAuth({
     keyFile: "credentials.json",
