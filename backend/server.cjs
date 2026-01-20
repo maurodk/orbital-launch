@@ -272,56 +272,35 @@ function supabaseUnitToArray(unitData) {
 
 // Configuração de CORS - PERMITE TODAS AS ORIGENS
 
+// Configuração de CORS atualizada
 const allowedOrigins = [
   "https://lancamentos.vcaconstrutora.com.br",
   "https://apitelaodigital.suportevca.com.br",
-  "http://localhost:5173", // Desenvolvimento
+  "http://localhost:5173",
 ];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permite requisições sem origin (Postman, curl, servidores)
-    if (!origin) {
-      console.log("[CORS] Requisição sem origin - PERMITIDO");
-      return callback(null, true);
-    }
+    // Permite sem origin (Postman/Server-side)
+    if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
-      console.log(`[CORS] Origem permitida: ${origin}`);
+    // Verifica se a origem está na lista ou é um subdomínio seu
+    if (allowedOrigins.includes(origin) || origin.endsWith(".vcaconstrutora.com.br")) {
       return callback(null, true);
+    } else {
+      console.warn(`[CORS] Bloqueado origin não permitido: ${origin}`);
+      return callback(null, false); // O Nginx agora vai segurar a barra se o Node falhar
     }
-
-    // ⚠️ CORREÇÃO: Use callback(null, false) ao invés de Error
-const error = new Error(`Origem bloqueada: ${origin}`);
-error.statusCode = 403;
-return callback(error);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: [
-    "Content-Type", 
-    "Authorization", 
-    "X-Requested-With",
-    "Accept"
-  ],
-  exposedHeaders: ["Content-Range", "X-Content-Range"],
-  maxAge: 86400, // Cache preflight por 24h
-  optionsSuccessStatus: 204, // ✅ Usa 204 para OPTIONS
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  optionsSuccessStatus: 204,
 };
 
-// ⚠️ CORREÇÃO: Ordem CORRETA e SEM duplicação
-app.use(cors(corsOptions));  // 1️⃣ CORS PRIMEIRO
-app.use(express.json({ limit: '50mb' })); // 2️⃣ Body parser
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// ✅ Preflight handler explícito ANTES das rotas
+// APLICAÇÃO (Mantenha nesta ordem exata)
+app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-
-app.use((req, res, next) => {
-  console.log(`📨 ${req.method} ${req.path}`);
-  console.log(`   Origin: ${req.headers.origin || 'sem origin'}`);
-  next();
-});
 
 // Configuração do multer para upload de arquivos
 const upload = multer({
