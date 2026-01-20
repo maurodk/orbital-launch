@@ -295,9 +295,10 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // Preflight
-app.use(express.json());
+// ORDEM CORRETA DOS MIDDLEWARES
+app.use(cors(corsOptions));           // 1️⃣ CORS primeiro
+app.use(express.json());              // 2️⃣ Body parser depois
+app.options("*", cors(corsOptions));  // 3️⃣ Preflight explícito por último
 
 // Configuração do multer para upload de arquivos
 const upload = multer({
