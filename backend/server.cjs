@@ -270,15 +270,12 @@ function supabaseUnitToArray(unitData) {
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
 // =================================================================
 
-// Configuração de CORS para permitir acesso do seu frontend (Vercel)
-const allowedOrigins = [
-  "https://lancamentos.vcaconstrutora.com.br", // Frontend em produção
-  "http://localhost:5173", // Frontend em desenvolvimento local
-  "http://localhost:5174", // Frontend em desenvolvimento local (porta alternativa)
-  "http://127.0.0.1:5500", // Live Server
-  "http://localhost:5500", // Live Server
-  // Adicione outras URLs se necessário
-];
+// Configuração de CORS - PERMITE TODAS AS ORIGENS
+app.use(cors({
+  origin: '*',
+  credentials: true,
+  optionsSuccessStatus: 200,
+}));
 
 const corsOptions = {
   origin: function (origin, callback) {
