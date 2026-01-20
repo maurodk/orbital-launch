@@ -271,31 +271,32 @@ function supabaseUnitToArray(unitData) {
 // =================================================================
 
 // Configuração de CORS - PERMITE TODAS AS ORIGENS
-app.use(cors({
-  origin: '*',
-  credentials: true,
-  optionsSuccessStatus: 200,
-}));
+
+const allowedOrigins = [
+  "https://lancamentos.vcaconstrutora.com.br",
+  "https://apitelaodigital.suportevca.com.br",
+];
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Permite requisições sem origin (como Postman, curl, etc)
-    if (!origin) {
+  origin: (origin, callback) => {
+    // Permite requisições sem origin (Postman, curl, cron, etc)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn(`[CORS] Origem bloqueada: ${origin}`);
-      callback(new Error("Acesso não permitido pela política de CORS"));
-    }
+
+    console.warn(`[CORS] Origem bloqueada: ${origin}`);
+    return callback(new Error("Não permitido pelo CORS"));
   },
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // Preflight
 app.use(express.json());
 
 // Configuração do multer para upload de arquivos
