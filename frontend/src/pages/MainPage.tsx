@@ -916,11 +916,6 @@ export function MainPage() {
     }
   };
 
-  const handleSpontaneousUnitClick = (unitIndex: number) => {
-    setSelectedUnitIndex(unitIndex);
-    setReservationModalState({ isOpen: true, mode: "manual" });
-  };
-
   const handleBlockActionClick = (unitIndex: number) => {
     setSelectedUnitIndex(unitIndex);
     const unitData = unidades[unitIndex];
@@ -1096,7 +1091,7 @@ export function MainPage() {
         },
       };
 
-      const response = await axios.post(
+      await axios.post(
         `${apiUrl}/api/add-payment`,
         requestPayload
       );
@@ -2152,7 +2147,6 @@ export function MainPage() {
                   <ReservationList
                     unidades={filteredUnidades}
                     onUnitClick={handleUnitClick}
-                    onSpontaneousClick={handleSpontaneousUnitClick}
                     onBlockClick={handleBlockActionClick}
                     onPrintClick={handleOpenPrintConfig}
                     onChangeUnitClick={handleChangeUnitClick}
@@ -2181,19 +2175,9 @@ export function MainPage() {
                     ? unidades[selectedUnitIndex]
                     : null
                 }
-                implantacaoId={currentImplantation?.id ? Number(currentImplantation.id) : null}
-                sheetRowIndex={selectedUnitIndex !== null ? selectedUnitIndex + 2 : null}
                 clientes={clientesDisponiveis}
                 onReserve={handleReserve}
                 initialMode={reservationModalState.mode}
-                onBlockClick={() => {
-                  if (selectedUnitIndex === null) return;
-                  handleCloseModals();
-                  setTimeout(
-                    () => handleBlockActionClick(selectedUnitIndex),
-                    150
-                  );
-                }}
               />
               <CancelModal
                 show={isCancelModalOpen}

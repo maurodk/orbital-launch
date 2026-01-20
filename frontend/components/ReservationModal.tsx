@@ -23,24 +23,18 @@ interface ReservationModalProps {
   show: boolean;
   onClose: () => void;
   unitData: string[] | null;
-  implantacaoId: number | null;
-  sheetRowIndex: number | null;
   clientes: string[][];
   onReserve: (data: { cliente: string | ManualData }) => void;
   initialMode: "select" | "manual";
-  onBlockClick: () => void;
 }
 
 export function ReservationModal({
   show,
   onClose,
   unitData,
-  implantacaoId,
-  sheetRowIndex,
   clientes,
   onReserve,
   initialMode,
-  onBlockClick,
 }: ReservationModalProps) {
   const [view, setView] = useState<"select" | "manual">(initialMode);
   const [selectedClient, setSelectedClient] = useState<OptionType | null>(null);

@@ -22,7 +22,6 @@ interface ReservationListProps {
   onUnitClick: (unitIndex: number) => void;
   onHistoryClick: (unitName: string) => void;
   onChangeUnitClick: (unitIndex: number) => void; // <-- NOVO
-  onSpontaneousClick: (unitIndex: number) => void;
   onBlockClick: (unitIndex: number) => void;
   onPrintClick: (unitIndex: number) => void;
   onPixClick: (unitIndex: number) => void;
@@ -45,7 +44,6 @@ interface ReservationListProps {
 export function ReservationList({
   unidades,
   onUnitClick,
-  onSpontaneousClick,
   onChangeUnitClick, // <-- NOVO
   onBlockClick,
   onHistoryClick,
