@@ -13,6 +13,7 @@ const path = require("path");
 const XLSX = require("xlsx");
 const { spawn } = require("child_process");
 const Redis = require("ioredis");
+const fs = require("fs");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
@@ -56,7 +57,7 @@ async function supabaseWithRateLimit(operation) {
 }
 
 // Configuração do Redis
-const REDIS_HOST = process.env.REDIS_HOST || "redis";
+const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = process.env.REDIS_PORT || 6379;
 const redis = new Redis({
   host: REDIS_HOST,
@@ -270,9 +271,7 @@ function supabaseUnitToArray(unitData) {
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
 // =================================================================
 
-// Configuração de CORS - PERMITE TODAS AS ORIGENS
-
-// Configuração de CORS atualizada
+// Configuração de CORS para permitir acesso do seu frontend (Vercel)
 const allowedOrigins = [
   "https://lancamentos.vcaconstrutora.com.br", // Frontend em produção
   "http://localhost:5173", // Frontend em desenvolvimento local
@@ -506,56 +505,63 @@ const SHEET_NAME_IMPLANTACOES = "Implantacoes";
 
 // Middleware para verificar o Token do Supabase
 async function verifyToken(req, res, next) {
+  console.log("[AUTH] ===== VERIFICANDO TOKEN =====");
+  console.log("[AUTH] Método:", req.method, "| Path:", req.path);
+  console.log("[AUTH] Headers:", JSON.stringify(req.headers, null, 2));
+  // Allow token via query param for clients like EventSource that cannot set headers
+  if (
+    (!req.headers || !req.headers.authorization) &&
+    req.query &&
+    req.query.token
+  ) {
+    req.headers = req.headers || {};
+    req.headers.authorization = `Bearer ${req.query.token}`;
+    console.log("[AUTH] Token extraído da query param 'token'");
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.error("[AUTH] Token não fornecido. Header:", authHeader);
+    return res.status(401).send("Acesso não autorizado: Token não fornecido.");
+  }
+
+  const token = authHeader.split("Bearer ")[1];
+
   try {
-    console.log("[AUTH] Verificando token...");
-    
-    // Extrai token da query ou header
-    let token = null;
-    
-    if (req.query?.token) {
-      token = req.query.token;
-      console.log("[AUTH] Token da query param");
-    } else if (req.headers.authorization?.startsWith("Bearer ")) {
-      token = req.headers.authorization.split("Bearer ")[1];
-      console.log("[AUTH] Token do header");
-    }
-
-    if (!token) {
-      console.error("[AUTH] Token não fornecido");
-      return res.status(401).json({ 
-        error: "Token não fornecido",
-        code: "NO_TOKEN" 
-      });
-    }
-
     if (!supabase) {
       console.error("[AUTH] Supabase não configurado");
-      return res.status(500).json({ 
-        error: "Servidor não configurado",
-        code: "SERVER_ERROR" 
-      });
+      return res.status(500).send("Supabase não configurado.");
     }
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    console.log("[AUTH] Verificando token...");
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(token);
 
-    if (error || !user) {
-      console.error("[AUTH] Token inválido:", error?.message);
+    if (error) {
+      console.error("[AUTH] Erro ao verificar token:", error.message);
       return res.status(403).json({
-        error: "Token inválido ou expirado",
-        code: "INVALID_TOKEN",
-        details: error?.message,
+        error: "Acesso proibido: Token inválido.",
+        details: error.message,
       });
     }
 
-    console.log("[AUTH] ✅ Autenticado:", user.email);
+    if (!user) {
+      console.error("[AUTH] Usuário não encontrado");
+      return res.status(403).send("Acesso proibido: Token inválido.");
+    }
+
+    console.log(
+      "[AUTH] Token verificado com sucesso para usuário:",
+      user.email
+    );
     req.user = { email: user.email, uid: user.id };
-    next();
-    
+    return next();
   } catch (error) {
-    console.error("[AUTH] Exceção:", error);
+    console.error("[AUTH] Exceção ao verificar token:", error);
     return res.status(403).json({
-      error: "Falha na autenticação",
-      code: "AUTH_ERROR",
+      error: "Acesso proibido: Token inválido.",
       details: error.message,
     });
   }
@@ -590,6 +596,21 @@ async function getSheetsClient() {
     console.warn(`[SHEETS] Rate limit atingido. Aguarde ${waitSeconds}s`);
     throw error;
   }
+
+  // --- VERIFICAÇÃO DE SEGURANÇA PARA DOCKER ---
+  const keyPath = path.resolve("credentials.json");
+  try {
+    if (fs.existsSync(keyPath) && fs.lstatSync(keyPath).isDirectory()) {
+       throw new Error(
+         `ERRO CRÍTICO: O arquivo 'credentials.json' foi montado como um DIRETÓRIO. \n` +
+         `Isso ocorre quando o arquivo não existe no host ao rodar o docker-compose. \n` +
+         `SOLUÇÃO: No host, apague a pasta 'backend/credentials.json', coloque o arquivo correto e reinicie.`
+       );
+    }
+  } catch (e) {
+     if (e.message.includes("ERRO CRÍTICO")) throw e;
+  }
+  // -------------------------------------------
 
   const auth = new google.auth.GoogleAuth({
     keyFile: "credentials.json",
@@ -1755,59 +1776,66 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
   const userEmail = req.user?.email || "Sistema";
 
   if (!implantacao || !rowIndex || !reservationToken) {
-    return res.status(400).json({ 
-      error: "Dados incompletos",
-      code: "MISSING_DATA" 
-    });
+    return res
+      .status(400)
+      .json({ error: "Dados incompletos para reserva temporária." });
   }
 
   const maxRetries = 3;
-  
+  let lastError = null;
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const sheets = await getSheetsClient();
-      const { found: sheetTitle } = await resolveSheetName(
-        sheets, 
-        SPREADSHEET_ID_IMPLANTACAO, 
+      const resolved = await resolveSheetName(
+        sheets,
+        SPREADSHEET_ID_IMPLANTACAO,
         implantacao
       );
-
-      if (!sheetTitle) {
-        return res.status(404).json({ 
-          error: `Planilha '${implantacao}' não encontrada`,
-          code: "SHEET_NOT_FOUND" 
-        });
+      if (!resolved || !resolved.found) {
+        return res
+          .status(404)
+          .json({ error: `Planilha '${implantacao}' não encontrada.` });
       }
-
+      const sheetTitle = resolved.found;
       const tempReservationKey = `${sheetTitle}_${rowIndex}`;
 
-      // ✅ Verifica reserva existente
+      // Verifica se já existe reserva para esta unidade
       const existingReservation = tempReservations.get(tempReservationKey);
       if (existingReservation && Date.now() < existingReservation.expiresAt) {
         return res.status(409).json({
-          error: "Unidade já está sendo reservada",
-          code: "ALREADY_RESERVED",
+          error: `Esta unidade já está sendo reservada por outro usuário.`,
+          code: "UNIT_BEING_RESERVED",
         });
       }
 
-      // ✅ Verifica status atual
-      const statusCheck = await sheets.spreadsheets.values.get({
+      const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
+      const unitCheckResult = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!L${rowIndex}`,
+        range: unitCheckRange,
       });
 
-      const currentStatus = normalizeStatus(
-        statusCheck.data.values?.[0]?.[0] || "Disponível"
-      );
+      const rawStatus = unitCheckResult.data.values?.[0]?.[0] || "Disponível";
+      const currentStatus = normalizeStatus(rawStatus);
 
       if (currentStatus !== "disponivel") {
         return res.status(409).json({
-          error: `Unidade não disponível. Status: ${statusCheck.data.values?.[0]?.[0]}`,
-          code: "NOT_AVAILABLE",
+          error: `Esta unidade não está mais Disponível. Status atual: ${rawStatus}.`,
+          code: "UNIT_NOT_AVAILABLE",
         });
       }
 
-      // ✅ CORREÇÃO: Atualiza Sheets ANTES de armazenar no mapa
+      // OPERAÇÃO ATÔMICA: Marca como RESERVANDO e armazena token ANTES de responder
+      // Armazena o token de reserva temporária (em memória por 60 segundos)
+      tempReservations.set(tempReservationKey, {
+        token: reservationToken,
+        userEmail,
+        unitName,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 60000, // 60 segundos
+      });
+
+      // Marca a unidade como "RESERVANDO" temporariamente
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${sheetTitle}'!L${rowIndex}`,
@@ -1815,36 +1843,35 @@ app.post("/api/reserve-temp", verifyToken, async (req, res) => {
         resource: { values: [["RESERVANDO"]] },
       });
 
-      // ✅ Só armazena após sucesso no Sheets
-      tempReservations.set(tempReservationKey, {
-        token: reservationToken,
-        userEmail,
-        unitName,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + 60000,
-      });
-
-      console.log(`[RESERVE-TEMP] ✅ Reserva criada: ${tempReservationKey}`);
+      console.log(
+        `[RESERVE-TEMP] Reserva criada: ${tempReservationKey} por ${userEmail}`
+      );
 
       return res.json({
         success: true,
-        message: "Reserva temporária criada",
+        message: "Reserva temporária criada com sucesso.",
         reservationToken,
         expiresIn: 60000,
       });
-
     } catch (error) {
-      console.error(`[RESERVE-TEMP] Tentativa ${attempt + 1} falhou:`, error);
-      
+      lastError = error;
+      console.error(
+        `[RESERVE-TEMP] Tentativa ${attempt + 1}/${maxRetries} falhou:`,
+        error
+      );
+
+      // Se não for a última tentativa, aguarda antes de tentar novamente
       if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (attempt + 1))
+        );
       }
     }
   }
 
-  return res.status(500).json({
-    error: "Falha após múltiplas tentativas",
-    code: "MAX_RETRIES_EXCEEDED"
+  console.error("[RESERVE-TEMP] Todas as tentativas falharam:", lastError);
+  res.status(500).json({
+    error: "Falha ao criar reserva temporária após múltiplas tentativas.",
   });
 });
 
@@ -4445,7 +4472,29 @@ app.post("/api/user/full-name", verifyToken, async (req, res) => {
   }
 });
 
+// =================================================================
+// CRUD DE IMPLANTAÇÕES (EMPREENDIMENTOS)
+// =================================================================
 
+// Listar todas as implantações
+app.get("/api/implantacoes", async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não está configurado." });
+    }
+
+    const { data, error } = await supabase
+      .from("implantacoes")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    console.error("Erro ao listar implantações:", error);
+    res.status(500).json({ error: "Falha ao listar implantações." });
+  }
+});
 
 // Criar nova implantação
 app.post(
@@ -5339,36 +5388,15 @@ app.get("/api/clientes/:implantacao_id", verifyToken, async (req, res) => {
 
 // Middleware global de tratamento de erros (DEVE VIR APÓS TODAS AS ROTAS)
 app.use((err, req, res, next) => {
-  console.error("❌ ERRO NÃO TRATADO:");
+  console.error("❌❌❌ ERRO NÃO TRATADO ❌❌❌");
   console.error("Path:", req.method, req.path);
-  console.error("Error:", err.message);
+  console.error("Error:", err);
   console.error("Stack:", err.stack);
 
-  // Se já enviou headers, delega para handler padrão
-  if (res.headersSent) {
-    return next(err);
-  }
-
-  // Trata erros específicos
-  if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({
-      error: "Não autorizado",
-      code: "UNAUTHORIZED"
-    });
-  }
-
-  if (err.message?.includes('CORS')) {
-    return res.status(403).json({
-      error: "Origem não permitida",
-      code: "CORS_ERROR"
-    });
-  }
-
-  // Erro genérico
-  res.status(err.status || 500).json({
+  res.status(500).json({
     error: "Erro interno do servidor",
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-    code: err.code || "INTERNAL_ERROR",
+    message: err.message,
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
 
@@ -5594,19 +5622,6 @@ app.post(
     }
   }
 );
-
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    supabase: !!supabase,
-    redis: redis.status === 'ready',
-    cors: {
-      allowedOrigins,
-      origin: req.headers.origin || 'no-origin'
-    }
-  });
-});
 
 // ESTA LINHA DEVE SER SEMPRE A ÚLTIMA ANTES DE EXPORTAR O MÓDULO (SE APLICÁVEL)
 const PORT = process.env.PORT || 3000;

@@ -68,6 +68,8 @@ export function PaymentModal({
     { id: "plano1", label: "10% + 100x" },
     { id: "plano2", label: "10% + 36x" },
     { id: "plano3", label: "10% + 36x + 03 Intermediárias + 64x" },
+    { id: "plano4", label: "À vista" },
+    { id: "plano5", label: "À vista em 3x" },
   ];
 
   // Cálculos de totais
@@ -221,6 +223,18 @@ export function PaymentModal({
     planosPadrao &&
     planoSelecionado === "plano3";
 
+  const exibirVencimentosPlano4 =
+    pagamentoPresencial &&
+    tipoVenda === "facilita" &&
+    planosPadrao &&
+    planoSelecionado === "plano4";
+
+  const exibirVencimentosPlano5 =
+    pagamentoPresencial &&
+    tipoVenda === "facilita" &&
+    planosPadrao &&
+    planoSelecionado === "plano5";
+
   const formatarData = (d: Date) => {
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -346,6 +360,52 @@ export function PaymentModal({
       valorParcela36,
       valorParcelaInter,
       valorParcela64
+    };
+  })();
+
+  const plano4Preview = (() => {
+    if (!exibirVencimentosPlano4) return null;
+    if (!valorUnidade || valorTotalPagamento <= 0) return null;
+
+    const diaBase = diaVencimento;
+    const hoje = new Date();
+    const vencSinal1 = hoje;
+    const vencSinal2 = mesSeguinteNoDia(vencSinal1, diaBase);
+
+    const desconto = Math.round(valorUnidade * 0.05 * 100) / 100;
+    const valorTotalDescontado = Math.round((valorUnidade - desconto) * 100) / 100;
+    let saldoRestante = Math.round((valorTotalDescontado - valorTotalPagamento) * 100) / 100;
+    if (saldoRestante < 0) saldoRestante = 0;
+
+    return {
+      vencSinal1: formatarData(vencSinal1),
+      vencSinal2: formatarData(vencSinal2),
+      desconto,
+      valorTotalDescontado,
+      valorSinal2: saldoRestante,
+    };
+  })();
+
+  const plano5Preview = (() => {
+    if (!exibirVencimentosPlano5) return null;
+    if (!valorUnidade || valorTotalPagamento <= 0) return null;
+
+    const diaBase = diaVencimento;
+    const hoje = new Date();
+    const vencSinal1 = hoje;
+    const vencSinal2 = mesSeguinteNoDia(vencSinal1, diaBase);
+    const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
+    const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
+
+    const saldoRestante = valorUnidade - valorTotalPagamento;
+    const parcela = Math.round((saldoRestante / 3) * 100) / 100;
+
+    return {
+      vencSinal1: formatarData(vencSinal1),
+      vencSinal2: formatarData(vencSinal2),
+      vencSinal3: formatarData(vencSinal3),
+      vencSinal4: formatarData(vencSinal4),
+      parcela,
     };
   })();
 
@@ -688,7 +748,7 @@ export function PaymentModal({
                         ))}
                       </div>
 
-                      {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3") && (
+                      {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3" || planoSelecionado === "plano4" || planoSelecionado === "plano5") && (
                         <div className="plano-config fade-in">
                           <div className="config-row">
                             <span className="config-label">Dia de Vencimento:</span>
@@ -876,6 +936,92 @@ export function PaymentModal({
                                     <span className="preview-item-date">Após as 36x</span>
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcela64)}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {plano4Preview && (
+                              <div className="preview-grid">
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">🏠</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Valor Imóvel (original)</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(valorUnidade)}</span>
+                                </div>
+
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">🏷️</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Desconto 5%</span>
+                                  </div>
+                                  <span className="preview-item-value">-{formatCurrency(plano4Preview.desconto)}</span>
+                                </div>
+
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">✅</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Total com desconto</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano4Preview.valorTotalDescontado)}</span>
+                                </div>
+
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">1️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 1 (hoje)</span>
+                                    <span className="preview-item-date">{plano4Preview.vencSinal1}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(valorTotalPagamento)}</span>
+                                </div>
+
+                                <div className="preview-row highlight">
+                                  <span className="preview-item-icon">2️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 2 (restante à vista)</span>
+                                    <span className="preview-item-date">{plano4Preview.vencSinal2}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano4Preview.valorSinal2)}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {plano5Preview && (
+                              <div className="preview-grid">
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">1️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 1 (hoje)</span>
+                                    <span className="preview-item-date">{plano5Preview.vencSinal1}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(valorTotalPagamento)}</span>
+                                </div>
+
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">2️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 2</span>
+                                    <span className="preview-item-date">{plano5Preview.vencSinal2}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano5Preview.parcela)}</span>
+                                </div>
+
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">3️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 3</span>
+                                    <span className="preview-item-date">{plano5Preview.vencSinal3}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano5Preview.parcela)}</span>
+                                </div>
+
+                                <div className="preview-row highlight">
+                                  <span className="preview-item-icon">4️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 4</span>
+                                    <span className="preview-item-date">{plano5Preview.vencSinal4}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano5Preview.parcela)}</span>
                                 </div>
                               </div>
                             )}

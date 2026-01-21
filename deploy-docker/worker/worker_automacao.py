@@ -11,6 +11,7 @@ import json
 import redis
 from datetime import datetime
 from typing import Dict, List, Optional
+import calendar
 
 # Carregar variáveis de ambiente do arquivo .env
 from dotenv import load_dotenv
@@ -19,11 +20,14 @@ from dotenv import load_dotenv
 script_dir = os.path.dirname(os.path.abspath(__file__))
 env_path_root = os.path.join(script_dir, '.env')
 env_path_backend = os.path.join(script_dir, 'backend', '.env')
+env_path_parent = os.path.join(script_dir, '..', '.env')
 
 if os.path.exists(env_path_root):
     load_dotenv(env_path_root)
 elif os.path.exists(env_path_backend):
     load_dotenv(env_path_backend)
+elif os.path.exists(env_path_parent):
+    load_dotenv(env_path_parent)
 
 # Selenium
 from selenium import webdriver
@@ -87,9 +91,7 @@ def criar_driver_headless() -> webdriver.Chrome:
     """Cria driver Chrome em modo headless para execução em background"""
     logger.info("Iniciando Chrome Driver...")
     chrome_options = Options()
-    
-    # Configurações essenciais para rodar em Docker
-    chrome_options.add_argument("--headless") 
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
@@ -252,6 +254,18 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                     logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 3")
                 elif not adicionar_series_plano3(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
                     logger.warning("Falha ao adicionar séries do plano 3")
+            elif plano_selecionado == "plano4":
+                if valor_unidade_total is None:
+                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 4")
+                else:
+                    if not adicionar_series_plano4(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        logger.warning("Falha ao adicionar séries do plano 4")
+            elif plano_selecionado == "plano5":
+                if valor_unidade_total is None:
+                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 5")
+                else:
+                    if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        logger.warning("Falha ao adicionar séries do plano 5")
             # Outros planos serão implementados depois
             
         except Exception as e:
@@ -846,6 +860,107 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
         return True
     except Exception as e:
         logger.error(f"Erro ao adicionar séries do Plano 3: {e}")
+        return False
+
+
+def adicionar_series_plano4(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+    """
+    Plano 4 - Pagamento à vista
+    - Sinal 1: valor do pix/dinheiro/cartão/cheque (hoje) -> já editado na primeira série
+    - Sinal 2: restante (valor_unidade_total - valor_pix) com vencimento 1 mês após Sinal 1
+    """
+    try:
+        from datetime import datetime
+
+        logger.info("Iniciando adição de séries para Plano 4 (À vista)...")
+
+        desconto = round(valor_unidade_total * 0.05, 2)
+        valor_total_descontado = round(valor_unidade_total - desconto, 2)
+        saldo_restante = round(valor_total_descontado - valor_pix, 2)
+        hoje = datetime.now()
+
+        logger.info(f"[Plano4] Valor original={valor_unidade_total:.2f}, desconto={desconto:.2f}, total_com_desconto={valor_total_descontado:.2f}")
+
+        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
+            mes = ref.month + 1
+            ano = ref.year
+            if mes > 12:
+                mes = 1
+                ano += 1
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            dia_ok = min(dia, ultimo_dia)
+            return datetime(ano, mes, dia_ok)
+
+        # Editar primeira série para Sinal 1
+        data_sinal1 = hoje.strftime("%d/%m/%Y")
+        if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
+            logger.error("Falha ao editar primeira série para Sinal 1 (Plano 4)")
+            return False
+
+        # Sinal 2 com vencimento um mês depois
+        data_sinal2_obj = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_sinal2 = data_sinal2_obj.strftime("%d/%m/%Y")
+        logger.info(f"[Plano4] Sinal 2: qtd=1, valor={saldo_restante:.2f}, venc={data_sinal2}")
+        if not adicionar_serie(driver, "Sinal 2", 1, saldo_restante, data_sinal2):
+            return False
+
+        logger.info("Plano 4 aplicado com sucesso")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao adicionar séries do Plano 4: {e}")
+        return False
+
+
+def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+    """
+    Plano 5 - Pagamento à vista em 3x
+    - Sinal 1: valor do pix/dinheiro/cartão/cheque (hoje)
+    - Sinal 2/3/4: saldo dividido por 3, vencimentos mês a mês
+    """
+    try:
+        from datetime import datetime, timedelta
+
+        logger.info("Iniciando adição de séries para Plano 5 (À vista em 3x)...")
+
+        saldo_restante = round(valor_unidade_total - valor_pix, 2)
+        parcela = round((saldo_restante / 3.0), 2)
+        hoje = datetime.now()
+
+        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
+            mes = ref.month + 1
+            ano = ref.year
+            if mes > 12:
+                mes = 1
+                ano += 1
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            dia_ok = min(dia, ultimo_dia)
+            return datetime(ano, mes, dia_ok)
+
+        # Editar primeira série para Sinal 1
+        data_sinal1 = hoje.strftime("%d/%m/%Y")
+        if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
+            logger.error("Falha ao editar primeira série para Sinal 1 (Plano 5)")
+            return False
+
+        # Sinal 2 - mês seguinte
+        data_sinal2_obj = proximo_mes_no_dia(hoje, dia_vencimento)
+        if not adicionar_serie(driver, "Sinal 2", 1, parcela, data_sinal2_obj.strftime("%d/%m/%Y")):
+            return False
+
+        # Sinal 3 - mês seguinte ao Sinal 2
+        data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
+        if not adicionar_serie(driver, "Sinal 3", 1, parcela, data_sinal3_obj.strftime("%d/%m/%Y")):
+            return False
+
+        # Sinal 4 - mês seguinte ao Sinal 3
+        data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
+        if not adicionar_serie(driver, "Sinal 4", 1, parcela, data_sinal4_obj.strftime("%d/%m/%Y")):
+            return False
+
+        logger.info("Plano 5 aplicado com sucesso")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao adicionar séries do Plano 5: {e}")
         return False
 
 def processar_dados_conjuge(driver: webdriver.Chrome, dados_pagamento: Dict = None) -> bool:

@@ -52,7 +52,7 @@ const AWS_API_URL =
   "https://apitelaodigital.suportevca.com.br";
 
 // SEMPRE usa AWS (backend está na EC2)
-const apiUrl = AWS_API_URL;
+const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
 interface ApiResponse {
   unidades: string[][];
@@ -938,7 +938,7 @@ export function MainPage() {
     try {
       // Busca se existe PIX pendente
       const response = await axios.get(
-        `http://localhost:3001/api/pix/pending?implantacao=${encodeURIComponent(
+        `${apiUrl}/api/pix/pending?implantacao=${encodeURIComponent(
           implantacao
         )}&cliente=${encodeURIComponent(cliente)}&unidade=${encodeURIComponent(
           unidade
@@ -991,7 +991,7 @@ export function MainPage() {
       // Busca dados do PIX pendente e abre PixModal em modo visualização
       try {
         const response = await axios.get(
-          `http://localhost:3001/api/pix/pending?implantacao=${encodeURIComponent(
+          `${apiUrl}/api/pix/pending?implantacao=${encodeURIComponent(
             implantacao
           )}&cliente=${encodeURIComponent(
             cliente
