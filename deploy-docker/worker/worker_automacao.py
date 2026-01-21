@@ -181,7 +181,7 @@ def fazer_login(driver: webdriver.Chrome, usuario: str, senha: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Login falhou: {str(e)}")
-        driver.save_screenshot("erro_login.png")
+        save_screenshot_on_error(driver, prefix="erro_login")
         return False
 
 
@@ -213,7 +213,7 @@ def selecionar_corretor_e_confirmar(driver: webdriver.Chrome, nome_corretor: str
         return True
     except Exception as e:
         logger.error(f"Falha na seleção do corretor: {str(e)}")
-        driver.save_screenshot("erro_selecao_corretor.png")
+        save_screenshot_on_error(driver, prefix="erro_selecao_corretor")
         return False
 
 
@@ -340,7 +340,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
         return True
     except Exception as e:
         logger.error(f"Falha ao finalizar formulário: {e}")
-        driver.save_screenshot("erro_formulario_final.png")
+        save_screenshot_on_error(driver, prefix="erro_formulario_final")
         return False
 
 
@@ -562,7 +562,7 @@ def adicionar_serie(driver: webdriver.Chrome, serie_nome: str, qtd_parcelas: int
             
     except Exception as e:
         logger.error(f"Erro ao adicionar série '{serie_nome}': {e}")
-        driver.save_screenshot(f"erro_serie_{serie_nome}.png")
+        save_screenshot_on_error(driver, prefix=f"erro_serie_{serie_nome}")
         return False
 
 
@@ -725,7 +725,7 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
         
     except Exception as e:
         logger.error(f"Erro ao editar primeira série: {e}")
-        driver.save_screenshot("erro_editar_primeira_serie.png")
+        save_screenshot_on_error(driver, prefix="erro_editar_primeira_serie")
         # Garantir que sai do iframe em caso de erro
         try:
             driver.switch_to.default_content()
@@ -1050,7 +1050,7 @@ def processar_dados_conjuge(driver: webdriver.Chrome, dados_pagamento: Dict = No
         return preencher_formulario_final(driver, dados_pagamento)
     except Exception as e:
         logger.error(f"Falha ao avançar: {e}")
-        driver.save_screenshot("erro_avanco_final.png")
+        save_screenshot_on_error(driver, prefix="erro_avanco_final")
         return False
 
 
@@ -1185,7 +1185,7 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
         resultado["erro"] = str(e)
         resultado["etapa"] = "Processamento"
         logger.error(f"ERRO no ID {id_precadastro}: {str(e)}")
-        driver.save_screenshot(f"erro_{id_precadastro}.png")
+        save_screenshot_on_error(driver, prefix=f"erro_{id_precadastro}")
     
     finally:
         # Fechar janelas extras e voltar para a principal
