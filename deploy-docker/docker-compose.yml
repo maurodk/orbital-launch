@@ -29,8 +29,12 @@ services:
       - PYTHONUNBUFFERED=1
       - CVCRM_USER=${CVCRM_USER_1}
       - CVCRM_PASSWORD=${CVCRM_PASSWORD_1}
+      - SCREENSHOT_DIR=/app/screenshots
+      - CHROME_HEADLESS=true
     env_file:
       - .env
+    volumes:
+      - ./worker-screens:/app/screenshots
     depends_on:
       redis:
         condition: service_healthy
@@ -45,11 +49,34 @@ services:
       - PYTHONUNBUFFERED=1
       - CVCRM_USER=${CVCRM_USER_2}
       - CVCRM_PASSWORD=${CVCRM_PASSWORD_2}
+      - SCREENSHOT_DIR=/app/screenshots
+      - CHROME_HEADLESS=true
+    env_file:
+      - .env
+    volumes:
+      - ./worker-screens:/app/screenshots
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Backend API (expõe endpoints, incluindo os debug endpoints protegidos)
+  backend:
+    build: ./backend
+    container_name: telao_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SCREENSHOT_DIR=/app/screenshots
     env_file:
       - .env
     depends_on:
       redis:
         condition: service_healthy
+    volumes:
+      - ./worker-screens:/app/screenshots
 
 volumes:
   redis_data:

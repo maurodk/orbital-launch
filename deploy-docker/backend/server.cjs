@@ -1739,6 +1739,50 @@ app.get("/fullscreen/current", async (req, res) => {
 });
 
 // DEBUG: retorna o client_email do credentials.json e os títulos das abas do spreadsheet solicitado
+// ==============================================================
+// ENDPOINTS DE DEBUG: LISTAR / BAIXAR SCREENSHOTS (PROTEGIDOS)
+// Requer que o backend tenha acesso ao diretório de screenshots
+// (ex.: mesmo volume do worker montado no backend via docker-compose).
+// ==============================================================
+const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR || path.resolve(__dirname, "../worker/screenshots");
+
+app.get("/api/debug/screenshots", verifyToken, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || "200", 10) || 200, 1000);
+    if (!fs.existsSync(SCREENSHOT_DIR)) return res.json({ screenshots: [] });
+
+    const files = await fs.promises.readdir(SCREENSHOT_DIR);
+    const images = [];
+    for (const file of files) {
+      const ext = path.extname(file).toLowerCase();
+      if (![".png", ".jpg", ".jpeg", ".webp"].includes(ext)) continue;
+      const full = path.join(SCREENSHOT_DIR, file);
+      try {
+        const stat = await fs.promises.stat(full);
+        images.push({ file, size: stat.size, mtime: stat.mtime.getTime() });
+      } catch (e) {
+        // ignora arquivos que mudaram durante a leitura
+      }
+    }
+    images.sort((a, b) => b.mtime - a.mtime);
+    return res.json({ screenshots: images.slice(0, limit), dir: SCREENSHOT_DIR });
+  } catch (err) {
+    console.error('[DEBUG/SCRNSHT] erro listando screenshots', err);
+    return res.status(500).json({ error: 'erro interno' });
+  }
+});
+
+app.get("/api/debug/screenshots/:name", verifyToken, async (req, res) => {
+  try {
+    const name = sanitizeFilename(req.params.name);
+    const full = path.join(SCREENSHOT_DIR, name);
+    if (!fs.existsSync(full)) return res.status(404).json({ error: 'not found' });
+    return res.download(full, name);
+  } catch (err) {
+    console.error('[DEBUG/SCRNSHT] erro servindo screenshot', err);
+    return res.status(500).json({ error: 'erro interno' });
+  }
+});
 app.get("/api/debug/spreadsheet-meta", async (req, res) => {
   const spreadsheetId = req.query.spreadsheetId || SPREADSHEET_ID_IMPLANTACAO;
   try {

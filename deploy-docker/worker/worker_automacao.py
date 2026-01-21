@@ -80,10 +80,44 @@ def save_screenshot_on_error(driver, prefix: str = "error"):
         if driver:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{prefix}_{timestamp}.png"
-            driver.save_screenshot(filename)
-            logger.info(f"Screenshot salva: {filename}")
+            dest = os.path.join(SCREENSHOT_DIR, filename)
+            driver.save_screenshot(dest)
+            logger.info(f"Screenshot salva: {dest}")
+            # Rotacionar arquivos antigos
+            _prune_screenshots()
     except Exception as ex:
         logger.warning(f"Falha ao salvar screenshot: {ex}")
+
+
+# Diretório para armazenar screenshots (configurável por env)
+SCREENSHOT_DIR = os.getenv("SCREENSHOT_DIR", os.path.join(script_dir, "screenshots"))
+try:
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+except Exception as e:
+    logger.warning(f"Não foi possível criar SCREENSHOT_DIR '{SCREENSHOT_DIR}': {e}")
+
+# Máximo de screenshots a manter (rotaciona as mais antigas)
+try:
+    SCREENSHOT_MAX_FILES = int(os.getenv("SCREENSHOT_MAX_FILES", "200"))
+except Exception:
+    SCREENSHOT_MAX_FILES = 200
+
+
+def _prune_screenshots(max_files: int = SCREENSHOT_MAX_FILES):
+    try:
+        files = [os.path.join(SCREENSHOT_DIR, f) for f in os.listdir(SCREENSHOT_DIR) if f.lower().endswith('.png')]
+        if len(files) <= max_files:
+            return
+        files.sort(key=lambda p: os.path.getmtime(p))
+        to_remove = files[0: len(files) - max_files]
+        for f in to_remove:
+            try:
+                os.remove(f)
+                logger.info(f"Removido screenshot antigo: {f}")
+            except Exception as e:
+                logger.warning(f"Falha ao remover screenshot {f}: {e}")
+    except Exception as e:
+        logger.warning(f"Erro ao rotacionar screenshots: {e}")
 
 # ==============================================================================
 # --- CLIENTE SUPABASE ---
@@ -104,7 +138,10 @@ def criar_driver_headless() -> webdriver.Chrome:
     """Cria driver Chrome em modo headless para execução em background"""
     logger.info("Iniciando Chrome Driver...")
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    # Controle via variável de ambiente: em container recomendamos "true"
+    CHROME_HEADLESS = os.getenv("CHROME_HEADLESS", "true").lower() in ("1", "true", "yes")
+    if CHROME_HEADLESS:
+        chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
