@@ -947,7 +947,7 @@ export function PaymentModal({
                                   <div className="preview-item-info">
                                     <span className="preview-item-label">Valor Imóvel (original)</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(valorUnidade)}</span>
+                                  <span className="preview-item-value">{formatCurrency(valorUnidade ?? 0)}</span>
                                 </div>
 
                                 <div className="preview-row">
