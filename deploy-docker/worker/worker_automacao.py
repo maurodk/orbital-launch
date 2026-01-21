@@ -1360,6 +1360,29 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
 
 
 # ==============================================================================
+# --- SESSÃO / LOGIN HELPERS ---
+# ==============================================================================
+def is_logged_out(driver: webdriver.Chrome) -> bool:
+    """Verifica rapidamente se a página de login está presente.
+
+    Retorna True se o botão de login (xpath '//*[@id="formLogin"]/button')
+    estiver presente e visível, indicando que a sessão foi deslogada.
+    """
+    try:
+        elems = driver.find_elements(By.XPATH, '//*[@id="formLogin"]/button')
+        if elems:
+            for e in elems:
+                try:
+                    if e.is_displayed():
+                        return True
+                except Exception:
+                    continue
+        return False
+    except Exception:
+        return False
+
+
+# ==============================================================================
 # --- WORKER PRINCIPAL ---
 # ==============================================================================
 def main():
@@ -1408,7 +1431,23 @@ def main():
                 _, dados_json = item
                 job_data = json.loads(dados_json)
                 logger.info(f"Job recebido: {job_data}")
-                
+
+                # Verificar se estamos na página de login (sessão deslogada)
+                try:
+                    if is_logged_out(driver):
+                        logger.info("Sessão detectada como deslogada. Efetuando login novamente...")
+                        if not fazer_login(driver, CVCRM_EMAIL, CVCRM_SENHA):
+                            logger.error("Re-login falhou. Reiniciando driver e aguardando 60s...")
+                            try:
+                                driver.quit()
+                            except Exception:
+                                pass
+                            driver = None
+                            time.sleep(60)
+                            continue
+                except Exception as e:
+                    logger.warning(f"Erro ao checar/realizar re-login automático: {e}")
+
                 processar_reserva_job(driver, supabase, job_data)
             else:
                 # Timeout do blpop, apenas volta para o início do loop
