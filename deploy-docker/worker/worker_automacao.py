@@ -10,6 +10,7 @@ import os
 import json
 import redis
 from datetime import datetime
+import traceback
 from typing import Dict, List, Optional
 import calendar
 
@@ -71,6 +72,18 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def save_screenshot_on_error(driver, prefix: str = "error"):
+    """Tenta salvar um screenshot do `driver` com timestamp para debug."""
+    try:
+        if driver:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{prefix}_{timestamp}.png"
+            driver.save_screenshot(filename)
+            logger.info(f"Screenshot salva: {filename}")
+    except Exception as ex:
+        logger.warning(f"Falha ao salvar screenshot: {ex}")
 
 # ==============================================================================
 # --- CLIENTE SUPABASE ---
@@ -1369,11 +1382,20 @@ def main():
             time.sleep(5)
         except Exception as e:
             logger.error(f"Erro não tratado no loop principal: {e}")
+            try:
+                logger.error(traceback.format_exc())
+            except:
+                pass
+            # Tenta salvar screenshot para ajudar no debug
+            try:
+                save_screenshot_on_error(driver, prefix="loop_unhandled")
+            except Exception:
+                pass
             time.sleep(5)
             if driver:
                 try:
                     driver.quit()
-                except:
+                except Exception:
                     pass
                 driver = None
 
