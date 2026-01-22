@@ -1331,7 +1331,7 @@ def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: boo
         logger.error(f"Erro ao atualizar status do pagamento: {e}")
 
 
-def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool, rowIndex: Optional[int] = None):
+def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool, rowIndex: Optional[int] = None, implantacao: Optional[str] = None):
     """Notifica o backend interno para que ele possa broadcastar o status via SSE.
 
     Usa as variáveis de ambiente `BACKEND_INTERNAL_URL` (ou `BACKEND_URL`) e opcionalmente
@@ -1352,6 +1352,8 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
         }
         if rowIndex:
             payload["rowIndex"] = int(rowIndex)
+        if implantacao:
+            payload["implantacao"] = implantacao
 
         try:
             logger.info(f"notify_backend_status -> POST {url} payload={payload}")
@@ -1416,7 +1418,43 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         # Notificar backend para broadcast SSE (se configurado)
         try:
             unidade_notify = dados_reserva.get("unidade") or (pag and pag.get("unidade"))
-            notify_backend_status(pagamento_id, unidade_notify, resultado["sucesso"])
+            # Try to infer implantacao name and rowIndex to allow backend to write history in the correct sheet
+            implantacao_name = None
+            row_index_val = None
+            try:
+                if supabase:
+                    # Try to find unidade row (use ilike for permissive match)
+                    resp = supabase.table("unidades").select("implantacao_id, nome_unidade, row_index, linha, row").ilike("nome_unidade", f"%{unidade_notify}%").limit(1).execute()
+                    unidade_row = None
+                    if resp and getattr(resp, 'data', None):
+                        # resp.data may be a list
+                        if isinstance(resp.data, list) and len(resp.data) > 0:
+                            unidade_row = resp.data[0]
+                        elif isinstance(resp.data, dict):
+                            unidade_row = resp.data
+
+                    if unidade_row:
+                        implantacao_id = unidade_row.get("implantacao_id")
+                        # attempt to find a row index in common fields
+                        for k in ("row_index", "linha", "row", "rowIndex", "rowindex"):
+                            if unidade_row.get(k):
+                                row_index_val = unidade_row.get(k)
+                                break
+
+                        if implantacao_id:
+                            try:
+                                impl_resp = supabase.table("implantacoes").select("nome").eq("id", implantacao_id).limit(1).execute()
+                                if impl_resp and getattr(impl_resp, 'data', None):
+                                    if isinstance(impl_resp.data, list) and len(impl_resp.data) > 0:
+                                        implantacao_name = impl_resp.data[0].get("nome")
+                                    elif isinstance(impl_resp.data, dict):
+                                        implantacao_name = impl_resp.data.get("nome")
+                            except Exception:
+                                implantacao_name = None
+            except Exception:
+                implantacao_name = None
+
+            notify_backend_status(pagamento_id, unidade_notify, resultado["sucesso"], rowIndex=row_index_val, implantacao=implantacao_name)
         except Exception as e:
             logger.warning(f"Falha ao notificar backend após atualizar status do pagamento {pagamento_id}: {e}")
         
