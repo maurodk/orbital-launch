@@ -695,23 +695,73 @@ export function MainPage() {
       const handleUnitUpdate = async (event: MessageEvent) => {
         try {
           const eventData = JSON.parse(event.data);
-          const { unitData, rowIndex, pagamentos_status } = eventData;
+          const { unitData, rowIndex, pagamentos_status, unitName } = eventData;
 
-          if (!unitData || !rowIndex) return; // Ignore malformed
+          // Normalize helper
+          const normalize = (s: any) =>
+            (s || "")
+              .toString()
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[ -\u036f]/g, "")
+              .replace(/[ -\u036f]/g, "")
+              .replace(/[ -\u036f]/g, "")
+              .replace(/[ -\u036f]/g, "")
+              .replace(/[ -\u036f]/g, "")
+              .replace(/[\u0300-\u036f]/g, "")
+              .trim();
 
-          // Preencher índice 20 com o status do pagamento quando fornecido (compatibilidade)
-          if (typeof pagamentos_status !== "undefined" && Array.isArray(unitData)) {
-            unitData[20] = pagamentos_status;
+          // If full unitData provided and rowIndex present, replace that row
+          if (unitData && Array.isArray(unitData) && typeof rowIndex === "number") {
+            const idx = rowIndex - 2; // sheet rows -> unidades index
+            setUnidades((currentUnidades) => {
+              if (idx < 0 || idx >= currentUnidades.length) return currentUnidades;
+              const copy = currentUnidades.slice();
+              // ensure pagamentos_status compatibility
+              if (typeof pagamentos_status !== "undefined") {
+                unitData[20] = pagamentos_status;
+              }
+              copy[idx] = unitData;
+              return copy;
+            });
+            return;
           }
 
-          setUnidades((currentUnidades) =>
-            currentUnidades.map((unidade, index) => {
-              if (index === rowIndex - 2) {
-                return unitData;
+          // If only pagamentos_status (and rowIndex or unitName) provided, update single field
+          if (typeof pagamentos_status !== "undefined") {
+            setUnidades((currentUnidades) => {
+              const copy = currentUnidades.slice();
+
+              if (typeof rowIndex === "number") {
+                const idx = rowIndex - 2;
+                if (idx >= 0 && idx < copy.length) {
+                  const row = Array.isArray(copy[idx]) ? copy[idx].slice() : copy[idx];
+                  row[20] = pagamentos_status;
+                  copy[idx] = row;
+                }
+                return copy;
               }
-              return unidade;
-            })
-          );
+
+              if (unitName) {
+                const target = normalize(unitName);
+                for (let i = 0; i < copy.length; i++) {
+                  const name = normalize(copy[i][2]);
+                  if (name === target) {
+                    const row = Array.isArray(copy[i]) ? copy[i].slice() : copy[i];
+                    row[20] = pagamentos_status;
+                    copy[i] = row;
+                    break;
+                  }
+                }
+                return copy;
+              }
+
+              return currentUnidades;
+            });
+            return;
+          }
+
+          // otherwise ignore malformed events
         } catch (e) {
           console.error("Erro ao processar evento SSE:", e);
         }

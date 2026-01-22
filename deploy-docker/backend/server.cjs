@@ -1072,6 +1072,108 @@ async function addHistoryEntry(
 }
 
 // =================================================================
+// Supabase Realtime: Subscribe to pagamentos table and broadcast updates
+// =================================================================
+async function setupPagamentosRealtime() {
+  if (!supabase) {
+    console.warn('[REALTIME] Supabase não configurado — pulando subscription de pagamentos');
+    return;
+  }
+
+  try {
+    console.log('[REALTIME] Inicializando subscription para tabela pagamentos...');
+
+    const channel = supabase
+      .channel('realtime:pagamentos')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pagamentos' },
+        async (payload) => {
+          try {
+            const ev = payload.event || payload.eventType || 'unknown';
+            const record = payload.new || payload.record || payload;
+            const status = record && record.status;
+            const unidade = record && (record.unidade || record.nome_unidade || null);
+            const pagamento_id = record && record.id;
+
+            // Try to infer implantacao and rowIndex from 'unidades' table
+            let implantacaoName = null;
+            let rowIndex = null;
+            if (unidade) {
+              try {
+                const resp = await supabase
+                  .from('unidades')
+                  .select('implantacao_id, nome_unidade, row_index, linha, row')
+                  .ilike('nome_unidade', `%${unidade}%`)
+                  .limit(1)
+                  .execute();
+
+                let unidade_row = null;
+                if (resp && resp.data) {
+                  unidade_row = Array.isArray(resp.data) ? resp.data[0] : resp.data;
+                }
+
+                if (unidade_row) {
+                  rowIndex = unidade_row.row_index || unidade_row.linha || unidade_row.row || null;
+                  const implantacao_id = unidade_row.implantacao_id;
+                  if (implantacao_id) {
+                    try {
+                      const implResp = await supabase
+                        .from('implantacoes')
+                        .select('nome')
+                        .eq('id', implantacao_id)
+                        .limit(1)
+                        .execute();
+                      if (implResp && implResp.data) {
+                        const implData = Array.isArray(implResp.data) ? implResp.data[0] : implResp.data;
+                        implantacaoName = implData ? implData.nome : null;
+                      }
+                    } catch (e) {
+                      // non-blocking
+                    }
+                  }
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+
+            const out = { unitName: unidade, pagamento_id, pagamentos_status: status };
+            if (rowIndex) out.rowIndex = rowIndex;
+
+            if (implantacaoName) {
+              await broadcastEvent(implantacaoName, 'unitUpdated', out);
+              console.log('[REALTIME] Broadcast pago ->', implantacaoName, out);
+            } else {
+              // Broadcast to all implantacoes as fallback
+              for (const imp of Array.from(sseClients.keys())) {
+                try {
+                  await broadcastEvent(imp, 'unitUpdated', out);
+                } catch (e) {
+                  console.warn('[REALTIME] Falha ao broadcast para', imp, e && e.message);
+                }
+              }
+              console.log('[REALTIME] Broadcast pago para todas implantações (fallback)', out);
+            }
+          } catch (err) {
+            console.error('[REALTIME] Erro ao processar evento pagamentos:', err && err.message ? err.message : err);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[REALTIME] subscription status for pagamentos channel:', status);
+      });
+
+    // Monitor subscription lifecycle
+    channel.on('visibility_change', (v) => {
+      console.log('[REALTIME] visibility_change:', v);
+    });
+  } catch (e) {
+    console.error('[REALTIME] Não foi possível inicializar subscription de pagamentos:', e && e.message ? e.message : e);
+  }
+}
+
+// =================================================================
 // 6. ENDPOINTS DA API
 // =================================================================
 
@@ -5877,4 +5979,11 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✓ Servidor rodando na porta ${PORT}`);
   console.log(`✓ Acesse em http://localhost:${PORT}`);
+
+  // Inicia listeners Realtime para pagamentos (não bloqueante)
+  try {
+    setupPagamentosRealtime();
+  } catch (e) {
+    console.warn('[REALTIME] falha ao iniciar listeners de pagamentos:', e && e.message ? e.message : e);
+  }
 });

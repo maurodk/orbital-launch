@@ -240,13 +240,21 @@ export function ReservationList({
                           <span className={`status-badge ${normalizedStatus}`}>
                             <span className="status-icon">
                               {isAvailable && <FiCheckCircle title="Disponível" />}
-                              {isReserved && (
-                                workerStatus === "processado" ? (
-                                  <FiCheckCircle title="Reserva processada no CVCRM" />
-                                ) : (
-                                  <FiXCircle title="Erro ao processar reserva no CVCRM" />
-                                )
-                              )}
+                              {isReserved && (() => {
+                                const ws = (workerStatus || "").toLowerCase().trim();
+                                if (ws === "processado" || ws === "processed" || ws === "ok") {
+                                  return <FiCheckCircle title="Reserva processada no CVCRM" style={{ color: "#10b981" }} />;
+                                }
+                                if (ws === "erro" || ws === "error" || ws === "failed" || ws === "falha") {
+                                  return <FiAlertCircle title="Erro ao processar reserva no CVCRM" style={{ color: "#ef4444" }} />;
+                                }
+                                // pending / registrado
+                                if (ws === "pendente" || ws === "pending" || ws === "registrado") {
+                                  return <FiClock title="Processamento pendente" style={{ color: "#f59e0b" }} />;
+                                }
+                                // fallback: show pending icon subtle
+                                return <FiClock title="Processamento pendente" style={{ color: "#f59e0b" }} />;
+                              })()}
                               {!isAvailable && !isReserved && <FiAlertCircle title="Status desconhecido" />}
                             </span>
                             <span className="status-text">{rawStatus}</span>
