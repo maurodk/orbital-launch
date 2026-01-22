@@ -9,7 +9,6 @@ import {
   FiClock,
   FiUserPlus,
   FiEdit,
-  FiCheckCircle,
   FiAlertCircle,
   FiDollarSign,
   FiRefreshCw,
