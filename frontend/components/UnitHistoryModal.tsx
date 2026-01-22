@@ -126,6 +126,5 @@ export function UnitHistoryModal({
         }
       `}</style>
     </div>
-  </div>
   );
 }
