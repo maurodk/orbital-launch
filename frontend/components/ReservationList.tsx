@@ -622,6 +622,42 @@ export function ReservationList({
           `}</style>
         </div>
       )}
+      {/* Local table styles to keep rows aligned */}
+      <style>{`
+        .reservation-table th,
+        .reservation-table td {
+          vertical-align: middle;
+          padding: 12px 16px;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .reservation-table tbody tr { box-sizing: border-box; }
+
+        .reservation-table .unit-cell { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+
+        .reservation-table .unit-name {
+          display: inline-block;
+          max-width: 220px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-size: 14px;
+          font-weight: 500;
+          color: #d6d6d6;
+          line-height: 1.15;
+        }
+
+        .reservation-table .cvcrm-icon { width: 16px; height: 16px; display: inline-block; vertical-align: middle; }
+
+        .reservation-table .status-badge { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 4px 10px; border-radius: 6px; }
+
+        .reservation-table .action-buttons-cell { display: flex; gap: 8px; align-items: center; }
+
+        .reservation-table td:nth-child(3) { white-space: normal; }
+      `}</style>
     </div>
   );
 }
