@@ -299,36 +299,36 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
             else:
                 # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
                 if plano_selecionado == "plano1":
-                if valor_unidade_total is None:
-                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
-                else:
-                    setattr(adicionar_series_plano1, "plano2", False)
-                    if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
-                        logger.warning("Falha ao adicionar séries do plano 1")
-            elif plano_selecionado == "plano2":
-                if valor_unidade_total is None:
-                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 2 corretamente")
-                else:
-                    setattr(adicionar_series_plano1, "plano2", True)
-                    if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
-                        logger.warning("Falha ao adicionar séries do plano 2")
-            elif plano_selecionado == "plano3":
-                if valor_unidade_total is None:
-                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 3")
-                elif not adicionar_series_plano3(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
-                    logger.warning("Falha ao adicionar séries do plano 3")
-            elif plano_selecionado == "plano4":
-                if valor_unidade_total is None:
-                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 4")
-                else:
-                    if not adicionar_series_plano4(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
-                        logger.warning("Falha ao adicionar séries do plano 4")
-            elif plano_selecionado == "plano5":
-                if valor_unidade_total is None:
-                    logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 5")
-                else:
-                    if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
-                        logger.warning("Falha ao adicionar séries do plano 5")
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
+                    else:
+                        setattr(adicionar_series_plano1, "plano2", False)
+                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                            logger.warning("Falha ao adicionar séries do plano 1")
+                elif plano_selecionado == "plano2":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 2 corretamente")
+                    else:
+                        setattr(adicionar_series_plano1, "plano2", True)
+                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                            logger.warning("Falha ao adicionar séries do plano 2")
+                elif plano_selecionado == "plano3":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 3")
+                    elif not adicionar_series_plano3(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        logger.warning("Falha ao adicionar séries do plano 3")
+                elif plano_selecionado == "plano4":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 4")
+                    else:
+                        if not adicionar_series_plano4(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                            logger.warning("Falha ao adicionar séries do plano 4")
+                elif plano_selecionado == "plano5":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 5")
+                    else:
+                        if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                            logger.warning("Falha ao adicionar séries do plano 5")
             # Outros planos serão implementados depois
             
         except Exception as e:
