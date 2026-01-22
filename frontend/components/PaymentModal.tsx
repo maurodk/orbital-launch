@@ -571,6 +571,38 @@ export function PaymentModal({
               </span>
             </label>
           </div>
+          {/* TIPO DE VENDA - sempre visível (não depende de pagamento presencial) */}
+          <div className="payment-card">
+            <div className="card-header">
+              <span className="card-icon">🏦</span>
+              <span className="card-title">Tipo de Venda</span>
+            </div>
+            <div className="payment-options">
+              {[
+                { value: "cef", label: "CEF", icon: "🏛️" },
+                { value: "facilita", label: "Facilita", icon: "⚡" },
+              ].map((type) => (
+                <label 
+                  key={type.value} 
+                  className={`option-pill ${tipoVenda === type.value ? "selected" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="tipoVenda"
+                    value={type.value}
+                    checked={tipoVenda === type.value}
+                    onChange={(e) => {
+                      setTipoVenda(e.target.value as "cef" | "facilita");
+                      setPlanosPadrao(false);
+                      setPlanoSelecionado(null);
+                    }}
+                  />
+                  <span className="option-icon">{type.icon}</span>
+                  <span className="option-label">{type.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           {pagamentoPresencial && (
             <div className="payment-details-container slide-down">
@@ -673,41 +705,8 @@ export function PaymentModal({
                 </span>
               </div>
 
-              {/* TIPO DE VENDA */}
-              <div className="payment-card">
-                <div className="card-header">
-                  <span className="card-icon">🏦</span>
-                  <span className="card-title">Tipo de Venda</span>
-                </div>
-                <div className="payment-options">
-                  {[
-                    { value: "cef", label: "CEF", icon: "🏛️" },
-                    { value: "facilita", label: "Facilita", icon: "⚡" },
-                  ].map((type) => (
-                    <label 
-                      key={type.value} 
-                      className={`option-pill ${tipoVenda === type.value ? "selected" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="tipoVenda"
-                        value={type.value}
-                        checked={tipoVenda === type.value}
-                        onChange={(e) => {
-                          setTipoVenda(e.target.value as "cef" | "facilita");
-                          setPlanosPadrao(false);
-                          setPlanoSelecionado(null);
-                        }}
-                      />
-                      <span className="option-icon">{type.icon}</span>
-                      <span className="option-label">{type.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* PLANO PADRÃO (apenas para Facilita) */}
-              {tipoVenda === "facilita" && (
+              {/* PLANO PADRÃO (apenas para Facilita e apenas quando há pagamento presencial) */}
+              {pagamentoPresencial && tipoVenda === "facilita" && (
                 <div className="payment-card slide-down">
                   <div className="card-header">
                     <span className="card-icon">📋</span>
