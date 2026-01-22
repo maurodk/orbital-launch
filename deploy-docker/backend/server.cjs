@@ -295,6 +295,48 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Endpoint interno para notificações do worker sobre processamento de pagamentos
+// Body esperado: { unidade, pagamento_id, status, rowIndex?, implantacao? }
+app.post("/internal/notify-payment-processed", async (req, res) => {
+  try {
+    const secret = process.env.INTERNAL_NOTIFY_SECRET;
+    if (secret) {
+      const header = req.headers["x-internal-secret"] || req.headers["x-internal-token"];
+      if (!header || header !== secret) {
+        console.warn("/internal/notify-payment-processed: secret mismatch or missing");
+        return res.status(403).json({ error: "forbidden" });
+      }
+    }
+
+    const { unidade, pagamento_id, status, rowIndex, implantacao } = req.body || {};
+    if (!unidade && !pagamento_id) {
+      return res.status(400).json({ error: "unidade or pagamento_id required" });
+    }
+
+    const payload = { unitName: unidade, pagamento_id, pagamentos_status: status, rowIndex };
+
+    // If client provided an implantacao name, broadcast there; otherwise broadcast to all
+    if (implantacao) {
+      await broadcastEvent(implantacao, "unitUpdated", payload);
+      console.log("[INTERNAL] Notified implantacao:", implantacao, "payload:", payload);
+    } else {
+      for (const imp of Array.from(sseClients.keys())) {
+        try {
+          await broadcastEvent(imp, "unitUpdated", payload);
+        } catch (e) {
+          console.warn("[INTERNAL] failed broadcasting to implantacao", imp, e && e.message);
+        }
+      }
+      console.log("[INTERNAL] Broadcasted notification to all implantacoes", payload);
+    }
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("/internal/notify-payment-processed error:", e && e.message ? e.message : e);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
 // Configuração do multer para upload de arquivos
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -463,13 +505,29 @@ async function broadcastEvent(implantacao, event, data) {
       }
 
       if (unidadeNome) {
-        const pagamentosResp = await supabase
+        // 1) Tenta busca exata por unidade
+        let pagamentosResp = await supabase
           .from("pagamentos")
           .select("status, unidade, data_processamento")
           .eq("unidade", unidadeNome)
           .order("data_processamento", { ascending: false })
           .limit(1)
           .single();
+
+        // 2) Se não encontrou, tenta busca parcial com ilike (mais permissiva)
+        if ((!pagamentosResp || !pagamentosResp.data) && unidadeNome) {
+          try {
+            pagamentosResp = await supabase
+              .from("pagamentos")
+              .select("status, unidade, data_processamento")
+              .ilike("unidade", `%${unidadeNome}%`)
+              .order("data_processamento", { ascending: false })
+              .limit(1)
+              .single();
+          } catch (e) {
+            // ignora
+          }
+        }
 
         if (pagamentosResp && pagamentosResp.data && pagamentosResp.data.status) {
           eventPayload.pagamentos_status = pagamentosResp.data.status;

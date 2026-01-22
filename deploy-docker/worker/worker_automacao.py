@@ -47,6 +47,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # Supabase
 from supabase import create_client, Client
+import requests
 
 # ==============================================================================
 # --- CONFIGURAÇÕES ---
@@ -1330,6 +1331,37 @@ def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: boo
         logger.error(f"Erro ao atualizar status do pagamento: {e}")
 
 
+def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool, rowIndex: Optional[int] = None):
+    """Notifica o backend interno para que ele possa broadcastar o status via SSE.
+
+    Usa as variáveis de ambiente `BACKEND_INTERNAL_URL` (ou `BACKEND_URL`) e opcionalmente
+    `INTERNAL_NOTIFY_SECRET` para autenticação.
+    """
+    try:
+        base = os.getenv("BACKEND_INTERNAL_URL") or os.getenv("BACKEND_URL") or "http://localhost:3000"
+        url = base.rstrip("/") + "/internal/notify-payment-processed"
+        headers = {"Content-Type": "application/json"}
+        secret = os.getenv("INTERNAL_NOTIFY_SECRET")
+        if secret:
+            headers["x-internal-secret"] = secret
+
+        payload = {
+            "pagamento_id": pagamento_id,
+            "unidade": unidade,
+            "status": "processado" if sucesso else "erro",
+        }
+        if rowIndex:
+            payload["rowIndex"] = int(rowIndex)
+
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=5)
+            logger.info(f"Notified backend of payment {pagamento_id}: {resp.status_code}")
+        except requests.RequestException as e:
+            logger.warning(f"Falha ao notificar backend para pagamento {pagamento_id}: {e}")
+    except Exception as e:
+        logger.error(f"Erro em notify_backend_status: {e}")
+
+
 # ==============================================================================
 # --- PROCESSAMENTO DE JOBS (REDIS) ---
 # ==============================================================================
@@ -1380,10 +1412,25 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         
         # Atualizar status no Supabase
         atualizar_status_pagamento(supabase, pagamento_id, resultado["sucesso"], resultado.get("erro"))
+        # Notificar backend para broadcast SSE (se configurado)
+        try:
+            unidade_notify = dados_reserva.get("unidade") or (pag and pag.get("unidade"))
+            notify_backend_status(pagamento_id, unidade_notify, resultado["sucesso"])
+        except Exception as e:
+            logger.warning(f"Falha ao notificar backend após atualizar status do pagamento {pagamento_id}: {e}")
         
     except Exception as e:
         logger.error(f"Erro ao processar job {pagamento_id}: {e}")
         atualizar_status_pagamento(supabase, pagamento_id, False, str(e))
+        try:
+            unidade_notify = None
+            try:
+                unidade_notify = pag.get("unidade") if pag else None
+            except Exception:
+                unidade_notify = None
+            notify_backend_status(pagamento_id, unidade_notify, False)
+        except Exception as _:
+            pass
 
 
 # ==============================================================================
