@@ -1354,6 +1354,7 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
             payload["rowIndex"] = int(rowIndex)
 
         try:
+            logger.info(f"notify_backend_status -> POST {url} payload={payload}")
             resp = requests.post(url, json=payload, headers=headers, timeout=5)
             logger.info(f"Notified backend of payment {pagamento_id}: {resp.status_code}")
         except requests.RequestException as e:
