@@ -640,6 +640,28 @@ export function ReservationList({
 
         .action-cell { width: 220px; }
         .action-buttons-cell { display: flex; gap: 8px; align-items: center; }
+
+        /* Responsive adjustments for portrait / narrow screens */
+        @media (max-width: 900px) {
+          .unit-name { max-width: 160px; font-size: 13px; }
+          .client-cell, .broker-cell { max-width: 140px; }
+          .action-cell { width: auto; }
+          .action-buttons-cell { flex-wrap: wrap; gap: 6px; }
+          .action-buttons-cell button { padding: 6px 8px; min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+          .action-buttons-cell button .button-text { display: none; }
+          .action-buttons-cell .pix-button-in-table img { width: 18px; height: 18px; }
+        }
+
+        /* Even narrower screens — show compact icons and allow horizontal scroll if needed */
+        @media (max-width: 480px) {
+          .reservation-table th, .reservation-table td { padding: 10px 8px; }
+          .unit-cell { min-width: 140px; }
+          .unit-name { max-width: 120px; font-size: 13px; }
+          .typology-cell { display: none; }
+          .client-cell, .broker-cell { display: none; }
+          .action-buttons-cell { gap: 6px; }
+          .table-wrapper { overflow-x: auto; }
+        }
       `}</style>
     </div>
   );
