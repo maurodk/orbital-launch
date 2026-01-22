@@ -257,67 +257,43 @@ export function ReservationList({
                   return (
                     <tr key={unitData[2] || originalIndex}>
                       {isSelectionMode && (
-                        <td style={{ textAlign: "center", padding: "8px" }}>
+                        <td className="selection-cell">
                           <input
                             type="checkbox"
                             checked={selectedUnits.has(originalIndex)}
-                            onChange={() =>
-                              onToggleUnitSelection(originalIndex)
-                            }
-                            style={{
-                              cursor: "pointer",
-                              width: "16px",
-                              height: "16px",
-                            }}
+                            onChange={() => onToggleUnitSelection(originalIndex)}
+                            aria-label={`Selecionar ${unitData[2]}`}
+                            className="selection-checkbox"
                           />
                         </td>
                       )}
-                      <td style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span>{unitData[2]}</span>
-                        {processingIcon}
+
+                      <td className="unit-cell">
+                        <div className="unit-content">
+                          <span className="unit-name" title={unitData[2]}>{unitData[2]}</span>
+                          {processingIcon}
+                        </div>
                       </td>
-                      <td
-                        style={{
-                          whiteSpace: "normal",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {tipologia}
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "6px",
-                            alignItems: "center",
-                          }}
-                        >
+
+                      <td className="typology-cell">{tipologia}</td>
+
+                      <td className="status-cell">
+                        <div className="status-inner">
                           <span className={`status-badge ${normalizedStatus}`}>{rawStatus}</span>
-                          {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
                       </td>
                       {isBlocked && motivo ? (
-                        <td
-                          colSpan={2}
-                          style={{
-                            backgroundColor: "#3a2a2a",
-                            fontStyle: "italic",
-                            color: "#ffa500",
-                            padding: "12px",
-                            textAlign: "left",
-                            borderLeft: "3px solid #ffa500",
-                          }}
-                        >
-                          <strong>Motivo do bloqueio:</strong> {motivo}
+                        <td colSpan={2} className="blocked-cell">
+                          <strong>Motivo do bloqueio:</strong>&nbsp;{motivo}
                         </td>
                       ) : (
                         <>
-                          <td>{clientName}</td>
-                          <td>{brokerName}</td>
+                          <td className="client-cell">{clientName}</td>
+                          <td className="broker-cell">{brokerName}</td>
                         </>
                       )}
-                      <td>
+
+                      <td className="action-cell">
                         <div className="action-buttons-cell">
                           {/* --- Botão de Histórico (SEMPRE VISÍVEL) --- */}
                           <button
@@ -624,39 +600,46 @@ export function ReservationList({
       )}
       {/* Local table styles to keep rows aligned */}
       <style>{`
+        .reservation-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
         .reservation-table th,
         .reservation-table td {
           vertical-align: middle;
           padding: 12px 16px;
           line-height: 1.2;
-          white-space: nowrap;
           overflow: hidden;
-          text-overflow: ellipsis;
         }
 
-        .reservation-table tbody tr { box-sizing: border-box; }
-
-        .reservation-table .unit-cell { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
-
-        .reservation-table .unit-name {
-          display: inline-block;
-          max-width: 220px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          font-size: 14px;
-          font-weight: 500;
-          color: #d6d6d6;
-          line-height: 1.15;
+        .reservation-table thead th {
+          text-align: left;
+          font-size: 12px;
+          color: #9ca3af;
+          padding: 14px 16px;
         }
 
-        .reservation-table .cvcrm-icon { width: 16px; height: 16px; display: inline-block; vertical-align: middle; }
+        .selection-cell { width: 40px; text-align: center; }
+        .selection-checkbox { width: 16px; height: 16px; cursor: pointer; }
 
-        .reservation-table .status-badge { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 4px 10px; border-radius: 6px; }
+        .unit-cell { min-width: 220px; }
+        .unit-content { display: inline-flex; align-items: center; gap: 8px; }
+        .unit-name { display: inline-block; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 500; color: #d6d6d6; }
+        .cvcrm-icon { width: 16px; height: 16px; display: inline-block; }
 
-        .reservation-table .action-buttons-cell { display: flex; gap: 8px; align-items: center; }
+        .typology-cell { max-width: 240px; white-space: normal; word-break: break-word; }
 
-        .reservation-table td:nth-child(3) { white-space: normal; }
+        .status-cell { text-align: center; width: 140px; }
+        .status-inner { display: flex; align-items: center; justify-content: center; }
+        .status-badge { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 4px 10px; border-radius: 6px; }
+
+        .client-cell, .broker-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .blocked-cell { background-color: #3a2a2a; font-style: italic; color: #ffa500; padding: 12px; text-align: left; border-left: 3px solid #ffa500; }
+
+        .action-cell { width: 220px; }
+        .action-buttons-cell { display: flex; gap: 8px; align-items: center; }
       `}</style>
     </div>
   );
