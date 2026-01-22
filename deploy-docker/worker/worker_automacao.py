@@ -1095,6 +1095,15 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
         url_precadastro = f"{URL_BASE_SISTEMA}comercial/precadastro/{id_precadastro}/administrar"
         driver.get(url_precadastro)
         logger.info("Página de pré-cadastro carregada")
+
+        # Se por algum motivo fomos redirecionados ao login, tentar re-login e recarregar
+        if is_logged_out(driver):
+            logger.warning("Detectado redirecionamento ao login ao abrir pré-cadastro; tentando re-login...")
+            if not ensure_logged_in(driver, attempts=2):
+                raise Exception("Não foi possível re-logar ao abrir pré-cadastro")
+            # Recarregar a página do pré-cadastro após re-login
+            driver.get(url_precadastro)
+            time.sleep(1)
         
         # Aprovar pré-cadastro se necessário
         logger.info("Verificando necessidade de aprovação...")
@@ -1346,8 +1355,13 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         }
 
         # Garantir estado limpo (voltar para home) antes de começar
-        driver.get(URL_BASE_SISTEMA) 
-        
+        driver.get(URL_BASE_SISTEMA)
+        # Se a navegação redirecionou para login, tentar re-login
+        if is_logged_out(driver):
+            logger.info("Sessão expirada antes de processar job; tentando re-login...")
+            if not fazer_login(driver, CVCRM_EMAIL, CVCRM_SENHA):
+                raise Exception("Re-login automático falhou antes de processar job")
+
         # Chamar a função de automação existente
         resultado = processar_precadastro(driver, dados_reserva)
         
@@ -1369,16 +1383,78 @@ def is_logged_out(driver: webdriver.Chrome) -> bool:
     estiver presente e visível, indicando que a sessão foi deslogada.
     """
     try:
-        elems = driver.find_elements(By.XPATH, '//*[@id="formLogin"]/button')
-        if elems:
+        # 1) Presença do botão do formulário de login
+        try:
+            elems = driver.find_elements(By.XPATH, '//*[@id="formLogin"]/button')
             for e in elems:
                 try:
                     if e.is_displayed():
                         return True
                 except Exception:
                     continue
+        except Exception:
+            pass
+
+        # 2) Campos de email/senha visíveis
+        try:
+            email_fields = driver.find_elements(By.ID, "email")
+            for f in email_fields:
+                try:
+                    if f.is_displayed():
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        try:
+            senha_fields = driver.find_elements(By.ID, "senha")
+            for f in senha_fields:
+                try:
+                    if f.is_displayed():
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # 3) URL indicando rota de login (fallback)
+        try:
+            url = driver.current_url
+            if url and ("/login" in url or "/entrar" in url or "/formLogin" in url):
+                return True
+        except Exception:
+            pass
+
         return False
     except Exception:
+        return False
+
+
+def ensure_logged_in(driver: webdriver.Chrome, attempts: int = 1) -> bool:
+    """Tenta garantir que a sessão esteja ativa; realiza re-login se necessário.
+
+    Retorna True se estiver logado após a verificação/tentativas, False caso contrário.
+    """
+    try:
+        if not is_logged_out(driver):
+            return True
+
+        logger.info("Tela de login detectada — iniciando re-login automático")
+        for i in range(attempts):
+            try:
+                if fazer_login(driver, CVCRM_EMAIL, CVCRM_SENHA):
+                    time.sleep(1)
+                    if not is_logged_out(driver):
+                        logger.info("Re-login automático bem-sucedido")
+                        return True
+            except Exception as e:
+                logger.warning(f"Tentativa {i+1} de re-login falhou: {e}")
+
+        logger.error("Não foi possível recuperar sessão via re-login automático")
+        return False
+    except Exception as e:
+        logger.error(f"Erro em ensure_logged_in: {e}")
         return False
 
 
