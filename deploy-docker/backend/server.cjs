@@ -330,6 +330,123 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       console.log("[INTERNAL] Broadcasted notification to all implantacoes", payload);
     }
 
+    // Additionally, try to record this event in the historico (Sheets + Supabase)
+    try {
+      let implantacaoName = implantacao || null;
+      let clienteName = null;
+      let corretorName = null;
+
+      // If pagamento_id provided, try to fetch related cliente info
+      if (pagamento_id) {
+        try {
+          const { data: pagData } = await supabase
+            .from('pagamentos')
+            .select('unidade, cliente_id')
+            .eq('id', pagamento_id)
+            .single();
+          if (pagData) {
+            if (!unidade && pagData.unidade) unidade = pagData.unidade;
+            const clienteId = pagData.cliente_id;
+            if (clienteId) {
+              const { data: clienteRow } = await supabase
+                .from('clientes')
+                .select('nome, corretor')
+                .eq('id', clienteId)
+                .limit(1)
+                .single();
+              if (clienteRow) {
+                clienteName = clienteRow.nome || null;
+                corretorName = clienteRow.corretor || null;
+              }
+            }
+          }
+        } catch (e) {
+          // non-blocking
+        }
+      }
+
+      // If implantacao not provided, attempt to infer by matching unidade in 'unidades'
+      if (!implantacaoName && unidade) {
+        try {
+          const { data: unidadeRow } = await supabase
+            .from('unidades')
+            .select('implantacao_id, nome_unidade')
+            .ilike('nome_unidade', `%${unidade}%`)
+            .limit(1)
+            .single();
+          if (unidadeRow && unidadeRow.implantacao_id) {
+            const { data: impl } = await supabase
+              .from('implantacoes')
+              .select('nome')
+              .eq('id', unidadeRow.implantacao_id)
+              .limit(1)
+              .single();
+            if (impl && impl.nome) implantacaoName = impl.nome;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const acao = status === 'processado' ? 'Reserva processada (Worker)' : 'Erro ao processar reserva (Worker)';
+
+      if (implantacaoName) {
+        try {
+          const sheets = await getSheetsClient();
+          await addHistoryEntry(sheets, implantacaoName, unidade || null, acao, clienteName, corretorName, 'Worker');
+        } catch (e) {
+          console.warn('[INTERNAL] Falha ao gravar histórico via Sheets, attempting Supabase only', e && e.message);
+          // fallback to Supabase only
+          try {
+            const { data: implData } = await supabase
+              .from('implantacoes')
+              .select('id')
+              .eq('nome', implantacaoName)
+              .limit(1)
+              .single();
+            const implantacao_id = implData ? implData.id : null;
+            await supabase.from('historico').insert({
+              timestamp_iso: new Date().toISOString(),
+              data_formatada: null,
+              unidade_nome: unidade || null,
+              acao,
+              cliente: clienteName || null,
+              corretor: corretorName || null,
+              implantacao_id: implantacao_id,
+            });
+            // notify clients about history update
+            await broadcastEvent(implantacaoName, 'historyUpdated', { message: `Novo evento: ${acao}` });
+          } catch (e2) {
+            console.error('[INTERNAL] Falha ao gravar histórico no Supabase também:', e2 && e2.message);
+          }
+        }
+      } else {
+        // If we couldn't infer implantacao, write to Supabase historico without implantacao_id
+        try {
+          await supabase.from('historico').insert({
+            timestamp_iso: new Date().toISOString(),
+            data_formatada: null,
+            unidade_nome: unidade || null,
+            acao,
+            cliente: clienteName || null,
+            corretor: corretorName || null,
+          });
+          // Broadcast to all connected clients so they can refresh histories generically
+          for (const imp of Array.from(sseClients.keys())) {
+            try {
+              await broadcastEvent(imp, 'historyUpdated', { message: `Novo evento: ${acao}` });
+            } catch (e) {
+              // ignore
+            }
+          }
+        } catch (e) {
+          console.error('[INTERNAL] Falha ao gravar histórico sem implantacao:', e && e.message);
+        }
+      }
+    } catch (e) {
+      console.warn('[INTERNAL] Erro ao tentar gravar histórico a partir da notificação:', e && e.message ? e.message : e);
+    }
+
     return res.json({ success: true });
   } catch (e) {
     console.error("/internal/notify-payment-processed error:", e && e.message ? e.message : e);
