@@ -1424,7 +1424,7 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
             try:
                 if supabase:
                     # Try to find unidade row (use ilike for permissive match)
-                    resp = supabase.table("unidades").select("implantacao_id, nome_unidade, row_index, linha, row").ilike("nome_unidade", f"%{unidade_notify}%").limit(1).execute()
+                    resp = supabase.table("unidades").select("implantacao_id, nome_unidade").ilike("nome_unidade", f"%{unidade_notify}%").limit(1).execute()
                     unidade_row = None
                     if resp and getattr(resp, 'data', None):
                         # resp.data may be a list
@@ -1435,11 +1435,10 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
 
                     if unidade_row:
                         implantacao_id = unidade_row.get("implantacao_id")
-                        # attempt to find a row index in common fields
-                        for k in ("row_index", "linha", "row", "rowIndex", "rowindex"):
-                            if unidade_row.get(k):
-                                row_index_val = unidade_row.get(k)
-                                break
+                        # rowIndex fields are not reliably present in the 'unidades' table; keep row_index lookup optional
+                        # if the deployment has a custom column for the sheet row, add it to the select above.
+                        if unidade_row.get("row_index"):
+                            row_index_val = unidade_row.get("row_index")
 
                         if implantacao_id:
                             try:

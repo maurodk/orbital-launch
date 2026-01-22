@@ -1103,7 +1103,7 @@ async function setupPagamentosRealtime() {
               try {
                 const resp = await supabase
                   .from('unidades')
-                  .select('implantacao_id, nome_unidade, row_index, linha, row')
+                  .select('implantacao_id, nome_unidade')
                   .ilike('nome_unidade', `%${unidade}%`)
                   .limit(1)
                   .execute();
@@ -1114,7 +1114,8 @@ async function setupPagamentosRealtime() {
                 }
 
                 if (unidade_row) {
-                  rowIndex = unidade_row.row_index || unidade_row.linha || unidade_row.row || null;
+                  // rowIndex/linha/row não existem por padrão na tabela 'unidades' em muitas implantações.
+                  // Mantemos apenas implantacao_id e nome_unidade; rowIndex ficará null quando não disponível.
                   const implantacao_id = unidade_row.implantacao_id;
                   if (implantacao_id) {
                     try {
