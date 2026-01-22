@@ -204,6 +204,57 @@ export function ReservationList({
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia
                   const motivo = unitData[19] || ""; // Coluna T - motivo (assumindo que está nessa posição)
 
+                  // Determina ícone de processamento a partir do histórico (ou workerStatus)
+                  const processingIcon = (() => {
+                    try {
+                      const unitName = unitData[2];
+                      if (!unitName || !fullHistory || fullHistory.length === 0) return null;
+
+                      const entriesForUnit = fullHistory.filter((row) => row[2] === unitName && row[3]);
+                      const texts = entriesForUnit.map((r) => (r[3] || "").toString());
+
+                      if (texts.some((t) => t.includes("Reserva processada (Worker)"))) {
+                        // Preferência: usar ícone local `/cvcrm.ico` quando disponível; fallback para FiCheckCircle
+                        return (
+                          <img
+                            src="/cvcrm.ico"
+                            alt="cvcrm"
+                            onError={(e) => {
+                              // quando arquivo não existe, remove handler e mantém ícone fallback
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                            style={{ width: 16, height: 16, marginLeft: 6 }}
+                          />
+                        );
+                      }
+                      if (texts.some((t) => t.includes("Erro ao processar reserva (Worker)"))) {
+                        return <FiAlertCircle size={14} style={{ marginLeft: 6, color: "#ef4444" }} />;
+                      }
+                      if (texts.some((t) => t.includes("Pagamento Registrado"))) {
+                        return <FiClock size={14} style={{ marginLeft: 6, color: "#f59e0b" }} />;
+                      }
+
+                      if (workerStatus) {
+                        const ws = workerStatus.toLowerCase();
+                        if (ws.includes("processado") || ws.includes("ok"))
+                          return (
+                            <img
+                              src="/cvcrm.ico"
+                              alt="cvcrm"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                              style={{ width: 16, height: 16, marginLeft: 6 }}
+                            />
+                          );
+                        if (ws.includes("erro")) return <FiAlertCircle size={14} style={{ marginLeft: 6, color: "#ef4444" }} />;
+                      }
+                    } catch {
+                      return null;
+                    }
+                    return null;
+                  })();
+
                   return (
                     <tr key={unitData[2] || originalIndex}>
                       {isSelectionMode && (
@@ -222,7 +273,10 @@ export function ReservationList({
                           />
                         </td>
                       )}
-                      <td>{unitData[2]}</td>
+                      <td style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>{unitData[2]}</span>
+                        {processingIcon}
+                      </td>
                       <td
                         style={{
                           whiteSpace: "normal",
@@ -240,74 +294,7 @@ export function ReservationList({
                             alignItems: "center",
                           }}
                         >
-                          <span className={`status-badge ${normalizedStatus}`}>
-                            {rawStatus}
-                            {/* Indicador de processamento baseado no histórico */}
-                            {(() => {
-                              try {
-                                const unitName = unitData[2];
-                                if (!unitName || !fullHistory || fullHistory.length === 0)
-                                  return null;
-
-                                // Filtra entradas que correspondem à unidade
-                                const entriesForUnit = fullHistory.filter(
-                                  (row) => row[2] === unitName && row[3]
-                                );
-
-                                // Procurar por ocorrências de interesse (última ocorrência tem prioridade)
-                                const texts = entriesForUnit.map((r) => (r[3] || "").toString());
-
-                                // Prioridade: Reserva processada (Worker) -> ✅
-                                // then Erro ao processar reserva (Worker) -> ❌
-                                // then Pagamento Registrado -> ⏳
-                                if (texts.some((t) => t.includes("Reserva processada (Worker)"))) {
-                                  return (
-                                    <FiCheckCircle
-                                      size={14}
-                                      style={{ marginLeft: 6, color: "#6ad700" }}
-                                    />
-                                  );
-                                }
-                                if (texts.some((t) => t.includes("Erro ao processar reserva (Worker)"))) {
-                                  return (
-                                    <FiAlertCircle
-                                      size={14}
-                                      style={{ marginLeft: 6, color: "#ef4444" }}
-                                    />
-                                  );
-                                }
-                                if (texts.some((t) => t.includes("Pagamento Registrado"))) {
-                                  return (
-                                    <FiClock
-                                      size={14}
-                                      style={{ marginLeft: 6, color: "#f59e0b" }}
-                                    />
-                                  );
-                                }
-                                // Se não encontrou nada, tentar inferir por workerStatus
-                                if (workerStatus) {
-                                  const ws = workerStatus.toLowerCase();
-                                  if (ws.includes("processado") || ws.includes("ok"))
-                                    return (
-                                      <FiCheckCircle
-                                        size={14}
-                                        style={{ marginLeft: 6, color: "#6ad700" }}
-                                      />
-                                    );
-                                  if (ws.includes("erro"))
-                                    return (
-                                      <FiAlertCircle
-                                        size={14}
-                                        style={{ marginLeft: 6, color: "#ef4444" }}
-                                      />
-                                    );
-                                }
-                              } catch {
-                                return null;
-                              }
-                              return null;
-                            })()}
-                          </span>
+                          <span className={`status-badge ${normalizedStatus}`}>{rawStatus}</span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
                       </td>
