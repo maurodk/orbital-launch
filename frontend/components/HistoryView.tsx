@@ -96,8 +96,9 @@ export function HistoryView({ history }: HistoryViewProps) {
         )}
       </div>
       <style>{`
-        .history-search-wrapper { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
-        .history-search-wrapper .search-input { flex:1; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #272727; color:#e6e6e6; }
+        .history-search-wrapper { position:relative; display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+        .history-search-wrapper .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#9aa0a6; pointer-events:none; }
+        .history-search-wrapper .search-input { flex:1; padding:8px 10px 8px 40px; border-radius:8px; background:#111; border:1px solid #272727; color:#e6e6e6; }
 
         .history-table { width:100%; border-collapse:collapse; }
         .history-table thead th { text-align:left; font-size:12px; color:#9aa0a6; padding:10px 8px; }
