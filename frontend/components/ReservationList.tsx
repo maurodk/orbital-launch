@@ -239,20 +239,17 @@ export function ReservationList({
                         >
                           <span className={`status-badge ${normalizedStatus}`}>
                             <span className="status-icon">
-                              {isAvailable && <FiCheckCircle />}
-                              {isReserved && <FiXCircle />}
-                              {!isAvailable && !isReserved && <FiAlertCircle />}
+                              {isAvailable && <FiCheckCircle title="Disponível" />}
+                              {isReserved && (
+                                workerStatus === "processado" ? (
+                                  <FiCheckCircle title="Reserva processada no CVCRM" />
+                                ) : (
+                                  <FiXCircle title="Erro ao processar reserva no CVCRM" />
+                                )
+                              )}
+                              {!isAvailable && !isReserved && <FiAlertCircle title="Status desconhecido" />}
                             </span>
                             <span className="status-text">{rawStatus}</span>
-                            {/* Ícone do worker se status for processado e reservada */}
-                            {isReserved && workerStatus === 'processado' && (
-                              <img
-                                src="/cvcrm.ico"
-                                alt="Processado pelo Worker"
-                                title="Pagamento processado pelo worker"
-                                style={{ width: 18, height: 18, marginLeft: 6, verticalAlign: 'middle' }}
-                              />
-                            )}
                           </span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>

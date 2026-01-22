@@ -695,9 +695,15 @@ export function MainPage() {
       const handleUnitUpdate = async (event: MessageEvent) => {
         try {
           const eventData = JSON.parse(event.data);
-          const { unitData, rowIndex } = eventData;
+          const { unitData, rowIndex, pagamentos_status } = eventData;
 
           if (!unitData || !rowIndex) return; // Ignore malformed
+
+          // Preencher índice 20 com o status do pagamento quando fornecido (compatibilidade)
+          if (typeof pagamentos_status !== "undefined" && Array.isArray(unitData)) {
+            unitData[20] = pagamentos_status;
+          }
+
           setUnidades((currentUnidades) =>
             currentUnidades.map((unidade, index) => {
               if (index === rowIndex - 2) {

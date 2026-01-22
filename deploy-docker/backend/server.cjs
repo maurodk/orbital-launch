@@ -453,6 +453,36 @@ async function broadcastEvent(implantacao, event, data) {
     }
   }
 
+  // Tentar anexar o status do pagamento mais recente (pagamentos.status) ao payload,
+  // quando possível. Isso permite ao frontend exibir check/X sem depender do índice do array.
+  if (supabase && (eventPayload.unitData || data.unitName || data.rowIndex)) {
+    try {
+      let unidadeNome = data.unitName || null;
+      if (!unidadeNome && eventPayload.unitData && Array.isArray(eventPayload.unitData)) {
+        unidadeNome = eventPayload.unitData[2] || null;
+      }
+
+      if (unidadeNome) {
+        const pagamentosResp = await supabase
+          .from("pagamentos")
+          .select("status, unidade, data_processamento")
+          .eq("unidade", unidadeNome)
+          .order("data_processamento", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (pagamentosResp && pagamentosResp.data && pagamentosResp.data.status) {
+          eventPayload.pagamentos_status = pagamentosResp.data.status;
+          if (eventPayload.unitData && Array.isArray(eventPayload.unitData)) {
+            eventPayload.unitData[20] = pagamentosResp.data.status;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[SSE] Não foi possível anexar pagamentos.status ao payload:", err && err.message ? err.message : err);
+    }
+  }
+
   // Log do que está sendo enviado
   console.log(
     `[SSE Broadcast] Enviando evento '${event}' para '${implantacao}' (fonte: ${

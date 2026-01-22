@@ -604,6 +604,8 @@ export function PaymentModal({
             </div>
           </div>
 
+          <br />
+
           {pagamentoPresencial && (
             <div className="payment-details-container slide-down">
               
