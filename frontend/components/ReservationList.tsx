@@ -1,6 +1,6 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   FiSearch,
   FiLock,
@@ -32,6 +32,7 @@ interface ReservationListProps {
     status: "all" | "Disponível" | "Reservada" | "Bloqueada"
   ) => void;
   totalUnidades: number;
+  fullHistory: string[][]; // Histórico completo (linhas de histórico)
   // Seleção em cadeia
   isSelectionMode: boolean;
   selectedUnits: Set<number>;
@@ -59,6 +60,7 @@ export function ReservationList({
   onToggleUnitSelection,
   onToggleSelectionMode,
   onBulkBlock,
+  fullHistory,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
   const [showManageModal, setShowManageModal] = useState(false);
@@ -66,20 +68,7 @@ export function ReservationList({
     null
   );
 
-  useEffect(() => {
-    try {
-      const withStatus = unidades
-        .map(([row, idx]) => ({ unit: row[2], status: row[20], idx }))
-        .filter((r) => typeof r.status !== "undefined" && r.status !== null && r.status !== "");
-      if (withStatus.length > 0) {
-        console.debug('[UI DEBUG] ReservationList - unidades with pagamentos_status:', withStatus.slice(0,6));
-      } else {
-        console.debug('[UI DEBUG] ReservationList - no unidades have pagamentos_status set');
-      }
-    } catch (e) {
-      console.debug('[UI DEBUG] ReservationList - error scanning unidades', e);
-    }
-  }, [unidades]);
+  // ReservationList: no debug logs — presentation only (history drives status visibility)
 
   return (
     <div className="reservation-list-container">
@@ -252,26 +241,72 @@ export function ReservationList({
                           }}
                         >
                           <span className={`status-badge ${normalizedStatus}`}>
-                            <span className="status-icon">
-                              {isAvailable && <FiCheckCircle title="Disponível" />}
-                              {isReserved && (() => {
-                                const ws = (workerStatus || "").toLowerCase().trim();
-                                if (ws === "processado" || ws === "processed" || ws === "ok") {
-                                  return <FiCheckCircle title="Reserva processada no CVCRM" style={{ color: "#10b981" }} />;
+                            {rawStatus}
+                            {/* Indicador de processamento baseado no histórico */}
+                            {(() => {
+                              try {
+                                const unitName = unitData[2];
+                                if (!unitName || !fullHistory || fullHistory.length === 0)
+                                  return null;
+
+                                // Filtra entradas que correspondem à unidade
+                                const entriesForUnit = fullHistory.filter(
+                                  (row) => row[2] === unitName && row[3]
+                                );
+
+                                // Procurar por ocorrências de interesse (última ocorrência tem prioridade)
+                                const texts = entriesForUnit.map((r) => (r[3] || "").toString());
+
+                                // Prioridade: Reserva processada (Worker) -> ✅
+                                // then Erro ao processar reserva (Worker) -> ❌
+                                // then Pagamento Registrado -> ⏳
+                                if (texts.some((t) => t.includes("Reserva processada (Worker)"))) {
+                                  return (
+                                    <FiCheckCircle
+                                      size={14}
+                                      style={{ marginLeft: 6, color: "#6ad700" }}
+                                    />
+                                  );
                                 }
-                                if (ws === "erro" || ws === "error" || ws === "failed" || ws === "falha") {
-                                  return <FiAlertCircle title="Erro ao processar reserva no CVCRM" style={{ color: "#ef4444" }} />;
+                                if (texts.some((t) => t.includes("Erro ao processar reserva (Worker)"))) {
+                                  return (
+                                    <FiAlertCircle
+                                      size={14}
+                                      style={{ marginLeft: 6, color: "#ef4444" }}
+                                    />
+                                  );
                                 }
-                                // pending / registrado
-                                if (ws === "pendente" || ws === "pending" || ws === "registrado") {
-                                  return <FiClock title="Processamento pendente" style={{ color: "#f59e0b" }} />;
+                                if (texts.some((t) => t.includes("Pagamento Registrado"))) {
+                                  return (
+                                    <FiClock
+                                      size={14}
+                                      style={{ marginLeft: 6, color: "#f59e0b" }}
+                                    />
+                                  );
                                 }
-                                // fallback: show pending icon subtle
-                                return <FiClock title="Processamento pendente" style={{ color: "#f59e0b" }} />;
-                              })()}
-                              {!isAvailable && !isReserved && <FiAlertCircle title="Status desconhecido" />}
-                            </span>
-                            <span className="status-text">{rawStatus}</span>
+                                // Se não encontrou nada, tentar inferir por workerStatus
+                                if (workerStatus) {
+                                  const ws = workerStatus.toLowerCase();
+                                  if (ws.includes("processado") || ws.includes("ok"))
+                                    return (
+                                      <FiCheckCircle
+                                        size={14}
+                                        style={{ marginLeft: 6, color: "#6ad700" }}
+                                      />
+                                    );
+                                  if (ws.includes("erro"))
+                                    return (
+                                      <FiAlertCircle
+                                        size={14}
+                                        style={{ marginLeft: 6, color: "#ef4444" }}
+                                      />
+                                    );
+                                }
+                              } catch {
+                                return null;
+                              }
+                              return null;
+                            })()}
                           </span>
                           {/* REMOVIDO: PixCountdown - não há mais expiração automática */}
                         </div>
@@ -462,9 +497,7 @@ export function ReservationList({
                 onClick={() => {
                   // Trigger cancel reservation flow
                   // Find the tuple with matching originalIndex
-                  const unitTuple = unidades.find(
-                    ([_, idx]) => idx === selectedUnitIndex
-                  );
+                  const unitTuple = unidades.find(([, idx]) => idx === selectedUnitIndex);
                   if (unitTuple) {
                     const [unitData] = unitTuple;
                     if (unitData && unitData[11] === "Reservada") {
