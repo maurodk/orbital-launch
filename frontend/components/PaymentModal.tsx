@@ -200,10 +200,9 @@ export function PaymentModal({
     setNewPaymentValue(val.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
   };
 
-  const paymentConfirmDisabled = pagamentoPresencial ? (
-    valorTotalPagamento <= 0 || !tipoVenda ||
-    (tipoVenda === "facilita" && planosPadrao && !planoSelecionado)
-  ) : false;
+  const paymentConfirmDisabled = pagamentoPresencial
+    ? (valorTotalPagamento <= 0 || !tipoVenda || (tipoVenda === "facilita" && planosPadrao && !planoSelecionado))
+    : (!tipoVenda);
 
   const exibirVencimentosPlano1 =
     pagamentoPresencial &&

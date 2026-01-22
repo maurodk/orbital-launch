@@ -251,6 +251,12 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
     
     # Preparar dados de pagamento (sem selecionar tipo de venda ainda)
     tipo_venda = None
+    # Determina se devemos adicionar séries: preferir flag explícita, senão inferir pela presença de tipo_pagamento
+    adicionar_series = True
+    if dados_pagamento and isinstance(dados_pagamento, dict):
+        if dados_pagamento.get("pagamentoPresencial") is False:
+            adicionar_series = False
+
     if dados_pagamento and "tipo_venda" in dados_pagamento:
         try:
             tipo_venda = dados_pagamento.get("tipo_venda")
@@ -283,9 +289,16 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                     dia_vencimento = 15
 
             logger.info(f"Configurando pagamento - Tipo: {tipo_venda}, Plano: {plano_selecionado}, valor_unidade_total={valor_unidade_total}, valor_pix={valor_pix}")
-            
-            # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
-            if plano_selecionado == "plano1":
+
+            # Se não for pagamento presencial (flag explícita ou ausência de tipo_pagamento), não adicionar séries
+            if dados_pagamento.get("pagamentoPresencial") is None and not dados_pagamento.get("tipo_pagamento"):
+                adicionar_series = False
+
+            if not adicionar_series:
+                logger.info("Pagamento não presencial detectado — pulando adição de séries")
+            else:
+                # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
+                if plano_selecionado == "plano1":
                 if valor_unidade_total is None:
                     logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
                 else:
