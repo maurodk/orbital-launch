@@ -694,7 +694,9 @@ export function MainPage() {
 
       const handleUnitUpdate = async (event: MessageEvent) => {
         try {
+          console.debug('[SSE DEBUG] raw unitUpdated event.data ->', event.data);
           const eventData = JSON.parse(event.data);
+          console.debug('[SSE DEBUG] parsed unitUpdated payload ->', eventData);
           const { unitData, rowIndex, pagamentos_status, unitName } = eventData;
 
           // Normalize helper
@@ -715,12 +717,16 @@ export function MainPage() {
           if (unitData && Array.isArray(unitData) && typeof rowIndex === "number") {
             const idx = rowIndex - 2; // sheet rows -> unidades index
             setUnidades((currentUnidades) => {
-              if (idx < 0 || idx >= currentUnidades.length) return currentUnidades;
+              if (idx < 0 || idx >= currentUnidades.length) {
+                console.debug('[SSE DEBUG] rowIndex out of range', { rowIndex, idx, length: currentUnidades.length });
+                return currentUnidades;
+              }
               const copy = currentUnidades.slice();
               // ensure pagamentos_status compatibility
               if (typeof pagamentos_status !== "undefined") {
                 unitData[20] = pagamentos_status;
               }
+              console.debug('[SSE DEBUG] replacing unit at index', idx, 'old->', copy[idx], 'new->', unitData);
               copy[idx] = unitData;
               return copy;
             });
@@ -736,26 +742,36 @@ export function MainPage() {
                 const idx = rowIndex - 2;
                 if (idx >= 0 && idx < copy.length) {
                   const row = Array.isArray(copy[idx]) ? copy[idx].slice() : copy[idx];
+                  const old = row[20];
                   row[20] = pagamentos_status;
                   copy[idx] = row;
+                  console.debug('[SSE DEBUG] updated pagamentos_status by rowIndex', { idx, old, new: pagamentos_status });
+                } else {
+                  console.debug('[SSE DEBUG] rowIndex not in range for pagamentos_status update', { rowIndex, length: copy.length });
                 }
                 return copy;
               }
 
               if (unitName) {
                 const target = normalize(unitName);
+                let matched = false;
                 for (let i = 0; i < copy.length; i++) {
                   const name = normalize(copy[i][2]);
                   if (name === target) {
                     const row = Array.isArray(copy[i]) ? copy[i].slice() : copy[i];
+                    const old = row[20];
                     row[20] = pagamentos_status;
                     copy[i] = row;
+                    matched = true;
+                    console.debug('[SSE DEBUG] updated pagamentos_status by unitName', { i, unitName, old, new: pagamentos_status });
                     break;
                   }
                 }
+                if (!matched) console.debug('[SSE DEBUG] unitName not matched in unidades array', unitName);
                 return copy;
               }
 
+              console.debug('[SSE DEBUG] pagamentos_status received but no rowIndex or unitName to map to');
               return currentUnidades;
             });
             return;

@@ -1,6 +1,6 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FiSearch,
   FiLock,
@@ -65,6 +65,21 @@ export function ReservationList({
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
   );
+
+  useEffect(() => {
+    try {
+      const withStatus = unidades
+        .map(([row, idx]) => ({ unit: row[2], status: row[20], idx }))
+        .filter((r) => typeof r.status !== "undefined" && r.status !== null && r.status !== "");
+      if (withStatus.length > 0) {
+        console.debug('[UI DEBUG] ReservationList - unidades with pagamentos_status:', withStatus.slice(0,6));
+      } else {
+        console.debug('[UI DEBUG] ReservationList - no unidades have pagamentos_status set');
+      }
+    } catch (e) {
+      console.debug('[UI DEBUG] ReservationList - error scanning unidades', e);
+    }
+  }, [unidades]);
 
   return (
     <div className="reservation-list-container">
