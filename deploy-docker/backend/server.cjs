@@ -3166,10 +3166,13 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             try {
               const headers = { 'Content-Type': 'application/json' };
               if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
+              const payload = { idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br', token: process.env.CVCRM_API_TOKEN };
+              console.log('[CVCRM] Request headers:', headers);
+              console.log('[CVCRM] Request payload:', payload);
               const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br', token: process.env.CVCRM_API_TOKEN }),
+                body: JSON.stringify(payload),
               });
               let respText = await resp.text();
               let respBody;
@@ -3421,10 +3424,13 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
                 try {
                   const headers = { 'Content-Type': 'application/json' };
                   if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
+                  const payload = { idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br', token: process.env.CVCRM_API_TOKEN };
+                  console.log('[CVCRM] Request headers (change-unit):', headers);
+                  console.log('[CVCRM] Request payload (change-unit):', payload);
                   const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
                       method: 'POST',
                       headers,
-                      body: JSON.stringify({ idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br', token: process.env.CVCRM_API_TOKEN }),
+                      body: JSON.stringify(payload),
                     });
                     let respText = await resp.text();
                     let respBody;
