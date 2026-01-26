@@ -2639,6 +2639,74 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
       success: true,
       message: "Reserva temporária cancelada com sucesso.",
     });
+    // Attempt CVCRM cancel asynchronously (non-blocking)
+    (async () => {
+      try {
+        let reservaId = null;
+        // Try finding pagamento with reserva_id for this unit
+        if (supabase && unitFullName) {
+          try {
+            const pagResp = await supabase
+              .from('pagamentos')
+              .select('id, reserva_id')
+              .ilike('unidade', `%${unitFullName}%`)
+              .order('data_processamento', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (pagResp && pagResp.data && pagResp.data.reserva_id) reservaId = pagResp.data.reserva_id;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        // If still not found, look in historico for reserva_url
+        if (!reservaId && supabase && unitFullName) {
+          try {
+            const histResp = await supabase
+              .from('historico')
+              .select('reserva_url, acao')
+              .ilike('unidade_nome', `%${unitFullName}%`)
+              .order('timestamp_iso', { ascending: false })
+              .limit(5);
+            if (histResp && histResp.data && Array.isArray(histResp.data)) {
+              for (const h of histResp.data) {
+                if (h && h.reserva_url) {
+                  const m = (h.reserva_url || "").match(/reservas\/(\d+)/);
+                  if (m) { reservaId = m[1]; break; }
+                }
+                if (h && h.acao && h.acao.toString().includes('Reserva processada')) {
+                  if (h.reserva_url) {
+                    const m = (h.reserva_url || "").match(/reservas\/(\d+)/);
+                    if (m) { reservaId = m[1]; break; }
+                  }
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (reservaId) {
+          const cvUrl = 'https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva';
+          try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
+            const resp = await fetch(cvUrl, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ idreserva_cv: String(reservaId) }),
+            });
+            let respText = await resp.text();
+            let respBody;
+            try { respBody = JSON.parse(respText); } catch (err) { respBody = respText; }
+            console.log(`[CVCRM] Cancel request sent for reserva ${reservaId} - status ${resp.status} - body:`, respBody);
+          } catch (e) {
+            console.warn('[CVCRM] Falha ao chamar API de cancelamento:', e && e.message ? e.message : e);
+          }
+        }
+      } catch (e) {
+        // non-blocking
+      }
+    })();
   } catch (error) {
     console.error("Erro ao cancelar reserva temporária:", error);
     res.status(500).json({ error: "Falha ao cancelar reserva temporária." });
@@ -3319,6 +3387,103 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
               console.error("[SUPABASE] Erro ao transferir PIX:", pixUpdateError);
             }
           }
+          // --- Tentar cancelar reserva no CVCRM para a unidade antiga e enfileirar job para nova unidade ---
+          (async () => {
+            try {
+              // 1) tentar obter reserva_id do historico ou pagamentos para a unidade antiga
+              let reservaId = null;
+              try {
+                const pagResp = await supabase
+                  .from('pagamentos')
+                  .select('id, reserva_id')
+                  .ilike('unidade', `%${oldUnitName}%`)
+                  .order('data_processamento', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (pagResp && pagResp.data && pagResp.data.reserva_id) reservaId = pagResp.data.reserva_id;
+              } catch (e) {}
+
+              if (!reservaId) {
+                try {
+                  const histResp = await supabase
+                    .from('historico')
+                    .select('reserva_url, acao')
+                    .ilike('unidade_nome', `%${oldUnitName}%`)
+                    .order('timestamp_iso', { ascending: false })
+                    .limit(5);
+                  if (histResp && histResp.data && Array.isArray(histResp.data)) {
+                    for (const h of histResp.data) {
+                      if (h && h.reserva_url) {
+                        const m = (h.reserva_url || "").match(/reservas\/(\d+)/);
+                        if (m) { reservaId = m[1]; break; }
+                      }
+                    }
+                  }
+                } catch (e) {}
+              }
+
+              if (reservaId) {
+                try {
+                  const headers = { 'Content-Type': 'application/json' };
+                  if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
+                  const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({ idreserva_cv: String(reservaId) }),
+                    });
+                    let respText = await resp.text();
+                    let respBody;
+                    try { respBody = JSON.parse(respText); } catch (err) { respBody = respText; }
+                    console.log(`[CVCRM] Cancel request sent for reserva ${reservaId} (change-unit) - status ${resp.status} - body:`, respBody);
+                  } catch (e) {
+                    console.warn('[CVCRM] Falha ao chamar API de cancelamento (change-unit):', e && e.message ? e.message : e);
+                  }
+              }
+
+              // 2) Tentar clonar pagamento existente para nova unidade e enfileirar job
+              try {
+                const pagExisting = await supabase
+                  .from('pagamentos')
+                  .select('*')
+                  .ilike('unidade', `%${oldUnitName}%`)
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (pagExisting && pagExisting.data && pagExisting.data.id) {
+                  const oldPag = pagExisting.data;
+                  const { data: newPag, error: newPagErr } = await supabase.from('pagamentos').insert({
+                    cliente_id: oldPag.cliente_id || null,
+                    unidade: newUnitName,
+                    valor_total: oldPag.valor_total || oldPag.valorTotal || null,
+                    valor_unidade: oldPag.valor_unidade || oldPag.valorUnidade || null,
+                    valor_pix: oldPag.valor_pix || oldPag.valorPix || null,
+                    valor_dinheiro: oldPag.valor_dinheiro || oldPag.valorDinheiro || null,
+                    valor_cartao: oldPag.valor_cartao || oldPag.valorCartao || null,
+                    valor_cheque: oldPag.valor_cheque || oldPag.valorCheque || null,
+                    tipo_pagamento: oldPag.tipo_pagamento || oldPag.tipoPagamento || 'presencial',
+                    tipo_venda: oldPag.tipo_venda || oldPag.tipoVenda || null,
+                    plano_padrao: oldPag.plano_padrao || oldPag.planoPadrao || null,
+                    dia_vencimento: oldPag.dia_vencimento || oldPag.diaVencimento || null,
+                    status: 'pendente',
+                    created_at: new Date().toISOString()
+                  }).select().single();
+
+                  if (!newPagErr && newPag && newPag.id) {
+                    // enqueue job
+                    try {
+                      const jobPayload = { pagamento_id: newPag.id, implantacao: sheetTitle, timestamp: Date.now() };
+                      await redis.lpush('fila_reservas', JSON.stringify(jobPayload));
+                      console.log(`[API] Transfer job enqueued for pagamento ${newPag.id}`);
+                    } catch (e) {
+                      console.warn('[API] Falha ao enfileirar job de transferência:', e && e.message ? e.message : e);
+                    }
+                  }
+                }
+              } catch (e) {}
+            } catch (e) {
+              // non-blocking
+            }
+          })();
 
           console.log(
             `[SUPABASE] Troca de unidade persistida: ${oldUnitName} (linha ${oldRow}) -> ${newUnitName} (linha ${newRow})`
