@@ -210,8 +210,9 @@ export function ReservationList({
                       // Busca todas as entradas do histórico referentes a essa unidade
                       const entriesForUnit = fullHistory.filter((row) => (row[2] || "") === unitName);
 
-                      // 1) Caso explícito: existe uma entrada exatamente igual a 'Reserva processada (Worker)'
-                      const workerProcessedEntry = entriesForUnit.find((r) => ((r[3] || "").toString().trim() === "Reserva processada (Worker)"));
+                      // 1) Caso explícito: existe uma entrada contendo 'Reserva processada (Worker)'
+                      // (usa includes para aceitar variações como 'Reserva processada (Worker)cvcrm')
+                      const workerProcessedEntry = entriesForUnit.find((r) => ((r[3] || "").toString().includes("Reserva processada (Worker)")));
                       if (workerProcessedEntry) {
                         const reservaUrl = workerProcessedEntry[7] || null;
                         const imgTag = (
