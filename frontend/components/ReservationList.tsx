@@ -203,19 +203,19 @@ export function ReservationList({
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia
                   const motivo = unitData[19] || ""; // Coluna T - motivo (assumindo que está nessa posição)
 
-                  // Determina ícone de processamento a partir do histórico (ou workerStatus)
-                      const processingIcon = (() => {
+                  // Determina ícone de processamento a partir do histórico (somente quando aplicável)
+                  const processingIcon = (() => {
                     try {
                       const unitName = unitData[2];
                       if (!unitName || !fullHistory || fullHistory.length === 0) return null;
 
-                      const entriesForUnit = fullHistory.filter((row) => row[2] === unitName && row[3]);
-                      const texts = entriesForUnit.map((r) => (r[3] || "").toString());
+                      // Busca todas as entradas do histórico referentes a essa unidade
+                      const entriesForUnit = fullHistory.filter((row) => (row[2] || "") === unitName);
 
-                      if (texts.some((t) => t.includes("Reserva processada (Worker)"))) {
-                        // Preferência: usar ícone local `/cvcrm.ico` quando disponível; se houver reserva_url, envolver em link
-                        const matched = entriesForUnit.find((r) => (r[3] || "").toString().includes("Reserva processada (Worker)"));
-                        const reservaUrl = matched && matched[7] ? matched[7] : null;
+                      // 1) Caso explícito: existe uma entrada exatamente igual a 'Reserva processada (Worker)'
+                      const workerProcessedEntry = entriesForUnit.find((r) => ((r[3] || "").toString().trim() === "Reserva processada (Worker)"));
+                      if (workerProcessedEntry) {
+                        const reservaUrl = workerProcessedEntry[7] || null;
                         const imgTag = (
                           <img
                             src="/cvcrm.ico"
@@ -226,43 +226,39 @@ export function ReservationList({
                             style={{ width: 16, height: 16, marginLeft: 6 }}
                           />
                         );
-                        if (reservaUrl) return (
-                          <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a>
-                        );
-                        return imgTag;
+                        return reservaUrl ? <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a> : imgTag;
                       }
-                      if (texts.some((t) => t.includes("Erro ao processar reserva (Worker)"))) {
+
+                      // 2) Se houver alguma entrada com `reserva_url` (coluna H/idx 7), usar o primeiro encontrado (mais recente)
+                      const entryWithUrl = entriesForUnit.find((r) => r && r[7]);
+                      if (entryWithUrl && entryWithUrl[7]) {
+                        const reservaUrl = entryWithUrl[7];
+                        const imgTag = (
+                          <img
+                            src="/cvcrm.ico"
+                            alt="cvcrm"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                            style={{ width: 16, height: 16, marginLeft: 6 }}
+                          />
+                        );
+                        return <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a>;
+                      }
+
+                      // 3) Outros casos: mostrar ícone de erro ou pagamento quando apropriado
+                      if (entriesForUnit.some((r) => ((r[3] || "").toString().includes("Erro ao processar reserva (Worker)")))) {
                         return <FiAlertCircle size={14} style={{ marginLeft: 6, color: "#ef4444" }} />;
                       }
-                      if (texts.some((t) => t.includes("Pagamento Registrado"))) {
+                      if (entriesForUnit.some((r) => ((r[3] || "").toString().includes("Pagamento Registrado")))) {
                         return <FiClock size={14} style={{ marginLeft: 6, color: "#f59e0b" }} />;
                       }
 
-                      if (workerStatus) {
-                        const ws = workerStatus.toLowerCase();
-                        if (ws.includes("processado") || ws.includes("ok")) {
-                          // Tenta encontrar reserva_url no histórico se existir
-                          const matched = entriesForUnit.find((r) => ((r[3] || "").toString().toLowerCase().includes("processado") || (r[3] || "").toString().toLowerCase().includes("ok")) && r[7]);
-                          const reservaUrl = matched && matched[7] ? matched[7] : null;
-                          const imgTag = (
-                            <img
-                              src="/cvcrm.ico"
-                              alt="cvcrm"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                              }}
-                              style={{ width: 16, height: 16, marginLeft: 6 }}
-                            />
-                          );
-                          if (reservaUrl) return <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a>;
-                          return imgTag;
-                        }
-                        if (ws.includes("erro")) return <FiAlertCircle size={14} style={{ marginLeft: 6, color: "#ef4444" }} />;
-                      }
+                      // Não exibir ícone apenas com base em `workerStatus` — evita falsos positivos (ex.: cancelamento)
+                      return null;
                     } catch {
                       return null;
                     }
-                    return null;
                   })();
 
                   return (
