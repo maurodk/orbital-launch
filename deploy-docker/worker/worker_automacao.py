@@ -66,7 +66,7 @@ QUEUE_NAME = "fila_reservas"
 
 # Configuração de logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('worker_automacao.log'),
@@ -353,32 +353,63 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
         time.sleep(2)
         logger.info("Formulário finalizado com sucesso! Aguardando número da reserva...")
 
-        # Após finalizar, a aplicação redireciona para uma página onde existe
-        # um <h4> contendo o número da reserva no formato: "# 45244".
+        # Após finalizar, a aplicação redireciona para uma página com o número da reserva.
+        # Tentamos várias estratégias mais robustas para extrair apenas os dígitos
         try:
-            # Espera até 15s pela presença de um <h4> que contenha '#' seguido de dígitos
-            elementos_h4 = WebDriverWait(driver, 15).until(
-                EC.presence_of_all_elements_located((By.XPATH, "//h4[contains(text(),'#')]") )
-            )
+            # Aguarda curto período para a nova página carregar
+            time.sleep(1)
+
             reserva_id = None
-            for el in elementos_h4:
+
+            # 1) Tentar encontrar h4/strong/p com texto relevante
+            try:
+                elementos = driver.find_elements(By.XPATH, "//h4 | //strong | //p")
+            except Exception:
+                elementos = []
+
+            logger.debug(f"Encontrados {len(elementos)} elementos <h4|strong|p> para inspecionar")
+
+            # 2) Se não achar, pegar todo o body e tentar extrair
+            if not elementos:
                 try:
-                    txt = el.text or ""
-                    m = re.search(r"#\s*(\d+)", txt)
-                    if m:
-                        reserva_id = m.group(1)
-                        break
+                    body = driver.find_element(By.TAG_NAME, "body")
+                    elementos = [body]
+                    logger.debug("Usando <body> como fallback para extração de texto")
                 except Exception:
+                    elementos = []
+
+            candidates = []
+            # 3) Percorrer textos buscando padrão de número (aceita com ou sem '#')
+            for idx, el in enumerate(elementos):
+                try:
+                    txt = (el.text or "").strip()
+                    snippet = txt[:200].replace('\n', ' ') if txt else ''
+                    logger.debug(f"element[{idx}] text='{snippet}'")
+                    if not txt:
+                        candidates.append({'idx': idx, 'text': snippet, 'match': None})
+                        continue
+                    # Busca sequências de 4-10 dígitos (ajustável)
+                    m = re.search(r"#?\s*(\d{4,10})", txt)
+                    match_val = m.group(1) if m else None
+                    candidates.append({'idx': idx, 'text': snippet, 'match': match_val})
+                    if m:
+                        reserva_id = match_val
+                        logger.info(f"regex match on element[{idx}]: '{match_val}' from text='{snippet}'")
+                        break
+                except Exception as ex:
+                    logger.debug(f"Erro ao inspecionar elemento[{idx}]: {ex}")
                     continue
+
+            logger.debug(f"Candidates inspected: {candidates}")
 
             if reserva_id:
                 logger.info(f"ID da reserva detectado: {reserva_id}")
                 return reserva_id
             else:
-                logger.warning("Não foi possível extrair ID da reserva após finalização")
+                logger.warning("Não foi possível extrair ID da reserva após finalização (nenhum padrão encontrado)")
                 return True
         except Exception as e:
-            logger.warning(f"Timeout/problema ao buscar número da reserva: {e}")
+            logger.warning(f"Erro ao buscar número da reserva: {e}")
             return True
 
     except Exception as e:
@@ -1228,6 +1259,7 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
         
         # Finalizar com dados de pagamento
         retorno_finalizacao = processar_dados_conjuge(driver, dados_pagamento)
+        logger.debug(f"Retorno processar_dados_conjuge: {repr(retorno_finalizacao)}")
         if not retorno_finalizacao:
             raise Exception("Falha no formulário final")
 
