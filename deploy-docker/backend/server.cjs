@@ -2639,74 +2639,7 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
       success: true,
       message: "Reserva temporária cancelada com sucesso.",
     });
-    // Attempt CVCRM cancel asynchronously (non-blocking)
-    (async () => {
-      try {
-        let reservaId = null;
-        // Try finding pagamento with reserva_id for this unit
-        if (supabase && unitFullName) {
-          try {
-            const pagResp = await supabase
-              .from('pagamentos')
-              .select('id, reserva_id')
-              .ilike('unidade', `%${unitFullName}%`)
-              .order('data_processamento', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (pagResp && pagResp.data && pagResp.data.reserva_id) reservaId = pagResp.data.reserva_id;
-          } catch (e) {
-            // ignore
-          }
-        }
-
-        // If still not found, look in historico for reserva_url
-        if (!reservaId && supabase && unitFullName) {
-          try {
-            const histResp = await supabase
-              .from('historico')
-              .select('reserva_url, acao')
-              .ilike('unidade_nome', `%${unitFullName}%`)
-              .order('timestamp_iso', { ascending: false })
-              .limit(5);
-            if (histResp && histResp.data && Array.isArray(histResp.data)) {
-              for (const h of histResp.data) {
-                if (h && h.reserva_url) {
-                  const m = (h.reserva_url || "").match(/reservas\/(\d+)/);
-                  if (m) { reservaId = m[1]; break; }
-                }
-                if (h && h.acao && h.acao.toString().includes('Reserva processada')) {
-                  if (h.reserva_url) {
-                    const m = (h.reserva_url || "").match(/reservas\/(\d+)/);
-                    if (m) { reservaId = m[1]; break; }
-                  }
-                }
-              }
-            }
-          } catch (e) {}
-        }
-
-        if (reservaId) {
-          const cvUrl = 'https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva';
-          try {
-            const headers = { 'Content-Type': 'application/json' };
-            if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
-            const resp = await fetch(cvUrl, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ idreserva_cv: String(reservaId) }),
-            });
-            let respText = await resp.text();
-            let respBody;
-            try { respBody = JSON.parse(respText); } catch (err) { respBody = respText; }
-            console.log(`[CVCRM] Cancel request sent for reserva ${reservaId} - status ${resp.status} - body:`, respBody);
-          } catch (e) {
-            console.warn('[CVCRM] Falha ao chamar API de cancelamento:', e && e.message ? e.message : e);
-          }
-        }
-      } catch (e) {
-        // non-blocking
-      }
-    })();
+    
   } catch (error) {
     console.error("Erro ao cancelar reserva temporária:", error);
     res.status(500).json({ error: "Falha ao cancelar reserva temporária." });
@@ -3236,7 +3169,7 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
               const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ idreserva_cv: String(reservaId) }),
+                body: JSON.stringify({ idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br' }),
               });
               let respText = await resp.text();
               let respBody;
@@ -3491,7 +3424,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
                   const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
                       method: 'POST',
                       headers,
-                      body: JSON.stringify({ idreserva_cv: String(reservaId) }),
+                      body: JSON.stringify({ idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br' }),
                     });
                     let respText = await resp.text();
                     let respBody;
