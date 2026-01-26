@@ -48,6 +48,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # Supabase
 from supabase import create_client, Client
 import requests
+import re
 
 # ==============================================================================
 # --- CONFIGURAÇÕES ---
@@ -350,8 +351,36 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
         )
         driver.execute_script("arguments[0].click();", botao_finalizar)
         time.sleep(2)
-        logger.info("Formulário finalizado com sucesso!")
-        return True
+        logger.info("Formulário finalizado com sucesso! Aguardando número da reserva...")
+
+        # Após finalizar, a aplicação redireciona para uma página onde existe
+        # um <h4> contendo o número da reserva no formato: "# 45244".
+        try:
+            # Espera até 15s pela presença de um <h4> que contenha '#' seguido de dígitos
+            elementos_h4 = WebDriverWait(driver, 15).until(
+                EC.presence_of_all_elements_located((By.XPATH, "//h4[contains(text(),'#')]") )
+            )
+            reserva_id = None
+            for el in elementos_h4:
+                try:
+                    txt = el.text or ""
+                    m = re.search(r"#\s*(\d+)", txt)
+                    if m:
+                        reserva_id = m.group(1)
+                        break
+                except Exception:
+                    continue
+
+            if reserva_id:
+                logger.info(f"ID da reserva detectado: {reserva_id}")
+                return reserva_id
+            else:
+                logger.warning("Não foi possível extrair ID da reserva após finalização")
+                return True
+        except Exception as e:
+            logger.warning(f"Timeout/problema ao buscar número da reserva: {e}")
+            return True
+
     except Exception as e:
         logger.error(f"Falha ao finalizar formulário: {e}")
         save_screenshot_on_error(driver, prefix="erro_formulario_final")
@@ -1198,9 +1227,23 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
         logger.info(f"Dados de pagamento: plano={dados_pagamento['plano_selecionado']}, tipo_venda={dados_pagamento['tipo_venda']}, valor_unidade={dados_pagamento['valor_unidade']}, dia_vencimento={dados_pagamento.get('dia_vencimento')}, valor_pix={dados_pagamento['valor_pix']}, valor_bruto={dados_pagamento['valor']}")
         
         # Finalizar com dados de pagamento
-        if not processar_dados_conjuge(driver, dados_pagamento):
+        retorno_finalizacao = processar_dados_conjuge(driver, dados_pagamento)
+        if not retorno_finalizacao:
             raise Exception("Falha no formulário final")
-        
+
+        # Se a finalização retornou o ID da reserva (string com dígitos), armazenar
+        try:
+            reserva_detectada = None
+            if isinstance(retorno_finalizacao, str):
+                m = re.search(r"(\d+)", retorno_finalizacao)
+                if m:
+                    reserva_detectada = m.group(1)
+            if reserva_detectada:
+                resultado["reserva_id"] = reserva_detectada
+                logger.info(f"Reserva criada: {reserva_detectada}")
+        except Exception:
+            pass
+
         resultado["sucesso"] = True
         logger.info(f"SUCESSO TOTAL para o ID {id_precadastro}!")
         
@@ -1314,8 +1357,8 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
         return []
 
 
-def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: bool, erro: Optional[str] = None):
-    """Atualiza o status da reserva na table pagamentos"""
+def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: bool, erro: Optional[str] = None, reserva_id: Optional[str] = None):
+    """Atualiza o status da reserva na table pagamentos, opcionalmente grava reserva_id"""
     try:
         dados_atualizacao = {
             "status": "processado" if sucesso else "erro",
@@ -1324,14 +1367,17 @@ def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: boo
         
         if erro:
             dados_atualizacao["erro_msg"] = erro
+        if reserva_id:
+            # Tenta gravar o id da reserva criada no CVCRM (campo 'reserva_id')
+            dados_atualizacao["reserva_id"] = reserva_id
         
         supabase.table("pagamentos").update(dados_atualizacao).eq("id", pagamento_id).execute()
-        logger.info(f"Pagamento {pagamento_id} atualizado: {'processado' if sucesso else 'erro'}")
+        logger.info(f"Pagamento {pagamento_id} atualizado: {'processado' if sucesso else 'erro'} (reserva_id={reserva_id})")
     except Exception as e:
         logger.error(f"Erro ao atualizar status do pagamento: {e}")
 
 
-def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool, rowIndex: Optional[int] = None, implantacao: Optional[str] = None):
+def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool, rowIndex: Optional[int] = None, implantacao: Optional[str] = None, reserva_id: Optional[str] = None):
     """Notifica o backend interno para que ele possa broadcastar o status via SSE.
 
     Usa as variáveis de ambiente `BACKEND_INTERNAL_URL` (ou `BACKEND_URL`) e opcionalmente
@@ -1354,6 +1400,12 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
             payload["rowIndex"] = int(rowIndex)
         if implantacao:
             payload["implantacao"] = implantacao
+        if reserva_id:
+            payload["reserva_id"] = reserva_id
+            try:
+                payload["reserva_url"] = f"{URL_BASE_SISTEMA}comercial/reservas/{reserva_id}/administrar"
+            except Exception:
+                pass
 
         try:
             logger.info(f"notify_backend_status -> POST {url} payload={payload}")
@@ -1413,8 +1465,8 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         # Chamar a função de automação existente
         resultado = processar_precadastro(driver, dados_reserva)
         
-        # Atualizar status no Supabase
-        atualizar_status_pagamento(supabase, pagamento_id, resultado["sucesso"], resultado.get("erro"))
+        # Atualizar status no Supabase (inclui reserva_id se disponível)
+        atualizar_status_pagamento(supabase, pagamento_id, resultado["sucesso"], resultado.get("erro"), reserva_id=resultado.get("reserva_id"))
         # Notificar backend para broadcast SSE (se configurado)
         try:
             unidade_notify = dados_reserva.get("unidade") or (pag and pag.get("unidade"))
@@ -1453,20 +1505,20 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
             except Exception:
                 implantacao_name = None
 
-            notify_backend_status(pagamento_id, unidade_notify, resultado["sucesso"], rowIndex=row_index_val, implantacao=implantacao_name)
+            notify_backend_status(pagamento_id, unidade_notify, resultado["sucesso"], rowIndex=row_index_val, implantacao=implantacao_name, reserva_id=resultado.get("reserva_id"))
         except Exception as e:
             logger.warning(f"Falha ao notificar backend após atualizar status do pagamento {pagamento_id}: {e}")
         
     except Exception as e:
         logger.error(f"Erro ao processar job {pagamento_id}: {e}")
-        atualizar_status_pagamento(supabase, pagamento_id, False, str(e))
+        atualizar_status_pagamento(supabase, pagamento_id, False, str(e), reserva_id=None)
         try:
             unidade_notify = None
             try:
                 unidade_notify = pag.get("unidade") if pag else None
             except Exception:
                 unidade_notify = None
-            notify_backend_status(pagamento_id, unidade_notify, False)
+            notify_backend_status(pagamento_id, unidade_notify, False, reserva_id=None)
         except Exception as _:
             pass
 

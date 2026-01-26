@@ -308,12 +308,12 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       }
     }
 
-    const { unidade, pagamento_id, status, rowIndex, implantacao } = req.body || {};
+    const { unidade, pagamento_id, status, rowIndex, implantacao, reserva_id, reserva_url } = req.body || {};
     if (!unidade && !pagamento_id) {
       return res.status(400).json({ error: "unidade or pagamento_id required" });
     }
 
-    const payload = { unitName: unidade, pagamento_id, pagamentos_status: status, rowIndex };
+    const payload = { unitName: unidade, pagamento_id, pagamentos_status: status, rowIndex, reserva_id, reserva_url };
 
     // If client provided an implantacao name, broadcast there; otherwise broadcast to all
     if (implantacao) {
@@ -393,7 +393,7 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       if (implantacaoName) {
         try {
           const sheets = await getSheetsClient();
-          await addHistoryEntry(sheets, implantacaoName, unidade || null, acao, clienteName, corretorName, 'Worker');
+          await addHistoryEntry(sheets, implantacaoName, unidade || null, acao, clienteName, corretorName, 'Worker', reserva_url || null);
         } catch (e) {
           console.warn('[INTERNAL] Falha ao gravar histórico via Sheets, attempting Supabase only', e && e.message);
           // fallback to Supabase only
@@ -413,6 +413,7 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
               cliente: clienteName || null,
               corretor: corretorName || null,
               implantacao_id: implantacao_id,
+              reserva_url: reserva_url || null,
             });
             // notify clients about history update
             await broadcastEvent(implantacaoName, 'historyUpdated', { message: `Novo evento: ${acao}` });
@@ -430,6 +431,7 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
             acao,
             cliente: clienteName || null,
             corretor: corretorName || null,
+            reserva_url: reserva_url || null,
           });
           // Broadcast to all connected clients so they can refresh histories generically
           for (const imp of Array.from(sseClients.keys())) {
@@ -936,7 +938,8 @@ async function addHistoryEntry(
   acao,
   cliente,
   corretor,
-  usuario
+  usuario,
+  reserva_url = null
 ) {
   try {
     const now = new Date(
@@ -960,6 +963,7 @@ async function addHistoryEntry(
       cliente || "N/A",
       corretor || "N/A",
       usuario || "Sistema",
+      reserva_url || "",
     ];
 
     // Otimização: Usa cache em memória para evitar chamadas de API repetitivas
@@ -979,10 +983,10 @@ async function addHistoryEntry(
           },
         });
 
-        // Se a criação for bem-sucedida, adiciona o cabeçalho.
+        // Se a criação for bem-sucedida, adiciona o cabeçalho (agora com coluna Reserva URL).
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID_HISTORICO,
-          range: `'${implantacao}'!A1:G1`,
+          range: `'${implantacao}'!A1:H1`,
           valueInputOption: "USER_ENTERED",
           resource: {
             values: [
@@ -994,6 +998,7 @@ async function addHistoryEntry(
                 "Cliente",
                 "Corretor",
                 "Usuário",
+                "Reserva URL",
               ],
             ],
           },
@@ -1007,10 +1012,10 @@ async function addHistoryEntry(
       createdHistorySheets.add(implantacao); // Adiciona ao cache
     }
 
-    // Append history to Google Sheets
+    // Append history to Google Sheets (inclui coluna Reserva URL como H)
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID_HISTORICO,
-      range: `'${implantacao}'!A:G`,
+      range: `'${implantacao}'!A:H`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
       resource: {
@@ -1045,6 +1050,7 @@ async function addHistoryEntry(
           corretor: corretor || null,
           usuario: usuario || "Sistema",
           implantacao_id: implantacao_id,
+          reserva_url: reserva_url || null,
         });
         console.log(
           `[HISTÓRICO] Gravado no Supabase: '${acao}' em '${implantacao}'.`
@@ -4733,7 +4739,7 @@ app.get("/api/history/:implantacao", verifyToken, async (req, res) => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_HISTORICO,
-      range: `'${implantacao}'!A:G`,
+      range: `'${implantacao}'!A:H`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     const historyData = (response.data.values || []).slice(1).reverse();

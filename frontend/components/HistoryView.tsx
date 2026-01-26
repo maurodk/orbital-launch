@@ -79,6 +79,12 @@ export function HistoryView({ history }: HistoryViewProps) {
                         >
                           {entry[3]}
                         </span>
+                        {/* Se existir reserva_url na coluna H (índice 7), mostra ícone linkado */}
+                        {entry[7] && (
+                          <a href={entry[7]} target="_blank" rel="noreferrer">
+                            <img src="/cvcrm.ico" alt="cvcrm" style={{ width: 16, height: 16, marginLeft: 6 }} onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+                          </a>
+                        )}
                       </td>
                       <td data-label="Cliente">{entry[4]}</td>
                       <td data-label="Corretor">{entry[5]}</td>
