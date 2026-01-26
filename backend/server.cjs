@@ -814,9 +814,10 @@ async function addHistoryEntry(
     });
 
     // NOVO: Notifica todos os clientes conectados sobre a atualização do histórico.
-    // O payload pode ser simples, apenas para sinalizar que o frontend deve recarregar o histórico.
+    // Inclui a própria linha adicionada (`historyRow`) para permitir atualização imediata no cliente
     await broadcastEvent(implantacao, "historyUpdated", {
       message: `Novo evento: ${acao}`,
+      row: historyRow,
     });
 
     // Also persist to Supabase (best-effort)

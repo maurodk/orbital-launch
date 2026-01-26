@@ -67,7 +67,7 @@ QUEUE_NAME = "fila_reservas"
 
 # Configuração de logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('worker_automacao.log'),
@@ -364,7 +364,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                     current_url = driver.current_url
                 except Exception:
                     current_url = None
-                logger.debug(f"current_url after finalize attempt: {current_url}")
+                # debug: current_url logged at INFO level when match found
                 if current_url and ("reserva=" in current_url or "/finalizarreserva" in current_url):
                     try:
                         parsed = urlparse(current_url)
@@ -377,11 +377,11 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                                 reserva_id = m.group(1)
                                 logger.info(f"reserva id extracted from URL: {reserva_id}")
                                 return reserva_id
-                    except Exception as e:
-                        logger.debug(f"Erro ao parsear URL para reserva: {e}")
+                    except Exception:
+                        pass
                 time.sleep(0.5)
-        except Exception as e:
-            logger.debug(f"Erro ao verificar URL após finalizar: {e}")
+        except Exception:
+            pass
 
         # Após finalizar, a aplicação redireciona para uma página com o número da reserva.
         # Tentamos várias estratégias mais robustas para extrair apenas os dígitos
@@ -397,14 +397,14 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
             except Exception:
                 elementos = []
 
-            logger.debug(f"Encontrados {len(elementos)} elementos <h4|strong|p> para inspecionar")
+            # quantidade de elementos inspecionados não mais logada em DEBUG
 
             # 2) Se não achar, pegar todo o body e tentar extrair
             if not elementos:
                 try:
                     body = driver.find_element(By.TAG_NAME, "body")
                     elementos = [body]
-                    logger.debug("Usando <body> como fallback para extração de texto")
+                    # usando body como fallback (sem log detalhado)
                 except Exception:
                     elementos = []
 
@@ -414,7 +414,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                 try:
                     txt = (el.text or "").strip()
                     snippet = txt[:200].replace('\n', ' ') if txt else ''
-                    logger.debug(f"element[{idx}] text='{snippet}'")
+                    # inspecionando elemento (trecho suprimido nos logs)
                     if not txt:
                         candidates.append({'idx': idx, 'text': snippet, 'match': None})
                         continue
@@ -426,11 +426,11 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                         reserva_id = match_val
                         logger.info(f"regex match on element[{idx}]: '{match_val}' from text='{snippet}'")
                         break
-                except Exception as ex:
-                    logger.debug(f"Erro ao inspecionar elemento[{idx}]: {ex}")
+                except Exception:
+                    continue
                     continue
 
-            logger.debug(f"Candidates inspected: {candidates}")
+            # candidates suppressed from logs
 
             if reserva_id:
                 logger.info(f"ID da reserva detectado: {reserva_id}")

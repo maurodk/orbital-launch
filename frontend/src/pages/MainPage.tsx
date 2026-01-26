@@ -753,7 +753,27 @@ export function MainPage() {
         }
       };
 
-      const handleHistoryUpdate = () => {
+      const handleHistoryUpdate = (event?: MessageEvent) => {
+        try {
+          if (event && event.data) {
+            const parsed = JSON.parse(event.data || "{}");
+            if (parsed && parsed.row && Array.isArray(parsed.row)) {
+              const newRow = parsed.row;
+              setHistory((current) => {
+                // avoid duplicates: compare timestamp ISO of newest row
+                if (current.length > 0 && current[0] && current[0][0] === newRow[0]) {
+                  return current;
+                }
+                return [newRow, ...current];
+              });
+              return; // handled via SSE payload
+            }
+          }
+        } catch (e) {
+          console.error("Erro ao processar payload SSE historyUpdated:", e);
+        }
+
+        // Fallback: fetch full history if SSE payload didn't include the row
         fetchHistory(selectedImplantationName).catch((e) =>
           console.error("Erro ao recarregar histórico via SSE:", e)
         );
