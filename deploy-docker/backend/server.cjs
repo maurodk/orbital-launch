@@ -3164,9 +3164,13 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 
           if (reservaId) {
             try {
-              const headers = { 'Content-Type': 'application/json' };
-              if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
-              const payload = { idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br', token: process.env.CVCRM_API_TOKEN };
+              const headers = {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                email: 'tech@vcaconstrutora.com.br',
+                token: '00501c7d41012e83bdd763c09125a6d995924e61',
+              };
+              const payload = { idreserva_cv: String(reservaId) };
               console.log('[CVCRM] Request headers:', headers);
               console.log('[CVCRM] Request payload:', payload);
               const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
@@ -3422,9 +3426,13 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
               if (reservaId) {
                 try {
-                  const headers = { 'Content-Type': 'application/json' };
-                  if (process.env.CVCRM_API_TOKEN) headers['Authorization'] = `Bearer ${process.env.CVCRM_API_TOKEN}`;
-                  const payload = { idreserva_cv: String(reservaId), email: 'carlos.mauricio@vcaconstrutora.com.br', token: process.env.CVCRM_API_TOKEN };
+                  const headers = {
+                    accept: 'application/json',
+                    'content-type': 'application/json',
+                    email: 'tech@vcaconstrutora.com.br',
+                    token: '00501c7d41012e83bdd763c09125a6d995924e61',
+                  };
+                  const payload = { idreserva_cv: String(reservaId) };
                   console.log('[CVCRM] Request headers (change-unit):', headers);
                   console.log('[CVCRM] Request payload (change-unit):', payload);
                   const resp = await fetch('https://vca.cvcrm.com.br/api/v1/comercial/reservas/cancelar-reserva', {
