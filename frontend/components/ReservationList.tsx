@@ -208,28 +208,55 @@ export function ReservationList({
                       if (!unitName || !fullHistory || fullHistory.length === 0) return null;
 
                       // Busca todas as entradas do histórico referentes a essa unidade
-                      const entriesForUnit = fullHistory.filter((row) => (row[2] || "") === unitName);
+                      const entriesForUnit = fullHistory
+                        .filter((row) => (row[2] || "") === unitName && row[0])
+                        .map((r) => r.slice())
+                        .sort((a, b) => {
+                          // Ordena por timestamp ISO (index 0) desc
+                          try {
+                            const ta = a[0] || "";
+                            const tb = b[0] || "";
+                            if (ta === tb) return 0;
+                            return ta < tb ? 1 : -1;
+                          } catch {
+                            return 0;
+                          }
+                        });
 
-                      // 1) Caso explícito: existe uma entrada contendo 'Reserva processada (Worker)'
-                      // (usa includes para aceitar variações como 'Reserva processada (Worker)cvcrm')
-                      const workerProcessedEntry = entriesForUnit.find((r) => ((r[3] || "").toString().includes("Reserva processada (Worker)")));
-                      if (workerProcessedEntry) {
-                        const reservaUrl = workerProcessedEntry[7] || null;
-                        const imgTag = (
-                          <img
-                            src="/cvcrm.ico"
-                            alt="cvcrm"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = "none";
-                            }}
-                            style={{ width: 16, height: 16, marginLeft: 6 }}
-                          />
-                        );
-                        return reservaUrl ? <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a> : imgTag;
+                      // Se não houver entradas com timestamp, cai para busca simples por reserva_url ou por ocorrências
+                      const latest = entriesForUnit.length > 0 ? entriesForUnit[0] : null;
+                      if (latest && latest[3]) {
+                        const actionText = (latest[3] || "").toString();
+                        // Se a última ação contém 'Reserva processada (Worker)' → mostrar ícone
+                        if (actionText.includes("Reserva processada (Worker)")) {
+                          const reservaUrl = latest[7] || null;
+                          const imgTag = (
+                            <img
+                              src="/cvcrm.ico"
+                              alt="cvcrm"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                              style={{ width: 16, height: 16, marginLeft: 6 }}
+                            />
+                          );
+                          return reservaUrl ? <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a> : imgTag;
+                        }
+
+                        // Se a última ação indica cancelamento → não mostrar ícone
+                        const lower = actionText.toLowerCase();
+                        if (lower.includes("cancel") || lower.includes("cancelad") || lower.includes("cancelamento")) {
+                          return null;
+                        }
+
+                        // Se a última ação é Pagamento Registrado → mostrar ícone de pagamento/pendente
+                        if (actionText.includes("Pagamento Registrado")) {
+                          return <FiClock size={14} style={{ marginLeft: 6, color: "#f59e0b" }} />;
+                        }
                       }
 
-                      // 2) Se houver alguma entrada com `reserva_url` (coluna H/idx 7), usar o primeiro encontrado (mais recente)
-                      const entryWithUrl = entriesForUnit.find((r) => r && r[7]);
+                      // Fallbacks: se não houver latest, procurar por qualquer entrada com reserva_url (mais antiga)
+                      const entryWithUrl = fullHistory.find((r) => r && r[2] === unitName && r[7]);
                       if (entryWithUrl && entryWithUrl[7]) {
                         const reservaUrl = entryWithUrl[7];
                         const imgTag = (
@@ -245,15 +272,14 @@ export function ReservationList({
                         return <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a>;
                       }
 
-                      // 3) Outros casos: mostrar ícone de erro ou pagamento quando apropriado
-                      if (entriesForUnit.some((r) => ((r[3] || "").toString().includes("Erro ao processar reserva (Worker)")))) {
+                      // Outros casos: procurar por ocorrências de erro/pagamento em qualquer entrada (mais antigo)
+                      if (fullHistory.some((r) => r && r[2] === unitName && ((r[3] || "").toString().includes("Erro ao processar reserva (Worker)")))) {
                         return <FiAlertCircle size={14} style={{ marginLeft: 6, color: "#ef4444" }} />;
                       }
-                      if (entriesForUnit.some((r) => ((r[3] || "").toString().includes("Pagamento Registrado")))) {
+                      if (fullHistory.some((r) => r && r[2] === unitName && ((r[3] || "").toString().includes("Pagamento Registrado")))) {
                         return <FiClock size={14} style={{ marginLeft: 6, color: "#f59e0b" }} />;
                       }
 
-                      // Não exibir ícone apenas com base em `workerStatus` — evita falsos positivos (ex.: cancelamento)
                       return null;
                     } catch {
                       return null;
