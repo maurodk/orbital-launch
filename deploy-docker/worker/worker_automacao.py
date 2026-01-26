@@ -49,6 +49,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from supabase import create_client, Client
 import requests
 import re
+from urllib.parse import urlparse, parse_qs
 
 # ==============================================================================
 # --- CONFIGURAÇÕES ---
@@ -351,7 +352,36 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
         )
         driver.execute_script("arguments[0].click();", botao_finalizar)
         time.sleep(2)
-        logger.info("Formulário finalizado com sucesso! Aguardando número da reserva...")
+        logger.info("Formulário finalizado com sucesso! Aguardando número da reserva (verificando URL primeiro)...")
+
+        # Primeiro, tentar extrair o ID da reserva diretamente da URL, ex:
+        # https://.../finalizarreserva?...&reserva=45251&tk=...
+        try:
+            # Dar um pequeno loop para aguardar redirecionamento de URL
+            reserva_id = None
+            for _ in range(10):
+                try:
+                    current_url = driver.current_url
+                except Exception:
+                    current_url = None
+                logger.debug(f"current_url after finalize attempt: {current_url}")
+                if current_url and ("reserva=" in current_url or "/finalizarreserva" in current_url):
+                    try:
+                        parsed = urlparse(current_url)
+                        qs = parse_qs(parsed.query)
+                        cand = qs.get("reserva") or qs.get("reserva_id")
+                        if cand and len(cand) > 0:
+                            cand0 = cand[0]
+                            m = re.search(r"(\d{1,10})", cand0)
+                            if m:
+                                reserva_id = m.group(1)
+                                logger.info(f"reserva id extracted from URL: {reserva_id}")
+                                return reserva_id
+                    except Exception as e:
+                        logger.debug(f"Erro ao parsear URL para reserva: {e}")
+                time.sleep(0.5)
+        except Exception as e:
+            logger.debug(f"Erro ao verificar URL após finalizar: {e}")
 
         # Após finalizar, a aplicação redireciona para uma página com o número da reserva.
         # Tentamos várias estratégias mais robustas para extrair apenas os dígitos
@@ -361,7 +391,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
 
             reserva_id = None
 
-            # 1) Tentar encontrar h4/strong/p com texto relevante
+            # 1) Tentar encontrar h4/strong/p com texto relevante (fallback quando URL não entregou reserva)
             try:
                 elementos = driver.find_elements(By.XPATH, "//h4 | //strong | //p")
             except Exception:
