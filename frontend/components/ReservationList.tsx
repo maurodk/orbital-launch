@@ -196,8 +196,6 @@ export function ReservationList({
                   const isReserved = normalizedStatus === "reservada";
                   const isBlocked = normalizedStatus === "bloqueada";
                   const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
-                  // Novo: status do worker na tabela pagamentos (coluna 20, S)
-                  const workerStatus = unitData[20]?.toLowerCase(); // Ex: 'processado' ou 'erro'
                   const clientName = unitData[7] || "—"; // Coluna H - cliente
                   const brokerName = unitData[9] || "—"; // Coluna J - corretor
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia
