@@ -227,6 +227,11 @@ export function ReservationList({
                       const latest = entriesForUnit.length > 0 ? entriesForUnit[0] : null;
                       if (latest && latest[3]) {
                         const actionText = (latest[3] || "").toString();
+                        const lowerAction = actionText.toLowerCase();
+                        // Se a última ação é apenas 'Reservada' (ou similar) — sem 'processada' — não mostrar ícone
+                        if (/\breservad[ao]\b/.test(lowerAction) && !lowerAction.includes('processad')) {
+                          return null;
+                        }
                         // Se a última ação contém 'Reserva processada (Worker)' → mostrar ícone
                         if (actionText.includes("Reserva processada (Worker)")) {
                           const reservaUrl = latest[7] || null;
