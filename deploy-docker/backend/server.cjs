@@ -5608,6 +5608,14 @@ app.post(
         });
       }
 
+      // Debug: mostrar cabeçalho detectado e primeiras linhas parseadas
+      console.log("📥 [IMPORT UNIDADES] Cabeçalho XLSX detectado:", headerRow);
+      console.log("📥 [IMPORT UNIDADES] Cabeçalho CSV detectado:", headerCols);
+      console.log(
+        "📥 [IMPORT UNIDADES] Primeiras linhas de dados (até 3):",
+        dataLines.slice(0, 3)
+      );
+
       // Mapear CSV/XLSX → Sheets
       // CSV/XLSX: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
       // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
@@ -5630,7 +5638,7 @@ app.post(
 
           // Tenta passar informação de cabeçalho quando disponível (XLSX ou CSV)
           // headerRow (XLSX) ou headerCols (CSV) podem ter sido definidos acima
-          return mapCsvToSheets(cols, typeof headerRow !== 'undefined' ? headerRow : headerCols);
+          return mapCsvToSheets(cols, headerRow || headerCols);
         })
         .filter((row) => row !== null); // Remove linhas inválidas
 
