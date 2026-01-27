@@ -5689,6 +5689,22 @@ app.post(
 
       console.log("✅ [IMPORT UNIDADES] Importação no Sheets concluída");
 
+      // Debug: mostrar mapeamento para Sheets (colunas A..O) das primeiras linhas inseridas
+      try {
+        const lettersAtoO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 15); // A..O
+        console.log("📥 [IMPORT UNIDADES] Cabeçalho usado para Sheets (A..S):", header || headerRow || headerCols);
+        unidadesToInsert.slice(0, 5).forEach((row, idx) => {
+          const rowNum = 2 + idx; // Primeira inserção começa na linha 2
+          const mapped = {};
+          for (let i = 0; i < 15; i++) {
+            mapped[lettersAtoO[i]] = row[i] !== undefined ? row[i] : "";
+          }
+          console.log(`📥 [IMPORT UNIDADES][SHEETS MAPPING] Linha ${rowNum}:`, mapped);
+        });
+      } catch (e) {
+        console.warn("📥 [IMPORT UNIDADES] Falha ao gerar log de mapeamento Sheets:", e && e.message);
+      }
+
       // 3. NOVO: Sincronizar com Supabase (limpa e reinsere)
       if (supabase) {
         try {
@@ -5764,6 +5780,23 @@ app.post(
                 tipologia: row[4] || null,
               };
             });
+
+              // Debug: mostrar mapeamento para Supabase (A..Y) das primeiras unidades preparadas
+              try {
+                const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 25); // A..Y
+                console.log("🔄 [IMPORT UNIDADES] Mostrando mapeamento Supabase (A..Y) para até 5 unidades:");
+                supabaseUnits.slice(0, 5).forEach((unit, i) => {
+                  const sheetRow = unidadesToInsert[i] || [];
+                  const extended = sheetRow.concat(Array(Math.max(0, 25 - sheetRow.length)).fill(""));
+                  const mappedSheet = {};
+                  for (let j = 0; j < 25; j++) mappedSheet[letters[j]] = extended[j] !== undefined ? extended[j] : "";
+
+                  console.log(`🔄 [IMPORT UNIDADES][SHEETS->SUPABASE] Unidade index ${i} (row_index=${unit.row_index}): Sheet A..Y:`, mappedSheet);
+                  console.log(`🔄 [IMPORT UNIDADES][SUPABASE OBJECT] Unidade index ${i}:`, unit);
+                });
+              } catch (e) {
+                console.warn("🔄 [IMPORT UNIDADES] Falha ao gerar log de mapeamento Supabase:", e && e.message);
+              }
 
             // Insere no Supabase em lote
             const { data: insertedData, error: insertError } = await supabase
