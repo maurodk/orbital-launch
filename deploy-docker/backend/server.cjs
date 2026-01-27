@@ -5528,6 +5528,117 @@ app.post(
 
       let dataLines = [];
 
+      // Helper: normaliza nome de header
+      function normalizeHeader(h) {
+        if (!h && h !== 0) return "";
+        return String(h)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+      }
+
+      function splitCsvLine(line, delimiter) {
+        const result = [];
+        let cur = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            inQuotes = !inQuotes;
+            continue;
+          }
+          if (ch === delimiter && !inQuotes) {
+            result.push(cur);
+            cur = "";
+            continue;
+          }
+          cur += ch;
+        }
+        result.push(cur);
+        return result.map((c) => c.trim());
+      }
+
+      function parseArea(value) {
+        if (value === null || value === undefined || value === "") return null;
+        const s = String(value).replace(/\s/g, "").replace(/m2|m²/gi, "").replace(/,/g, ".");
+        const n = parseFloat(s.replace(/[^0-9.\-]/g, ""));
+        return isNaN(n) ? null : n;
+      }
+
+      function formatAreaBr(num) {
+        if (num === null || num === undefined) return "";
+        return Number(num).toFixed(2).toString().replace(".", ",") + "m²";
+      }
+
+      function parseCurrencyToNumber(value) {
+        if (value === null || value === undefined || value === "") return null;
+        const s = String(value).replace(/\s/g, "").replace(/R\$|\$/g, "");
+        // Remove thousands dots and keep comma as decimal
+        const cleaned = s.replace(/\./g, "").replace(/,/g, ".");
+        const n = parseFloat(cleaned.replace(/[^0-9.\-]/g, ""));
+        return isNaN(n) ? null : n;
+      }
+
+      function formatCurrencyBr(num) {
+        if (num === null || num === undefined) return "";
+        try {
+          return Number(num).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          });
+        } catch (e) {
+          return String(num);
+        }
+      }
+
+      // Função que monta uma linha no formato da planilha A:S a partir de um objeto {header: value}
+      function buildSheetRowFromObj(obj) {
+        // obj keys are normalized headers
+        const etapa = obj["etapa"] || "";
+        const bloco = obj["bloco"] || "";
+        const nome_unidade = obj["unidade"] || obj["nome_unidade"] || obj["unidade_nome"] || obj["nome"] || "";
+        const raw_area = obj["area_privativa"] || obj["área_privativa"] || obj["area"] || "";
+        const areaNum = parseArea(raw_area);
+        const areaFormatted = areaNum !== null ? formatAreaBr(areaNum) : (raw_area || "");
+        const tipologia = obj["tipologia"] || obj["tipo"] || "";
+        const raw_valor = obj["valor_do_imovel"] || obj["valor"] || obj["valor_imovel"] || "";
+        const valorNum = parseCurrencyToNumber(raw_valor);
+        const valorFormatted = valorNum !== null ? formatCurrencyBr(valorNum) : (raw_valor || "");
+        const id_pre_cadastro = obj["id_pre_cadastro"] || "";
+        const cliente = obj["cliente"] || "";
+        const documento = obj["documento"] || "";
+        const corretor = obj["corretor"] || "";
+        const imobiliaria = obj["imobiliaria"] || "";
+        const situacao = obj["situacao"] || obj["situação"] || "Disponível";
+        const coord_x = obj["coord_x"] || obj["coord_x"] || "";
+        const coord_y = obj["coord_y"] || obj["coord_y"] || "";
+        const simbolo = obj["simbolo"] || "";
+
+        return [
+          etapa,
+          bloco,
+          nome_unidade,
+          areaFormatted,
+          tipologia,
+          valorFormatted,
+          id_pre_cadastro,
+          cliente,
+          documento,
+          corretor,
+          imobiliaria,
+          situacao,
+          coord_x,
+          coord_y,
+          simbolo,
+          "",
+          "",
+          "",
+          "",
+        ];
+      }
+
       // Detecta se é XLSX ou CSV
       if (
         req.file.mimetype ===
@@ -5536,91 +5647,78 @@ app.post(
       ) {
         console.log("📥 [IMPORT UNIDADES] Processando arquivo XLSX...");
 
-        // Parse XLSX
         const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-        const sheetName = workbook.SheetNames[0]; // Pega a primeira aba
+        const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-
-        // Converte para array de arrays
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-        console.log(
-          "📥 [IMPORT UNIDADES] Total de linhas no XLSX:",
-          jsonData.length
-        );
+        console.log("📥 [IMPORT UNIDADES] Total de linhas no XLSX:", jsonData.length);
 
-        // Remove cabeçalho (primeira linha)
-        dataLines = jsonData.slice(1).filter((row) => {
-          // Remove linhas vazias
+        const headerRow = jsonData[0] || [];
+        const normalizedHeaders = headerRow.map(normalizeHeader);
+
+        const rows = jsonData.slice(1).filter((row) => {
           return (
             row &&
             row.length > 0 &&
-            row.some(
-              (cell) => cell !== null && cell !== undefined && cell !== ""
-            )
+            row.some((cell) => cell !== null && cell !== undefined && cell !== "")
           );
         });
 
-        console.log(
-          "📥 [IMPORT UNIDADES] Linhas de dados após filtro:",
-          dataLines.length
-        );
+        // Converte cada row em objeto usando o header
+        const objs = rows.map((row) => {
+          const obj = {};
+          for (let i = 0; i < normalizedHeaders.length; i++) {
+            if (normalizedHeaders[i]) obj[normalizedHeaders[i]] = row[i] !== undefined ? row[i] : "";
+          }
+          return obj;
+        });
+
+        dataLines = objs.map((o) => buildSheetRowFromObj(o));
+
+        console.log("📥 [IMPORT UNIDADES] Linhas de dados após filtro:", dataLines.length);
       } else {
         console.log("📥 [IMPORT UNIDADES] Processando arquivo CSV...");
 
-        // Parse CSV (formato: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL)
         const csvContent = req.file.buffer.toString("utf-8");
-        const lines = csvContent.split("\n").filter((line) => line.trim());
+        const lines = csvContent.split(/\r?\n/).filter((l) => l.trim());
 
-        // Remove cabeçalho do CSV
-        const hasHeader = lines[0] && lines[0].toUpperCase().includes("ETAPA");
-        const rawDataLines = hasHeader ? lines.slice(1) : lines;
+        // Detecta delimitador pela primeira linha
+        const first = lines[0] || "";
+        let delimiter = ";";
+        if (first.includes("\t")) delimiter = "\t";
+        else if (first.includes(";")) delimiter = ";";
+        else if (first.includes(",")) delimiter = ",";
 
-        console.log(
-          "📥 [IMPORT UNIDADES] Linhas de dados:",
-          rawDataLines.length
-        );
+        const headerLine = lines[0];
+        const headerParts = splitCsvLine(headerLine, delimiter).map(normalizeHeader);
+        const hasHeader = headerParts.some((h) => h && h.includes("etapa"));
+        const dataRows = hasHeader ? lines.slice(1) : lines;
 
-        // Log primeira linha para debug
-        if (rawDataLines.length > 0) {
-          console.log(
-            "📥 [IMPORT UNIDADES] Primeira linha exemplo:",
-            rawDataLines[0].substring(0, 100)
-          );
-        }
+        console.log("📥 [IMPORT UNIDADES] Linhas de dados:", dataRows.length);
 
-        dataLines = rawDataLines.map((line) => {
-          // Remove aspas duplas e quebras de linha extras
-          let cleanLine = line.replace(/"/g, "").trim();
-
-          // Detecta o separador: TAB é o separador principal
-          return cleanLine.split("\t").map((c) => c.trim());
-        });
-      }
-
-      // Mapear CSV/XLSX → Sheets
-      // CSV/XLSX: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
-      // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
-      const unidadesToInsert = dataLines
-        .map((cols) => {
-          // Valida se há pelo menos as colunas básicas (ETAPA, BLOCO, UNIDADE)
-          if (
-            !Array.isArray(cols) ||
-            cols.length < 3 ||
-            !cols[0] ||
-            !cols[1] ||
-            !cols[2]
-          ) {
-            console.log(
-              "⚠️ [IMPORT UNIDADES] Linha ignorada (colunas insuficientes):",
-              cols
-            );
-            return null;
+        const objs = dataRows.map((ln) => {
+          const parts = splitCsvLine(ln, delimiter);
+          const obj = {};
+          if (hasHeader) {
+            for (let i = 0; i < headerParts.length; i++) {
+              if (headerParts[i]) obj[headerParts[i]] = parts[i] !== undefined ? parts[i] : "";
+            }
+          } else {
+            // Sem header — assume ordem do usuário: ETAPA,BLOCO,UNIDADE,AREA,TIPOLOGIA,SITUACAO,VALOR_DO_IMOVEL
+            obj["etapa"] = parts[0] || "";
+            obj["bloco"] = parts[1] || "";
+            obj["unidade"] = parts[2] || "";
+            obj["area_privativa"] = parts[3] || "";
+            obj["tipologia"] = parts[4] || "";
+            obj["situacao"] = parts[5] || "";
+            obj["valor_do_imovel"] = parts[6] || "";
           }
+          return obj;
+        });
 
-          return mapCsvToSheets(cols);
-        })
-        .filter((row) => row !== null); // Remove linhas inválidas
+        dataLines = objs.map((o) => buildSheetRowFromObj(o));
+      }
 
       if (unidadesToInsert.length === 0) {
         return res
@@ -5728,9 +5826,9 @@ app.post(
                 etapa: row[0] || null, // A - etapa
                 bloco: row[1] || null, // B - bloco
                 nome_unidade: row[2] || `Unidade ${rowIndex}`, // C - nome_unidade
-                area: row[3] || null, // D - area_privativa
+                area: (function(v){ try { const n = parseFloat(String(v).replace(/\s/g,'').replace(/m2|m²/gi,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,'')); return isNaN(n)?null:n }catch(e){return null}})(row[3]) || null, // D - area_privativa (numeric)
                 tipo: row[4] || null, // E - tipologia
-                valor: row[5] || null, // F - valor_do_imovel
+                valor: (function(v){ try { const s = String(v||'').replace(/\s/g,'').replace(/R\$|\$/g,'').replace(/\./g,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,''); const n = parseFloat(s); return isNaN(n)?null:n }catch(e){return null}})(row[5]) || null, // F - valor_do_imovel (numeric)
                 id_pre_cadastro: row[6] || null, // G
                 cliente: row[7] || null, // H
                 documento: row[8] || null, // I
@@ -5795,39 +5893,7 @@ app.post(
   }
 );
 
-// Função auxiliar para mapear CSV/XLSX → Sheets
-function mapCsvToSheets(cols) {
-  // CSV/XLSX: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
-  // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, valor_do_imovel, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
-
-  // Converte valores null/undefined para string vazia
-  const getVal = (index) => {
-    const val = cols[index];
-    return val !== null && val !== undefined ? String(val).trim() : "";
-  };
-
-  return [
-    getVal(0), // A - etapa
-    getVal(1), // B - bloco
-    getVal(2), // C - nome_unidade
-    getVal(3), // D - area_privativa
-    getVal(6), // E - tipologia (índice 6 no CSV/XLSX com GARAGEM e JARDIM)
-    getVal(8), // F - valor_do_imovel (índice 8 no CSV/XLSX)
-    "", // G - id_pre_cadastro (vazio)
-    "", // H - cliente (vazio)
-    "", // I - documento (vazio)
-    "", // J - corretor (vazio)
-    "", // K - imobiliaria (vazio)
-    getVal(7), // L - situacao (índice 7 no CSV/XLSX)
-    "", // M - coord_x (vazio)
-    "", // N - coord_y (vazio)
-    "", // O - IDENTIFICADOR (vazio)
-    "", // P - Payload (vazio)
-    "", // Q - Valor (vazio)
-    "", // R - Pagamento (vazio)
-    "", // S - Simbolo (vazio)
-  ];
-}
+// mapCsvToSheets removed — parsing consolidated above (header-aware, CSV/XLSX)
 
 // NOVO: Endpoint para sincronizar unidades existentes do Sheets → Supabase
 app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
@@ -5893,9 +5959,9 @@ app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
         etapa: row[0] || null, // A
         bloco: row[1] || null, // B
         nome_unidade: row[2] || `Unidade ${rowIndex}`, // C
-        area: row[3] || null, // D
+        area: (function(v){ try { const n = parseFloat(String(v).replace(/\s/g,'').replace(/m2|m²/gi,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,'')); return isNaN(n)?null:n }catch(e){return null}})(row[3]) || null, // D (numeric)
         tipo: row[4] || null, // E
-        valor: row[5] || null, // F
+        valor: (function(v){ try { const s = String(v||'').replace(/\s/g,'').replace(/R\$|\$/g,'').replace(/\./g,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,''); const n = parseFloat(s); return isNaN(n)?null:n }catch(e){return null}})(row[5]) || null, // F (numeric)
         id_pre_cadastro: row[6] || null, // G
         cliente: row[7] || null, // H
         documento: row[8] || null, // I

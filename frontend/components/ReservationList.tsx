@@ -661,11 +661,19 @@ export function ReservationList({
         }
 
         .reservation-table thead th {
-          text-align: left;
+          text-align: center;
           font-size: 12px;
           color: #9ca3af;
           padding: 14px 16px;
         }
+
+        /* Ajustes de alinhamento por coluna para que o header fique centralizado
+           visualmente alinhado com as linhas de dados */
+        .unit-cell { text-align: left; }
+        .typology-cell { text-align: left; }
+        .client-cell, .broker-cell { text-align: left; }
+        .status-cell { text-align: center; }
+        .action-cell { text-align: center; }
 
         .reservation-table th, .reservation-table td {
           box-sizing: border-box;
