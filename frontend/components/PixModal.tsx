@@ -239,10 +239,10 @@ export function PixModal({
         return cpfLimpo;
       })(),
       nome: (clienteNome || unitData?.[7] || "CLIENTE").slice(0, 25),
-      cidade: (implantacaoCidade || "SAO PAULO").slice(0, 15),
-      chave: "financeiro11@vcaconstrutora.com.br",
+      cidade: (implantacaoCidade || "Vitoria da Conquista").slice(0, 15),
+      chave: "58571081000160",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
-      expiracao: 3600,
+      expiracao: 2400,
     };
 
     try {
