@@ -5720,6 +5720,8 @@ app.post(
         dataLines = objs.map((o) => buildSheetRowFromObj(o));
       }
 
+      const unidadesToInsert = dataLines.filter((cols) => Array.isArray(cols) && cols.length >= 3 && cols[0] && cols[1] && cols[2]);
+
       if (unidadesToInsert.length === 0) {
         return res
           .status(400)
