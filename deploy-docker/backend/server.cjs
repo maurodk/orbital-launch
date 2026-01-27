@@ -572,35 +572,30 @@ async function cleanupExpiredReservations() {
           `[CLEANUP] Falha ao reverter status para a unidade ${key}:`,
           error
         );
-      try {
-        const normalized = header.map((h) =>
-          String(h || "")
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-z0-9_ ]/g, "")
-            .replace(/\s+/g, "")
-        );
-
-        console.log("📥 [IMPORT UNIDADES] Header normalizado:", normalized);
-
-        const findIndexContains = (terms) =>
-          normalized.findIndex((v) => terms.some((t) => v.includes(t)));
-
-        const tipIdx = findIndexContains(["tipologia", "tipologia", "tipologia"]);
-        if (tipIdx !== -1) idxTipologia = tipIdx;
-
-        const valorIdx = findIndexContains(["valordoimovel", "valor", "valor_do_imovel", "valor"]);
-        if (valorIdx !== -1) idxValor = valorIdx;
-
-        const situIdx = findIndexContains(["situacao", "situao", "situac", "situacoe", "situaç"]);
-        if (situIdx !== -1) idxSituacao = situIdx;
-
-        console.log("📥 [IMPORT UNIDADES] Índices detectados: tipologia=", idxTipologia, "valor=", idxValor, "situacao=", idxSituacao);
-      } catch (e) {
-        console.warn("📥 [IMPORT UNIDADES] Erro ao normalizar header:", e && e.message);
-        // non-blocking; usa índices padrão
+      } finally {
+        // Remove da memória independentemente do sucesso na planilha
+        tempReservations.delete(key);
       }
+    }
+    console.log("[CLEANUP] Limpeza de reservas expiradas concluída.");
+  }
+}
+
+// Limpa reservas expiradas a cada 30 segundos
+setInterval(cleanupExpiredReservations, 30000);
+
+function addSseClient(implantacao, res) {
+  if (!sseClients.has(implantacao)) sseClients.set(implantacao, new Set());
+  sseClients.get(implantacao).add(res);
+}
+
+function removeSseClient(implantacao, res) {
+  if (!sseClients.has(implantacao)) return;
+  sseClients.get(implantacao).delete(res);
+  if (sseClients.get(implantacao).size === 0) sseClients.delete(implantacao);
+}
+
+async function broadcastEvent(implantacao, event, data) {
   const clients = sseClients.get(implantacao);
   if (!clients) return;
 
@@ -5532,9 +5527,6 @@ app.post(
       }
 
       let dataLines = [];
-      // Preserva possíveis cabeçalhos detectados (XLSX ou CSV)
-      let headerRow = null;
-      let headerCols = null;
 
       // Detecta se é XLSX ou CSV
       if (
@@ -5557,8 +5549,7 @@ app.post(
           jsonData.length
         );
 
-        // Captura cabeçalho (primeira linha) e remove-a dos dados
-        headerRow = jsonData[0] || null;
+        // Remove cabeçalho (primeira linha)
         dataLines = jsonData.slice(1).filter((row) => {
           // Remove linhas vazias
           return (
@@ -5581,9 +5572,8 @@ app.post(
         const csvContent = req.file.buffer.toString("utf-8");
         const lines = csvContent.split("\n").filter((line) => line.trim());
 
-        // Remove cabeçalho do CSV (se existir) e preserva os nomes das colunas
+        // Remove cabeçalho do CSV
         const hasHeader = lines[0] && lines[0].toUpperCase().includes("ETAPA");
-        const headerLine = hasHeader ? lines[0] : null;
         const rawDataLines = hasHeader ? lines.slice(1) : lines;
 
         console.log(
@@ -5599,11 +5589,6 @@ app.post(
           );
         }
 
-        // Se houver cabeçalho, extrai array de nomes de colunas
-        headerCols = headerLine
-          ? headerLine.replace(/"/g, "").trim().split("\t").map((c) => c.trim())
-          : null;
-
         dataLines = rawDataLines.map((line) => {
           // Remove aspas duplas e quebras de linha extras
           let cleanLine = line.replace(/"/g, "").trim();
@@ -5612,14 +5597,6 @@ app.post(
           return cleanLine.split("\t").map((c) => c.trim());
         });
       }
-
-      // Debug: mostrar cabeçalho detectado e primeiras linhas parseadas
-      console.log("📥 [IMPORT UNIDADES] Cabeçalho XLSX detectado:", headerRow);
-      console.log("📥 [IMPORT UNIDADES] Cabeçalho CSV detectado:", headerCols);
-      console.log(
-        "📥 [IMPORT UNIDADES] Primeiras linhas de dados (até 3):",
-        dataLines.slice(0, 3)
-      );
 
       // Mapear CSV/XLSX → Sheets
       // CSV/XLSX: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, GARAGEM, JARDIM, TIPOLOGIA, SITUAÇÃO, VALOR DO IMOVEL
@@ -5641,9 +5618,7 @@ app.post(
             return null;
           }
 
-          // Tenta passar informação de cabeçalho quando disponível (XLSX ou CSV)
-          // headerRow (XLSX) ou headerCols (CSV) podem ter sido definidos acima
-          return mapCsvToSheets(cols, headerRow || headerCols);
+          return mapCsvToSheets(cols);
         })
         .filter((row) => row !== null); // Remove linhas inválidas
 
@@ -5693,22 +5668,6 @@ app.post(
       });
 
       console.log("✅ [IMPORT UNIDADES] Importação no Sheets concluída");
-
-      // Debug: mostrar mapeamento para Sheets (colunas A..O) das primeiras linhas inseridas
-      try {
-        const lettersAtoO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 15); // A..O
-        console.log("📥 [IMPORT UNIDADES] Cabeçalho usado para Sheets (A..S):", headerRow || headerCols);
-        unidadesToInsert.slice(0, 5).forEach((row, idx) => {
-          const rowNum = 2 + idx; // Primeira inserção começa na linha 2
-          const mapped = {};
-          for (let i = 0; i < 15; i++) {
-            mapped[lettersAtoO[i]] = row[i] !== undefined ? row[i] : "";
-          }
-          console.log(`📥 [IMPORT UNIDADES][SHEETS MAPPING] Linha ${rowNum}:`, mapped);
-        });
-      } catch (e) {
-        console.warn("📥 [IMPORT UNIDADES] Falha ao gerar log de mapeamento Sheets:", e && e.message);
-      }
 
       // 3. NOVO: Sincronizar com Supabase (limpa e reinsere)
       if (supabase) {
@@ -5786,23 +5745,6 @@ app.post(
               };
             });
 
-              // Debug: mostrar mapeamento para Supabase (A..Y) das primeiras unidades preparadas
-              try {
-                const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 25); // A..Y
-                console.log("🔄 [IMPORT UNIDADES] Mostrando mapeamento Supabase (A..Y) para até 5 unidades:");
-                supabaseUnits.slice(0, 5).forEach((unit, i) => {
-                  const sheetRow = unidadesToInsert[i] || [];
-                  const extended = sheetRow.concat(Array(Math.max(0, 25 - sheetRow.length)).fill(""));
-                  const mappedSheet = {};
-                  for (let j = 0; j < 25; j++) mappedSheet[letters[j]] = extended[j] !== undefined ? extended[j] : "";
-
-                  console.log(`🔄 [IMPORT UNIDADES][SHEETS->SUPABASE] Unidade index ${i} (row_index=${unit.row_index}): Sheet A..Y:`, mappedSheet);
-                  console.log(`🔄 [IMPORT UNIDADES][SUPABASE OBJECT] Unidade index ${i}:`, unit);
-                });
-              } catch (e) {
-                console.warn("🔄 [IMPORT UNIDADES] Falha ao gerar log de mapeamento Supabase:", e && e.message);
-              }
-
             // Insere no Supabase em lote
             const { data: insertedData, error: insertError } = await supabase
               .from("unidades")
@@ -5854,42 +5796,9 @@ app.post(
 );
 
 // Função auxiliar para mapear CSV/XLSX → Sheets
-function mapCsvToSheets(cols, header) {
-  // Aceita dois formatos comuns:
-  // 1) CSV original: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
-  // 2) Sheets-friendly export: etapa, bloco, nome_unidade, area_privativa, tipologia, valor_do_imovel, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, ...
-
-  // Normalize header names quando fornecido para detectar índices
-  let idxTipologia = 6;
-  let idxValor = 8;
-  let idxSituacao = 7;
-
-  if (header && Array.isArray(header)) {
-    try {
-      const normalized = header.map((h) =>
-        String(h || "")
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[ -\u036f]/g, "")
-          .replace(/[^a-z0-9_ ]/g, "")
-          .replace(/\s+/g, "")
-      );
-
-      const findIndexContains = (terms) =>
-        normalized.findIndex((v) => terms.some((t) => v.includes(t)));
-
-      const tipIdx = findIndexContains(["tipologia", "tipologia"]);
-      if (tipIdx !== -1) idxTipologia = tipIdx;
-
-      const valorIdx = findIndexContains(["valordoimovel", "valor", "valor_do_imovel"]);
-      if (valorIdx !== -1) idxValor = valorIdx;
-
-      const situIdx = findIndexContains(["situacao", "situao", "situaç"]);
-      if (situIdx !== -1) idxSituacao = situIdx;
-    } catch (e) {
-      // non-blocking; usa índices padrão
-    }
-  }
+function mapCsvToSheets(cols) {
+  // CSV/XLSX: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
+  // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, valor_do_imovel, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
 
   // Converte valores null/undefined para string vazia
   const getVal = (index) => {
@@ -5902,14 +5811,14 @@ function mapCsvToSheets(cols, header) {
     getVal(1), // B - bloco
     getVal(2), // C - nome_unidade
     getVal(3), // D - area_privativa
-    getVal(idxTipologia), // E - tipologia
-    getVal(idxValor), // F - valor_do_imovel
+    getVal(6), // E - tipologia (índice 6 no CSV/XLSX com GARAGEM e JARDIM)
+    getVal(8), // F - valor_do_imovel (índice 8 no CSV/XLSX)
     "", // G - id_pre_cadastro (vazio)
     "", // H - cliente (vazio)
     "", // I - documento (vazio)
     "", // J - corretor (vazio)
     "", // K - imobiliaria (vazio)
-    getVal(idxSituacao), // L - situacao
+    getVal(7), // L - situacao (índice 7 no CSV/XLSX)
     "", // M - coord_x (vazio)
     "", // N - coord_y (vazio)
     "", // O - IDENTIFICADOR (vazio)
