@@ -5527,6 +5527,9 @@ app.post(
       }
 
       let dataLines = [];
+      // Preserva possíveis cabeçalhos detectados (XLSX ou CSV)
+      let headerRow = null;
+      let headerCols = null;
 
       // Detecta se é XLSX ou CSV
       if (
@@ -5549,7 +5552,8 @@ app.post(
           jsonData.length
         );
 
-        // Remove cabeçalho (primeira linha)
+        // Captura cabeçalho (primeira linha) e remove-a dos dados
+        headerRow = jsonData[0] || null;
         dataLines = jsonData.slice(1).filter((row) => {
           // Remove linhas vazias
           return (
@@ -5572,8 +5576,9 @@ app.post(
         const csvContent = req.file.buffer.toString("utf-8");
         const lines = csvContent.split("\n").filter((line) => line.trim());
 
-        // Remove cabeçalho do CSV
+        // Remove cabeçalho do CSV (se existir) e preserva os nomes das colunas
         const hasHeader = lines[0] && lines[0].toUpperCase().includes("ETAPA");
+        const headerLine = hasHeader ? lines[0] : null;
         const rawDataLines = hasHeader ? lines.slice(1) : lines;
 
         console.log(
@@ -5588,6 +5593,11 @@ app.post(
             rawDataLines[0].substring(0, 100)
           );
         }
+
+        // Se houver cabeçalho, extrai array de nomes de colunas
+        headerCols = headerLine
+          ? headerLine.replace(/"/g, "").trim().split("\t").map((c) => c.trim())
+          : null;
 
         dataLines = rawDataLines.map((line) => {
           // Remove aspas duplas e quebras de linha extras
@@ -5618,7 +5628,9 @@ app.post(
             return null;
           }
 
-          return mapCsvToSheets(cols);
+          // Tenta passar informação de cabeçalho quando disponível (XLSX ou CSV)
+          // headerRow (XLSX) ou headerCols (CSV) podem ter sido definidos acima
+          return mapCsvToSheets(cols, typeof headerRow !== 'undefined' ? headerRow : headerCols);
         })
         .filter((row) => row !== null); // Remove linhas inválidas
 
@@ -5796,9 +5808,42 @@ app.post(
 );
 
 // Função auxiliar para mapear CSV/XLSX → Sheets
-function mapCsvToSheets(cols) {
-  // CSV/XLSX: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
-  // Sheets: etapa, bloco, nome_unidade, area_privativa, tipologia, valor_do_imovel, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, IDENTIFICADOR, Payload, Valor, Pagamento, Simbolo
+function mapCsvToSheets(cols, header) {
+  // Aceita dois formatos comuns:
+  // 1) CSV original: [0]ETAPA, [1]BLOCO, [2]UNIDADE, [3]ÁREA PRIVATIVA, [4]GARAGEM, [5]JARDIM, [6]TIPOLOGIA, [7]SITUAÇÃO, [8]VALOR DO IMOVEL
+  // 2) Sheets-friendly export: etapa, bloco, nome_unidade, area_privativa, tipologia, valor_do_imovel, id_pre_cadastro, cliente, documento, corretor, imobiliaria, situacao, coord_x, coord_y, ...
+
+  // Normalize header names quando fornecido para detectar índices
+  let idxTipologia = 6;
+  let idxValor = 8;
+  let idxSituacao = 7;
+
+  if (header && Array.isArray(header)) {
+    try {
+      const normalized = header.map((h) =>
+        String(h || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[ -\u036f]/g, "")
+          .replace(/[^a-z0-9_ ]/g, "")
+          .replace(/\s+/g, "")
+      );
+
+      const findIndexContains = (terms) =>
+        normalized.findIndex((v) => terms.some((t) => v.includes(t)));
+
+      const tipIdx = findIndexContains(["tipologia", "tipologia"]);
+      if (tipIdx !== -1) idxTipologia = tipIdx;
+
+      const valorIdx = findIndexContains(["valordoimovel", "valor", "valor_do_imovel"]);
+      if (valorIdx !== -1) idxValor = valorIdx;
+
+      const situIdx = findIndexContains(["situacao", "situao", "situaç"]);
+      if (situIdx !== -1) idxSituacao = situIdx;
+    } catch (e) {
+      // non-blocking; usa índices padrão
+    }
+  }
 
   // Converte valores null/undefined para string vazia
   const getVal = (index) => {
@@ -5811,14 +5856,14 @@ function mapCsvToSheets(cols) {
     getVal(1), // B - bloco
     getVal(2), // C - nome_unidade
     getVal(3), // D - area_privativa
-    getVal(6), // E - tipologia (índice 6 no CSV/XLSX com GARAGEM e JARDIM)
-    getVal(8), // F - valor_do_imovel (índice 8 no CSV/XLSX)
+    getVal(idxTipologia), // E - tipologia
+    getVal(idxValor), // F - valor_do_imovel
     "", // G - id_pre_cadastro (vazio)
     "", // H - cliente (vazio)
     "", // I - documento (vazio)
     "", // J - corretor (vazio)
     "", // K - imobiliaria (vazio)
-    getVal(7), // L - situacao (índice 7 no CSV/XLSX)
+    getVal(idxSituacao), // L - situacao
     "", // M - coord_x (vazio)
     "", // N - coord_y (vazio)
     "", // O - IDENTIFICADOR (vazio)
