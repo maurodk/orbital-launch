@@ -1,9 +1,11 @@
 :root{
-  --bg-1: linear-gradient(135deg,#071025 0%, #0f2a4a 40%, #071025 100%);
-  --card-bg: rgba(255,255,255,0.04);
-  --glass: rgba(255,255,255,0.03);
-  --accent: #00b894;
-  --muted: #98a1b3;
+  /* Graphite background and neon-accent theme */
+  --bg-1: linear-gradient(135deg,#141416 0%, #0f0f10 40%, #0b0b0c 100%);
+  --card-bg: rgba(255,255,255,0.02);
+  --glass: rgba(255,255,255,0.015);
+  --accent: #29ff6a; /* neon green */
+  --accent-2: #0fb566; /* darker neon for gradients */
+  --muted: #9aa3ad;
   --text: #e6eef8;
 }
 
@@ -29,7 +31,7 @@
 .subtitle{ color:var(--muted); margin-top:6px }
 
 .btn-primary{
-  background:linear-gradient(90deg,var(--accent),#06a77b);
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
   color:#021018; border:none; padding:10px 16px; border-radius:10px; font-weight:600; cursor:pointer;
   box-shadow: 0 6px 18px rgba(0,0,0,0.45), inset 0 -2px 6px rgba(255,255,255,0.02);
 }
@@ -65,7 +67,7 @@
 .payment-row strong{ color:var(--muted); font-weight:600 }
 .payment-row span{ font-size:16px; font-weight:700 }
 .payment-row::before{ content:""; width:8px; height:40px; border-radius:6px; margin-right:10px; display:inline-block }
-.payment-row:nth-child(1)::before{ background:#00b894 }
+.payment-row:nth-child(1)::before{ background:var(--accent) }
 .payment-row:nth-child(2)::before{ background:#0984e3 }
 .payment-row:nth-child(3)::before{ background:#fdcb6e }
 .payment-row:nth-child(4)::before{ background:#6c5ce7 }
@@ -74,7 +76,7 @@
 .bar-row{ display:flex; flex-direction:column; gap:6px }
 .bar-meta{ display:flex; justify-content:space-between; font-size:13px; color:var(--muted) }
 .bar-track{ height:10px; background:rgba(255,255,255,0.03); border-radius:999px; overflow:hidden }
-.bar-fill{ height:100%; background:linear-gradient(90deg,var(--accent),#06a77b); border-radius:999px; transition:width .8s cubic-bezier(.2,.9,.2,1) }
+.bar-fill{ height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); border-radius:999px; transition:width .8s cubic-bezier(.2,.9,.2,1) }
 
 .lists-row{ display:flex; gap:18px; margin-top:18px }
 .list-card{ flex:1; background:var(--card-bg); border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.02) }
