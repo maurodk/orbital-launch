@@ -4175,6 +4175,110 @@ app.get("/api/pix/list", verifyToken, async (req, res) => {
   }
 });
 
+// Endpoint: Dashboard Diretoria - agregados de reservas/pagamentos/unidades
+app.get("/api/diretoria", verifyToken, async (req, res) => {
+  try {
+    const { data: unidadesData, error: unidadesErr } = await supabase
+      .from("unidades")
+      .select("*");
+
+    if (unidadesErr) {
+      console.error("Erro ao buscar unidades:", unidadesErr);
+    }
+
+    const { data: pagamentosData, error: pagamentosErr } = await supabase
+      .from("pagamentos")
+      .select("*");
+
+    if (pagamentosErr) {
+      console.error("Erro ao buscar pagamentos:", pagamentosErr);
+    }
+
+    const unidades = unidadesData || [];
+    const pagamentos = pagamentosData || [];
+
+    const toNumber = (v) => {
+      if (v == null) return 0;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const reservedUnits = (unidades || []).filter((u) => {
+      const s = normalizeStatus(u.situacao || u.situacao_original || "");
+      return s === "reservada" || s === "reservando";
+    });
+
+    const countBy = (arr, key) => {
+      return arr.reduce((acc, cur) => {
+        const k = (cur && cur[key]) || "(Sem)";
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+      }, {});
+    };
+
+    const unidadesReservadasPorTipologia = countBy(reservedUnits, "tipologia");
+    const unidadesReservadasPorImobiliaria = countBy(reservedUnits, "imobiliaria");
+    const unidadesReservadasPorCorretor = countBy(reservedUnits, "corretor");
+
+    const pagamentosValidos = (pagamentos || []).filter((p) => {
+      const status = (p.status || "").toString().toLowerCase();
+      return status !== "cancelado" && status !== "canceled";
+    });
+
+    const totalValorUnidadesReservadas = pagamentosValidos.reduce(
+      (s, p) => s + toNumber(p.valor_unidade || p.valorUnidade || p.valor_total || p.valorTotal),
+      0
+    );
+
+    const totalPix = pagamentosValidos.reduce(
+      (s, p) => s + toNumber(p.valor_pix || p.valorPix || 0),
+      0
+    );
+
+    const totalCartao = pagamentosValidos.reduce(
+      (s, p) => s + toNumber(p.valor_cartao || p.valorCartao || 0),
+      0
+    );
+
+    const totalDinheiro = pagamentosValidos.reduce(
+      (s, p) => s + toNumber(p.valor_dinheiro || p.valorDinheiro || 0),
+      0
+    );
+
+    const totalCheque = pagamentosValidos.reduce(
+      (s, p) => s + toNumber(p.valor_cheque || p.valorCheque || 0),
+      0
+    );
+
+    const quantidadeReservas = pagamentosValidos.length;
+
+    const unidadesBloqueadas = (unidades || []).filter(
+      (u) => normalizeStatus(u.situacao || "") === "bloqueada"
+    ).length;
+
+    const unidadesDisponiveis = (unidades || []).filter(
+      (u) => normalizeStatus(u.situacao || "") === "disponivel" || normalizeStatus(u.situacao || "") === "disponível"
+    ).length;
+
+    res.json({
+      unidadesReservadasPorTipologia: unidadesReservadasPorTipologia,
+      unidadesReservadasPorImobiliaria: unidadesReservadasPorImobiliaria,
+      unidadesReservadasPorCorretor: unidadesReservadasPorCorretor,
+      totalValorUnidadesReservadas,
+      totalPix,
+      totalCartao,
+      totalDinheiro,
+      totalCheque,
+      quantidadeReservas,
+      unidadesBloqueadas,
+      unidadesDisponiveis,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/diretoria:", error);
+    res.status(500).json({ error: "Erro ao calcular dashboard da diretoria." });
+  }
+});
+
 // NOVO: Endpoint para buscar último PIX pendente de uma unidade
 app.get("/api/pix/pending", verifyToken, async (req, res) => {
   const { implantacao, cliente, unidade } = req.query;
