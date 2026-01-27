@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { supabase } from "../supabaseClient";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 
 const AWS_API_URL =
@@ -17,7 +18,23 @@ export function Diretoria() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const resp = await axios.get(`${apiUrl}/api/diretoria`);
+        // obtain current session access token and include in Authorization header
+        let token = null;
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          token = session?.access_token || null;
+        } catch (e) {
+          // fallback: no session available
+          token = null;
+        }
+
+        const resp = await axios.get(`${apiUrl}/api/diretoria`, {
+          headers: token
+            ? { Authorization: `Bearer ${token}` }
+            : undefined,
+        });
         if (!mounted) return;
         setData(resp.data);
       } catch (err: any) {
