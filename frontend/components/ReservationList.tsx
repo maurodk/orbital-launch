@@ -170,6 +170,15 @@ export function ReservationList({
       <div className="table-scroll-container">
         <div className="table-wrapper">
           <table className="reservation-table">
+            <colgroup>
+              {isSelectionMode && <col style={{ width: 40 }} />}
+              <col style={{ width: 220 }} />
+              <col style={{ width: 240 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 220 }} />
+              <col style={{ width: 220 }} />
+              <col style={{ width: 220 }} />
+            </colgroup>
             <thead>
               <tr>
                 {isSelectionMode && <th style={{ width: "40px" }}></th>}
@@ -438,7 +447,7 @@ export function ReservationList({
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="no-results-message">
+                  <td colSpan={isSelectionMode ? 7 : 6} className="no-results-message">
                     Nenhuma unidade encontrada com os filtros aplicados.
                   </td>
                 </tr>
@@ -640,6 +649,7 @@ export function ReservationList({
         .reservation-table {
           width: 100%;
           border-collapse: collapse;
+          table-layout: fixed;
         }
 
         .reservation-table th,
@@ -655,6 +665,10 @@ export function ReservationList({
           font-size: 12px;
           color: #9ca3af;
           padding: 14px 16px;
+        }
+
+        .reservation-table th, .reservation-table td {
+          box-sizing: border-box;
         }
 
         .selection-cell { width: 40px; text-align: center; }
