@@ -4,6 +4,20 @@ import { supabase } from "../supabaseClient";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import "./Diretoria.css";
 
+interface DiretoriaData {
+  quantidadeReservas?: number;
+  unidadesBloqueadas?: number;
+  unidadesDisponiveis?: number;
+  totalValorUnidadesReservadas?: number;
+  totalPix?: number;
+  totalCartao?: number;
+  totalDinheiro?: number;
+  totalCheque?: number;
+  unidadesReservadasPorTipologia?: Record<string, number>;
+  unidadesReservadasPorImobiliaria?: Record<string, number>;
+  unidadesReservadasPorCorretor?: Record<string, number>;
+}
+
 const AWS_API_URL =
   import.meta.env.VITE_AWS_API_URL ||
   "https://apitelaodigital.suportevca.com.br";
@@ -12,7 +26,7 @@ const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 export function Diretoria() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<any>({});
+  const [data, setData] = useState<DiretoriaData>({});
 
   useEffect(() => {
     let mounted = true;
@@ -26,7 +40,7 @@ export function Diretoria() {
             data: { session },
           } = await supabase.auth.getSession();
           token = session?.access_token || null;
-        } catch (e) {
+        } catch {
           token = null;
         }
 
@@ -34,7 +48,7 @@ export function Diretoria() {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!mounted) return;
-        setData(resp.data || {});
+        setData((resp.data as DiretoriaData) || {});
       } catch (err: any) {
         console.error(err);
         setError(err?.response?.data?.error || err.message || "Erro ao carregar dados");
@@ -154,15 +168,17 @@ export function Diretoria() {
           <div className="panel small">
             <h3 className="panel-title">Reservas por Tipologia</h3>
             <div className="panel-body bars">
-              {Object.entries(data.unidadesReservadasPorTipologia || {}).length === 0 && <div className="empty">Nenhuma tipologia reservada</div>}
-              {Object.entries(data.unidadesReservadasPorTipologia || {}).map(([k,v],i)=>{
-                const values = Object.values(data.unidadesReservadasPorTipologia||{}).map(Number);
-                const max = Math.max(...values,1);
-                const pct = Math.round((Number(v)/max)*100);
+              {Object.keys(data.unidadesReservadasPorTipologia || {}).length === 0 && <div className="empty">Nenhuma tipologia reservada</div>}
+              {(
+                Object.entries(data.unidadesReservadasPorTipologia || {}) as [string, number][]
+              ).map(([k, v], i) => {
+                const values = (Object.values(data.unidadesReservadasPorTipologia || {}) as number[]).map(Number);
+                const max = Math.max(...values, 1);
+                const pct = Math.round((Number(v) / max) * 100);
                 return (
                   <div className="bar-row" key={i}>
                     <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v}</span></div>
-                    <div className="bar-track"><div className="bar-fill" style={{width:`${pct}%`}}/></div>
+                    <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
                   </div>
                 );
               })}
@@ -174,7 +190,7 @@ export function Diretoria() {
           <div className="list-card">
             <h3>Reservadas por Imobiliária</h3>
             <div className="list-body">
-              {Object.entries(data.unidadesReservadasPorImobiliaria || {}).map(([k,v],i)=> (
+              {(Object.entries(data.unidadesReservadasPorImobiliaria || {}) as [string, number][]).map(([k, v], i) => (
                 <div className="list-row" key={i}><span>{k}</span><strong>{v}</strong></div>
               ))}
             </div>
@@ -183,7 +199,7 @@ export function Diretoria() {
           <div className="list-card">
             <h3>Reservadas por Corretor</h3>
             <div className="list-body">
-              {Object.entries(data.unidadesReservadasPorCorretor || {}).map(([k,v],i)=> (
+              {(Object.entries(data.unidadesReservadasPorCorretor || {}) as [string, number][]).map(([k, v], i) => (
                 <div className="list-row" key={i}><span>{k}</span><strong>{v}</strong></div>
               ))}
             </div>
