@@ -8,5 +8,14 @@
       "source": "/fullscreen-cvcrm",
       "destination": "/fullscreen-cvcrm.html"
     }
+    ,
+    {
+      "source": "/diretoria",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/diretoria/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
