@@ -27,6 +27,8 @@ export function Diretoria() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DiretoriaData>({});
+  const [searchImobiliaria, setSearchImobiliaria] = useState("");
+  const [searchCorretor, setSearchCorretor] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -49,9 +51,17 @@ export function Diretoria() {
         });
         if (!mounted) return;
         setData((resp.data as DiretoriaData) || {});
-      } catch (err: any) {
-        console.error(err);
-        setError(err?.response?.data?.error || err.message || "Erro ao carregar dados");
+      } catch (err: unknown) {
+          console.error(err);
+          let message = "Erro ao carregar dados";
+          if (axios.isAxiosError(err)) {
+            message = err.response?.data?.error || err.message || message;
+          } else if (err instanceof Error) {
+            message = err.message;
+          } else if (typeof err === "string") {
+            message = err;
+          }
+          setError(message);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -173,11 +183,11 @@ export function Diretoria() {
                 Object.entries(data.unidadesReservadasPorTipologia || {}) as [string, number][]
               ).map(([k, v], i) => {
                 const values = (Object.values(data.unidadesReservadasPorTipologia || {}) as number[]).map(Number);
-                const max = Math.max(...values, 1);
-                const pct = Math.round((Number(v) / max) * 100);
+                const total = values.reduce((s, n) => s + n, 0) || 1;
+                const pct = Math.round((Number(v) / total) * 100);
                 return (
                   <div className="bar-row" key={i}>
-                    <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v}</span></div>
+                    <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v} — {pct}%</span></div>
                     <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
                   </div>
                 );
@@ -189,8 +199,14 @@ export function Diretoria() {
         <section className="lists-row">
           <div className="list-card">
             <h3>Reservadas por Imobiliária</h3>
+            <div className="list-tools">
+              <input className="list-search" placeholder="Pesquisar imobiliária" value={searchImobiliaria} onChange={(ev)=>setSearchImobiliaria(ev.target.value)} />
+            </div>
             <div className="list-body">
-              {(Object.entries(data.unidadesReservadasPorImobiliaria || {}) as [string, number][]).map(([k, v], i) => (
+              {(
+                (Object.entries(data.unidadesReservadasPorImobiliaria || {}) as [string, number][])
+                .filter(([k]) => k.toLowerCase().includes(searchImobiliaria.trim().toLowerCase()))
+              ).map(([k, v], i) => (
                 <div className="list-row" key={i}><span>{k}</span><strong>{v}</strong></div>
               ))}
             </div>
@@ -198,8 +214,14 @@ export function Diretoria() {
 
           <div className="list-card">
             <h3>Reservadas por Corretor</h3>
+            <div className="list-tools">
+              <input className="list-search" placeholder="Pesquisar corretor" value={searchCorretor} onChange={(ev)=>setSearchCorretor(ev.target.value)} />
+            </div>
             <div className="list-body">
-              {(Object.entries(data.unidadesReservadasPorCorretor || {}) as [string, number][]).map(([k, v], i) => (
+              {(
+                (Object.entries(data.unidadesReservadasPorCorretor || {}) as [string, number][])
+                .filter(([k]) => k.toLowerCase().includes(searchCorretor.trim().toLowerCase()))
+              ).map(([k, v], i) => (
                 <div className="list-row" key={i}><span>{k}</span><strong>{v}</strong></div>
               ))}
             </div>

@@ -53,7 +53,12 @@
 .donut{ position:relative; display:flex; align-items:center; gap:18px }
 .donut-chart{ width:140px; height:140px; transform:rotate(-90deg) }
 .donut-segment{ transition: stroke-dasharray .6s ease, stroke .4s ease }
-.donut-center{ position:relative; margin-left:-52px; color:var(--muted); font-size:13px }
+.donut-center{ position:static; margin-left:0; color:var(--muted); font-size:13px; text-align:center }
+
+.list-tools{ display:flex; justify-content:flex-end; margin-bottom:8px }
+.list-search{ width:100%; max-width:280px; padding:8px 10px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); color:var(--text) }
+
+.bar-meta .bar-num{ color:var(--muted); font-weight:700 }
 
 .payments-list{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; width:100%; }
 .payment-row{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:10px }
