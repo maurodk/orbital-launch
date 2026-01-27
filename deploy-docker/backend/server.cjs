@@ -572,30 +572,35 @@ async function cleanupExpiredReservations() {
           `[CLEANUP] Falha ao reverter status para a unidade ${key}:`,
           error
         );
-      } finally {
-        // Remove da memória independentemente do sucesso na planilha
-        tempReservations.delete(key);
+      try {
+        const normalized = header.map((h) =>
+          String(h || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9_ ]/g, "")
+            .replace(/\s+/g, "")
+        );
+
+        console.log("📥 [IMPORT UNIDADES] Header normalizado:", normalized);
+
+        const findIndexContains = (terms) =>
+          normalized.findIndex((v) => terms.some((t) => v.includes(t)));
+
+        const tipIdx = findIndexContains(["tipologia", "tipologia", "tipologia"]);
+        if (tipIdx !== -1) idxTipologia = tipIdx;
+
+        const valorIdx = findIndexContains(["valordoimovel", "valor", "valor_do_imovel", "valor"]);
+        if (valorIdx !== -1) idxValor = valorIdx;
+
+        const situIdx = findIndexContains(["situacao", "situao", "situac", "situacoe", "situaç"]);
+        if (situIdx !== -1) idxSituacao = situIdx;
+
+        console.log("📥 [IMPORT UNIDADES] Índices detectados: tipologia=", idxTipologia, "valor=", idxValor, "situacao=", idxSituacao);
+      } catch (e) {
+        console.warn("📥 [IMPORT UNIDADES] Erro ao normalizar header:", e && e.message);
+        // non-blocking; usa índices padrão
       }
-    }
-    console.log("[CLEANUP] Limpeza de reservas expiradas concluída.");
-  }
-}
-
-// Limpa reservas expiradas a cada 30 segundos
-setInterval(cleanupExpiredReservations, 30000);
-
-function addSseClient(implantacao, res) {
-  if (!sseClients.has(implantacao)) sseClients.set(implantacao, new Set());
-  sseClients.get(implantacao).add(res);
-}
-
-function removeSseClient(implantacao, res) {
-  if (!sseClients.has(implantacao)) return;
-  sseClients.get(implantacao).delete(res);
-  if (sseClients.get(implantacao).size === 0) sseClients.delete(implantacao);
-}
-
-async function broadcastEvent(implantacao, event, data) {
   const clients = sseClients.get(implantacao);
   if (!clients) return;
 
@@ -5692,7 +5697,7 @@ app.post(
       // Debug: mostrar mapeamento para Sheets (colunas A..O) das primeiras linhas inseridas
       try {
         const lettersAtoO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 15); // A..O
-        console.log("📥 [IMPORT UNIDADES] Cabeçalho usado para Sheets (A..S):", header || headerRow || headerCols);
+        console.log("📥 [IMPORT UNIDADES] Cabeçalho usado para Sheets (A..S):", headerRow || headerCols);
         unidadesToInsert.slice(0, 5).forEach((row, idx) => {
           const rowNum = 2 + idx; // Primeira inserção começa na linha 2
           const mapped = {};
