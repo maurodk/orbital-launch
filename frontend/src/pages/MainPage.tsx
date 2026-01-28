@@ -461,7 +461,7 @@ export function MainPage() {
             if (!fullName) {
               setShowFullNameModal(true);
             }
-          } catch (err) {
+          } catch (_err) {
             setShowFullNameModal(true);
           }
 
@@ -599,7 +599,9 @@ export function MainPage() {
       if (es) {
         try {
           es.close();
-        } catch (e) {}
+        } catch (_e) {
+          void 0;
+        }
       }
 
       // Attach token to EventSource as query param (EventSource cannot set headers)
@@ -700,9 +702,8 @@ export function MainPage() {
           const eventData = JSON.parse(event.data);
           const { unitData, rowIndex, pagamentos_status, unitName } = eventData;
 
-          const normalize = (s: any) =>
-            (s || "")
-              .toString()
+          const normalize = (s: unknown) =>
+            String(s || "")
               .toLowerCase()
               .normalize("NFD")
               .replace(/[\u0300-\u036f]/g, "")
@@ -796,7 +797,8 @@ export function MainPage() {
           );
           setUnidadesCount(countResponse.data.count || 0);
           setUnidadesConfigured(countResponse.data.configured || false);
-        } catch (err) {
+        } catch (_err) {
+          void 0;
         }
       };
 
@@ -846,10 +848,14 @@ export function MainPage() {
       try {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
-      } catch (e) {}
+      } catch (_e) {
+        void 0;
+      }
       try {
         if (es) es.close();
-      } catch (e) {}
+      } catch (_e) {
+        void 0;
+      }
     };
   }, [selectedImplantationName, currentImplantation]);
 
@@ -1190,11 +1196,21 @@ export function MainPage() {
       // Recarregar dados
       await fetchUnitData(selectedImplantationName);
       await fetchHistory(selectedImplantationName);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const apiError = (() => {
+        const errObj = error as unknown as Record<string, unknown>;
+        const resp = errObj['response'] as Record<string, unknown> | undefined;
+        const data = resp?.['data'] as Record<string, unknown> | undefined;
+        return (
+          (data?.['error'] as string | undefined) ||
+          (errObj['message'] as string | undefined)
+        );
+      })();
+
       setProcessingPaymentState((prev) => ({
         ...prev,
         isProcessing: false,
-        error: error.response?.data?.error || error.message || 'Erro desconhecido',
+        error: apiError || 'Erro desconhecido',
         currentStep: 'Erro ao processar pagamento',
       }));
       setTimeout(() => {
@@ -1606,14 +1622,14 @@ export function MainPage() {
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
-      const payload: any = {
+      const payload = {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
         implantacao: selectedImplantationName,
         mappingLayer: activeLayer, // informa se o mapeamento foi na camada primary ou additional
-      };
-      payload.coordX = coordX;
-      payload.coordY = coordY;
+        coordX,
+        coordY,
+      } as const;
 
       await axios.post(`${apiUrl}/api/update-coords`, payload);
     } catch (err) {
@@ -2233,9 +2249,16 @@ export function MainPage() {
                     imageUrl={imageUrl}
                     activeLayer={activeLayer}
                     additionalImageUrl={
-                      (currentImplantation as any)?.imagem_url_adicional ||
-                      (currentImplantation as any)?.imagemUrlAdicional ||
-                      ""
+                      // safely access potential alternate image URL fields
+                      (() => {
+                        if (!currentImplantation) return "";
+                        const c = currentImplantation as unknown as Record<string, unknown>;
+                        return (
+                          (c["imagem_url_adicional"] as string | undefined) ||
+                          (c["imagemUrlAdicional"] as string | undefined) ||
+                          ""
+                        );
+                      })()
                     }
                     unidades={unidades}
                     isMappingMode={isMappingMode}
