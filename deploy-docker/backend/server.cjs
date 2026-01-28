@@ -512,7 +512,31 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
               const dataFormatada = `'${now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })} às ${now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
               const historyRow = [now.toISOString(), dataFormatada, unidade || null, acao, clienteName || "N/A", corretorName || "N/A", "Worker", reserva_url || ""];
               // notify clients about history update and include the row
-              await broadcastEvent(implantacaoName, 'historyUpdated', { message: `Novo evento: ${acao}`, row: historyRow });
+              // Attempt to include rowIndex for better frontend updates (best-effort)
+              try {
+                let resolvedRowIndex = null;
+                if (unidade) {
+                  try {
+                    const colC = await getSheetsClient().then(s => s.spreadsheets.values.get({
+                      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+                      range: `'${implantacaoName}'!C:C`,
+                      valueRenderOption: 'FORMATTED_VALUE',
+                    }));
+                    const vals = colC.data.values || [];
+                    const targetNorm = (unidade || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+                    for (let i = 0; i < vals.length; i++) {
+                      const cell = (vals[i] && vals[i][0]) ? vals[i][0].toString() : '';
+                      const cellNorm = cell.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+                      if (cellNorm === targetNorm) { resolvedRowIndex = i + 1; break; }
+                    }
+                  } catch (e) {}
+                }
+                const payload = { message: `Novo evento: ${acao}`, row: historyRow };
+                if (resolvedRowIndex) payload.rowIndex = resolvedRowIndex;
+                await broadcastEvent(implantacaoName, 'historyUpdated', payload);
+              } catch (e) {
+                await broadcastEvent(implantacaoName, 'historyUpdated', { message: `Novo evento: ${acao}`, row: historyRow });
+              }
             } catch (e2) {
               console.error('[INTERNAL] Falha ao gravar histórico no Supabase também:', e2 && e2.message);
             }
@@ -536,7 +560,30 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
           const historyRow = [now.toISOString(), dataFormatada, unidade || null, acao, clienteName || "N/A", corretorName || "N/A", "Worker", reserva_url || ""];
           for (const imp of Array.from(sseClients.keys())) {
             try {
-              await broadcastEvent(imp, 'historyUpdated', { message: `Novo evento: ${acao}`, row: historyRow });
+              try {
+                let resolvedRowIndex = null;
+                if (unidade) {
+                  try {
+                    const colC2 = await getSheetsClient().then(s => s.spreadsheets.values.get({
+                      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+                      range: `'${imp}'!C:C`,
+                      valueRenderOption: 'FORMATTED_VALUE',
+                    }));
+                    const vals2 = colC2.data.values || [];
+                    const targetNorm2 = (unidade || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+                    for (let i = 0; i < vals2.length; i++) {
+                      const cell = (vals2[i] && vals2[i][0]) ? vals2[i][0].toString() : '';
+                      const cellNorm = cell.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+                      if (cellNorm === targetNorm2) { resolvedRowIndex = i + 1; break; }
+                    }
+                  } catch (e) {}
+                }
+                const payload2 = { message: `Novo evento: ${acao}`, row: historyRow };
+                if (resolvedRowIndex) payload2.rowIndex = resolvedRowIndex;
+                await broadcastEvent(imp, 'historyUpdated', payload2);
+              } catch (e) {
+                await broadcastEvent(imp, 'historyUpdated', { message: `Novo evento: ${acao}`, row: historyRow });
+              }
             } catch (e) {
               // ignore
             }
@@ -1137,10 +1184,37 @@ async function addHistoryEntry(
 
     // NOVO: Notifica todos os clientes conectados sobre a atualização do histórico.
     // O payload pode ser simples, apenas para sinalizar que o frontend deve recarregar o histórico.
-    await broadcastEvent(implantacao, "historyUpdated", {
-      message: `Novo evento: ${acao}`,
-      row: historyRow,
-    });
+    // Try to resolve the corresponding rowIndex for the unidade (best-effort)
+    let resolvedRowIndex = null;
+    try {
+      if (unidade) {
+        try {
+          const colC = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+            range: `'${implantacao}'!C:C`,
+            valueRenderOption: 'FORMATTED_VALUE',
+          });
+          const values = colC.data.values || [];
+          const targetNorm = (unidade || '').toString().normalize('NFD').replace(/[ -\u036f]/g, '').trim().toLowerCase();
+          for (let i = 0; i < values.length; i++) {
+            const cell = (values[i] && values[i][0]) ? values[i][0].toString() : '';
+            const cellNorm = cell.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            if (cellNorm === targetNorm) {
+              resolvedRowIndex = i + 1; // sheet rows are 1-based
+              break;
+            }
+          }
+        } catch (e) {
+          // non-blocking
+        }
+      }
+    } catch (e) {
+      // ignore lookup errors
+    }
+
+    const historyPayload = { message: `Novo evento: ${acao}`, row: historyRow };
+    if (resolvedRowIndex) historyPayload.rowIndex = resolvedRowIndex;
+    await broadcastEvent(implantacao, "historyUpdated", historyPayload);
 
     // Also persist to Supabase (best-effort)
     if (supabase) {
