@@ -2130,9 +2130,34 @@ app.get("/api/events", (req, res) => {
   });
 });
 
-// Serve a página fullscreen estática
+// Serve a página fullscreen estática (procura caminhos possíveis entre ambientes)
 app.get("/fullscreen", (req, res) => {
-  res.sendFile(require("path").resolve(__dirname, "../public/fullscreen.html"));
+  const p = require("path");
+  const fs = require("fs");
+
+  const candidates = [
+    p.resolve(__dirname, "../public/fullscreen.html"),
+    p.resolve(__dirname, "../../frontend/public/fullscreen.html"),
+    p.resolve(process.cwd(), "frontend", "public", "fullscreen.html"),
+    p.resolve(process.cwd(), "public", "fullscreen.html"),
+  ];
+
+  const found = candidates.find((c) => {
+    try {
+      return fs.existsSync(c);
+    } catch (e) {
+      return false;
+    }
+  });
+
+  if (found) {
+    return res.sendFile(found);
+  }
+
+  console.error("/fullscreen: nenhum arquivo fullscreen.html encontrado. Candidates:", candidates);
+  return res.status(404).send(
+    "Fullscreen não encontrado no servidor. Verifique configuração de caminhos (procure em frontend/public/fullscreen.html)."
+  );
 });
 
 // Rota útil: redireciona para a fullscreen da implantação atual definida em Config
