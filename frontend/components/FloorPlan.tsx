@@ -69,6 +69,9 @@ export const FloorPlan = memo(function FloorPlan({
   dotSize,
   hideAvailable,
   unitLetter,
+  // add optional props with sensible defaults
+  activeLayer = "primary",
+  additionalImageUrl = "",
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -107,7 +110,7 @@ export const FloorPlan = memo(function FloorPlan({
         };
       })
       .filter(Boolean); // Remove nulls
-  }, [unidades, hideAvailable]);
+  }, [unidades, hideAvailable, activeLayer]);
 
   const scheduleHideControls = () => {
     if (hideControlsTimeout.current) {
