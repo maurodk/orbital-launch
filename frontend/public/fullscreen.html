@@ -665,15 +665,9 @@
 
         function render(data) {
           // Suporta objeto combinado { primary, secondary } ou o formato antigo único
-          let primary = data.primary || data;
-          let secondary = data.secondary || null;
-          const { unidades, imageUrl, dotSize } = primary;
-
-          // Se estamos abrindo com `adicional=true` e a secondary foi criada a
-          // partir da mesma implantação (mesma aba), queremos que a renderização
-          // principal use as coordenadas alternativas (O:P = coord_x_ad/coord_y_ad)
-          // e evitar renderizar a camada `secondary` duplicada.
-          const useAdditionalCoordsForPrimary = adicionalFlag && secondary && !implantacaoAdParam;
+            let primary = data.primary || data;
+            let secondary = data.secondary || null;
+            const { unidades, imageUrl, dotSize } = primary;
 
           // Marca como loading
           wrapper.classList.add("loading");
@@ -750,10 +744,10 @@
               ? unidades.slice(1)
               : unidades;
 
-          // Render unidades da implantação principal
+          // Render unidades da implantação principal (sempre usa M:N)
           rows.forEach((u, index) => {
-            const coordX = useAdditionalCoordsForPrimary ? u[14] : u[12];
-            const coordY = useAdditionalCoordsForPrimary ? u[15] : u[13];
+            const coordX = u[12];
+            const coordY = u[13];
             const letra = u[18];
             const status = (u[11] || "Disponível").toString();
 
@@ -782,18 +776,16 @@
             container.appendChild(indicator);
           });
 
-          // Render unidades da implantação adicional (pode ser a mesma aba com coords adicionais ou outra aba)
-          // Se `useAdditionalCoordsForPrimary` for true, já renderizamos as
-          // unidades usando as coords O:P na seção acima — então pulamos a
-          // renderização da `secondary` para evitar duplicatas.
-          if (secondary && secondary.unidades && !useAdditionalCoordsForPrimary) {
+          // Render unidades da implantação adicional (overlay de outra implantação)
+          // Sempre usa as colunas M:N da implantação secundária
+          if (secondary && secondary.unidades) {
             const rowsAd =
               secondary.unidades.length > 0 &&
               secondary.unidades[0][0]?.toString().toLowerCase().includes("etapa")
                 ? secondary.unidades.slice(1)
                 : secondary.unidades;
 
-            const useAltCoords = !implantacaoAdParam; // se não houver implantacao_ad, assumimos coords adicionais na mesma aba (colunas O/P)
+            const useAltCoords = false; // sempre usar M:N da secondary
 
             rowsAd.forEach((u, index) => {
               const coordX = useAltCoords ? u[14] : u[12];

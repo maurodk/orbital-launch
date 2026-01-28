@@ -941,14 +941,9 @@ export function MainPage() {
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];
-    const clearAd = activeLayer === "additional";
-    if (clearAd) {
-      updatedUnidades[unitIndexToClear][14] = ""; // Coluna O - coord_x_ad
-      updatedUnidades[unitIndexToClear][15] = ""; // Coluna P - coord_y_ad
-    } else {
-      updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
-      updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
-    }
+    // Sempre limpa colunas M:N (coord_x/coord_y)
+    updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
+    updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
     // Remove symbol/letter when clearing
     updatedUnidades[unitIndexToClear][18] = ""; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
@@ -1603,14 +1598,9 @@ export function MainPage() {
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
 
-    if (activeLayer === "primary") {
-      updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
-      updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
-    } else {
-      // Adicional stored in O:P (índices 14 e 15)
-      updatedUnidades[unitToMapIndex][14] = coordX; // Coluna O - coord_x_ad
-      updatedUnidades[unitToMapIndex][15] = coordY; // Coluna P - coord_y_ad
-    }
+    // Sempre grava em M:N (coord_x / coord_y)
+    updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
+    updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
 
     updatedUnidades[unitToMapIndex][18] = unitLetter; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
@@ -1620,14 +1610,10 @@ export function MainPage() {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
         implantacao: selectedImplantationName,
+        mappingLayer: activeLayer, // informa se o mapeamento foi na camada primary ou additional
       };
-      if (activeLayer === "primary") {
-        payload.coordX = coordX;
-        payload.coordY = coordY;
-      } else {
-        payload.coordXAd = coordX;
-        payload.coordYAd = coordY;
-      }
+      payload.coordX = coordX;
+      payload.coordY = coordY;
 
       await axios.post(`${apiUrl}/api/update-coords`, payload);
     } catch (err) {

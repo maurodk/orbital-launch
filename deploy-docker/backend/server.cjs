@@ -3809,7 +3809,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, coordX, coordY, coordXAd, coordYAd, letra } = req.body;
+  const { implantacao, rowIndex, coordX, coordY, coordXAd, coordYAd, letra, mappingLayer } = req.body;
   const userEmail = req.user?.email || "Sistema";
   if (!implantacao || !rowIndex) {
     return res
@@ -3912,11 +3912,15 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       range: `'${sheetTitle}'!C${rowIndex}:C${rowIndex}`,
     });
     const unitFullName = `${unidadeInfo.data.values[0][0]}`;
+    let historyAction = "Mapeamento Adicionado";
+    if (mappingLayer) {
+      historyAction = `Mapeamento Adicionado (camada: ${mappingLayer})`;
+    }
     await addHistoryEntry(
       sheets,
       sheetTitle,
       unitFullName,
-      "Mapeamento Adicionado",
+      historyAction,
       null,
       null,
       userEmail

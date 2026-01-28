@@ -182,13 +182,8 @@ export function MappingSidebar({
                                     unidade[12].toString().trim() !== "" &&
                                     unidade[13] && // Coluna N - coord_y
                                     unidade[13].toString().trim() !== "";
-                                  const hasAdditional =
-                                    unidade[14] && // Coluna O - coord_x_ad
-                                    unidade[14].toString().trim() !== "" &&
-                                    unidade[15] && // Coluna P - coord_y_ad
-                                    unidade[15].toString().trim() !== "";
-                                  // Se qualquer camada estiver mapeada, consideramos a unidade mapeada
-                                  const isMapped = hasPrimary || hasAdditional;
+                                  // Considera mapeamento apenas pelas colunas M:N (coord_x/coord_y)
+                                  const isMapped = hasPrimary;
                       const isSelected = originalIndex === selectedUnitIndex;
                       // Normaliza o status: minúscula + remove acentos para classe CSS
                       const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
