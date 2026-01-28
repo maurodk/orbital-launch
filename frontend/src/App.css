@@ -2850,10 +2850,11 @@ button:focus-visible {
     width: 100%;
     max-height: 50vh;
     z-index: 10;
-    margin-bottom: 12px;
+    margin: 64px auto 12px; /* desce abaixo do header e centraliza */
+    max-width: 1800px; /* alinha com .app-container */
     box-sizing: border-box;
     background: transparent;
-    padding: 0 8px;
+    padding: 0 50px; /* mesmo padding horizontal do .app-container */
   }
 
   .sidebar-controls {
@@ -3100,18 +3101,26 @@ button:focus-visible {
 }
 
 @media (max-width: 768px) {
-  .status-badge {
-    padding: 3px 6px;
-    font-size: 0.65rem;
-    min-width: 32px;
+  .app-container {
+    margin-top: 72px;
+    padding: 15px 20px;
+  }
+  .mapping-sidebar {
+    margin-top: 72px;
+    padding: 0 20px;
+  }
     border-width: 1px;
   }
 
-  .status-badge .status-text {
-    display: none;
+  .app-container {
+    margin-top: 70px;
+    padding: 10px;
+    border-radius: 0;
   }
-
-  .status-badge .status-icon {
+  .mapping-sidebar {
+    margin-top: 70px;
+    padding: 0 10px;
+  }
     display: inline-block;
     font-size: 14px;
   }
