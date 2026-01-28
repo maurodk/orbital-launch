@@ -56,6 +56,47 @@ async function supabaseWithRateLimit(operation) {
   return await operation(supabase);
 }
 
+// Helper: procura implantação por nome de forma tolerante
+async function findImplantacaoByName(sheetName) {
+  if (!supabase) return null;
+  try {
+    // tenta correspondência exata sem lançar erro se não encontrar
+    const { data, error } = await supabase
+      .from("implantacoes")
+      .select("id,nome")
+      .eq("nome", sheetName)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[FIND_IMPLANT] erro na busca exata:", error.message || error);
+    }
+    if (data) return data;
+
+    // fallback: cria um padrão flexível removendo acentos e caracteres especiais
+    const cleaned = String(sheetName || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9 ]+/g, " ")
+      .trim();
+    const pattern = cleaned.split(/\s+/).join("%");
+    console.log(`[FIND_IMPLANT] exact not found, trying ilike pattern '%${pattern}%' for '${sheetName}'`);
+
+    const { data: data2, error: err2 } = await supabase
+      .from("implantacoes")
+      .select("id,nome")
+      .ilike("nome", `%${pattern}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (err2) console.warn("[FIND_IMPLANT] erro na busca ilike:", err2.message || err2);
+    return data2 || null;
+  } catch (e) {
+    console.error("[FIND_IMPLANT] exception:", e && e.message ? e.message : e);
+    return null;
+  }
+}
+
 // Configuração do Redis
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = process.env.REDIS_PORT || 6379;
@@ -1585,12 +1626,12 @@ app.get("/api/data", verifyToken, async (req, res) => {
       if (supabase) {
         try {
           // Primeiro encontra o ID da implantação
-          const { data: implData } = await supabase
-            .from("implantacoes")
-            .select("id")
-            .eq("nome", sheetTitle)
-            .limit(1)
-            .single();
+          let implData = null;
+          try {
+            implData = await findImplantacaoByName(sheetTitle);
+          } catch (e) {
+            console.error("[FIND_IMPLANT] erro ao localizar implantação:", e && e.message ? e.message : e);
+          }
 
           if (implData && implData.id) {
             // Busca os clientes associados a esta implantação
@@ -1749,16 +1790,16 @@ app.get("/api/fast-poll-unit", async (req, res) => {
   return pooledRequest(pollKey, async () => {
     try {
       // Cria duas promises que competem entre si
-      const supabasePromise = (async () => {
+        const supabasePromise = (async () => {
         if (!supabase) return null;
 
         try {
-          const { data: implData } = await supabase
-            .from("implantacoes")
-            .select("id")
-            .eq("nome", implantacao)
-            .limit(1)
-            .single();
+          let implData = null;
+          try {
+            implData = await findImplantacaoByName(implantacao);
+          } catch (e) {
+            console.error("[FIND_IMPLANT] erro ao localizar implantação (fast-poll):", e && e.message ? e.message : e);
+          }
 
           if (!implData?.id) return null;
 
@@ -5316,6 +5357,21 @@ app.put(
     { name: "imagem", maxCount: 1 },
     { name: "logo", maxCount: 1 },
   ]),
+  (req, res, next) => {
+    try {
+      console.log("[MULTER DONE] middleware - arquivos recebidos:",
+        req.files ? Object.keys(req.files) : "(nenhum)");
+      if (req.files) {
+        for (const k of Object.keys(req.files)) {
+          const arr = req.files[k];
+          console.log(`[MULTER DONE] file[${k}] count=${arr.length}`, arr.map(f => ({ originalname: f.originalname, size: f.size || (f.buffer && f.buffer.length) || 0 })));
+        }
+      }
+    } catch (e) {
+      console.warn('[MULTER DONE] erro ao logar req.files', e && e.message);
+    }
+    next();
+  },
   async (req, res) => {
     try {
       if (!supabase) {
