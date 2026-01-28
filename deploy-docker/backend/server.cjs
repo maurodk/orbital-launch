@@ -3992,6 +3992,36 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       },
     });
 
+    // Also clear the corresponding supabase unidade coords when available
+    if (supabase) {
+      try {
+        const { data: implData } = await supabase
+          .from("implantacoes")
+          .select("id")
+          .eq("nome", sheetTitle)
+          .limit(1)
+          .single();
+        const implantacao_id = implData && implData.id ? implData.id : null;
+        if (implantacao_id) {
+          const updatePayload = {};
+          if (clearAd) {
+            updatePayload.coord_x_ad = null;
+            updatePayload.coord_y_ad = null;
+          } else {
+            updatePayload.coord_x = null;
+            updatePayload.coord_y = null;
+          }
+          await supabase
+            .from("unidades")
+            .update(updatePayload)
+            .eq("implantacao_id", implantacao_id)
+            .eq("row_index", parseInt(rowIndex, 10));
+        }
+      } catch (e) {
+        console.warn("Supabase: falha ao limpar coordenadas no banco (non-blocking)", e && e.message ? e.message : e);
+      }
+    }
+
     // Registrar no histórico
     const unidadeInfo = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
