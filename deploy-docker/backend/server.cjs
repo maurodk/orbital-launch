@@ -6464,3 +6464,26 @@ app.listen(PORT, () => {
     console.warn('[REALTIME] falha ao iniciar listeners de pagamentos:', e && e.message ? e.message : e);
   }
 });
+
+// Endpoint de teste para upload ao Supabase Storage
+app.post(
+  "/api/test-upload",
+  verifyToken,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      console.log("[TEST-UPLOAD] headers authorization:", req.headers.authorization ? req.headers.authorization.slice(0, 30) + '...' : '(nenhum)');
+      console.log("[TEST-UPLOAD] req.file:", req.file ? { originalname: req.file.originalname, size: req.file.size || (req.file.buffer && req.file.buffer.length) } : null);
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado no campo 'file'" });
+      }
+
+      const result = await uploadFileToSupabaseStorage("implantacoes", req.file, "test_");
+      return res.json({ success: true, publicUrl: result.publicUrl, filename: result.filename });
+    } catch (e) {
+      console.error("[TEST-UPLOAD] erro:", e && e.message ? e.message : e);
+      return res.status(500).json({ error: "Falha no upload de teste", details: e && e.message ? e.message : String(e) });
+    }
+  }
+);

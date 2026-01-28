@@ -180,16 +180,11 @@ export function EditImplantationModal({
       formData.append("csv", unidadesFile);
       formData.append("implantacao", implantation.nome);
 
-      const response = await axios.post(
-        `${apiUrl}/api/import-unidades`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await axios.post(`${apiUrl}/api/import-unidades`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       alert(`✅ ${response.data.message}`);
       setUnidadesFile(null);
@@ -234,16 +229,11 @@ export function EditImplantationModal({
       formData.append("clientes", clientesFile);
       formData.append("implantacao_id", implantation.id);
 
-      const response = await axios.post(
-        `${apiUrl}/api/import-clientes`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await axios.post(`${apiUrl}/api/import-clientes`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       alert(`✅ ${response.data.message}`);
       setClientesFile(null);
@@ -314,16 +304,11 @@ export function EditImplantationModal({
         return;
       }
 
-      await axios.put(
-        `${apiUrl}/api/implantacoes/${implantation.id}`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await axios.put(`${apiUrl}/api/implantacoes/${implantation.id}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       onSuccess();
       onClose();
