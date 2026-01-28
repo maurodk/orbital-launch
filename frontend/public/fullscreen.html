@@ -916,6 +916,7 @@
           const useAltAsPrimary = (typeof preferAltCoordsForPrimary !== 'undefined' && preferAltCoordsForPrimary) || window.preferAltCoordsForPrimary;
           const coordX = useAltAsPrimary && pollData.coordXAd ? pollData.coordXAd : pollData.coordX;
           const coordY = useAltAsPrimary && pollData.coordYAd ? pollData.coordYAd : pollData.coordY;
+          console.log('[POLL] updateSingleUnitFromPoll row=', rowIndex, 'useAltAsPrimary=', useAltAsPrimary, 'pollData=', pollData, 'chosen=', { coordX, coordY });
           const status = pollData.status || "Disponível";
 
           if (!coordX || !coordY) {
@@ -958,6 +959,7 @@
 
           const coordX = useAltCoords ? unitData[14] : unitData[12];
           const coordY = useAltCoords ? unitData[15] : unitData[13];
+          console.log('[updateSingleUnitAd] row=', rowIndex, 'useAltCoords=', useAltCoords, 'coords=', { coordX, coordY });
           const letra = unitData[18];
           const status = (unitData[11] || "Disponível").toString();
 
@@ -1092,6 +1094,12 @@
               // Se estamos preferindo as coords alternativas como camada principal,
               // atualize a camada principal usando O:P (via updateSingleUnitAd).
               const useAltAsPrimary = (typeof preferAltCoordsForPrimary !== 'undefined' && preferAltCoordsForPrimary) || window.preferAltCoordsForPrimary;
+              console.log('[SSE] unitUpdated: useAltAsPrimary=', useAltAsPrimary, 'coords:', {
+                coordX: unitData[12],
+                coordY: unitData[13],
+                coordXAd: unitData[14],
+                coordYAd: unitData[15],
+              });
               if (useAltAsPrimary) {
                 updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
               } else {
@@ -1134,6 +1142,7 @@
             esSecondary.addEventListener("unitUpdated", (ev) => {
               try {
                 const { unitData, rowIndex } = JSON.parse(ev.data);
+                console.log('[SSE-secondary] unitUpdated received:', { unitData, rowIndex });
                 // Atualiza camada adicional (usar coords primários do outro sheet)
                 updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
               } catch (e) {
@@ -1160,6 +1169,7 @@
 
           const coordX = unitData[12];
           const coordY = unitData[13];
+          console.log('[updateSingleUnit] row=', rowIndex, 'coords=', { coordX, coordY });
           const letra = unitData[18];
           const status = (unitData[11] || "Disponível").toString();
 
