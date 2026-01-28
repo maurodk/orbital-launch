@@ -3737,15 +3737,20 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 app.post("/api/update-coords", verifyToken, async (req, res) => {
   const { implantacao, rowIndex, coordX, coordY, coordXAd, coordYAd, letra } = req.body;
   const userEmail = req.user?.email || "Sistema";
-  if (
-    !implantacao ||
-    !rowIndex ||
-    coordX === undefined ||
-    coordY === undefined
-  ) {
+  if (!implantacao || !rowIndex) {
     return res
       .status(400)
-      .json({ error: "Índice da linha e coordenadas X e Y são obrigatórios." });
+      .json({ error: "Índice da linha e implantação são obrigatórios." });
+  }
+
+  // Accept either primary coords (coordX/coordY) or additional coords (coordXAd/coordYAd)
+  const hasPrimary = coordX !== undefined && coordY !== undefined;
+  const hasAd = coordXAd !== undefined && coordYAd !== undefined;
+  if (!hasPrimary && !hasAd) {
+    return res.status(400).json({
+      error:
+        "Forneça coordenadas primárias (coordX/coordY) ou adicionais (coordXAd/coordYAd).",
+    });
   }
   try {
     const sheets = await getSheetsClient();
@@ -3756,16 +3761,18 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Atualiza coordenadas principais (M e N) e, se fornecido, coordenadas adicionais (O e P). Também atualiza letra (S)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [[coordX, coordY]] },
-    });
+    // Atualiza coordenadas principais (M e N) se fornecidas
+    if (hasPrimary) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[coordX, coordY]] },
+      });
+    }
 
     // Atualiza coordenadas adicionais (colunas O e P) se fornecidas
-    if (coordXAd !== undefined || coordYAd !== undefined) {
+    if (hasAd) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
@@ -3796,9 +3803,15 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         const implantacao_id = implData && implData.id ? implData.id : null;
         // Try update by implantacao_id + row_index if exists
         if (implantacao_id) {
-          const updatePayload = { coord_x: coordX, coord_y: coordY };
-          if (coordXAd !== undefined) updatePayload.coord_x_ad = coordXAd || null;
-          if (coordYAd !== undefined) updatePayload.coord_y_ad = coordYAd || null;
+          const updatePayload = {};
+          if (hasPrimary) {
+            updatePayload.coord_x = coordX || null;
+            updatePayload.coord_y = coordY || null;
+          }
+          if (hasAd) {
+            updatePayload.coord_x_ad = coordXAd || null;
+            updatePayload.coord_y_ad = coordYAd || null;
+          }
 
           const { error: upErr } = await supabase
             .from("unidades")
