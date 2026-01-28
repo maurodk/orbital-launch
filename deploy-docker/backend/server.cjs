@@ -1743,7 +1743,7 @@ app.get("/api/data", verifyToken, async (req, res) => {
       // Busca unidades da planilha (Google Sheets)
       const implantacaoRes = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:S`,
+        range: `'${sheetTitle}'!A:O`,
       });
 
       // Busca clientes do Supabase
@@ -1831,7 +1831,7 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:S`,
+      range: `'${sheetTitle}'!A:O`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
@@ -5832,7 +5832,7 @@ app.post(
           },
         });
 
-        // Adiciona cabeçalho padrão
+        // Adiciona cabeçalho padrão (A..O)
         const header = [
           "etapa",
           "bloco",
@@ -5848,18 +5848,12 @@ app.post(
           "situacao",
           "coord_x",
           "coord_y",
-          "coord_x_ad",
-          "coord_y_ad",
-          "IDENTIFICADOR",
-          "Payload",
-          "Valor",
-          "Pagamento",
           "Simbolo",
         ];
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A1:S1`,
+          range: `'${implantacao}'!A1:O1`,
           valueInputOption: "RAW",
           resource: {
             values: [header],
@@ -6069,7 +6063,18 @@ app.post(
 
       const unidadesToInsert = dataLines.filter((cols) => Array.isArray(cols) && cols.length >= 3 && cols[0] && cols[1] && cols[2]);
 
-      if (unidadesToInsert.length === 0) {
+      // Garantir exatamente 15 colunas (A..O) por linha antes de gravar
+      const EXPECTED_COLS = 15;
+      const sanitizedUnidades = unidadesToInsert.map((row, idx) => {
+        const r = Array.isArray(row) ? row.slice(0, EXPECTED_COLS) : [];
+        if (r.length > EXPECTED_COLS) {
+          console.warn(`⚠️ [IMPORT UNIDADES] Linha ${idx + 1} foi truncada de ${r.length} para ${EXPECTED_COLS} colunas.`);
+        }
+        while (r.length < EXPECTED_COLS) r.push("");
+        return r;
+      });
+
+      if (sanitizedUnidades.length === 0) {
         return res
           .status(400)
           .json({ error: "Nenhuma unidade válida encontrada no arquivo." });
@@ -6077,7 +6082,7 @@ app.post(
 
       console.log(
         "📥 [IMPORT UNIDADES] Unidades a inserir:",
-        unidadesToInsert.length
+        sanitizedUnidades.length
       );
 
       // 1. LIMPA dados existentes (mantém apenas o cabeçalho)
@@ -6086,7 +6091,7 @@ app.post(
       // Busca quantas linhas existem
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A:S`,
+        range: `'${implantacao}'!A:O`,
       });
 
       const existingRowCount = existingData.data.values?.length || 0;
@@ -6095,7 +6100,7 @@ app.post(
         // Limpa da linha 2 em diante (preserva cabeçalho)
         await sheets.spreadsheets.values.clear({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A2:S${existingRowCount}`,
+          range: `'${implantacao}'!A2:O${existingRowCount}`,
         });
         console.log(
           `✅ [IMPORT UNIDADES] ${
@@ -6107,10 +6112,10 @@ app.post(
       // 2. Insere novos dados no Google Sheets (fonte primária)
       const appendResult = await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A2:S${unidadesToInsert.length + 1}`,
+        range: `'${implantacao}'!A2:O${sanitizedUnidades.length + 1}`,
         valueInputOption: "USER_ENTERED",
         resource: {
-          values: unidadesToInsert,
+          values: sanitizedUnidades,
         },
       });
 
@@ -6162,11 +6167,11 @@ app.post(
             const startRow = 2;
 
             console.log(
-              `📍 [IMPORT UNIDADES] Inserindo ${unidadesToInsert.length} unidades no Supabase a partir da linha ${startRow}`
+              `📍 [IMPORT UNIDADES] Inserindo ${sanitizedUnidades.length} unidades no Supabase a partir da linha ${startRow}`
             );
 
-            // Prepara os dados para inserção no Supabase
-            const supabaseUnits = unidadesToInsert.map((row, index) => {
+            // Prepara os dados para inserção no Supabase (usar linhas sanitizadas)
+            const supabaseUnits = sanitizedUnidades.map((row, index) => {
               const rowIndex = startRow + index;
 
               return {
@@ -6186,8 +6191,7 @@ app.post(
                 situacao: row[11] || "Disponível", // L
                 coord_x: row[12] || null, // M
                 coord_y: row[13] || null, // N
-                coord_x_ad: row[14] || null, // O (adicional)
-                coord_y_ad: row[15] || null, // P (adicional)
+                simbolo: row[14] || null, // O
                 // Colunas antigas para compatibilidade
                 area_privativa: row[3] || null,
                 tipologia: row[4] || null,
@@ -6225,14 +6229,14 @@ app.post(
 
       // Broadcast para notificar que as unidades foram atualizadas
       await broadcastEvent(implantacao, "unitsImported", {
-        imported: unidadesToInsert.length,
+        imported: sanitizedUnidades.length,
         message: "Unidades importadas com sucesso",
       });
 
       res.json({
         success: true,
-        message: `${unidadesToInsert.length} unidades importadas com sucesso na planilha '${implantacao}' e sincronizadas com Supabase.`,
-        imported: unidadesToInsert.length,
+        message: `${sanitizedUnidades.length} unidades importadas com sucesso na planilha '${implantacao}' e sincronizadas com Supabase.`,
+        imported: sanitizedUnidades.length,
       });
     } catch (error) {
       console.error("❌ [IMPORT UNIDADES] Erro:", error);
@@ -6285,7 +6289,7 @@ app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
     // 2. Busca todas as unidades do Google Sheets
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${implantacao}'!A2:S`, // Ignora cabeçalho
+      range: `'${implantacao}'!A2:O`, // Ignora cabeçalho
     });
 
     const rows = response.data.values || [];
