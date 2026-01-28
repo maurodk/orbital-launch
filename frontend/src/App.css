@@ -446,6 +446,7 @@ button:focus-visible {
 .unit-name {
   flex-grow: 1;
   color: var(--text-primary);
+  font-size: 0.9rem; /* reduzir tamanho da fonte dos nomes das unidades */
 }
 
 .select-unit-button {
@@ -2842,12 +2843,17 @@ button:focus-visible {
 
   /* Ajustes para sidebar de mapeamento */
   .mapping-sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 100vw;
+    /* Não mais fixo: fica no fluxo da página, abaixo do header */
+    position: relative;
+    left: auto;
+    top: auto;
+    width: 100%;
     max-height: 50vh;
-    z-index: 100;
+    z-index: 10;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+    background: transparent;
+    padding: 0 8px;
   }
 
   .sidebar-controls {
