@@ -42,13 +42,14 @@ async function supabaseWithRateLimit(operation) {
   }
 
   const rateLimitCheck = checkRateLimit("supabase_global", "supabase");
-  if (!rateLimitCheck.allowed) {
-    const waitSeconds = Math.ceil(rateLimitCheck.resetIn / 1000);
+    unitData.coord_x || "", // M - coord_x
+    unitData.coord_y || "", // N - coord_y
+    unitData.simbolo || "", // O - Simbolo/Letra (se houver)
     const error = new Error(
       `Rate limit do Supabase excedido. Tente novamente em ${waitSeconds}s`
     );
     error.rateLimitError = true;
-    error.resetIn = rateLimitCheck.resetIn;
+    
     console.warn(`[SUPABASE] Rate limit atingido. Aguarde ${waitSeconds}s`);
     throw error;
   }
@@ -349,13 +350,7 @@ function supabaseUnitToArray(unitData) {
     unitData.situacao || "Disponível", // L
     unitData.coord_x || "", // M
     unitData.coord_y || "", // N
-    unitData.coord_x_ad || "", // O - coord_x_ad (implantacao adicional)
-    unitData.coord_y_ad || "", // P - coord_y_ad (implantacao adicional)
-    "", // Q - IDENTIFICADOR (PIX) - não está no Supabase ainda
-    "", // R - Payload
-    "", // S - Valor PIX
-    "", // T - Pagamento
-    unitData.simbolo || "", // U - Simbolo/Letra (se houver)
+    unitData.simbolo || "", // O - Simbolo/Letra (se houver)
   ];
 }
 
@@ -757,7 +752,7 @@ async function broadcastEvent(implantacao, event, data) {
   if (data.rowIndex && !data.unitData) {
     try {
       const sheets = await getSheetsClient();
-      const range = `'${implantacao}'!A${data.rowIndex}:S${data.rowIndex}`;
+      const range = `'${implantacao}'!A${data.rowIndex}:O${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
@@ -1933,7 +1928,7 @@ app.get("/api/fast-poll-unit", async (req, res) => {
 
           const { data: unitData } = await supabase
             .from("unidades")
-            .select("situacao, nome_unidade, coord_x, coord_y, coord_x_ad, coord_y_ad")
+            .select("situacao, nome_unidade, coord_x, coord_y, simbolo")
             .eq("implantacao_id", implData.id)
             .eq("row_index", parseInt(rowIndex, 10))
             .limit(1)
@@ -1947,8 +1942,7 @@ app.get("/api/fast-poll-unit", async (req, res) => {
             unitName: unitData.nome_unidade,
             coordX: unitData.coord_x,
             coordY: unitData.coord_y,
-            coordXAd: unitData.coord_x_ad || null,
-            coordYAd: unitData.coord_y_ad || null,
+            simbolo: unitData.simbolo || null,
             timestamp: Date.now(),
           };
         } catch (e) {
@@ -3290,8 +3284,8 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                   values: [["", "", "", "", "", "Disponível"]],
                 },
                 {
-                  range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
-                  values: [["", "", "", ""]],
+                  range: `'${sheetTitle}'!O${unitRowIndex}:O${unitRowIndex}`,
+                  values: [[""]],
                 },
               ],
             },
@@ -3318,8 +3312,8 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                   values: [["", "", "", "", "", "Disponível"]],
                 },
                 {
-                  range: `'${sheetTitle}'!O${unitRowIndex}:R${unitRowIndex}`,
-                  values: [["", "", "", ""]],
+                  range: `'${sheetTitle}'!O${unitRowIndex}:O${unitRowIndex}`,
+                  values: [[""]],
                 },
               ],
             },
@@ -3437,7 +3431,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     // 1. Otimização: Ler os dados das duas unidades de uma vez
     const rangesToRead = [
       `'${sheetTitle}'!C${oldRow}`, // Nome da unidade antiga
-      `'${sheetTitle}'!G${oldRow}:R${oldRow}`, // Dados da unidade antiga (G:R)
+      `'${sheetTitle}'!G${oldRow}:O${oldRow}`, // Dados da unidade antiga (G:O)
       `'${sheetTitle}'!C${newRow}`, // Nome da unidade nova
     ];
     const batchGetData = await sheets.spreadsheets.values.batchGet({
@@ -3458,7 +3452,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
         .json({ error: "Dados da unidade de origem não encontrados." });
     }
 
-    // 2. Preparar dados para atualização (G:R = 12 colunas)
+    // 2. Preparar dados para atualização (G:O)
     const dataToTransfer = [
       oldUnitData[0] || "", // G: id_pre_cadastro (índice 0)
       oldUnitData[1] || "", // H: cliente (índice 1)
@@ -3469,9 +3463,6 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       "", // M: coord_x (não transferir) - Limpa na nova unidade
       "", // N: coord_y (não transferir) - Limpa na nova unidade
       oldUnitData[8] || "", // O: IDENTIFICADOR (índice 8)
-      oldUnitData[9] || "", // P: Payload (índice 9)
-      oldUnitData[10] || "", // Q: Valor (índice 10)
-      oldUnitData[11] || "", // R: Pagamento (índice 11)
     ];
 
     await sheets.spreadsheets.values.batchUpdate({
@@ -3479,14 +3470,14 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
       resource: {
         valueInputOption: "USER_ENTERED",
         data: [
-          // Limpa dados da unidade antiga e a torna Disponível (G:L e O:R)
+              // Limpa dados da unidade antiga e a torna Disponível (G:L e O:O)
           {
             range: `'${sheetTitle}'!G${oldRow}:L${oldRow}`,
             values: [["", "", "", "", "", "Disponível"]],
           },
           {
-            range: `'${sheetTitle}'!O${oldRow}:R${oldRow}`,
-            values: [["", "", "", ""]],
+            range: `'${sheetTitle}'!O${oldRow}:O${oldRow}`,
+            values: [[""]],
           },
           // Transfere dados para a nova unidade preservando coordenadas (M:N)
           {
@@ -3503,15 +3494,8 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
             ],
           },
           {
-            range: `'${sheetTitle}'!O${newRow}:R${newRow}`,
-            values: [
-              [
-                dataToTransfer[8], // O: IDENTIFICADOR
-                dataToTransfer[9], // P: Payload
-                dataToTransfer[10], // Q: Valor
-                dataToTransfer[11], // R: Pagamento
-              ],
-            ],
+            range: `'${sheetTitle}'!O${newRow}:O${newRow}`,
+            values: [[dataToTransfer[8]]],
           },
         ],
       },
@@ -3763,8 +3747,8 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
     // Fallback: Se não conseguiu do Supabase, busca do Sheets
     if (!oldUnitDataArray || !newUnitDataArray) {
       const rangesToReadAfter = [
-        `'${sheetTitle}'!A${oldRow}:S${oldRow}`,
-        `'${sheetTitle}'!A${newRow}:S${newRow}`,
+        `'${sheetTitle}'!A${oldRow}:O${oldRow}`,
+        `'${sheetTitle}'!A${newRow}:O${newRow}`,
       ];
       const batchGetAfter = await sheets.spreadsheets.values.batchGet({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -3816,14 +3800,20 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
       .status(400)
       .json({ error: "Índice da linha e implantação são obrigatórios." });
   }
-
-  // Accept either primary coords (coordX/coordY) or additional coords (coordXAd/coordYAd)
-  const hasPrimary = coordX !== undefined && coordY !== undefined;
-  const hasAd = coordXAd !== undefined && coordYAd !== undefined;
-  if (!hasPrimary && !hasAd) {
+  // Prefer primary coords (coordX/coordY). If only additional coords were provided,
+  // use them as the primary coordinates (they now map to M/N).
+  let finalCoordX = coordX;
+  let finalCoordY = coordY;
+  if ((finalCoordX === undefined || finalCoordX === null || finalCoordX === "") && (coordXAd !== undefined && coordXAd !== null && coordXAd !== "")) {
+    finalCoordX = coordXAd;
+  }
+  if ((finalCoordY === undefined || finalCoordY === null || finalCoordY === "") && (coordYAd !== undefined && coordYAd !== null && coordYAd !== "")) {
+    finalCoordY = coordYAd;
+  }
+  const hasPrimary = finalCoordX !== undefined && finalCoordY !== undefined && finalCoordX !== null && finalCoordY !== null && finalCoordX !== "" && finalCoordY !== "";
+  if (!hasPrimary) {
     return res.status(400).json({
-      error:
-        "Forneça coordenadas primárias (coordX/coordY) ou adicionais (coordXAd/coordYAd).",
+      error: "Forneça coordenadas primárias (coordX/coordY). Se usar coordXAd/coordYAd, serão aplicadas nas colunas primárias.",
     });
   }
   try {
@@ -3835,25 +3825,13 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Atualiza coordenadas principais (M e N) se fornecidas
-    if (hasPrimary) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-        valueInputOption: "USER_ENTERED",
-        resource: { values: [[coordX, coordY]] },
-      });
-    }
-
-    // Atualiza coordenadas adicionais (colunas O e P) se fornecidas
-    if (hasAd) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
-        valueInputOption: "USER_ENTERED",
-        resource: { values: [[coordXAd || "", coordYAd || ""]] },
-      });
-    }
+    // Atualiza coordenadas primárias (M e N) usando finalCoordX/Y
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [[finalCoordX || "", finalCoordY || ""]] },
+    });
 
     // Atualiza a letra na coluna S se fornecida
     if (letra !== undefined) {
@@ -3877,15 +3855,10 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         const implantacao_id = implData && implData.id ? implData.id : null;
         // Try update by implantacao_id + row_index if exists
         if (implantacao_id) {
-          const updatePayload = {};
-          if (hasPrimary) {
-            updatePayload.coord_x = coordX || null;
-            updatePayload.coord_y = coordY || null;
-          }
-          if (hasAd) {
-            updatePayload.coord_x_ad = coordXAd || null;
-            updatePayload.coord_y_ad = coordYAd || null;
-          }
+          const updatePayload = {
+            coord_x: finalCoordX || null,
+            coord_y: finalCoordY || null,
+          };
 
           const { error: upErr } = await supabase
             .from("unidades")
@@ -3971,20 +3944,12 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Limpa coordenadas: por padrão M e N (primárias). Se o cliente pedir clearAd=true, limpa O e P (adicional).
-    const clearAd = !!req.body.clearAd;
+    // Limpa coordenadas primárias (colunas M e N)
     const batchData = [];
-    if (clearAd) {
-      batchData.push({
-        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
-        values: [["", ""]],
-      });
-    } else {
-      batchData.push({
-        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-        values: [["", ""]],
-      });
-    }
+    batchData.push({
+      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+      values: [["", ""]],
+    });
     // Sempre limpa a letra na coluna S
     batchData.push({ range: `'${sheetTitle}'!S${rowIndex}`, values: [[""]] });
 
@@ -4007,14 +3972,7 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
           .single();
         const implantacao_id = implData && implData.id ? implData.id : null;
         if (implantacao_id) {
-          const updatePayload = {};
-          if (clearAd) {
-            updatePayload.coord_x_ad = null;
-            updatePayload.coord_y_ad = null;
-          } else {
-            updatePayload.coord_x = null;
-            updatePayload.coord_y = null;
-          }
+          const updatePayload = { coord_x: null, coord_y: null };
           await supabase
             .from("unidades")
             .update(updatePayload)
@@ -4762,26 +4720,20 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     if (error) return res.status(404).json({ error: error, ...details });
 
     // CORREÇÃO: Lê os dados atuais ANTES para garantir que F-J não serão apagadas
-    const verifyBeforeRange = `'${sheetTitle}'!F${rowIndex}:R${rowIndex}`;
+    const verifyBeforeRange = `'${sheetTitle}'!F${rowIndex}:O${rowIndex}`;
     const beforeData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: verifyBeforeRange,
     });
     const beforeRow = beforeData.data.values?.[0] || [];
     // Atualiza APENAS as colunas O, P, Q, R (PIX) sem tocar em F-K
+    // The sheet only supports up to column O; write only the identificador into O.
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!O${rowIndex}:R${rowIndex}`,
+      range: `'${sheetTitle}'!O${rowIndex}:O${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: {
-        values: [
-          [
-            identificador || "",
-            payloadEmv || "",
-            valor || "",
-            statusPagamento || "",
-          ],
-        ],
+        values: [[identificador || ""]],
       },
     });
 
@@ -4792,7 +4744,7 @@ app.post("/api/update-pix-data", verifyToken, async (req, res) => {
     });
     const afterRow = afterData.data.values?.[0] || [];
     // CRÍTICO: Busca a linha COMPLETA (A-S) para enviar via SSE
-    const fullRowRange = `'${sheetTitle}'!A${rowIndex}:S${rowIndex}`;
+    const fullRowRange = `'${sheetTitle}'!A${rowIndex}:O${rowIndex}`;
     const fullRowData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: fullRowRange,
@@ -5930,7 +5882,7 @@ app.post(
         }
       }
 
-      // Função que monta uma linha no formato da planilha A:S a partir de um objeto {header: value}
+      // Função que monta uma linha no formato da planilha A:O a partir de um objeto {header: value}
       function buildSheetRowFromObj(obj) {
         // obj keys are normalized headers
         const etapa = obj["etapa"] || "";
@@ -5949,12 +5901,11 @@ app.post(
         const corretor = obj["corretor"] || "";
         const imobiliaria = obj["imobiliaria"] || "";
         const situacao = obj["situacao"] || obj["situação"] || "Disponível";
-        const coord_x = obj["coord_x"] || obj["coord_x"] || "";
-        const coord_y = obj["coord_y"] || obj["coord_y"] || "";
-        const coord_x_ad = obj["coord_x_ad"] || obj["coord_x_ad"] || "";
-        const coord_y_ad = obj["coord_y_ad"] || obj["coord_y_ad"] || "";
+        const coord_x = obj["coord_x"] || "";
+        const coord_y = obj["coord_y"] || "";
         const simbolo = obj["simbolo"] || "";
 
+        // Retorna exatamente 15 colunas (A..O)
         return [
           etapa,
           bloco,
@@ -5970,13 +5921,7 @@ app.post(
           situacao,
           coord_x,
           coord_y,
-          coord_x_ad,
-          coord_y_ad,
           simbolo,
-          "",
-          "",
-          "",
-          "",
         ];
       }
 
@@ -6325,8 +6270,7 @@ app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
         situacao: row[11] || "Disponível", // L
         coord_x: row[12] || null, // M
         coord_y: row[13] || null, // N
-        coord_x_ad: row[14] || null, // O
-        coord_y_ad: row[15] || null, // P
+        simbolo: row[14] || null, // O
         // Colunas antigas para compatibilidade
         area_privativa: row[3] || null,
         tipologia: row[4] || null,
@@ -6398,7 +6342,7 @@ app.get(
       // Busca dados da aba (ignora cabeçalho na linha 1)
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${nome}'!A2:R`,
+        range: `'${nome}'!A2:O`,
       });
 
       const rows = response.data.values || [];
