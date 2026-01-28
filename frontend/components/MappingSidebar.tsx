@@ -25,6 +25,7 @@ interface MappingSidebarProps {
   onSaveDotSize: () => void;
   unitLetter: string;
   onLetterChange: (letter: string) => void;
+  activeLayer?: "primary" | "additional";
 }
 
 export function MappingSidebar({
@@ -175,12 +176,19 @@ export function MappingSidebar({
                 {isOpen && (
                   <div className="group-content">
                     {unitItems.map(({ unidade, originalIndex }) => {
-                      // Verifica se AMBAS as coordenadas (M e N) estão preenchidas
-                      const isMapped =
-                        unidade[12] && // Coluna M - coord_x
-                        unidade[12].trim() !== "" &&
-                        unidade[13] && // Coluna N - coord_y
-                        unidade[13].trim() !== "";
+                                  // Considera mapeamento em qualquer camada (principal ou adicional)
+                                  const hasPrimary =
+                                    unidade[12] && // Coluna M - coord_x
+                                    unidade[12].toString().trim() !== "" &&
+                                    unidade[13] && // Coluna N - coord_y
+                                    unidade[13].toString().trim() !== "";
+                                  const hasAdditional =
+                                    unidade[14] && // Coluna O - coord_x_ad
+                                    unidade[14].toString().trim() !== "" &&
+                                    unidade[15] && // Coluna P - coord_y_ad
+                                    unidade[15].toString().trim() !== "";
+                                  // Se qualquer camada estiver mapeada, consideramos a unidade mapeada
+                                  const isMapped = hasPrimary || hasAdditional;
                       const isSelected = originalIndex === selectedUnitIndex;
                       // Normaliza o status: minúscula + remove acentos para classe CSS
                       const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao

@@ -967,7 +967,16 @@ export function MainPage() {
 
   const handleUnitClick = (unitIndex: number) => {
     if (isMappingMode) {
-      const hasCoords = unidades[unitIndex][12] && unidades[unitIndex][13]; // Colunas M e N
+      // Ao clicar no modo mapeamento, remove o mapeamento da camada ativa
+      const clearAd = activeLayer === "additional";
+      const coordXIndex = clearAd ? 14 : 12; // O ou M
+      const coordYIndex = clearAd ? 15 : 13; // P ou N
+      const hasCoords =
+        unidades[unitIndex] &&
+        unidades[unitIndex][coordXIndex] &&
+        unidades[unitIndex][coordXIndex].toString().trim() !== "" &&
+        unidades[unitIndex][coordYIndex] &&
+        unidades[unitIndex][coordYIndex].toString().trim() !== "";
       if (hasCoords) {
         handleClearCoords(unitIndex);
       }
@@ -1831,6 +1840,7 @@ export function MainPage() {
               onSaveDotSize={handleSaveDotSize}
               unitLetter={unitLetter}
               onLetterChange={setUnitLetter}
+              activeLayer={activeLayer}
             />
           )}
           {switching && (
