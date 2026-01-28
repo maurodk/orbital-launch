@@ -53,8 +53,10 @@ export function NewImplantationModal({
   const [cvcrmId, setCvcrmId] = useState("");
   const [imagemFile, setImagemFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [imagemAdicionalFile, setImagemAdicionalFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [adicionalPreviewUrl, setAdicionalPreviewUrl] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [imageScale, setImageScale] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -93,6 +95,23 @@ export function NewImplantationModal({
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setLogoPreviewUrl(previewUrl);
+    }
+  };
+
+  const handleAdditionalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      // Validar tamanho (50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        setError("A imagem adicional não pode exceder 50MB");
+        e.target.value = "";
+        return;
+      }
+
+      setImagemAdicionalFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setAdicionalPreviewUrl(previewUrl);
     }
   };
 
@@ -142,6 +161,9 @@ export function NewImplantationModal({
       if (imagemFile) {
         formData.append("imagem", imagemFile);
       }
+      if (imagemAdicionalFile) {
+        formData.append("imagem_adicional", imagemAdicionalFile);
+      }
       if (logoFile) {
         formData.append("logo", logoFile);
       }
@@ -181,8 +203,10 @@ export function NewImplantationModal({
       setEstado("");
       setCvcrmId("");
       setImagemFile(null);
+      setImagemAdicionalFile(null);
       setLogoFile(null);
       setImagePreviewUrl(null);
+      setAdicionalPreviewUrl(null);
       setLogoPreviewUrl(null);
 
       onSuccess();
@@ -354,11 +378,75 @@ export function NewImplantationModal({
                 </div>
               )}
             </div>
+            {/* Preview da Imagem Adicional */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "10px",
+                  fontWeight: "bold",
+                  color: "#eaeaea",
+                }}
+              >
+                Imagem Adicional (opcional)
+              </label>
+              {adicionalPreviewUrl ? (
+                <img
+                  src={adicionalPreviewUrl}
+                  alt="Preview adicional"
+                  style={{
+                    width: "100%",
+                    maxHeight: "150px",
+                    objectFit: "contain",
+                    border: "1px solid #2a2a2a",
+                    borderRadius: "4px",
+                    backgroundColor: "#2a2a2a",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setZoomedImage(adicionalPreviewUrl)}
+                  title="Clique para expandir"
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "150px",
+                    border: "1px dashed #2a2a2a",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#b0b0b0",
+                    fontSize: "14px",
+                  }}
+                >
+                  Sem imagem adicional
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Coluna direita - Formulário */}
           <div style={{ flex: 1 }}>
             <form onSubmit={handleSubmit}>
+              <div style={{ marginBottom: "15px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "5px",
+                    fontWeight: "bold",
+                    color: "#eaeaea",
+                  }}
+                >
+                  Upload - Imagem Adicional (opcional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAdditionalFileChange}
+                  style={{ width: "100%" }}
+                />
+              </div>
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{

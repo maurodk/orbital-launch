@@ -271,6 +271,30 @@ button:focus-visible {
   box-shadow: 0 0 10px rgba(106, 215, 0, 0.3);
 }
 
+/* Layer toggle buttons for primary/additional implantation */
+.layer-toggle {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 2px solid transparent;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.18s ease;
+}
+
+.layer-toggle:hover {
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.04);
+}
+
+.layer-toggle.active {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+  box-shadow: 0 6px 18px rgba(106,215,0,0.12), inset 0 0 6px rgba(106,215,0,0.06);
+  background: linear-gradient(180deg, rgba(106,215,0,0.03), transparent);
+}
+
 .mobile-menu-toggle {
   display: none;
 }

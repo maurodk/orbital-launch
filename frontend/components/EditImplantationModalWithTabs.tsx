@@ -13,6 +13,8 @@ interface Implantation {
   cvcrm_id?: string;
   url?: string;
   logo_url?: string;
+  imagem_url_adicional?: string;
+  imagemUrlAdicional?: string;
 }
 
 interface EditImplantationModalProps {
@@ -72,8 +74,10 @@ export function EditImplantationModal({
   const [cvcrmId, setCvcrmId] = useState("");
   const [imagemFile, setImagemFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [imagemAdicionalFile, setImagemAdicionalFile] = useState<File | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState("");
   const [currentLogoUrl, setCurrentLogoUrl] = useState("");
+  const [currentAdditionalImageUrl, setCurrentAdditionalImageUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -95,6 +99,9 @@ export function EditImplantationModal({
       setCvcrmId(implantation.cvcrm_id || "");
       setCurrentImageUrl(implantation.url || "");
       setCurrentLogoUrl(implantation.logo_url || "");
+      // suportar campos alternativos que possam conter a imagem adicional
+      const maybeAd = implantation.imagem_url_adicional || implantation.imagemUrlAdicional || "";
+      setCurrentAdditionalImageUrl(maybeAd || "");
       setImagemFile(null);
       setLogoFile(null);
       setUnidadesFile(null);
@@ -127,6 +134,20 @@ export function EditImplantationModal({
       setLogoFile(file);
       const previewUrl = URL.createObjectURL(file);
       setCurrentLogoUrl(previewUrl);
+    }
+  };
+
+  const handleAdditionalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > 50 * 1024 * 1024) {
+        setError("A imagem adicional não pode exceder 50MB");
+        e.target.value = "";
+        return;
+      }
+      setImagemAdicionalFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setCurrentAdditionalImageUrl(previewUrl);
     }
   };
 
@@ -315,6 +336,9 @@ export function EditImplantationModal({
       }
       if (imagemFile) {
         formData.append("imagem", imagemFile);
+      }
+      if (imagemAdicionalFile) {
+        formData.append("imagem_adicional", imagemAdicionalFile);
       }
       if (logoFile) {
         formData.append("logo", logoFile);
@@ -540,6 +564,52 @@ export function EditImplantationModal({
                   </div>
                 )}
               </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "10px",
+                    fontWeight: "bold",
+                    color: "#eaeaea",
+                  }}
+                >
+                  Imagem Adicional
+                </label>
+                {currentAdditionalImageUrl ? (
+                  <img
+                    src={currentAdditionalImageUrl}
+                    alt="Imagem adicional"
+                    style={{
+                      width: "100%",
+                      maxHeight: "150px",
+                      objectFit: "contain",
+                      border: "1px solid #2a2a2a",
+                      borderRadius: "4px",
+                      backgroundColor: "#2a2a2a",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setZoomedImage(currentAdditionalImageUrl)}
+                    title="Clique para expandir"
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "150px",
+                      border: "1px dashed #2a2a2a",
+                      borderRadius: "4px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#b0b0b0",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Sem imagem adicional
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Coluna direita - Formulário */}
@@ -759,6 +829,43 @@ export function EditImplantationModal({
                       }}
                     >
                       Nova logo selecionada: {logoFile.name}
+                    </small>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: "20px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "5px",
+                      fontWeight: "bold",
+                      color: "#eaeaea",
+                    }}
+                  >
+                    Alterar Imagem Adicional (opcional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAdditionalChange}
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      borderRadius: "4px",
+                      border: "1px solid #2a2a2a",
+                      backgroundColor: "#2a2a2a",
+                      color: "#eaeaea",
+                    }}
+                  />
+                  {imagemAdicionalFile && (
+                    <small
+                      style={{
+                        color: "#6ad700",
+                        marginTop: "5px",
+                        display: "block",
+                      }}
+                    >
+                      Nova imagem adicional selecionada: {imagemAdicionalFile.name}
                     </small>
                   )}
                 </div>

@@ -349,11 +349,13 @@ function supabaseUnitToArray(unitData) {
     unitData.situacao || "Disponível", // L
     unitData.coord_x || "", // M
     unitData.coord_y || "", // N
-    "", // O - IDENTIFICADOR (PIX) - não está no Supabase ainda
-    "", // P - Payload
-    "", // Q - Valor PIX
-    "", // R - Pagamento
-    "", // S - Simbolo/Letra - não está no Supabase ainda
+    unitData.coord_x_ad || "", // O - coord_x_ad (implantacao adicional)
+    unitData.coord_y_ad || "", // P - coord_y_ad (implantacao adicional)
+    "", // Q - IDENTIFICADOR (PIX) - não está no Supabase ainda
+    "", // R - Payload
+    "", // S - Valor PIX
+    "", // T - Pagamento
+    unitData.simbolo || "", // U - Simbolo/Letra (se houver)
   ];
 }
 
@@ -1768,6 +1770,7 @@ app.get("/api/public-data", async (req, res) => {
 
     // Busca os dados da implantação do Supabase
     let imageUrl = "";
+    let imageUrlAdicional = "";
     let dotSize = 16;
     let sigla = "";
 
@@ -1775,13 +1778,14 @@ app.get("/api/public-data", async (req, res) => {
       try {
         const { data: implData } = await supabase
           .from("implantacoes")
-          .select("imagem_url, dot_size, sigla")
+          .select("imagem_url, imagem_url_adicional, dot_size, sigla")
           .eq("nome", sheetTitle)
           .limit(1)
           .single();
 
         if (implData) {
           imageUrl = implData.imagem_url || "";
+          imageUrlAdicional = implData.imagem_url_adicional || "";
           dotSize = implData.dot_size || 16;
           sigla = implData.sigla || "";
         }
@@ -1793,6 +1797,7 @@ app.get("/api/public-data", async (req, res) => {
     res.json({
       unidades,
       imageUrl,
+      imageUrlAdicional: imageUrlAdicional || "",
       dotSize,
       sigla,
     });
@@ -1854,7 +1859,7 @@ app.get("/api/fast-poll-unit", async (req, res) => {
 
           const { data: unitData } = await supabase
             .from("unidades")
-            .select("situacao, nome_unidade, coord_x, coord_y")
+            .select("situacao, nome_unidade, coord_x, coord_y, coord_x_ad, coord_y_ad")
             .eq("implantacao_id", implData.id)
             .eq("row_index", parseInt(rowIndex, 10))
             .limit(1)
@@ -1868,6 +1873,8 @@ app.get("/api/fast-poll-unit", async (req, res) => {
             unitName: unitData.nome_unidade,
             coordX: unitData.coord_x,
             coordY: unitData.coord_y,
+            coordXAd: unitData.coord_x_ad || null,
+            coordYAd: unitData.coord_y_ad || null,
             timestamp: Date.now(),
           };
         } catch (e) {
@@ -3726,7 +3733,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, coordX, coordY, letra } = req.body;
+  const { implantacao, rowIndex, coordX, coordY, coordXAd, coordYAd, letra } = req.body;
   const userEmail = req.user?.email || "Sistema";
   if (
     !implantacao ||
@@ -3747,13 +3754,23 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Atualiza coordenadas (M e N) e letra (S)
+    // Atualiza coordenadas principais (M e N) e, se fornecido, coordenadas adicionais (O e P). Também atualiza letra (S)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
       valueInputOption: "USER_ENTERED",
       resource: { values: [[coordX, coordY]] },
     });
+
+    // Atualiza coordenadas adicionais (colunas O e P) se fornecidas
+    if (coordXAd !== undefined || coordYAd !== undefined) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[coordXAd || "", coordYAd || ""]] },
+      });
+    }
 
     // Atualiza a letra na coluna S se fornecida
     if (letra !== undefined) {
@@ -3777,9 +3794,13 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         const implantacao_id = implData && implData.id ? implData.id : null;
         // Try update by implantacao_id + row_index if exists
         if (implantacao_id) {
+          const updatePayload = { coord_x: coordX, coord_y: coordY };
+          if (coordXAd !== undefined) updatePayload.coord_x_ad = coordXAd || null;
+          if (coordYAd !== undefined) updatePayload.coord_y_ad = coordYAd || null;
+
           const { error: upErr } = await supabase
             .from("unidades")
-            .update({ coord_x: coordX, coord_y: coordY })
+            .update(updatePayload)
             .eq("implantacao_id", implantacao_id)
             .eq("row_index", parseInt(rowIndex, 10));
           if (upErr) {
@@ -5275,6 +5296,7 @@ app.post(
   upload.fields([
     { name: "imagem", maxCount: 1 },
     { name: "logo", maxCount: 1 },
+    { name: "imagem_adicional", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
@@ -5311,6 +5333,7 @@ app.post(
 
       let imageUrl = "";
       let logoUrl = "";
+      let imageAdicionalUrl = "";
 
       // Upload da imagem da implantação para Supabase Storage (se fornecida)
       if (req.files && req.files.imagem && req.files.imagem[0]) {
@@ -5380,11 +5403,41 @@ app.post(
         console.log("ℹ️ Nenhuma logo fornecida");
       }
 
+      // Upload da imagem adicional (se fornecida)
+      if (req.files && req.files.imagem_adicional && req.files.imagem_adicional[0]) {
+        console.log("📤 Iniciando upload da imagem adicional...");
+        const file = req.files.imagem_adicional[0];
+        const sanitizedName = sanitizeFilename(file.originalname);
+        const fileName = `implantacao_adicional_${Date.now()}_${sanitizedName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("implantacoes")
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error("❌ Erro ao fazer upload da imagem adicional:", uploadError);
+          return res.status(500).json({ error: "Falha ao fazer upload da imagem adicional.", details: uploadError.message });
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("implantacoes")
+          .getPublicUrl(fileName);
+
+        imageAdicionalUrl = urlData?.publicUrl || "";
+        console.log("✅ Imagem adicional uploaded:", imageAdicionalUrl);
+      } else {
+        console.log("ℹ️ Nenhuma imagem adicional fornecida");
+      }
+
       // Inserir implantação no banco
       console.log("💾 Inserindo implantação no banco...");
       const insertPayload = {
         nome: nome.trim(),
         imagem_url: imageUrl || null,
+        imagem_url_adicional: imageAdicionalUrl || null,
         logo_url: logoUrl || null,
         dot_size: 15,
         endereco: endereco.trim(),
@@ -5430,6 +5483,7 @@ app.put(
   upload.fields([
     { name: "imagem", maxCount: 1 },
     { name: "logo", maxCount: 1 },
+    { name: "imagem_adicional", maxCount: 1 },
   ]),
   (req, res, next) => {
     try {
@@ -5527,12 +5581,29 @@ app.put(
         }
       }
 
+      // Upload de nova imagem adicional (se fornecida)
+      if (req.files && req.files.imagem_adicional && req.files.imagem_adicional[0]) {
+        try {
+          const file = req.files.imagem_adicional[0];
+          const { filename: uploadedName, publicUrl } = await uploadFileToSupabaseStorage(
+            "implantacoes",
+            file,
+            "implantacao_adicional_"
+          );
+          imageAdicionalUrl = publicUrl || imageAdicionalUrl;
+        } catch (e) {
+          console.error("[PUT] Falha ao enviar imagem adicional para storage:", e && e.message ? e.message : e);
+          return res.status(500).json({ error: "Falha ao enviar imagem adicional para storage.", details: e && e.message ? e.message : String(e) });
+        }
+      }
+
       // Atualizar implantação no banco
       const { data, error } = await supabase
         .from("implantacoes")
         .update({
           nome: nome.trim(),
           imagem_url: imageUrl,
+          imagem_url_adicional: imageAdicionalUrl || null,
           logo_url: logoUrl,
           endereco: endereco.trim(),
           cidade: cidade.trim(),
@@ -5647,6 +5718,8 @@ app.post(
           "situacao",
           "coord_x",
           "coord_y",
+          "coord_x_ad",
+          "coord_y_ad",
           "IDENTIFICADOR",
           "Payload",
           "Valor",
@@ -5754,6 +5827,8 @@ app.post(
         const situacao = obj["situacao"] || obj["situação"] || "Disponível";
         const coord_x = obj["coord_x"] || obj["coord_x"] || "";
         const coord_y = obj["coord_y"] || obj["coord_y"] || "";
+        const coord_x_ad = obj["coord_x_ad"] || obj["coord_x_ad"] || "";
+        const coord_y_ad = obj["coord_y_ad"] || obj["coord_y_ad"] || "";
         const simbolo = obj["simbolo"] || "";
 
         return [
@@ -5771,6 +5846,8 @@ app.post(
           situacao,
           coord_x,
           coord_y,
+          coord_x_ad,
+          coord_y_ad,
           simbolo,
           "",
           "",
@@ -5979,6 +6056,8 @@ app.post(
                 situacao: row[11] || "Disponível", // L
                 coord_x: row[12] || null, // M
                 coord_y: row[13] || null, // N
+                coord_x_ad: row[14] || null, // O (adicional)
+                coord_y_ad: row[15] || null, // P (adicional)
                 // Colunas antigas para compatibilidade
                 area_privativa: row[3] || null,
                 tipologia: row[4] || null,
@@ -6112,6 +6191,8 @@ app.post("/api/sync-sheets-to-supabase", verifyToken, async (req, res) => {
         situacao: row[11] || "Disponível", // L
         coord_x: row[12] || null, // M
         coord_y: row[13] || null, // N
+        coord_x_ad: row[14] || null, // O
+        coord_y_ad: row[15] || null, // P
         // Colunas antigas para compatibilidade
         area_privativa: row[3] || null,
         tipologia: row[4] || null,

@@ -530,6 +530,9 @@
 
         const urlParams = new URLSearchParams(location.search);
         const implantacao = urlParams.get("implantacao");
+        // Novo: suporta abrir implantação adicional via param 'implantacao_ad' ou 'adicional=true' quando imageUrlAdicional existe
+        const implantacaoAdParam = urlParams.get("implantacao_ad");
+        const adicionalFlag = (urlParams.get("adicional") || "").toLowerCase() === "true";
 
         if (!implantacao) {
           wrapper.innerHTML =
@@ -645,8 +648,26 @@
           }
         }
 
+        // Busca dados de outra implantação (quando implantacao_ad é fornecida)
+        async function fetchOtherImplantacao(name, hideAvailable = "false") {
+          try {
+            const url = `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
+              name
+            )}&hideAvailable=${hideAvailable}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Falha ao buscar dados: ${res.statusText}`);
+            return await res.json();
+          } catch (e) {
+            console.error("Erro em fetchOtherImplantacao:", e);
+            return null;
+          }
+        }
+
         function render(data) {
-          const { unidades, imageUrl, dotSize } = data;
+          // Suporta objeto combinado { primary, secondary } ou o formato antigo único
+          const primary = data.primary || data;
+          const secondary = data.secondary || null;
+          const { unidades, imageUrl, dotSize } = primary;
 
           // Marca como loading
           wrapper.classList.add("loading");
@@ -700,6 +721,21 @@
           };
 
           container.appendChild(img);
+
+          // Se houver secondary (overlay ou outra implantação), cria imagem adicional
+          if (secondary && secondary.imageUrl) {
+            const imgAd = document.createElement("img");
+            imgAd.className = "floor-plan-image additional";
+            imgAd.style.position = "absolute";
+            imgAd.style.top = 0;
+            imgAd.style.left = 0;
+            imgAd.style.opacity = 0.9;
+            imgAd.style.pointerEvents = "none";
+            // Preload
+            imgAd.src = secondary.imageUrl;
+            container.appendChild(imgAd);
+          }
+
           wrapper.appendChild(container);
 
           const rows =
@@ -708,6 +744,7 @@
               ? unidades.slice(1)
               : unidades;
 
+          // Render unidades da implantação principal
           rows.forEach((u, index) => {
             const coordX = u[12];
             const coordY = u[13];
@@ -738,16 +775,71 @@
 
             container.appendChild(indicator);
           });
+
+          // Render unidades da implantação adicional (pode ser a mesma aba com coords adicionais ou outra aba)
+          if (secondary && secondary.unidades) {
+            const rowsAd =
+              secondary.unidades.length > 0 &&
+              secondary.unidades[0][0]?.toString().toLowerCase().includes("etapa")
+                ? secondary.unidades.slice(1)
+                : secondary.unidades;
+
+            const useAltCoords = !implantacaoAdParam; // se não houver implantacao_ad, assumimos coords adicionais na mesma aba (colunas O/P)
+
+            rowsAd.forEach((u, index) => {
+              const coordX = useAltCoords ? u[14] : u[12];
+              const coordY = useAltCoords ? u[15] : u[13];
+              const letra = useAltCoords ? u[18] : u[18];
+              const status = (u[11] || "Disponível").toString();
+
+              if (!coordX || !coordY) return;
+
+              const indicator = document.createElement("div");
+              const unitIndex = index;
+              indicator.id = `unit-indicator-ad-${unitIndex}`;
+              indicator.className = `unit-indicator status-${status} additional-indicator`;
+              indicator.style.left = `${coordX}%`;
+              indicator.style.top = `${coordY}%`;
+              indicator.style.width = `${dotSize}px`;
+              indicator.style.height = `${dotSize}px`;
+              indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
+
+              if (letra) {
+                const letraSpan = document.createElement("span");
+                letraSpan.className = "letra";
+                letraSpan.textContent = letra;
+                letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+                indicator.appendChild(letraSpan);
+              }
+
+              container.appendChild(indicator);
+            });
+          }
         }
 
         async function reloadAndRender(hideAvailable = "false") {
           statusEl.textContent = "Atualizando...";
-          const data = await fetchData(hideAvailable);
-          render(data);
+          const primary = await fetchData(hideAvailable);
+
+          // Tenta obter dados secundários: pode ser outra aba (implantacao_ad) ou imagem adicional da mesma implantação
+          let secondary = null;
+          if (implantacaoAdParam) {
+            secondary = await fetchOtherImplantacao(implantacaoAdParam, hideAvailable);
+          } else if (adicionalFlag && primary && primary.imageUrlAdicional) {
+            secondary = {
+              unidades: primary.unidades,
+              imageUrl: primary.imageUrlAdicional,
+              dotSize: primary.dotSize,
+              sigla: primary.sigla,
+            };
+          }
+
+          render({ primary, secondary });
           statusEl.textContent = "Conectado";
         }
 
         let es;
+        let esSecondary;
         let pollingIntervals = new Map(); // Armazena intervalos de polling por unidade
 
         // Polling agressivo para uma unidade específica
@@ -840,10 +932,51 @@
           );
         }
 
+        // Atualiza unidade na camada adicional (usa coords O/P ou M/N dependendo do source)
+        function updateSingleUnitAd(unitData, rowIndex, useAltCoords) {
+          const container = document.querySelector(".floor-plan-container");
+          if (!container) return;
+
+          const unitIndex = rowIndex - 2;
+          const unitId = `unit-indicator-ad-${unitIndex}`;
+          let indicator = document.getElementById(unitId);
+
+          const coordX = useAltCoords ? unitData[14] : unitData[12];
+          const coordY = useAltCoords ? unitData[15] : unitData[13];
+          const letra = unitData[18];
+          const status = (unitData[11] || "Disponível").toString();
+
+          if (!coordX || !coordY) {
+            if (indicator) indicator.remove();
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            indicator.className = "unit-indicator additional-indicator";
+            container.appendChild(indicator);
+          }
+
+          indicator.className = `unit-indicator status-${status} additional-indicator`;
+          indicator.style.left = `${coordX}%`;
+          indicator.style.top = `${coordY}%`;
+          indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}\nFonte: adicional`;
+
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+        }
+
         function connectSse() {
           if (es) {
             try {
               es.close();
+            } catch (e) {}
+          }
+          if (esSecondary) {
+            try {
+              esSecondary.close();
             } catch (e) {}
           }
 
@@ -941,8 +1074,17 @@
                 rowIndex,
               });
 
-              // Atualiza via SSE
+              // Atualiza via SSE (primary)
               updateSingleUnit(unitData, rowIndex);
+
+              // Se payload tiver coords adicionais (mesma implantação), atualiza também a camada adicional
+              try {
+                const coordXAd = unitData[14];
+                const coordYAd = unitData[15];
+                if (coordXAd && coordYAd) {
+                  updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
+                }
+              } catch (e) {}
 
               // DISPARA polling agressivo para garantir sincronização em tempo real
               startUnitPolling(rowIndex, 10000);
@@ -950,6 +1092,33 @@
               console.error("Erro ao processar evento SSE:", e);
             }
           });
+
+          // Se implantacao_ad diferente for fornecida, abre segunda conexão SSE
+          if (implantacaoAdParam) {
+            esSecondary = new EventSource(
+              `${API_URL}/api/events?implantacao=${encodeURIComponent(
+                implantacaoAdParam
+              )}${tokenQuery}`
+            );
+
+            esSecondary.onopen = () => {
+              console.log("SSE secundário conectado para:", implantacaoAdParam);
+            };
+
+            esSecondary.onerror = (err) => {
+              console.warn("SSE secundário erro:", err);
+            };
+
+            esSecondary.addEventListener("unitUpdated", (ev) => {
+              try {
+                const { unitData, rowIndex } = JSON.parse(ev.data);
+                // Atualiza camada adicional (usar coords primários do outro sheet)
+                updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
+              } catch (e) {
+                console.error("Erro no SSE secundário:", e);
+              }
+            });
+          }
 
           // network events
           window.addEventListener("online", () => {

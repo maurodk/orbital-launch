@@ -126,6 +126,9 @@ export function MainPage() {
   );
   const [isMappingMode, setIsMappingMode] = useState(false);
   const [unitToMapIndex, setUnitToMapIndex] = useState<number | null>(null);
+  const [activeLayer, setActiveLayer] = useState<"primary" | "additional">(
+    "primary"
+  );
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(false);
   const [unitLetter, setUnitLetter] = useState<string>("");
@@ -1582,19 +1585,34 @@ export function MainPage() {
     const coordX = x.toFixed(3);
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
-    updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
+
+    if (activeLayer === "primary") {
+      updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
+      updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
+    } else {
+      // Adicional stored in O:P (índices 14 e 15)
+      updatedUnidades[unitToMapIndex][14] = coordX; // Coluna O - coord_x_ad
+      updatedUnidades[unitToMapIndex][15] = coordY; // Coluna P - coord_y_ad
+    }
+
     updatedUnidades[unitToMapIndex][18] = unitLetter; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
-      await axios.post(`${apiUrl}/api/update-coords`, {
+      const payload: any = {
         rowIndex: sheetRowIndex,
-        coordX,
-        coordY,
         letra: unitLetter,
         implantacao: selectedImplantationName,
-      });
+      };
+      if (activeLayer === "primary") {
+        payload.coordX = coordX;
+        payload.coordY = coordY;
+      } else {
+        payload.coordXAd = coordX;
+        payload.coordYAd = coordY;
+      }
+
+      await axios.post(`${apiUrl}/api/update-coords`, payload);
     } catch (err) {
       setError("Falha ao salvar as coordenadas.");
       console.error(err);
@@ -1852,6 +1870,20 @@ export function MainPage() {
                       >
                         Modo Mapeamento
                       </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
+                        <button
+                          className={`layer-toggle ${activeLayer === "primary" ? "active" : ""}`}
+                          onClick={() => setActiveLayer("primary")}
+                        >
+                          Principal
+                        </button>
+                        <button
+                          className={`layer-toggle ${activeLayer === "additional" ? "active" : ""}`}
+                          onClick={() => setActiveLayer("additional")}
+                        >
+                          Adicional
+                        </button>
+                      </div>
                       <div
                         className="filter-checkbox-wrapper"
                         style={{ marginLeft: 0 }}
