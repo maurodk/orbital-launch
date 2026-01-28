@@ -121,6 +121,10 @@ body {
   box-sizing: border-box;
   overflow-x: hidden;
   margin: 64px auto 0;
+  display: flex; /* layout: sidebar + main content */
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
 }
 
 @media (max-width: 1024px) {
@@ -135,7 +139,21 @@ body {
     margin-top: 70px;
     padding: 10px;
     border-radius: 0;
+    display: block; /* stack on small screens */
   }
+}
+
+/* Main content column when sidebar is visible */
+.main-content {
+  flex: 1 1 auto;
+  min-width: 0; /* allow children to shrink properly */
+}
+
+/* Ensure mapping sidebar keeps its width and scrolls internally */
+.mapping-sidebar {
+  width: 320px;
+  max-width: 32rem;
+  flex: 0 0 320px;
 }
 
 @media (max-width: 425px) {
