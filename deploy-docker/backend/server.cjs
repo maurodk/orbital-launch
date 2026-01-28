@@ -488,14 +488,25 @@ const upload = multer({
       file.mimetype ===
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
+    // Debug logs para diagnosticar uploads
+    try {
+      console.log("[MULTER fileFilter] originalname:", file.originalname);
+      console.log("[MULTER fileFilter] mimetype:", file.mimetype);
+      console.log("[MULTER fileFilter] ext:", ext);
+      console.log(
+        `[MULTER fileFilter] isImage:${isImage} isCsv:${isCsv} isXlsx:${isXlsx}`
+      );
+    } catch (e) {
+      console.warn("[MULTER fileFilter] erro ao logar file info", e && e.message);
+    }
+
     if (isImage || isCsv || isXlsx) {
       return cb(null, true);
     }
-    cb(
-      new Error(
-        "Apenas imagens (jpeg, jpg, png, gif, webp), arquivos CSV e XLSX são permitidos"
-      )
-    );
+    const errMsg =
+      "Apenas imagens (jpeg, jpg, png, gif, webp), arquivos CSV e XLSX são permitidos";
+    console.warn("[MULTER fileFilter] rejeitado:", file.originalname, ext, file.mimetype);
+    cb(new Error(errMsg));
   },
 });
 
@@ -5315,6 +5326,25 @@ app.put(
 
       const { id } = req.params;
       const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
+
+      // Logs para diagnosticar upload via UI
+      try {
+        const auth = req.headers.authorization || req.headers.Authorization || "";
+        const authSummary = auth ? `${auth.slice(0, 20)}...` : "(nenhum)";
+        console.log(`[PUT /api/implantacoes/${id}] Autorization:`, authSummary);
+        console.log(`[PUT /api/implantacoes/${id}] body keys:`, Object.keys(req.body || {}));
+        console.log(`[PUT /api/implantacoes/${id}] body sample: nome='${(nome||"").slice(0,40)}' endereco='${(endereco||"").slice(0,40)}' cidade='${cidade||""}' estado='${estado||""}'`);
+        const filesInfo = {};
+        if (req.files) {
+          for (const k of Object.keys(req.files)) {
+            const arr = req.files[k];
+            filesInfo[k] = arr.map((f) => ({ originalname: f.originalname, size: f.size || (f.buffer && f.buffer.length) || 0 }));
+          }
+        }
+        console.log(`[PUT /api/implantacoes/${id}] files:`, filesInfo);
+      } catch (e) {
+        console.warn(`[PUT /api/implantacoes/${id}] erro ao logar req:`, e && e.message);
+      }
 
       if (!nome || !endereco || !cidade || !estado) {
         return res.status(400).json({
