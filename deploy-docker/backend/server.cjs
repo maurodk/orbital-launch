@@ -97,6 +97,55 @@ async function findImplantacaoByName(sheetName) {
   }
 }
 
+// Helper: upload robusto ao Supabase Storage e retorna publicUrl
+async function uploadFileToSupabaseStorage(bucket, fileObj, prefix = "") {
+  if (!supabase) throw new Error("Supabase não configurado");
+  if (!fileObj) throw new Error("fileObj não fornecido");
+
+  const original = fileObj.originalname || "file";
+  const sanitized = sanitizeFilename(original);
+  const timestamp = Date.now();
+  const filename = `${prefix}${timestamp}_${sanitized}`;
+
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`[STORAGE] upload attempt ${attempt} -> bucket='${bucket}' file='${filename}' size=${fileObj.size || (fileObj.buffer && fileObj.buffer.length) || 0}`);
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filename, fileObj.buffer, {
+          contentType: fileObj.mimetype || "application/octet-stream",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.warn(`[STORAGE] upload error attempt ${attempt}:`, uploadError.message || uploadError);
+        if (attempt === maxAttempts) throw uploadError;
+        // small delay before retry
+        await new Promise((r) => setTimeout(r, 300 * attempt));
+        continue;
+      }
+
+      const { data: urlData, error: urlErr } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filename);
+
+      if (urlErr) {
+        console.warn(`[STORAGE] getPublicUrl error:`, urlErr.message || urlErr);
+      }
+
+      const publicUrl = urlData && urlData.publicUrl ? urlData.publicUrl : null;
+      console.log(`[STORAGE] upload successful: ${publicUrl}`);
+      return { filename, publicUrl };
+    } catch (e) {
+      console.error(`[STORAGE] exception on upload attempt ${attempt}:`, e && e.message ? e.message : e);
+      if (attempt === maxAttempts) throw e;
+      await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
+  }
+}
+
 // Configuração do Redis
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = process.env.REDIS_PORT || 6379;
@@ -5420,58 +5469,37 @@ app.put(
       let imageUrl = currentData?.imagem_url || "";
       let logoUrl = currentData?.logo_url || "";
 
-      // Upload de nova imagem da implantação (se fornecida)
+      // Upload de nova imagem da implantação (se fornecida) - usando helper robusto
       if (req.files && req.files.imagem && req.files.imagem[0]) {
-        const file = req.files.imagem[0];
-        const sanitizedName = sanitizeFilename(file.originalname);
-        const fileName = `implantacao_${Date.now()}_${sanitizedName}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("implantacoes")
-          .upload(fileName, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false,
-          });
-
-        if (uploadError) {
-          console.error("Erro ao fazer upload da imagem:", uploadError);
-          return res
-            .status(500)
-            .json({ error: "Falha ao fazer upload da imagem." });
+        try {
+          const file = req.files.imagem[0];
+          const { filename: uploadedName, publicUrl } = await uploadFileToSupabaseStorage(
+            "implantacoes",
+            file,
+            "implantacao_"
+          );
+          imageUrl = publicUrl || imageUrl;
+        } catch (e) {
+          console.error("[PUT] Falha ao enviar imagem para storage:", e && e.message ? e.message : e);
+          // não interromperemos imediatamente; registramos e continuamos (pode ser apenas logo)
+          return res.status(500).json({ error: "Falha ao enviar imagem para storage.", details: e && e.message ? e.message : String(e) });
         }
-
-        // Gerar URL pública da nova imagem
-        const { data: urlData } = supabase.storage
-          .from("implantacoes")
-          .getPublicUrl(fileName);
-
-        imageUrl = urlData?.publicUrl || "";
       }
 
-      // Upload de nova logo (se fornecida)
+      // Upload de nova logo (se fornecida) - usando helper robusto
       if (req.files && req.files.logo && req.files.logo[0]) {
-        const file = req.files.logo[0];
-        const sanitizedName = sanitizeFilename(file.originalname);
-        const fileName = `logo_${Date.now()}_${sanitizedName}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("implantacoes")
-          .upload(fileName, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false,
-          });
-
-        if (uploadError) {
-          console.error("Erro ao fazer upload da logo:", uploadError);
-          return res
-            .status(500)
-            .json({ error: "Falha ao fazer upload da logo." });
+        try {
+          const file = req.files.logo[0];
+          const { filename: uploadedName, publicUrl } = await uploadFileToSupabaseStorage(
+            "implantacoes",
+            file,
+            "logo_"
+          );
+          logoUrl = publicUrl || logoUrl;
+        } catch (e) {
+          console.error("[PUT] Falha ao enviar logo para storage:", e && e.message ? e.message : e);
+          return res.status(500).json({ error: "Falha ao enviar logo para storage.", details: e && e.message ? e.message : String(e) });
         }
-
-        // Gerar URL pública da nova logo
-        const { data: urlData } = supabase.storage
-          .from("implantacoes")
-          .getPublicUrl(fileName);
-
-        logoUrl = urlData?.publicUrl || "";
       }
 
       // Atualizar implantação no banco
