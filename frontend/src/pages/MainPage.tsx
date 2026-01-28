@@ -1794,19 +1794,19 @@ export function MainPage() {
           onLogout={handleLogout}
         />
 
-        {isMappingMode && (
-          <MappingSidebar
-            unidades={unidades}
-            onSelectUnit={setUnitToMapIndex}
-            selectedUnitIndex={unitToMapIndex}
-            dotSize={dotSize}
-            onDotSizeChange={setDotSize}
-            onSaveDotSize={handleSaveDotSize}
-            unitLetter={unitLetter}
-            onLetterChange={setUnitLetter}
-          />
-        )}
         <div className={`app-container ${view === "list" ? "list-view" : ""}`}>
+          {isMappingMode && (
+            <MappingSidebar
+              unidades={unidades}
+              onSelectUnit={setUnitToMapIndex}
+              selectedUnitIndex={unitToMapIndex}
+              dotSize={dotSize}
+              onDotSizeChange={setDotSize}
+              onSaveDotSize={handleSaveDotSize}
+              unitLetter={unitLetter}
+              onLetterChange={setUnitLetter}
+            />
+          )}
           {switching && (
             <div className="switching-overlay">
               <div className="loading-spinner"></div>
