@@ -476,14 +476,15 @@ const upload = multer({
     const allowedXlsxTypes = /xlsx/;
 
     const extname = path.extname(file.originalname).toLowerCase();
+    const ext = extname.replace(/^\./, "");
     const isImage =
-      allowedImageTypes.test(extname) && /^image\//.test(file.mimetype);
+      allowedImageTypes.test(ext) && /^image\//.test(file.mimetype);
     const isCsv =
-      allowedCsvTypes.test(extname) ||
+      allowedCsvTypes.test(ext) ||
       file.mimetype === "text/csv" ||
       file.mimetype === "application/vnd.ms-excel";
     const isXlsx =
-      allowedXlsxTypes.test(extname) ||
+      allowedXlsxTypes.test(ext) ||
       file.mimetype ===
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
