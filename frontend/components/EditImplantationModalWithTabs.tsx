@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
+import type { AxiosResponse } from "axios";
 
 interface Implantation {
   id: string;
@@ -180,13 +181,24 @@ export function EditImplantationModal({
       formData.append("csv", unidadesFile);
       formData.append("implantacao", implantation.nome);
 
-      const response = await axios.post(`${apiUrl}/api/import-unidades`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      let response: AxiosResponse<{ message?: string }> | undefined;
+      try {
+        console.log("[IMPORT-UNIDADES] Enviando formData keys:", Array.from(formData.keys()));
+        console.log("[IMPORT-UNIDADES] arquivo:", unidadesFile?.name, unidadesFile?.size);
+        response = await axios.post(`${apiUrl}/api/import-unidades`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 30000,
+        });
+        console.log("[IMPORT-UNIDADES] resposta recebida", response && response.data);
+      } catch (errUnknown) {
+        const errMsg = errUnknown instanceof Error ? errUnknown.message : String(errUnknown);
+        console.error("[IMPORT-UNIDADES] erro na requisição", errMsg);
+        throw errUnknown;
+      }
 
-      alert(`✅ ${response.data.message}`);
+      alert(`✅ ${response?.data?.message}`);
       setUnidadesFile(null);
       const fileInput = document.getElementById(
         "unidades-import-input"
@@ -229,13 +241,24 @@ export function EditImplantationModal({
       formData.append("clientes", clientesFile);
       formData.append("implantacao_id", implantation.id);
 
-      const response = await axios.post(`${apiUrl}/api/import-clientes`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      let response: AxiosResponse<{ message?: string }> | undefined;
+      try {
+        console.log("[IMPORT-CLIENTES] Enviando formData keys:", Array.from(formData.keys()));
+        console.log("[IMPORT-CLIENTES] arquivo:", clientesFile?.name, clientesFile?.size);
+        response = await axios.post(`${apiUrl}/api/import-clientes`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 30000,
+        });
+        console.log("[IMPORT-CLIENTES] resposta recebida", response && response.data);
+      } catch (errUnknown) {
+        const errMsg = errUnknown instanceof Error ? errUnknown.message : String(errUnknown);
+        console.error("[IMPORT-CLIENTES] erro na requisição", errMsg);
+        throw errUnknown;
+      }
 
-      alert(`✅ ${response.data.message}`);
+      alert(`✅ ${response?.data?.message}`);
       setClientesFile(null);
       const fileInput = document.getElementById(
         "clientes-import-input"
@@ -304,11 +327,21 @@ export function EditImplantationModal({
         return;
       }
 
-      await axios.put(`${apiUrl}/api/implantacoes/${implantation.id}`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        console.log("[PUT-IMPLANTA] Enviando formData keys:", Array.from(formData.keys()));
+        console.log("[PUT-IMPLANTA] imagem:", imagemFile?.name, imagemFile?.size, "logo:", logoFile?.name, logoFile?.size);
+        const response = await axios.put(`${apiUrl}/api/implantacoes/${implantation.id}`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 30000,
+        });
+        console.log("[PUT-IMPLANTA] resposta recebida", response && response.data);
+      } catch (errUnknown) {
+        const errMsg = errUnknown instanceof Error ? errUnknown.message : String(errUnknown);
+        console.error("[PUT-IMPLANTA] erro na requisição", errMsg);
+        throw errUnknown;
+      }
 
       onSuccess();
       onClose();
