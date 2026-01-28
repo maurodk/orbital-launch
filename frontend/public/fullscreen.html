@@ -843,12 +843,17 @@
             };
           }
 
+          // Define flag global para que SSE/polling atualizem a camada correta
+          window.preferAltCoordsForPrimary = adicionalFlag && secondary && !implantacaoAdParam;
           render({ primary, secondary });
           statusEl.textContent = "Conectado";
         }
 
         let es;
         let esSecondary;
+        // preferência para usar coords alternativas (O:P) como camada principal
+        // quando `adicional=true` e secondary vem da mesma implantação
+        let preferAltCoordsForPrimary = false;
         let pollingIntervals = new Map(); // Armazena intervalos de polling por unidade
 
         // Polling agressivo para uma unidade específica
@@ -908,8 +913,9 @@
           const unitId = `unit-indicator-${unitIndex}`;
           let indicator = document.getElementById(unitId);
 
-          const coordX = pollData.coordX;
-          const coordY = pollData.coordY;
+          const useAltAsPrimary = (typeof preferAltCoordsForPrimary !== 'undefined' && preferAltCoordsForPrimary) || window.preferAltCoordsForPrimary;
+          const coordX = useAltAsPrimary && pollData.coordXAd ? pollData.coordXAd : pollData.coordX;
+          const coordY = useAltAsPrimary && pollData.coordYAd ? pollData.coordYAd : pollData.coordY;
           const status = pollData.status || "Disponível";
 
           if (!coordX || !coordY) {
@@ -1083,17 +1089,24 @@
                 rowIndex,
               });
 
-              // Atualiza via SSE (primary)
-              updateSingleUnit(unitData, rowIndex);
+              // Se estamos preferindo as coords alternativas como camada principal,
+              // atualize a camada principal usando O:P (via updateSingleUnitAd).
+              const useAltAsPrimary = (typeof preferAltCoordsForPrimary !== 'undefined' && preferAltCoordsForPrimary) || window.preferAltCoordsForPrimary;
+              if (useAltAsPrimary) {
+                updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
+              } else {
+                // Atualiza via SSE (primary)
+                updateSingleUnit(unitData, rowIndex);
 
-              // Se payload tiver coords adicionais (mesma implantação), atualiza também a camada adicional
-              try {
-                const coordXAd = unitData[14];
-                const coordYAd = unitData[15];
-                if (coordXAd && coordYAd) {
-                  updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
-                }
-              } catch (e) {}
+                // Se payload tiver coords adicionais (mesma implantação), atualiza também a camada adicional
+                try {
+                  const coordXAd = unitData[14];
+                  const coordYAd = unitData[15];
+                  if (coordXAd && coordYAd) {
+                    updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
+                  }
+                } catch (e) {}
+              }
 
               // DISPARA polling agressivo para garantir sincronização em tempo real
               startUnitPolling(rowIndex, 10000);
