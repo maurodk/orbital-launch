@@ -4781,6 +4781,27 @@ app.put(
       const { id } = req.params;
       const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
 
+      // Log adicional para depuração de uploads
+      try {
+        console.log(`[PUT /api/implantacoes/${id}] headers content-type:`, req.headers['content-type']);
+        console.log(`[PUT /api/implantacoes/${id}] body keys:`, Object.keys(req.body || {}));
+        if (req.files) {
+          for (const k of Object.keys(req.files)) {
+            const arr = req.files[k];
+            arr.forEach((f, idx) => {
+              console.log(`[PUT /api/implantacoes/${id}] file '${k}'[${idx}] originalname='${f.originalname}' size=${f.size || (f.buffer && f.buffer.length) || 0} bufferExists=${!!(f.buffer)} mime='${f.mimetype}'`);
+              if (f.buffer && !Buffer.isBuffer(f.buffer)) {
+                console.warn(`[PUT /api/implantacoes/${id}] file '${k}'[${idx}] buffer is present but not a Buffer (type=${typeof f.buffer})`);
+              }
+            });
+          }
+        } else {
+          console.log(`[PUT /api/implantacoes/${id}] req.files is empty or undefined`);
+        }
+      } catch (logErr) {
+        console.warn(`[PUT /api/implantacoes/${id}] erro ao logar detalhes do arquivo:`, logErr && logErr.message ? logErr.message : logErr);
+      }
+
       if (!nome || !endereco || !cidade || !estado) {
         return res.status(400).json({
           error: "Nome, endereço, cidade e estado são obrigatórios.",
