@@ -2227,6 +2227,12 @@ export function MainPage() {
                 {view === "map" && imageUrl && window.innerWidth > 768 && (
                   <FloorPlan
                     imageUrl={imageUrl}
+                    activeLayer={activeLayer}
+                    additionalImageUrl={
+                      (currentImplantation as any)?.imagem_url_adicional ||
+                      (currentImplantation as any)?.imagemUrlAdicional ||
+                      ""
+                    }
                     unidades={unidades}
                     isMappingMode={isMappingMode}
                     unitToMapIndex={unitToMapIndex}

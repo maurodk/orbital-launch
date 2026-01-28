@@ -26,6 +26,8 @@ interface FloorPlanProps {
   dotSize: number;
   hideAvailable: boolean;
   unitLetter?: string;
+  activeLayer?: "primary" | "additional";
+  additionalImageUrl?: string;
 }
 
 const Controls = () => {
@@ -76,8 +78,10 @@ export const FloorPlan = memo(function FloorPlan({
   const renderedUnits = useMemo(() => {
     return unidades
       .map((unidade, index) => {
-        const coordX = unidade[12]; // Coluna M - coord_x
-        const coordY = unidade[13]; // Coluna N - coord_y
+        // if additional layer active use O:P (indices 14/15)
+        const useAd = activeLayer === "additional";
+        const coordX = useAd ? unidade[14] : unidade[12]; // O or M
+        const coordY = useAd ? unidade[15] : unidade[13]; // P or N
         const letra = unidade[18]; // Coluna S - Simbolo
         const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
         const normalizedStatus = rawStatus
@@ -192,7 +196,7 @@ export const FloorPlan = memo(function FloorPlan({
             onClick={handleMapClick}
           >
             <img
-              src={imageUrl}
+              src={activeLayer === "additional" && additionalImageUrl ? additionalImageUrl : imageUrl}
               alt="Planta Humanizada do Empreendimento"
               className="floor-plan-image"
             />

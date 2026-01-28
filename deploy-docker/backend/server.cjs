@@ -2021,7 +2021,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const { data: implantacoes, error } = await supabase
       .from("implantacoes")
       .select(
-        "id, nome, imagem_url, dot_size, endereco, logo_url, cvcrm_id, sigla, cidade, estado"
+        "id, nome, imagem_url, imagem_url_adicional, dot_size, endereco, logo_url, cvcrm_id, sigla, cidade, estado"
       )
       .order("nome", { ascending: true });
 
@@ -2037,6 +2037,8 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
       id: impl.id,
       nome: impl.nome,
       url: impl.imagem_url,
+      imagem_url_adicional: impl.imagem_url_adicional || null,
+      imagemUrlAdicional: impl.imagem_url_adicional || null,
       tamanhoPonto: impl.dot_size || 16,
       endereco: impl.endereco || "Endereço não informado",
       logoUrl: impl.logo_url || "/logo-uni.png",
