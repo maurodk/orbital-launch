@@ -955,6 +955,7 @@ export function MainPage() {
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
+      const clearAd = activeLayer === "additional";
       await axios.post(`${apiUrl}/api/clear-coords`, {
         rowIndex: sheetRowIndex, // O backend resolverá o nome da aba pela sigla
         implantacao: selectedImplantationName,
