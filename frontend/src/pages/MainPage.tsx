@@ -941,8 +941,15 @@ export function MainPage() {
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];
-    updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
-    updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
+    const clearAd = activeLayer === "additional";
+    if (clearAd) {
+      updatedUnidades[unitIndexToClear][14] = ""; // Coluna O - coord_x_ad
+      updatedUnidades[unitIndexToClear][15] = ""; // Coluna P - coord_y_ad
+    } else {
+      updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
+      updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
+    }
+    // Remove symbol/letter when clearing
     updatedUnidades[unitIndexToClear][18] = ""; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
     try {
@@ -950,6 +957,7 @@ export function MainPage() {
       await axios.post(`${apiUrl}/api/clear-coords`, {
         rowIndex: sheetRowIndex, // O backend resolverá o nome da aba pela sigla
         implantacao: selectedImplantationName,
+        clearAd,
       });
     } catch (err) {
       setError("Falha ao remover o mapeamento na planilha.");

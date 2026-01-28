@@ -3893,21 +3893,28 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Limpa coordenadas (M e N) e letra (S)
+    // Limpa coordenadas: por padrão M e N (primárias). Se o cliente pedir clearAd=true, limpa O e P (adicional).
+    const clearAd = !!req.body.clearAd;
+    const batchData = [];
+    if (clearAd) {
+      batchData.push({
+        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
+        values: [["", ""]],
+      });
+    } else {
+      batchData.push({
+        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+        values: [["", ""]],
+      });
+    }
+    // Sempre limpa a letra na coluna S
+    batchData.push({ range: `'${sheetTitle}'!S${rowIndex}`, values: [[""]] });
+
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       resource: {
         valueInputOption: "USER_ENTERED",
-        data: [
-          {
-            range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-            values: [["", ""]],
-          },
-          {
-            range: `'${sheetTitle}'!S${rowIndex}`,
-            values: [[""]],
-          },
-        ],
+        data: batchData,
       },
     });
 
