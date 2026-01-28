@@ -40,16 +40,14 @@ async function supabaseWithRateLimit(operation) {
   if (!supabase) {
     throw new Error("Supabase não configurado");
   }
-
   const rateLimitCheck = checkRateLimit("supabase_global", "supabase");
-    unitData.coord_x || "", // M - coord_x
-    unitData.coord_y || "", // N - coord_y
-    unitData.simbolo || "", // O - Simbolo/Letra (se houver)
+  if (!rateLimitCheck.allowed) {
+    const waitSeconds = Math.ceil(rateLimitCheck.resetIn / 1000);
     const error = new Error(
       `Rate limit do Supabase excedido. Tente novamente em ${waitSeconds}s`
     );
     error.rateLimitError = true;
-    
+    error.resetIn = rateLimitCheck.resetIn;
     console.warn(`[SUPABASE] Rate limit atingido. Aguarde ${waitSeconds}s`);
     throw error;
   }
