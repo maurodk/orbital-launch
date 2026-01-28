@@ -4978,7 +4978,7 @@ app.post(
           },
         });
 
-        // Adiciona cabeçalho padrão
+        // Adiciona cabeçalho padrão (A..O)
         const header = [
           "etapa",
           "bloco",
@@ -4994,16 +4994,12 @@ app.post(
           "situacao",
           "coord_x",
           "coord_y",
-          "IDENTIFICADOR",
-          "Payload",
-          "Valor",
-          "Pagamento",
           "Simbolo",
         ];
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A1:S1`,
+          range: `'${implantacao}'!A1:O1`,
           valueInputOption: "RAW",
           resource: {
             values: [header],
@@ -5213,6 +5209,19 @@ app.post(
         );
       });
 
+      // Garantir que cada linha tenha exatamente 15 colunas (A..O)
+      const EXPECTED_COLS = 15;
+      const sanitizedUnidades = unidadesToInsert.map((row, idx) => {
+        const r = Array.isArray(row) ? row.slice(0, EXPECTED_COLS) : [];
+        if (r.length > EXPECTED_COLS) {
+          console.warn(
+            `⚠️ [IMPORT UNIDADES] Linha ${idx + 1} foi truncada de ${r.length} para ${EXPECTED_COLS} colunas.`
+          );
+        }
+        while (r.length < EXPECTED_COLS) r.push("");
+        return r;
+      });
+
       if (unidadesToInsert.length === 0) {
         return res
           .status(400)
@@ -5221,7 +5230,7 @@ app.post(
 
       console.log(
         "📥 [IMPORT UNIDADES] Unidades a inserir:",
-        unidadesToInsert.length
+        sanitizedUnidades.length
       );
 
       // 1. LIMPA dados existentes (mantém apenas o cabeçalho)
@@ -5230,7 +5239,7 @@ app.post(
       // Busca quantas linhas existem
       const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A:S`,
+        range: `'${implantacao}'!A:O`,
       });
 
       const existingRowCount = existingData.data.values?.length || 0;
@@ -5239,7 +5248,7 @@ app.post(
         // Limpa da linha 2 em diante (preserva cabeçalho)
         await sheets.spreadsheets.values.clear({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A2:S${existingRowCount}`,
+          range: `'${implantacao}'!A2:O${existingRowCount}`,
         });
         console.log(
           `✅ [IMPORT UNIDADES] ${
@@ -5251,10 +5260,10 @@ app.post(
       // 2. Insere novos dados no Google Sheets (fonte primária)
       const appendResult = await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A2:S${unidadesToInsert.length + 1}`,
+        range: `'${implantacao}'!A2:O${sanitizedUnidades.length + 1}`,
         valueInputOption: "USER_ENTERED",
         resource: {
-          values: unidadesToInsert,
+          values: sanitizedUnidades,
         },
       });
 
@@ -5309,8 +5318,8 @@ app.post(
               `📍 [IMPORT UNIDADES] Inserindo ${unidadesToInsert.length} unidades no Supabase a partir da linha ${startRow}`
             );
 
-            // Prepara os dados para inserção no Supabase
-            const supabaseUnits = unidadesToInsert.map((row, index) => {
+            // Prepara os dados para inserção no Supabase (usar linhas já sanitizadas)
+            const supabaseUnits = sanitizedUnidades.map((row, index) => {
               const rowIndex = startRow + index;
 
               return {
@@ -5367,7 +5376,7 @@ app.post(
 
       // Broadcast para notificar que as unidades foram atualizadas
       await broadcastEvent(implantacao, "unitsImported", {
-        imported: unidadesToInsert.length,
+        imported: sanitizedUnidades.length,
         message: "Unidades importadas com sucesso",
       });
 
