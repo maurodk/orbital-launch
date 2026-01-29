@@ -43,13 +43,14 @@ export function MappingSidebar({
   implantacaoPrimary = "",
   implantacaoAdditional = "",
 }: MappingSidebarProps) {
+  // Owners disponíveis no escopo do componente para reuso
+  const primaryOwner = implantacaoPrimary || "";
+  const additionalOwner = implantacaoAdditional || (implantacaoPrimary ? implantacaoPrimary + "+adicional" : "");
   // Agrupamento de unidades
   const groupedUnits = useMemo<GroupedUnits>(() => {
       return unidades.reduce((acc, unidade, index) => {
       // Filter by implantacao_ref (col Q index 16) based on active layer context
       const ownerImplantacao = (unidade[16] || "").toString();
-      const primaryOwner = implantacaoPrimary || "";
-      const additionalOwner = implantacaoAdditional || (implantacaoPrimary ? implantacaoPrimary + "+adicional" : "");
       const currentImplantacao = activeLayer === "additional" ? (implantacaoAdditional || implantacaoPrimary || "") : (implantacaoPrimary || "");
       if (currentImplantacao && ownerImplantacao && ownerImplantacao !== currentImplantacao) {
         return acc; // skip units owned by other implantation
