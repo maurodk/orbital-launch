@@ -1048,15 +1048,13 @@
 
             // polling fallback to validate data layer
             try {
-              const token =
-                localStorage.getItem("token") || window.__READ_ONLY_TOKEN__;
-              const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
+              // Para a página fullscreen pública usamos o endpoint não autenticado
+              // `/api/public-data` no polling-fallback para evitar 401s quando
+              // não houver token disponível.
               const resUnits = await fetch(
-                `${API_URL}/api/data?implantacao=${encodeURIComponent(
+                `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
                   implantacao
-                )}`,
-                { headers }
+                )}`
               );
 
               if (resUnits.status === 401) {
