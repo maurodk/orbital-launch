@@ -396,6 +396,13 @@
     <div class="topbar">
       <div class="title" id="empreendimento-title">Espelho de Implantação</div>
       <div id="implantacaoName" class="small"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label for="layer-select" class="small" style="margin-left:8px">Camada</label>
+        <select id="layer-select" style="background:#0b0b0b;color:#fff;border:1px solid #333;padding:6px;border-radius:6px">
+          <option value="primary">Primária</option>
+          <option value="additional">Adicional</option>
+        </select>
+      </div>
       <div style="flex: 1"></div>
       <div id="debug-mode" style="margin-right:12px; font-size:13px; color:#fff; background:rgba(0,0,0,0.35); padding:6px 10px; border-radius:6px;">modo: ---</div>
       <button
@@ -533,7 +540,8 @@
         const implantacao = urlParams.get("implantacao");
         // Novo: suporta abrir implantação adicional via param 'implantacao_ad' ou 'adicional=true' quando imageUrlAdicional existe
         const implantacaoAdParam = urlParams.get("implantacao_ad");
-        const adicionalFlag = (urlParams.get("adicional") || "").toLowerCase() === "true";
+        // inicializa a flag a partir do query param, mas permite mudança via UI
+        let adicionalFlag = (urlParams.get("adicional") || "").toLowerCase() === "true";
 
         if (!implantacao) {
           wrapper.innerHTML =
@@ -544,6 +552,23 @@
 
         implantacaoNameEl.textContent = implantacao;
         empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
+
+        // Layer select control (permite alternar entre primária e adicional dinamicamente)
+        try {
+          const layerSelect = document.getElementById('layer-select');
+          if (layerSelect) {
+            layerSelect.value = adicionalFlag ? 'additional' : 'primary';
+            layerSelect.addEventListener('change', () => {
+              adicionalFlag = layerSelect.value === 'additional';
+              const hideAvailable = hideDisponivelToggle?.checked ? 'true' : 'false';
+              // atualiza preferência global para SSE/polling;
+              // reloadAndRender ajustará window.preferAltCoordsForPrimary conforme necessário
+              reloadAndRender(hideAvailable).catch((e) => console.error('Erro ao recarregar após mudança de camada', e));
+            });
+          }
+        } catch (e) {
+          console.warn('Erro ao criar controle de camada:', e);
+        }
 
         // Refresh inteligente que preserva o estado de fullscreen
         function smartRefresh() {
