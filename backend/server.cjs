@@ -1,29 +1,31 @@
 // backend/server.js - VERSÃO COMPLETA E FINAL COM AUTENTICAÇÃO
-
-// =================================================================
-// 1. IMPORTAÇÕES E CONFIGURAÇÕES INICIAIS
-// =================================================================
-const express = require("express");
-const { google } = require("googleapis");
-const cors = require("cors");
-const fetch = require("node-fetch");
-const { createClient } = require("@supabase/supabase-js");
-const multer = require("multer");
-const path = require("path");
-const XLSX = require("xlsx");
-const { spawn } = require("child_process");
-const Redis = require("ioredis");
-const fs = require("fs");
-
-// Garante que as variáveis de ambiente sejam carregadas primeiro.
-require("dotenv").config();
-
-// =================================================================
-// 2. INICIALIZAÇÃO DOS SERVIÇOS
-// =================================================================
-
-// Inicializa cliente Supabase (use SERVICE ROLE no backend para operações administrativas)
-const SUPABASE_URL = process.env.SUPABASE_URL || null;
+  // Retorna exatamente 19 colunas (A..S) correspondentes à estrutura esperada
+  // pelo frontend/fullscreen. Índices:
+  // 0:A etapa, 1:B bloco, 2:C nome_unidade, 3:D area, 4:E tipologia, 5:F valor,
+  // 6:G id_pre_cadastro, 7:H cliente, 8:I documento, 9:J corretor, 10:K imobiliaria,
+  // 11:L situacao, 12:M coord_x, 13:N coord_y, 14:O coord_x_ad, 15:P coord_y_ad,
+  // 16:Q identificador (PIX), 17:R payload_emv, 18:S simbolo/letra
+  return [
+    unitData.etapa || "", // A
+    unitData.bloco || "", // B
+    unitData.nome_unidade || "", // C
+    unitData.area || "", // D - area_privativa
+    unitData.tipo || "", // E - tipologia
+    unitData.valor || "", // F
+    unitData.id_pre_cadastro || "", // G
+    unitData.cliente || "", // H
+    unitData.documento || "", // I
+    unitData.corretor || "", // J
+    unitData.imobiliaria || "", // K
+    unitData.situacao || "Disponível", // L
+    unitData.coord_x || "", // M
+    unitData.coord_y || "", // N
+    unitData.coord_x_ad || "", // O - coord_x_ad (adicional)
+    unitData.coord_y_ad || "", // P - coord_y_ad (adicional)
+    unitData.identificador || unitData.identificador_pix || "", // Q
+    unitData.payload_emv || unitData.payload || "", // R
+    unitData.simbolo || unitData.simbolo_unidade || unitData.letra || "", // S
+  ];
 const SUPABASE_SERVICE_ROLE =
   process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || null;
 let supabase = null;
