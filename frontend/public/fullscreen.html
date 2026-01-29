@@ -744,10 +744,13 @@
               ? unidades.slice(1)
               : unidades;
 
-          // Render unidades da implantação principal (sempre usa M:N)
+          // Render unidades da implantação principal
+          // Quando `adicional=true` e há `secondary` (imagem adicional da mesma implantação),
+          // renderizamos inicialmente usando as colunas O:P (coord_x_ad/coord_y_ad).
+          const useAltAsPrimary = adicionalFlag && secondary && !implantacaoAdParam;
           rows.forEach((u, index) => {
-            const coordX = u[12];
-            const coordY = u[13];
+            const coordX = useAltAsPrimary ? u[14] : u[12];
+            const coordY = useAltAsPrimary ? u[15] : u[13];
             const letra = u[18];
             const status = (u[11] || "Disponível").toString();
 
@@ -758,7 +761,7 @@
             const indicator = document.createElement("div");
             const unitIndex = index;
             indicator.id = `unit-indicator-${unitIndex}`;
-            indicator.className = `unit-indicator status-${status}`;
+            indicator.className = `unit-indicator status-${status}` + (useAltAsPrimary ? " additional-indicator" : "");
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
             indicator.style.width = `${dotSize}px`;
