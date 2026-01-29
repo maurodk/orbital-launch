@@ -3060,7 +3060,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, coordX, coordY, letra } = req.body;
+  const { implantacao, rowIndex, coordX, coordY, coordXAd, coordYAd, letra, mappingLayer } = req.body;
   const userEmail = req.user?.email || "Sistema";
   if (
     !implantacao ||
@@ -3081,13 +3081,26 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Atualiza coordenadas (M e N) e letra (S)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [[coordX, coordY]] },
-    });
+    // Decide onde gravar: M:N (primary) ou O:P (additional)
+    if (mappingLayer === "additional") {
+      // grava em O:P
+      const x = coordXAd !== undefined ? coordXAd : coordX;
+      const y = coordYAd !== undefined ? coordYAd : coordY;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[x || "", y || ""]] },
+      });
+    } else {
+      // grava em M:N
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[coordX || "", coordY || ""]] },
+      });
+    }
 
     // Atualiza a letra na coluna S se fornecida
     if (letra !== undefined) {
@@ -3111,9 +3124,15 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         const implantacao_id = implData && implData.id ? implData.id : null;
         // Try update by implantacao_id + row_index if exists
         if (implantacao_id) {
+          // Atualiza colunas apropriadas no supabase: coord_x/coord_y ou coord_x_ad/coord_y_ad
+          const updatePayload =
+            mappingLayer === "additional"
+              ? { coord_x_ad: coordXAd || coordX || null, coord_y_ad: coordYAd || coordY || null }
+              : { coord_x: coordX || null, coord_y: coordY || null };
+
           const { error: upErr } = await supabase
             .from("unidades")
-            .update({ coord_x: coordX, coord_y: coordY })
+            .update(updatePayload)
             .eq("implantacao_id", implantacao_id)
             .eq("row_index", parseInt(rowIndex, 10));
           if (upErr) {
@@ -3174,7 +3193,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
 // Endpoint para LIMPAR COORDENADAS
 app.post("/api/clear-coords", verifyToken, async (req, res) => {
   // Extrai os dados
-  const { implantacao, rowIndex } = req.body;
+  const { implantacao, rowIndex, clearAd } = req.body;
   const userEmail = req.user?.email || "Sistema";
 
   // Validação
@@ -3191,14 +3210,17 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Limpa coordenadas (M e N) e letra (S)
+    // Decide quais colunas limpar: primárias (M:N) ou adicionais (O:P)
+    const coordRange = clearAd ? `'${sheetTitle}'!O${rowIndex}:P${rowIndex}` : `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`;
+
+    // Limpa coordenadas e letra (S)
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       resource: {
         valueInputOption: "USER_ENTERED",
         data: [
           {
-            range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+            range: coordRange,
             values: [["", ""]],
           },
           {
@@ -3225,6 +3247,17 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
       null,
       userEmail
     );
+
+    // Atualiza também no Supabase (se configurado)
+    try {
+      if (supabase) {
+        const updateObj = clearAd ? { coord_x_ad: null, coord_y_ad: null } : { coord_x: null, coord_y: null };
+        const { error: supError } = await supabase.from("unidades").update(updateObj).eq("nome", unitFullName);
+        if (supError) console.error("Erro ao atualizar coordenadas no Supabase:", supError);
+      }
+    } catch (err) {
+      console.error("Falha ao atualizar Supabase durante clear-coords:", err);
+    }
 
     // Responde IMEDIATAMENTE ao cliente (não bloqueia)
     res.json({

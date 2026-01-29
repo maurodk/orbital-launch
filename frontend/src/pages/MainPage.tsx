@@ -1615,22 +1615,33 @@ export function MainPage() {
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
 
-    // Sempre grava em M:N (coord_x / coord_y)
-    updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
-    updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
+    // Grava em M:N (coord_x/coord_y) ou O:P (coord_x_ad/coord_y_ad) dependendo da camada ativa
+    if (activeLayer === "additional") {
+      updatedUnidades[unitToMapIndex][14] = coordX; // Coluna O - coord_x adicional
+      updatedUnidades[unitToMapIndex][15] = coordY; // Coluna P - coord_y adicional
+    } else {
+      updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
+      updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
+    }
 
     updatedUnidades[unitToMapIndex][18] = unitLetter; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
-      const payload = {
+      const payload: any = {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
         implantacao: selectedImplantationName,
         mappingLayer: activeLayer, // informa se o mapeamento foi na camada primary ou additional
-        coordX,
-        coordY,
-      } as const;
+      };
+
+      if (activeLayer === "additional") {
+        payload.coordXAd = coordX;
+        payload.coordYAd = coordY;
+      } else {
+        payload.coordX = coordX;
+        payload.coordY = coordY;
+      }
 
       await axios.post(`${apiUrl}/api/update-coords`, payload);
     } catch (err) {

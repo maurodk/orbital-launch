@@ -37,6 +37,7 @@ export function MappingSidebar({
   onSaveDotSize,
   unitLetter,
   onLetterChange,
+  activeLayer = "primary",
 }: MappingSidebarProps) {
   // Agrupamento de unidades
   const groupedUnits = useMemo<GroupedUnits>(() => {
@@ -176,14 +177,16 @@ export function MappingSidebar({
                 {isOpen && (
                   <div className="group-content">
                     {unitItems.map(({ unidade, originalIndex }) => {
-                                  // Considera mapeamento em qualquer camada (principal ou adicional)
-                                  const hasPrimary =
-                                    unidade[12] && // Coluna M - coord_x
-                                    unidade[12].toString().trim() !== "" &&
-                                    unidade[13] && // Coluna N - coord_y
-                                    unidade[13].toString().trim() !== "";
-                                  // Considera mapeamento apenas pelas colunas M:N (coord_x/coord_y)
-                                  const isMapped = hasPrimary;
+                      // Considera mapeamento de acordo com a camada ativa
+                      const isAdLayer = (activeLayer === "additional");
+                      const coordXIndex = isAdLayer ? 14 : 12; // O or M
+                      const coordYIndex = isAdLayer ? 15 : 13; // P or N
+                      const hasCoords =
+                        unidade[coordXIndex] &&
+                        unidade[coordXIndex].toString().trim() !== "" &&
+                        unidade[coordYIndex] &&
+                        unidade[coordYIndex].toString().trim() !== "";
+                      const isMapped = hasCoords;
                       const isSelected = originalIndex === selectedUnitIndex;
                       // Normaliza o status: minúscula + remove acentos para classe CSS
                       const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
