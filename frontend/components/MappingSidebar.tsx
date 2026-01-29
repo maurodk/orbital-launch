@@ -45,13 +45,12 @@ export function MappingSidebar({
 }: MappingSidebarProps) {
   // Agrupamento de unidades
   const groupedUnits = useMemo<GroupedUnits>(() => {
-    return unidades.reduce((acc, unidade, index) => {
+      return unidades.reduce((acc, unidade, index) => {
       // Filter by implantacao_ref (col Q index 16) based on active layer context
       const ownerImplantacao = (unidade[16] || "").toString();
-      const currentImplantacao =
-        activeLayer === "additional"
-          ? implantacaoAdditional || implantacaoPrimary || ""
-          : implantacaoPrimary || "";
+      const primaryOwner = implantacaoPrimary || "";
+      const additionalOwner = implantacaoAdditional || (implantacaoPrimary ? implantacaoPrimary + "+adicional" : "");
+      const currentImplantacao = activeLayer === "additional" ? (implantacaoAdditional || implantacaoPrimary || "") : (implantacaoPrimary || "");
       if (currentImplantacao && ownerImplantacao && ownerImplantacao !== currentImplantacao) {
         return acc; // skip units owned by other implantation
       }
@@ -191,16 +190,22 @@ export function MappingSidebar({
                 {isOpen && (
                   <div className="group-content">
                     {unitItems.map(({ unidade, originalIndex }) => {
-                      // Considera mapeamento de acordo com a camada ativa
-                      const isAdLayer = (activeLayer === "additional");
-                      const coordXIndex = isAdLayer ? 14 : 12; // O or M
-                      const coordYIndex = isAdLayer ? 15 : 13; // P or N
-                      const hasCoords =
-                        unidade[coordXIndex] &&
-                        unidade[coordXIndex].toString().trim() !== "" &&
-                        unidade[coordYIndex] &&
-                        unidade[coordYIndex].toString().trim() !== "";
-                      const isMapped = hasCoords;
+                        // Sempre considera as colunas primárias M:N (12/13) como fonte
+                        const coordX = unidade[12];
+                        const coordY = unidade[13];
+                        const hasCoords = (typeof coordX !== 'undefined' && coordX !== null && coordX.toString().trim() !== "") && (typeof coordY !== 'undefined' && coordY !== null && coordY.toString().trim() !== "");
+
+                        // Determina se está mapeada para a camada ativa com base em implantacao_ref
+                        const isAdLayer = activeLayer === "additional";
+                        const owner = (unidade[16] || "").toString();
+                        let isMapped = false;
+                        if (isAdLayer) {
+                          // Mapeada na camada adicional quando owner === additionalOwner
+                          isMapped = hasCoords && owner === additionalOwner;
+                        } else {
+                          // Mapeada na camada primária quando owner é vazio ou igual ao primaryOwner
+                          isMapped = hasCoords && (!owner || owner === primaryOwner);
+                        }
                       const isSelected = originalIndex === selectedUnitIndex;
                       // Normaliza o status: minúscula + remove acentos para classe CSS
                       const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
