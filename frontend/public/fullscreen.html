@@ -796,11 +796,11 @@
 
           // Render unidades da implantação principal
           // NOTA: agora sempre usamos as colunas M:N (índices 12 e 13) para coordenadas
-          // Se `secondary` for a mesma implantação (imageUrlAdicional), separam-se as camadas
-          // usando `implantacao_ref` (col Q / índice 16). Valores esperados:
+          // Para suportar filtro por ownership (implantacao_ref / col Q índice 16)
+          // aplicamos a lógica de camada independentemente de existir `secondary`.
+          // Valores esperados para `implantacao_ref`:
           // - unidade primária: implantacao (ou vazio/null para legacy)
           // - unidade adicional: implantacao + '+adicional'
-          const secondaryIsSameImplant = !!(secondary && !implantacaoAdParam);
           const primaryOwner = implantacao;
           const additionalOwner = implantacao + "+adicional";
 
@@ -815,18 +815,19 @@
             if (!coordX && coordX !== 0) return;
             if (!coordY && coordY !== 0) return;
 
-            // Se secondary é a mesma implantação, filtramos por implantacao_ref
-            if (secondaryIsSameImplant) {
-              const isAdditional = owner === additionalOwner;
-              const isPrimary = !owner || owner === primaryOwner;
-              const shouldRender = adicionalFlag ? isAdditional : isPrimary;
-              if (!shouldRender) return;
+            // Decide se deve renderizar com base no owner e na camada ativa
+            // - Se estiver em camada adicional, renderiza apenas owner === additionalOwner
+            // - Caso contrário (primária), renderiza quando owner é vazio (legacy) ou owner === primaryOwner
+            if (adicionalFlag) {
+              if (!owner || owner !== additionalOwner) return;
+            } else {
+              if (owner && owner !== primaryOwner) return;
             }
 
             const indicator = document.createElement("div");
             const unitIndex = index;
             indicator.id = `unit-indicator-${unitIndex}`;
-            indicator.className = `unit-indicator status-${status}` + (adicionalFlag && secondaryIsSameImplant ? " additional-indicator" : "");
+            indicator.className = `unit-indicator status-${status}` + (adicionalFlag ? " additional-indicator" : "");
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
             indicator.style.width = `${dotSize}px`;
@@ -1171,27 +1172,24 @@
                 rowIndex,
               });
 
-              // Se secondary é a mesma implantação (imageUrlAdicional), usamos implantacao_ref
+              // Decide se devemos respeitar implantacao_ref (owner) para escolher a camada.
+              // Usamos a flag de camada atual (`adicionalFlag`) ou a indicação global de secondary mesma implantação.
               const secondarySame = !!window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__;
-              if (secondarySame) {
+              const respectOwner = (typeof adicionalFlag !== 'undefined' && adicionalFlag) || secondarySame;
+              if (respectOwner) {
                 const owner = (unitData[16] || "").toString();
                 const primaryOwner = implantacao;
                 const additionalOwner = implantacao + "+adicional";
 
-                // Decide qual camada atualizar com base no implantacao_ref
                 if (owner === additionalOwner) {
-                  // Atualiza apenas a camada adicional (usa M:N da payload)
                   updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
-                  // Remove marcador primário caso exista
                   try {
                     const primaryId = `unit-indicator-${rowIndex - 2}`;
                     const el = document.getElementById(primaryId);
                     if (el) el.remove();
                   } catch (e) {}
                 } else {
-                  // Tratar como primária (owner vazio ou igual a implantacao)
                   updateSingleUnit(unitData, rowIndex);
-                  // Remove marcador adicional caso exista
                   try {
                     const adId = `unit-indicator-ad-${rowIndex - 2}`;
                     const el = document.getElementById(adId);
