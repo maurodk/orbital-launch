@@ -333,6 +333,12 @@ function normalizeStatus(status) {
 // =================================================================
 function supabaseUnitToArray(unitData) {
   if (!unitData) return null;
+  // Retorna exatamente 19 colunas (A..S) correspondentes à estrutura esperada
+  // pelo frontend/fullscreen. Índices:
+  // 0:A etapa, 1:B bloco, 2:C nome_unidade, 3:D area, 4:E tipologia, 5:F valor,
+  // 6:G id_pre_cadastro, 7:H cliente, 8:I documento, 9:J corretor, 10:K imobiliaria,
+  // 11:L situacao, 12:M coord_x, 13:N coord_y, 14:O coord_x_ad, 15:P coord_y_ad,
+  // 16:Q identificador (PIX), 17:R payload_emv, 18:S simbolo/letra
   return [
     unitData.etapa || "", // A
     unitData.bloco || "", // B
@@ -348,7 +354,12 @@ function supabaseUnitToArray(unitData) {
     unitData.situacao || "Disponível", // L
     unitData.coord_x || "", // M
     unitData.coord_y || "", // N
-    unitData.simbolo || "", // O - Simbolo/Letra (se houver)
+    unitData.coord_x_ad || "", // O - coord_x_ad (adicional)
+    unitData.coord_y_ad || "", // P - coord_y_ad (adicional)
+    unitData.simbolo || unitData.simbolo_unidade || unitData.letra || "", // Q
+    unitData.identificador || unitData.identificador_pix || "", // R
+    unitData.payload_emv || unitData.payload || "", // S
+
   ];
 }
 
