@@ -355,6 +355,8 @@ export function CVCrmMappingPage() {
           onSaveDotSize={handleSaveDotSize}
           unitLetter={unitLetter}
           onLetterChange={setUnitLetter}
+          implantacaoPrimary={selectedImplantationName}
+          implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
         />
         <div className="app-container">
           <h1>Mapeamento de Unidades - CVCRM</h1>
@@ -385,6 +387,8 @@ export function CVCrmMappingPage() {
             onMapClick={handleMapClickAndSaveCoords}
             dotSize={dotSize}
             hideAvailable={false} // Sempre mostrar todas as unidades
+            implantacaoPrimary={selectedImplantationName}
+            implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
           />
         </div>
       </div>

@@ -1859,6 +1859,7 @@ export function MainPage() {
             <MappingSidebar
               unidades={unidades}
               implantacaoPrimary={selectedImplantationName}
+              implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
               onSelectUnit={setUnitToMapIndex}
               selectedUnitIndex={unitToMapIndex}
               dotSize={dotSize}
@@ -2295,6 +2296,7 @@ export function MainPage() {
                     hideAvailable={hideAvailable}
                     unitLetter={unitLetter}
                     implantacaoPrimary={selectedImplantationName}
+                    implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
                     
                   />
                 )}

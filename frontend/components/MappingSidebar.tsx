@@ -63,7 +63,7 @@ export function MappingSidebar({
       acc[blockName].push({ unidade, originalIndex: index });
       return acc;
     }, {} as GroupedUnits);
-  }, [unidades]);
+  }, [unidades, activeLayer, implantacaoPrimary, implantacaoAdditional]);
 
   const [openGroups, setOpenGroups] = useState<string[]>(
     Object.keys(groupedUnits)
