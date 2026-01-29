@@ -2821,6 +2821,9 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
     }
     res.status(500).json({ error: "Falha ao processar a reserva." });
   }
+ } catch (error) {
+    console.error(`[HISTÓRICO] Erro ao adicionar entrada:`, error.message || error);
+  }
 });
 
 // Endpoint para cancelar uma reserva temporária
@@ -2920,6 +2923,9 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
     console.error("Erro ao cancelar reserva temporária:", error);
     try { if (typeof lockKey !== 'undefined' && typeof lockOwner !== 'undefined') await releaseLock(lockKey, lockOwner); } catch (e) {}
     res.status(500).json({ error: "Falha ao cancelar reserva temporária." });
+  }
+ } catch (error) {
+    console.error(`[HISTÓRICO] Erro ao adicionar entrada:`, error.message || error);
   }
 });
 
