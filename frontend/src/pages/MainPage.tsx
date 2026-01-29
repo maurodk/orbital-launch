@@ -1855,7 +1855,8 @@ export function MainPage() {
           {isMappingMode && (
             <MappingSidebar
               unidades={unidades}
-                    implantacao={selectedImplantationName}
+              implantacaoPrimary={selectedImplantationName}
+              implantacaoAdditional={selectedAdditionalImplantationName}
               onSelectUnit={setUnitToMapIndex}
               selectedUnitIndex={unitToMapIndex}
               dotSize={dotSize}

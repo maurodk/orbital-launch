@@ -26,6 +26,8 @@ interface MappingSidebarProps {
   unitLetter: string;
   onLetterChange: (letter: string) => void;
   activeLayer?: "primary" | "additional";
+  implantacaoPrimary?: string;
+  implantacaoAdditional?: string;
 }
 
 export function MappingSidebar({
@@ -38,10 +40,22 @@ export function MappingSidebar({
   unitLetter,
   onLetterChange,
   activeLayer = "primary",
+  implantacaoPrimary = "",
+  implantacaoAdditional = "",
 }: MappingSidebarProps) {
   // Agrupamento de unidades
   const groupedUnits = useMemo<GroupedUnits>(() => {
     return unidades.reduce((acc, unidade, index) => {
+      // Filter by implantacao_ref (col Q index 16) based on active layer context
+      const ownerImplantacao = (unidade[16] || "").toString();
+      const currentImplantacao =
+        activeLayer === "additional"
+          ? implantacaoAdditional || implantacaoPrimary || ""
+          : implantacaoPrimary || "";
+      if (currentImplantacao && ownerImplantacao && ownerImplantacao !== currentImplantacao) {
+        return acc; // skip units owned by other implantation
+      }
+
       const blockName = unidade[1] || "Sem Bloco"; // Coluna B - bloco
       if (!acc[blockName]) {
         acc[blockName] = [];
