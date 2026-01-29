@@ -3883,7 +3883,9 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
 
 // Endpoint para ATUALIZAR COORDENADAS
 app.post("/api/update-coords", verifyToken, async (req, res) => {
-  const { implantacao, rowIndex, coordX, coordY, coordXAd, coordYAd, letra, mappingLayer } = req.body;
+  const { implantacao, implantacaoRef, implantacao_ref, rowIndex, coordX, coordY, coordXAd, coordYAd, letra, mappingLayer } = req.body;
+  // support both camelCase and snake_case
+  const refOverride = implantacaoRef || implantacao_ref || null;
   const userEmail = req.user?.email || "Sistema";
   if (!implantacao || !rowIndex) {
     return res
@@ -3933,11 +3935,13 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
 
     // Escreve referência de implantação na coluna Q (implantacao_ref)
     try {
+      // If frontend provided an explicit implantacao_ref override, write that; otherwise write the implantacao used to resolve the sheet
+      const refToWrite = refOverride || implantacao || "";
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${sheetTitle}'!Q${rowIndex}`,
         valueInputOption: "USER_ENTERED",
-        resource: { values: [[implantacao || ""]] },
+        resource: { values: [[refToWrite]] },
       });
     } catch (e) {
       console.warn('[MAPPING] falha ao gravar implantacao_ref na planilha:', e && e.message ? e.message : e);
@@ -3970,7 +3974,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
           const updatePayload = {
             coord_x: x || null,
             coord_y: y || null,
-            implantacao_ref: implantacao || null,
+            implantacao_ref: (refOverride || implantacao) || null,
           };
 
           const { error: upErr } = await supabase

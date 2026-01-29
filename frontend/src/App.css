@@ -295,6 +295,15 @@ button:focus-visible {
   background: linear-gradient(180deg, rgba(106,215,0,0.03), transparent);
 }
 
+/* Container for the primary/additional layer toggles (placed under mapping button) */
+.layer-toggle-group {
+  display: flex;
+  gap: 8px;
+  margin-left: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
 .mobile-menu-toggle {
   display: none;
 }

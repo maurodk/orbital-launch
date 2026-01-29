@@ -129,7 +129,6 @@ export function MainPage() {
   const [activeLayer, setActiveLayer] = useState<"primary" | "additional">(
     "primary"
   );
-  const [selectedAdditionalImplantationName, setSelectedAdditionalImplantationName] = useState("");
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(false);
   const [unitLetter, setUnitLetter] = useState<string>("");
@@ -971,12 +970,13 @@ export function MainPage() {
     try {
       const sheetRowIndex = unitIndexToClear + 2;
       // clear primary coords and implantacao_ref for the implantation context
+      const implantacaoForClear = selectedImplantationName;
+      const implantacaoRefForClear = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : undefined;
+
       await axios.post(`${apiUrl}/api/clear-coords`, {
         rowIndex: sheetRowIndex,
-        implantacao:
-          activeLayer === "additional" && selectedAdditionalImplantationName
-            ? selectedAdditionalImplantationName
-            : selectedImplantationName,
+        implantacao: implantacaoForClear,
+        implantacaoRef: implantacaoRefForClear,
         clearAd: false,
       });
     } catch (err) {
@@ -1640,15 +1640,18 @@ export function MainPage() {
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;
+      const implantacaoForPayload = selectedImplantationName;
+
+      // implantacaoRef explicitly marks additional-layer mappings when needed
+      const implantacaoRefValue = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : undefined;
+
       const payload: any = {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
-        implantacao:
-          activeLayer === "additional" && selectedAdditionalImplantationName
-            ? selectedAdditionalImplantationName
-            : selectedImplantationName,
+        implantacao: implantacaoForPayload,
         coordX: coordX,
         coordY: coordY,
+        implantacaoRef: implantacaoRefValue,
       };
 
       await axios.post(`${apiUrl}/api/update-coords`, payload);
@@ -1856,7 +1859,6 @@ export function MainPage() {
             <MappingSidebar
               unidades={unidades}
               implantacaoPrimary={selectedImplantationName}
-              implantacaoAdditional={selectedAdditionalImplantationName}
               onSelectUnit={setUnitToMapIndex}
               selectedUnitIndex={unitToMapIndex}
               dotSize={dotSize}
@@ -1912,7 +1914,7 @@ export function MainPage() {
                       >
                         Modo Mapeamento
                       </button>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
+                      <div className="layer-toggle-group" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
                         <button
                           className={`layer-toggle ${activeLayer === "primary" ? "active" : ""}`}
                           onClick={() => setActiveLayer("primary")}
@@ -1927,15 +1929,7 @@ export function MainPage() {
                         </button>
                       </div>
 
-                      {/* Selector para a implantação adicional (opcional) */}
-                      <div style={{ marginLeft: 12 }}>
-                        <small>Implantação Adicional</small>
-                        <ImplantationSwitcher
-                          implantacoes={implantacoes}
-                          selected={selectedAdditionalImplantationName}
-                          onChange={(v: string) => setSelectedAdditionalImplantationName(v)}
-                        />
-                      </div>
+                      {/* additional implantation selector removed; additional layer uses primary implantation */}
                       <div
                         className="filter-checkbox-wrapper"
                         style={{ marginLeft: 0 }}
@@ -2301,7 +2295,7 @@ export function MainPage() {
                     hideAvailable={hideAvailable}
                     unitLetter={unitLetter}
                     implantacaoPrimary={selectedImplantationName}
-                    implantacaoAdditional={selectedAdditionalImplantationName}
+                    
                   />
                 )}
                 {view === "list" && (
