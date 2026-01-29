@@ -815,18 +815,31 @@
             if (!coordX && coordX !== 0) return;
             if (!coordY && coordY !== 0) return;
 
+            // Normaliza owner e owners esperados para comparação mais tolerante
+            const ownerNorm = (owner || "").toString().trim();
+            const primaryOwnerNorm = (primaryOwner || "").toString().trim();
+            const additionalOwnerNorm = (additionalOwner || "").toString().trim();
+
             // Decide se deve renderizar com base no owner e na camada ativa
-            // - Se estiver em camada adicional, renderiza apenas owner === additionalOwner
-            // - Caso contrário (primária), renderiza quando owner é vazio (legacy) ou owner === primaryOwner
             if (adicionalFlag) {
-              if (!owner || owner !== additionalOwner) return;
+              const isAdditional =
+                ownerNorm === additionalOwnerNorm ||
+                ownerNorm.endsWith("+adicional") ||
+                ownerNorm.toLowerCase().includes("adicional");
+              if (!isAdditional) return;
             } else {
-              if (owner && owner !== primaryOwner) return;
+              if (ownerNorm) {
+                const isAdditional =
+                  ownerNorm.toLowerCase().includes("adicional") ||
+                  ownerNorm.includes("+adicional");
+                if (isAdditional) return;
+                if (!ownerNorm.includes(primaryOwnerNorm)) return;
+              }
             }
 
             const indicator = document.createElement("div");
             const unitIndex = index;
-            indicator.id = `unit-indicator-${unitIndex}`;
+            indicator.id = adicionalFlag ? `unit-indicator-ad-${unitIndex}` : `unit-indicator-${unitIndex}`;
             indicator.className = `unit-indicator status-${status}` + (adicionalFlag ? " additional-indicator" : "");
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
