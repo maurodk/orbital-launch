@@ -750,7 +750,8 @@ async function broadcastEvent(implantacao, event, data) {
   if (data.rowIndex && !data.unitData) {
     try {
       const sheets = await getSheetsClient();
-      const range = `'${implantacao}'!A${data.rowIndex}:O${data.rowIndex}`;
+      // Fetch up to column P so additional-layer Y coordinate (col P) is included
+      const range = `'${implantacao}'!A${data.rowIndex}:P${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
