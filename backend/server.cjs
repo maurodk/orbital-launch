@@ -259,11 +259,15 @@ function supabaseUnitToArray(unitData) {
     unitData.situacao || "Disponível", // L
     unitData.coord_x || "", // M
     unitData.coord_y || "", // N
-    "", // O - IDENTIFICADOR (PIX) - não está no Supabase ainda
-    "", // P - Payload
-    "", // Q - Valor PIX
-    "", // R - Pagamento
-    "", // S - Simbolo/Letra - não está no Supabase ainda
+    // Tentativa de mapear coords alternativas (O:P) caso existam no Supabase
+    unitData.coord_x_ad || "", // O - coord_x_ad (adicional)
+    unitData.coord_y_ad || "", // P - coord_y_ad (adicional)
+    unitData.simbolo || unitData.simbolo_unidade || unitData.letra || "", // Q
+    "", // R
+    "", // S
+    "", // T (ajustado)
+    // Símbolo/letra - tenta várias chaves possíveis
+    
   ];
 }
 
