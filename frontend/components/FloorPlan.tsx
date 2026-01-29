@@ -111,7 +111,7 @@ export const FloorPlan = memo(function FloorPlan({
         };
       })
       .filter(Boolean); // Remove nulls
-  }, [unidades, hideAvailable]);
+  }, [unidades, hideAvailable, activeLayer]);
 
   const scheduleHideControls = () => {
     if (hideControlsTimeout.current) {
