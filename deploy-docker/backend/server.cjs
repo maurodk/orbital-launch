@@ -3823,13 +3823,25 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Atualiza coordenadas primárias (M e N) usando finalCoordX/Y
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: { values: [[finalCoordX || "", finalCoordY || ""]] },
-    });
+    // Decide onde gravar: M:N (primary) ou O:P (additional)
+    if (mappingLayer === "additional") {
+      const x = coordXAd !== undefined ? coordXAd : coordX;
+      const y = coordYAd !== undefined ? coordYAd : coordY;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[x || "", y || ""]] },
+      });
+    } else {
+      // Atualiza coordenadas primárias (M e N) usando finalCoordX/Y
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: { values: [[finalCoordX || "", finalCoordY || ""]] },
+      });
+    }
 
     // Atualiza a letra na coluna S se fornecida
     if (letra !== undefined) {
@@ -3840,6 +3852,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         resource: { values: [[letra || ""]] },
       });
     }
+
     // Persist coordinates to Supabase unidades as well (if available)
     if (supabase) {
       try {
@@ -3853,10 +3866,10 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         const implantacao_id = implData && implData.id ? implData.id : null;
         // Try update by implantacao_id + row_index if exists
         if (implantacao_id) {
-          const updatePayload = {
-            coord_x: finalCoordX || null,
-            coord_y: finalCoordY || null,
-          };
+          const updatePayload =
+            mappingLayer === "additional"
+              ? { coord_x_ad: coordXAd || coordX || null, coord_y_ad: coordYAd || coordY || null }
+              : { coord_x: finalCoordX || null, coord_y: finalCoordY || null };
 
           const { error: upErr } = await supabase
             .from("unidades")
@@ -3925,7 +3938,7 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
 // Endpoint para LIMPAR COORDENADAS
 app.post("/api/clear-coords", verifyToken, async (req, res) => {
   // Extrai os dados
-  const { implantacao, rowIndex } = req.body;
+  const { implantacao, rowIndex, clearAd } = req.body;
   const userEmail = req.user?.email || "Sistema";
 
   // Validação
@@ -3942,10 +3955,11 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Limpa coordenadas primárias (colunas M e N)
+    // Limpa coordenadas na camada solicitada: M:N (primária) ou O:P (adicional)
     const batchData = [];
+    const coordRange = clearAd ? `'${sheetTitle}'!O${rowIndex}:P${rowIndex}` : `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`;
     batchData.push({
-      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+      range: coordRange,
       values: [["", ""]],
     });
     // Sempre limpa a letra na coluna S
@@ -3970,7 +3984,7 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
           .single();
         const implantacao_id = implData && implData.id ? implData.id : null;
         if (implantacao_id) {
-          const updatePayload = { coord_x: null, coord_y: null };
+          const updatePayload = clearAd ? { coord_x_ad: null, coord_y_ad: null } : { coord_x: null, coord_y: null };
           await supabase
             .from("unidades")
             .update(updatePayload)
