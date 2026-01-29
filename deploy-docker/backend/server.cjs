@@ -3294,10 +3294,6 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                   range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
                   values: [["", "", "", "", "", "Disponível"]],
                 },
-                {
-                  range: `'${sheetTitle}'!O${unitRowIndex}:O${unitRowIndex}`,
-                  values: [[""]],
-                },
               ],
             },
           });
@@ -3321,10 +3317,6 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
                 {
                   range: `'${sheetTitle}'!G${unitRowIndex}:L${unitRowIndex}`,
                   values: [["", "", "", "", "", "Disponível"]],
-                },
-                {
-                  range: `'${sheetTitle}'!O${unitRowIndex}:O${unitRowIndex}`,
-                  values: [[""]],
                 },
               ],
             },
