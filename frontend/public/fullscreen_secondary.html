@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Fullscreen — Secundária</title>
+    <style>
+      body{margin:0;background:#0f0f10;color:#fff;font-family:Inter,system-ui,Arial}
+      .floor-plan-wrapper{position:relative;width:100%;height:100vh;display:flex;align-items:center;justify-content:center}
+      .floor-plan-image{max-width:100%;max-height:100%;object-fit:contain}
+      .unit-indicator{position:absolute;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px}
+    </style>
+  </head>
+  <body>
+    <div id="wrapper" class="floor-plan-wrapper">
+      <img id="floorImg" class="floor-plan-image" src="" alt="planta" />
+    </div>
+
+    <script>
+      // This secondary fullscreen is identical logic to primary but kept as a separate file
+      const COORD_X_INDEX = 12;
+      const COORD_Y_INDEX = 13;
+      const COORD_IMPLANT_REF_INDEX = 16; // column Q by convention
+
+      const urlParams = new URLSearchParams(location.search);
+      const implantacao = urlParams.get('implantacao') || '';
+      if (!implantacao) {
+        document.body.innerHTML = '<div style="padding:24px">Parâmetro "implantacao" requerido na URL. Ex: ?implantacao=MinhaImplantacao</div>';
+        throw new Error('implantacao param required');
+      }
+
+      const API = `${location.origin}/api/public-data`;
+      const wrapper = document.getElementById('wrapper');
+      const floorImg = document.getElementById('floorImg');
+
+      async function fetchAndRender(){
+        try{
+          const res = await fetch(`${API}?implantacao=${encodeURIComponent(implantacao)}&public=true`);
+          if (!res.ok) throw new Error('fetch failed');
+          const data = await res.json();
+          const unidades = data.unidades || data.rows || data.data || data;
+          if (!Array.isArray(unidades)) throw new Error('unexpected data shape');
+
+          const imageUrl = data.imageUrl || data.planta || data.image || null;
+          if (imageUrl) floorImg.src = imageUrl;
+
+          Array.from(document.getElementsByClassName('unit-indicator')).forEach(el=>el.remove());
+
+          unidades.forEach((unidade)=>{
+            if (!Array.isArray(unidade)) return;
+            const x = unidade[COORD_X_INDEX];
+            const y = unidade[COORD_Y_INDEX];
+            if (x == null || y == null) return;
+            const sx = String(x).trim();
+            const sy = String(y).trim();
+            if (!sx || !sy) return;
+
+            const ref = unidade[COORD_IMPLANT_REF_INDEX];
+            if (ref && String(ref).trim() !== '' && String(ref).trim() !== implantacao) return;
+
+            const dot = document.createElement('div');
+            dot.className = 'unit-indicator';
+            dot.style.left = `${parseFloat(sx)}%`;
+            dot.style.top = `${parseFloat(sy)}%`;
+            dot.textContent = unidade[2] ? String(unidade[2]).slice(0,3) : '';
+            wrapper.appendChild(dot);
+          });
+        }catch(err){
+          console.error(err);
+        }
+      }
+
+      fetchAndRender();
+      setInterval(fetchAndRender, 15000);
+    </script>
+  </body>
+</html>

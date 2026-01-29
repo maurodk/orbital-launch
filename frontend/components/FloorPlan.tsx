@@ -81,9 +81,9 @@ export const FloorPlan = memo(function FloorPlan({
   const renderedUnits = useMemo(() => {
     return unidades
       .map((unidade, index) => {
-        // Use M:N (coord_x / coord_y) for primary, O:P (coord_x_ad/coord_y_ad) for additional
-        const coordXIndex = activeLayer === "additional" ? 14 : 12; // O or M
-        const coordYIndex = activeLayer === "additional" ? 15 : 13; // P or N
+        // Always read primary coordinates M:N (coord_x / coord_y)
+        const coordXIndex = 12; // Coluna M - coord_x
+        const coordYIndex = 13; // Coluna N - coord_y
         const coordX = unidade[coordXIndex];
         const coordY = unidade[coordYIndex];
         const letra = unidade[18]; // Coluna S - Simbolo

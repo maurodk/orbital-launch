@@ -360,12 +360,9 @@ function normalizeStatus(status) {
 // =================================================================
 function supabaseUnitToArray(unitData) {
   if (!unitData) return null;
-  // Retorna exatamente 19 colunas (A..S) correspondentes à estrutura esperada
-  // pelo frontend/fullscreen. Índices:
-  // 0:A etapa, 1:B bloco, 2:C nome_unidade, 3:D area, 4:E tipologia, 5:F valor,
-  // 6:G id_pre_cadastro, 7:H cliente, 8:I documento, 9:J corretor, 10:K imobiliaria,
-  // 11:L situacao, 12:M coord_x, 13:N coord_y, 14:O coord_x_ad, 15:P coord_y_ad,
-  // 16:Q identificador (PIX), 17:R payload_emv, 18:S simbolo/letra
+  // Retorna exatamente 19 colunas (A..S) compatíveis com a estrutura do fullscreen.
+  // Mantemos O:P por compatibilidade, mas expomos Q (índice 16) como `implantacao_ref`
+  // quando disponível, com fallbacks para identificadores/payloads.
   return [
     unitData.etapa || "", // A
     unitData.bloco || "", // B
@@ -381,12 +378,14 @@ function supabaseUnitToArray(unitData) {
     unitData.situacao || "Disponível", // L
     unitData.coord_x || "", // M
     unitData.coord_y || "", // N
-    unitData.coord_x_ad || "", // O - coord_x_ad (adicional)
-    unitData.coord_y_ad || "", // P - coord_y_ad (adicional)
-    unitData.simbolo || unitData.simbolo_unidade || unitData.letra || "", // Q
-    unitData.identificador || unitData.identificador_pix || "", // R
-    unitData.payload_emv || unitData.payload || "", // S
-
+    unitData.coord_x_ad || "", // O - coord_x_ad (adicional) - mantido por compatibilidade
+    unitData.coord_y_ad || "", // P - coord_y_ad (adicional) - mantido por compatibilidade
+    // Q (índice 16) -> implantacao_ref (se não existir, fallback para identificador/pix)
+    unitData.implantacao_ref || unitData.identificador || unitData.identificador_pix || "",
+    // R (índice 17) -> identificador (pix) ou payload
+    unitData.identificador || unitData.identificador_pix || "",
+    // S (índice 18) -> payload_emv / payload / simbolo
+    unitData.payload_emv || unitData.payload || unitData.simbolo || unitData.simbolo_unidade || unitData.letra || "",
   ];
 }
 
@@ -3916,24 +3915,32 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
     if (error) return res.status(404).json({ error: error, ...details });
 
-    // Decide onde gravar: M:N (primary) ou O:P (additional)
-    if (mappingLayer === "additional") {
-      const x = coordXAd !== undefined ? coordXAd : coordX;
-      const y = coordYAd !== undefined ? coordYAd : coordY;
+    // Sempre gravamos em M:N (colunas M e N). Aceitamos coordXAd/coordYAd como
+    // fallback se coordX/coordY não forem fornecidos.
+    const x = (finalCoordX !== undefined && finalCoordX !== null && String(finalCoordX).trim() !== "")
+      ? finalCoordX
+      : (coordXAd !== undefined ? coordXAd : null);
+    const y = (finalCoordY !== undefined && finalCoordY !== null && String(finalCoordY).trim() !== "")
+      ? finalCoordY
+      : (coordYAd !== undefined ? coordYAd : null);
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+      range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      resource: { values: [[x || "", y || ""]] },
+    });
+
+    // Escreve referência de implantação na coluna Q (implantacao_ref)
+    try {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!O${rowIndex}:P${rowIndex}`,
+        range: `'${sheetTitle}'!Q${rowIndex}`,
         valueInputOption: "USER_ENTERED",
-        resource: { values: [[x || "", y || ""]] },
+        resource: { values: [[implantacao || ""]] },
       });
-    } else {
-      // Atualiza coordenadas primárias (M e N) usando finalCoordX/Y
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!M${rowIndex}:N${rowIndex}`,
-        valueInputOption: "USER_ENTERED",
-        resource: { values: [[finalCoordX || "", finalCoordY || ""]] },
-      });
+    } catch (e) {
+      console.warn('[MAPPING] falha ao gravar implantacao_ref na planilha:', e && e.message ? e.message : e);
     }
 
     // Atualiza a letra na coluna S se fornecida
@@ -3959,10 +3966,12 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
         const implantacao_id = implData && implData.id ? implData.id : null;
         // Try update by implantacao_id + row_index if exists
         if (implantacao_id) {
-          const updatePayload =
-            mappingLayer === "additional"
-              ? { coord_x_ad: coordXAd || coordX || null, coord_y_ad: coordYAd || coordY || null }
-              : { coord_x: finalCoordX || null, coord_y: finalCoordY || null };
+          // Sempre persiste em coord_x/coord_y e grava implantacao_ref
+          const updatePayload = {
+            coord_x: x || null,
+            coord_y: y || null,
+            implantacao_ref: implantacao || null,
+          };
 
           const { error: upErr } = await supabase
             .from("unidades")
@@ -4077,7 +4086,9 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
           .single();
         const implantacao_id = implData && implData.id ? implData.id : null;
         if (implantacao_id) {
-          const updatePayload = clearAd ? { coord_x_ad: null, coord_y_ad: null } : { coord_x: null, coord_y: null };
+          const updatePayload = clearAd
+            ? { coord_x_ad: null, coord_y_ad: null, implantacao_ref: null }
+            : { coord_x: null, coord_y: null, implantacao_ref: null };
           await supabase
             .from("unidades")
             .update(updatePayload)

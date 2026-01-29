@@ -961,24 +961,19 @@ export function MainPage() {
     );
     if (!isConfirmed) return;
     const updatedUnidades = [...unidades];
-    // Limpa as colunas correspondentes à camada ativa: M:N (primária) ou O:P (adicional)
-    if (activeLayer === "additional") {
-      updatedUnidades[unitIndexToClear][14] = ""; // Coluna O - coord_x_ad
-      updatedUnidades[unitIndexToClear][15] = ""; // Coluna P - coord_y_ad
-    } else {
-      updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
-      updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
-    }
+    // Sempre limpa as colunas primárias M:N (coord_x / coord_y)
+    updatedUnidades[unitIndexToClear][12] = ""; // Coluna M - coord_x
+    updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
     // Remove symbol/letter when clearing
     updatedUnidades[unitIndexToClear][18] = ""; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
-      const clearAd = activeLayer === "additional";
+      // clearAd false -> clear primary coords and implantacao_ref
       await axios.post(`${apiUrl}/api/clear-coords`, {
-        rowIndex: sheetRowIndex, // O backend resolverá o nome da aba pela sigla
+        rowIndex: sheetRowIndex,
         implantacao: selectedImplantationName,
-        clearAd,
+        clearAd: false,
       });
     } catch (err) {
       setError("Falha ao remover o mapeamento na planilha.");
@@ -988,10 +983,9 @@ export function MainPage() {
 
   const handleUnitClick = (unitIndex: number) => {
     if (isMappingMode) {
-      // Ao clicar no modo mapeamento, remove o mapeamento da camada ativa
-      const clearAd = activeLayer === "additional";
-      const coordXIndex = clearAd ? 14 : 12; // O ou M
-      const coordYIndex = clearAd ? 15 : 13; // P ou N
+      // Ao clicar no modo mapeamento, remove o mapeamento primário (M:N)
+      const coordXIndex = 12; // M
+      const coordYIndex = 13; // N
       const hasCoords =
         unidades[unitIndex] &&
         unidades[unitIndex][coordXIndex] &&
@@ -1634,14 +1628,9 @@ export function MainPage() {
     const coordY = y.toFixed(3);
     const updatedUnidades = [...unidades];
 
-    // Grava em M:N (coord_x/coord_y) ou O:P (coord_x_ad/coord_y_ad) dependendo da camada ativa
-    if (activeLayer === "additional") {
-      updatedUnidades[unitToMapIndex][14] = coordX; // Coluna O - coord_x adicional
-      updatedUnidades[unitToMapIndex][15] = coordY; // Coluna P - coord_y adicional
-    } else {
-      updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
-      updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
-    }
+    // Sempre grava nas colunas primárias M:N (coord_x / coord_y)
+    updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
+    updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
 
     updatedUnidades[unitToMapIndex][18] = unitLetter; // Coluna S - Simbolo (letra)
     setUnidades(updatedUnidades);
@@ -1651,16 +1640,9 @@ export function MainPage() {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
         implantacao: selectedImplantationName,
-        mappingLayer: activeLayer, // informa se o mapeamento foi na camada primary ou additional
+        coordX: coordX,
+        coordY: coordY,
       };
-
-      if (activeLayer === "additional") {
-        payload.coordXAd = coordX;
-        payload.coordYAd = coordY;
-      } else {
-        payload.coordX = coordX;
-        payload.coordY = coordY;
-      }
 
       await axios.post(`${apiUrl}/api/update-coords`, payload);
     } catch (err) {

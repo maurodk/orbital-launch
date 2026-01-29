@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Fullscreen — Primária</title>
+    <style>
+      body{margin:0;background:#111;color:#fff;font-family:Inter,system-ui,Arial}
+      .floor-plan-wrapper{position:relative;width:100%;height:100vh;display:flex;align-items:center;justify-content:center}
+      .floor-plan-image{max-width:100%;max-height:100%;object-fit:contain}
+      .unit-indicator{position:absolute;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px}
+    </style>
+  </head>
+  <body>
+    <div id="wrapper" class="floor-plan-wrapper">
+      <img id="floorImg" class="floor-plan-image" src="" alt="planta" />
+    </div>
+
+    <script>
+      // Configuráveis:
+      // Índices baseados em arrays de linha retornadas pelo backend (zero-based):
+      // Coluna M -> index 12 (coord_x), coluna N -> index 13 (coord_y)
+      // Coluna de referência de implantação (opcional): use index 16 (col Q) por convenção
+      const COORD_X_INDEX = 12;
+      const COORD_Y_INDEX = 13;
+      const COORD_IMPLANT_REF_INDEX = 16;
+
+      // Lê parâmetro ?implantacao=Nome da implantação
+      const urlParams = new URLSearchParams(location.search);
+      const implantacao = urlParams.get('implantacao') || '';
+      if (!implantacao) {
+        document.body.innerHTML = '<div style="padding:24px">Parâmetro "implantacao" requerido na URL. Ex: ?implantacao=MinhaImplantacao</div>';
+        throw new Error('implantacao param required');
+      }
+
+      // URL da API pública (ajuste se necessário)
+      const API = (function(){
+        // tenta inferir ambiente, cairá para /api/public-data
+        return (location.origin.indexOf('localhost') !== -1) ? `${location.origin}/api/public-data` : `${location.origin}/api/public-data`;
+      })();
+
+      const wrapper = document.getElementById('wrapper');
+      const floorImg = document.getElementById('floorImg');
+
+      async function fetchAndRender(){
+        try{
+          const res = await fetch(`${API}?implantacao=${encodeURIComponent(implantacao)}&public=true`);
+          if (!res.ok) throw new Error('fetch failed');
+          const data = await res.json();
+
+          // data expected to contain an array of unidades; tolerante a nomes: try several keys
+          const unidades = data.unidades || data.rows || data.data || data;
+          if (!Array.isArray(unidades)) throw new Error('unexpected data shape');
+
+          // Optional: try to detect an image URL in response (same shape as previous fullscreen expects)
+          const imageUrl = data.imageUrl || data.planta || data.image || null;
+          if (imageUrl) floorImg.src = imageUrl;
+
+          // Remove previous indicators
+          Array.from(document.getElementsByClassName('unit-indicator')).forEach(el=>el.remove());
+
+          unidades.forEach((unidade, idx)=>{
+            if (!Array.isArray(unidade)) return; // ignore unexpected rows
+
+            const x = unidade[COORD_X_INDEX];
+            const y = unidade[COORD_Y_INDEX];
+
+            // Only render if coords present
+            if (x == null || y == null) return;
+            const sx = String(x).trim();
+            const sy = String(y).trim();
+            if (!sx || !sy) return;
+
+            // If COORD_IMPLANT_REF_INDEX is set and filled, only render when it matches this implantacao
+            const ref = unidade[COORD_IMPLANT_REF_INDEX];
+            if (ref && String(ref).trim() !== '' && String(ref).trim() !== implantacao) return;
+
+            // create dot
+            const dot = document.createElement('div');
+            dot.className = 'unit-indicator';
+            dot.style.left = `${parseFloat(sx)}%`;
+            dot.style.top = `${parseFloat(sy)}%`;
+
+            // small label (col C usually index 2)
+            dot.textContent = unidade[2] ? String(unidade[2]).slice(0,3) : '';
+            wrapper.appendChild(dot);
+          });
+        }catch(err){
+          console.error(err);
+        }
+      }
+
+      // initial fetch + periodic refresh
+      fetchAndRender();
+      setInterval(fetchAndRender, 15000);
+    </script>
+  </body>
+</html>
