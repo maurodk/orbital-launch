@@ -714,8 +714,22 @@ export function MainPage() {
             setUnidades((currentUnidades) => {
               if (idx < 0 || idx >= currentUnidades.length) return currentUnidades;
               const copy = currentUnidades.slice();
-              if (typeof pagamentos_status !== "undefined") unitData[20] = pagamentos_status;
-              copy[idx] = unitData;
+              const existing = Array.isArray(copy[idx]) ? copy[idx].slice() : [];
+
+              // Merge incoming unitData into existing row: only overwrite when payload provides a non-empty value.
+              const maxLen = Math.max(existing.length, unitData.length);
+              const merged = new Array(maxLen);
+              for (let i = 0; i < maxLen; i++) {
+                const incoming = unitData[i];
+                if (typeof incoming !== "undefined" && incoming !== null && incoming !== "") {
+                  merged[i] = incoming;
+                } else {
+                  merged[i] = existing[i];
+                }
+              }
+
+              if (typeof pagamentos_status !== "undefined") merged[20] = pagamentos_status;
+              copy[idx] = merged;
               return copy;
             });
             return;

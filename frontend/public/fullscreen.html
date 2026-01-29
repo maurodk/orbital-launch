@@ -969,14 +969,33 @@
           const unitIndex = rowIndex - 2;
           const unitId = `unit-indicator-ad-${unitIndex}`;
           let indicator = document.getElementById(unitId);
+          // Determine if payload explicitly provides coords (defined) or is absent (undefined)
+          const hasCoordXProp = (useAltCoords ? (unitData.length > 14) : (unitData.length > 12)) && typeof (useAltCoords ? unitData[14] : unitData[12]) !== 'undefined';
+          const hasCoordYProp = (useAltCoords ? (unitData.length > 15) : (unitData.length > 13)) && typeof (useAltCoords ? unitData[15] : unitData[13]) !== 'undefined';
 
-          const coordX = useAltCoords ? unitData[14] : unitData[12];
-          const coordY = useAltCoords ? unitData[15] : unitData[13];
-          console.log('[updateSingleUnitAd] row=', rowIndex, 'useAltCoords=', useAltCoords, 'coords=', { coordX, coordY });
+          const payloadCoordX = useAltCoords ? unitData[14] : unitData[12];
+          const payloadCoordY = useAltCoords ? unitData[15] : unitData[13];
           const letra = unitData[18];
           const status = (unitData[11] || "Disponível").toString();
 
-          if (!coordX || !coordY) {
+          // If payload explicitly clears coords (empty string/null), remove indicator.
+          if ((hasCoordXProp && (payloadCoordX === "" || payloadCoordX === null)) || (hasCoordYProp && (payloadCoordY === "" || payloadCoordY === null))) {
+            if (indicator) indicator.remove();
+            return;
+          }
+
+          // Determine final coords: payload if present, otherwise keep existing DOM coords
+          let coordX = payloadCoordX;
+          let coordY = payloadCoordY;
+          if ((!hasCoordXProp || coordX === undefined || coordX === null || coordX === "") && indicator && indicator.style.left) {
+            coordX = parseFloat(indicator.style.left || "0");
+          }
+          if ((!hasCoordYProp || coordY === undefined || coordY === null || coordY === "") && indicator && indicator.style.top) {
+            coordY = parseFloat(indicator.style.top || "0");
+          }
+
+          if ((!coordX && coordX !== 0) || (!coordY && coordY !== 0)) {
+            // No coords available to render and no existing indicator
             if (indicator) indicator.remove();
             return;
           }
@@ -1182,14 +1201,33 @@
           const unitIndex = rowIndex - 2;
           const unitId = `unit-indicator-${unitIndex}`;
           let indicator = document.getElementById(unitId);
-
-          const coordX = unitData[12];
-          const coordY = unitData[13];
-          console.log('[updateSingleUnit] row=', rowIndex, 'coords=', { coordX, coordY });
+          // Merge-aware update: only overwrite coords if provided in payload.
+          const hasCoordXProp = unitData.length > 12 && typeof unitData[12] !== 'undefined';
+          const hasCoordYProp = unitData.length > 13 && typeof unitData[13] !== 'undefined';
+          const payloadCoordX = unitData[12];
+          const payloadCoordY = unitData[13];
           const letra = unitData[18];
           const status = (unitData[11] || "Disponível").toString();
 
-          if (!coordX || !coordY) {
+          // If payload explicitly clears coords, remove indicator.
+          if ((hasCoordXProp && (payloadCoordX === "" || payloadCoordX === null)) || (hasCoordYProp && (payloadCoordY === "" || payloadCoordY === null))) {
+            if (indicator) {
+              indicator.remove();
+            }
+            return;
+          }
+
+          // Determine final coords: prefer payload when provided, otherwise reuse existing DOM coords
+          let coordX = payloadCoordX;
+          let coordY = payloadCoordY;
+          if ((!hasCoordXProp || coordX === undefined || coordX === null || coordX === "") && indicator && indicator.style.left) {
+            coordX = parseFloat(indicator.style.left || "0");
+          }
+          if ((!hasCoordYProp || coordY === undefined || coordY === null || coordY === "") && indicator && indicator.style.top) {
+            coordY = parseFloat(indicator.style.top || "0");
+          }
+
+          if ((!coordX && coordX !== 0) || (!coordY && coordY !== 0)) {
             if (indicator) {
               indicator.remove();
             }
