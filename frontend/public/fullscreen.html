@@ -397,6 +397,7 @@
       <div class="title" id="empreendimento-title">Espelho de Implantação</div>
       <div id="implantacaoName" class="small"></div>
       <div style="flex: 1"></div>
+      <div id="debug-mode" style="margin-right:12px; font-size:13px; color:#fff; background:rgba(0,0,0,0.35); padding:6px 10px; border-radius:6px;">modo: ---</div>
       <button
         id="fullscreen-btn"
         class="fullscreen-button"
@@ -735,6 +736,15 @@
             imgAd.src = secondary.imageUrl;
             container.appendChild(imgAd);
           }
+
+          // Atualiza painel de debug indicando se estamos usando O:P (alt) como primário
+          try {
+            const debugEl = document.getElementById('debug-mode');
+            const useAltAsPrimary = adicionalFlag && secondary && !implantacaoAdParam;
+            if (debugEl) debugEl.textContent = useAltAsPrimary ? 'modo: O:P (adicional como primário)' : 'modo: M:N (primário)';
+            // também expõe globalmente para inspeção via console
+            window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = useAltAsPrimary;
+          } catch (e) {}
 
           wrapper.appendChild(container);
 
@@ -1095,6 +1105,11 @@
                 coordXAd: unitData[14],
                 coordYAd: unitData[15],
               });
+              try {
+                const debugEl = document.getElementById('debug-mode');
+                if (debugEl) debugEl.textContent = useAltAsPrimary ? 'modo: O:P (adicional como primário)' : 'modo: M:N (primário)';
+                window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = useAltAsPrimary;
+              } catch (e) {}
               if (useAltAsPrimary) {
                 updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
               } else {
