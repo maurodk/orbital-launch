@@ -4064,24 +4064,29 @@ app.post("/api/update-dot-size", async (req, res) => {
 
     if (error) {
       console.error("Erro ao atualizar dot_size:", error);
-      return res
-        .status(500)
-        .json({ error: "Falha ao atualizar tamanho do ponto." });
+      return res.status(500).json({
+        error: "Falha ao atualizar tamanho do ponto.",
+        detail: error && error.message ? error.message : String(error),
+      });
     }
 
     if (!data) {
-      return res
-        .status(404)
-        .json({ error: `Implantação '${implantacaoName}' não encontrada.` });
+      return res.status(404).json({
+        error: `Implantação '${implantacaoName}' não encontrada.`,
+      });
     }
 
     res.json({
       success: true,
       message: `Tamanho do ponto atualizado para ${newSize}px.`,
+      updated: data,
     });
   } catch (error) {
-    console.error("Erro ao atualizar dot_size:", error);
-    res.status(500).json({ error: "Falha ao atualizar o tamanho do ponto." });
+    console.error("Erro ao atualizar dot_size (catch):", error);
+    res.status(500).json({
+      error: "Falha ao atualizar o tamanho do ponto.",
+      detail: error && error.message ? error.message : String(error),
+    });
   }
 });
 

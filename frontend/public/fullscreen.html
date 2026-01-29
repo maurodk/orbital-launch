@@ -1256,10 +1256,18 @@
                 newSize: newSize,
               }),
             });
+            const contentType = res.headers.get('content-type') || '';
+            let body = null;
+            if (contentType.includes('application/json')) {
+              body = await res.json();
+            } else {
+              body = await res.text();
+            }
             if (res.ok) {
+              console.log('Salvar dot size sucesso:', body);
               showToast();
             } else {
-              console.error("Falha ao salvar o tamanho do ponto.");
+              console.error('Falha ao salvar o tamanho do ponto:', res.status, body);
             }
           } catch (error) {
             console.error("Erro de rede ao salvar o tamanho do ponto:", error);
