@@ -28,6 +28,9 @@ interface FloorPlanProps {
   unitLetter?: string;
   activeLayer?: "primary" | "additional";
   additionalImageUrl?: string;
+  implantacao?: string;
+  implantacaoPrimary?: string;
+  implantacaoAdditional?: string;
 }
 
 const Controls = () => {
@@ -72,6 +75,9 @@ export const FloorPlan = memo(function FloorPlan({
   // add optional props with sensible defaults
   activeLayer = "primary",
   additionalImageUrl = "",
+  implantacao = "",
+  implantacaoPrimary = "",
+  implantacaoAdditional = "",
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -87,6 +93,17 @@ export const FloorPlan = memo(function FloorPlan({
         const coordX = unidade[coordXIndex];
         const coordY = unidade[coordYIndex];
         const letra = unidade[18]; // Coluna S - Simbolo
+        const ownerImplantacao = (unidade[16] || "").toString(); // Coluna Q - implantacao_ref
+        // Determine current implantation context based on active layer
+        const currentImplantacao =
+          activeLayer === "additional"
+            ? implantacaoAdditional || implantacao || implantacaoPrimary || ""
+            : implantacaoPrimary || implantacao || "";
+
+        // If this unit is owned by another implantation, skip rendering it for current implantacao
+        if (currentImplantacao && ownerImplantacao && ownerImplantacao !== currentImplantacao) {
+          return null;
+        }
         const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
         const normalizedStatus = rawStatus
           .toLowerCase()
@@ -111,7 +128,7 @@ export const FloorPlan = memo(function FloorPlan({
         };
       })
       .filter(Boolean); // Remove nulls
-  }, [unidades, hideAvailable, activeLayer]);
+  }, [unidades, hideAvailable, activeLayer, implantacao, implantacaoPrimary, implantacaoAdditional]);
 
   const scheduleHideControls = () => {
     if (hideControlsTimeout.current) {

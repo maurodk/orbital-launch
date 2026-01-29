@@ -129,6 +129,7 @@ export function MainPage() {
   const [activeLayer, setActiveLayer] = useState<"primary" | "additional">(
     "primary"
   );
+  const [selectedAdditionalImplantationName, setSelectedAdditionalImplantationName] = useState("");
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(false);
   const [unitLetter, setUnitLetter] = useState<string>("");
@@ -969,10 +970,13 @@ export function MainPage() {
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
-      // clearAd false -> clear primary coords and implantacao_ref
+      // clear primary coords and implantacao_ref for the implantation context
       await axios.post(`${apiUrl}/api/clear-coords`, {
         rowIndex: sheetRowIndex,
-        implantacao: selectedImplantationName,
+        implantacao:
+          activeLayer === "additional" && selectedAdditionalImplantationName
+            ? selectedAdditionalImplantationName
+            : selectedImplantationName,
         clearAd: false,
       });
     } catch (err) {
@@ -1639,7 +1643,10 @@ export function MainPage() {
       const payload: any = {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
-        implantacao: selectedImplantationName,
+        implantacao:
+          activeLayer === "additional" && selectedAdditionalImplantationName
+            ? selectedAdditionalImplantationName
+            : selectedImplantationName,
         coordX: coordX,
         coordY: coordY,
       };
@@ -1848,6 +1855,7 @@ export function MainPage() {
           {isMappingMode && (
             <MappingSidebar
               unidades={unidades}
+                    implantacao={selectedImplantationName}
               onSelectUnit={setUnitToMapIndex}
               selectedUnitIndex={unitToMapIndex}
               dotSize={dotSize}
@@ -1916,6 +1924,16 @@ export function MainPage() {
                         >
                           Adicional
                         </button>
+                      </div>
+
+                      {/* Selector para a implantação adicional (opcional) */}
+                      <div style={{ marginLeft: 12 }}>
+                        <small>Implantação Adicional</small>
+                        <ImplantationSwitcher
+                          implantacoes={implantacoes}
+                          selected={selectedAdditionalImplantationName}
+                          onChange={(v: string) => setSelectedAdditionalImplantationName(v)}
+                        />
                       </div>
                       <div
                         className="filter-checkbox-wrapper"
@@ -2281,6 +2299,8 @@ export function MainPage() {
                     dotSize={dotSize}
                     hideAvailable={hideAvailable}
                     unitLetter={unitLetter}
+                    implantacaoPrimary={selectedImplantationName}
+                    implantacaoAdditional={selectedAdditionalImplantationName}
                   />
                 )}
                 {view === "list" && (
