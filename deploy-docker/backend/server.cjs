@@ -1736,7 +1736,7 @@ app.get("/api/data", verifyToken, async (req, res) => {
       // Busca unidades da planilha (Google Sheets)
       const implantacaoRes = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:O`,
+        range: `'${sheetTitle}'!A:P`,
       });
 
       // Busca clientes do Supabase
@@ -1824,7 +1824,7 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:O`,
+      range: `'${sheetTitle}'!A:P`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
