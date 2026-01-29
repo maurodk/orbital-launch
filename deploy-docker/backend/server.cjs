@@ -3937,6 +3937,8 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
     try {
       // If frontend provided an explicit implantacao_ref override, write that; otherwise write the implantacao used to resolve the sheet
       const refToWrite = refOverride || implantacao || "";
+      // DEBUG: log what we're about to write so we can trace mismatches between layers
+      console.log(`[MAPPING] Writing implantacao_ref to sheet='${sheetTitle}' row=${rowIndex} refToWrite='${refToWrite}' refOverride='${refOverride}' implantacao='${implantacao}'`);
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range: `'${sheetTitle}'!Q${rowIndex}`,
@@ -3976,6 +3978,8 @@ app.post("/api/update-coords", verifyToken, async (req, res) => {
             coord_y: y || null,
             implantacao_ref: (refOverride || implantacao) || null,
           };
+          // DEBUG: log Supabase update intent
+          console.log(`[MAPPING][SUPABASE] update unidades implantacao_id=${implantacao_id} row_index=${rowIndex} payload=${JSON.stringify(updatePayload)}`);
 
           const { error: upErr } = await supabase
             .from("unidades")
