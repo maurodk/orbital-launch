@@ -628,7 +628,20 @@
             )}&hideAvailable=${hideAvailable}`;
             const res = await fetch(url);
             if (!res.ok) {
-              throw new Error(`Falha ao buscar dados: ${res.statusText}`);
+              // Tratamento especial para 404: implantação não encontrada
+              if (res.status === 404) {
+                try {
+                  const body = await res.json().catch(() => ({}));
+                  console.warn(`public-data 404: ${body.error || body.message || 'Planilha não encontrada'}`);
+                } catch (e) {
+                  console.warn('public-data 404: planilha não encontrada');
+                }
+                // Retorna payload vazio para evitar quebrar a UI durante apresentação
+                return { unidades: [], imageUrl: "", dotSize: 16 };
+              }
+              // Outros erros: devolve objeto vazio e registra aviso conciso
+              console.warn(`Falha ao buscar dados (status ${res.status})`);
+              return { unidades: [], imageUrl: "", dotSize: 16 };
             }
             const json = await res.json();
 
@@ -643,7 +656,8 @@
 
             return json;
           } catch (e) {
-            console.error("Erro em fetchData:", e);
+            // Evita spam de erros no console durante apresentação; log resumido
+            console.warn("Erro em fetchData:", e && e.message ? e.message : e);
             statusEl.textContent = "Erro ao carregar dados.";
             return { unidades: [], imageUrl: "", dotSize: 16 };
           }
@@ -1076,11 +1090,12 @@
                 )}`
               );
 
-              if (resUnits.status === 401) {
+              if (resUnits.status === 401 || resUnits.status === 404) {
+                // Auth issues (401) or missing sheet (404) are not considered
+                // an instability of SSE; do not increment failure counter.
                 console.warn(
-                  "[SSE] Polling-fallback: auth 401 received (skipping reload counter)"
+                  `[SSE] Polling-fallback: status ${resUnits.status} received (skipping reload counter)`
                 );
-                // do not increment failure counter for auth issues
               } else if (!resUnits.ok) {
                 throw new Error("Polling fallback failed");
               } else {

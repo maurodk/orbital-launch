@@ -217,6 +217,33 @@ function checkRateLimit(key, type = "sheets") {
   return { allowed: true };
 }
 
+// === Redis-based simple lock helpers ===
+async function acquireLock(key, owner, ttlMs = 15000) {
+  try {
+    const lockKey = `lock:${key}`;
+    const res = await redis.set(lockKey, owner, "PX", ttlMs, "NX");
+    return res === "OK";
+  } catch (e) {
+    console.error("[LOCK] acquire error:", e && e.message ? e.message : e);
+    return false;
+  }
+}
+
+async function releaseLock(key, owner) {
+  try {
+    const lockKey = `lock:${key}`;
+    const val = await redis.get(lockKey);
+    if (val === owner) {
+      await redis.del(lockKey);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error("[LOCK] release error:", e && e.message ? e.message : e);
+    return false;
+  }
+}
+
 // Helper: Cache com TTL
 function getCachedData(key) {
   const cached = dataCache.get(key);
@@ -754,42 +781,37 @@ function removeSseClient(implantacao, res) {
 async function broadcastEvent(implantacao, event, data) {
   const clients = sseClients.get(implantacao);
   if (!clients) return;
-
-  // MIGRAÇÃO SSE → SUPABASE: Prioriza dados fornecidos (do Supabase), busca no Sheets apenas como fallback
+  // Build event payload and ensure we always transmit a full row (A..S)
   let eventPayload = data.unitData ? { ...data } : { ...data, unitData: null };
 
-  // Fallback: Se os dados não foram fornecidos, busca na planilha (compatibilidade)
   if (data.rowIndex && !data.unitData) {
     try {
       const sheets = await getSheetsClient();
-      // Fetch up to column P so additional-layer Y coordinate (col P) is included
-      const range = `'${implantacao}'!A${data.rowIndex}:P${data.rowIndex}`;
+      // Fetch full A..S (19 cols) so both primary (M:N) and additional (O:P) coords + simbolo (S) are included
+      const range = `'${implantacao}'!A${data.rowIndex}:S${data.rowIndex}`;
       const sheetData = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         range,
       });
       if (sheetData.data.values && sheetData.data.values.length > 0) {
-        eventPayload.unitData = sheetData.data.values[0];
+        const row = sheetData.data.values[0] || [];
+        const padded = new Array(19).fill("");
+        for (let i = 0; i < Math.min(19, row.length); i++) padded[i] = row[i];
+        eventPayload.unitData = padded;
       }
     } catch (error) {
-      console.error(
-        `[SSE Broadcast] Falha ao buscar dados da unidade para o evento:`,
-        error
-      );
+      console.error(`[SSE Broadcast] Falha ao buscar dados da unidade para o evento:`, error);
     }
   }
 
-  // Tentar anexar o status do pagamento mais recente (pagamentos.status) ao payload,
-  // quando possível. Isso permite ao frontend exibir check/X sem depender do índice do array.
+  // Attach pagamentos.status if available
   if (supabase && (eventPayload.unitData || data.unitName || data.rowIndex)) {
     try {
       let unidadeNome = data.unitName || null;
       if (!unidadeNome && eventPayload.unitData && Array.isArray(eventPayload.unitData)) {
         unidadeNome = eventPayload.unitData[2] || null;
       }
-
       if (unidadeNome) {
-        // 1) Tenta busca exata por unidade
         let pagamentosResp = await supabase
           .from("pagamentos")
           .select("status, unidade, data_processamento")
@@ -797,8 +819,6 @@ async function broadcastEvent(implantacao, event, data) {
           .order("data_processamento", { ascending: false })
           .limit(1)
           .single();
-
-        // 2) Se não encontrou, tenta busca parcial com ilike (mais permissiva)
         if ((!pagamentosResp || !pagamentosResp.data) && unidadeNome) {
           try {
             pagamentosResp = await supabase
@@ -809,10 +829,9 @@ async function broadcastEvent(implantacao, event, data) {
               .limit(1)
               .single();
           } catch (e) {
-            // ignora
+            // ignore
           }
         }
-
         if (pagamentosResp && pagamentosResp.data && pagamentosResp.data.status) {
           eventPayload.pagamentos_status = pagamentosResp.data.status;
           if (eventPayload.unitData && Array.isArray(eventPayload.unitData)) {
@@ -825,19 +844,13 @@ async function broadcastEvent(implantacao, event, data) {
     }
   }
 
-  // Log do que está sendo enviado
-  console.log(
-    `[SSE Broadcast] Enviando evento '${event}' para '${implantacao}' (fonte: ${
-      data.unitData ? "Supabase" : "Sheets"
-    }):`,
-    {
-      rowIndex: eventPayload.rowIndex,
-      temUnitData: !!eventPayload.unitData,
-      colunaG: eventPayload.unitData?.[6],
-      colunaL: eventPayload.unitData?.[11],
-      colunaN: eventPayload.unitData?.[13],
-    }
-  );
+  // Ensure metadata
+  eventPayload.changeType = eventPayload.changeType || data.changeType || "update";
+  eventPayload.actor = eventPayload.actor || data.actor || null;
+  eventPayload.ts = eventPayload.ts || data.ts || Date.now();
+
+  // Log do que está sendo enviado (resumido)
+  console.log(`[SSE Broadcast] Enviando evento '${event}' para '${implantacao}' (row=${eventPayload.rowIndex} - unitData=${!!eventPayload.unitData})`);
 
   const payload = `event: ${event}\ndata: ${JSON.stringify(eventPayload)}\n\n`;
   for (const res of Array.from(clients)) {
@@ -2505,10 +2518,19 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       });
     }
 
-    // Remove a reserva temporária
-    tempReservations.delete(tempReservationKey);
+    // Acquire lock for this row to avoid concurrent confirms/cancels
+    const lockKey = `${sheetTitle}:${rowIndex}`;
+    const lockOwner = reservationToken;
+    const gotLock = await acquireLock(lockKey, lockOwner, 15000);
+    if (!gotLock) {
+      return res.status(409).json({ error: "Unidade em operação por outro usuário.", code: "UNIT_LOCKED" });
+    }
 
-    // Verifica novamente se a unidade ainda está Disponível
+    try {
+      // Remove a reserva temporária
+      tempReservations.delete(tempReservationKey);
+
+      // Verifica novamente se a unidade ainda está Disponível
     const unitCheckRange = `'${sheetTitle}'!L${rowIndex}`;
     const unitCheckResult = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
@@ -2694,16 +2716,19 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
               .limit(1)
               .single();
 
-            if (unitDataFromSupabase) {
+                  if (unitDataFromSupabase) {
               // Converte dados do Supabase para formato array
               const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
 
-              // Broadcast IMEDIATO com dados do Supabase (não espera Sheets)
-              await broadcastEvent(sheetTitle, "unitUpdated", {
-                rowIndex,
-                unitName,
-                unitData: unitDataArray,
-              });
+                    // Broadcast IMEDIATO com dados do Supabase (não espera Sheets)
+                    await broadcastEvent(sheetTitle, "unitUpdated", {
+                      rowIndex,
+                      unitName,
+                      unitData: unitDataArray,
+                      changeType: "reserve",
+                      actor: userEmail,
+                      ts: Date.now(),
+                    });
               console.log(
                 `[SSE] Broadcast de reserva enviado para linha ${rowIndex}`
               );
@@ -2719,6 +2744,9 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             await broadcastEvent(sheetTitle, "unitUpdated", {
               rowIndex,
               unitName,
+              changeType: "reserve",
+              actor: userEmail,
+              ts: Date.now(),
             });
           } catch (err) {
             console.error("[SSE] Falha no broadcast fallback:", err.message);
@@ -2745,6 +2773,13 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
         }
       })();
 
+      // release lock for this confirm operation
+      try {
+        await releaseLock(lockKey, lockOwner);
+      } catch (e) {
+        console.warn("[LOCK] falha ao liberar lock (confirm-reservation):", e && e.message ? e.message : e);
+      }
+
       return;
     }
 
@@ -2769,7 +2804,21 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
       success: true,
       message: `Reserva atualizada (via fallback).`,
     });
+
+    // release lock for this confirm operation (fallback path)
+    try {
+      await releaseLock(lockKey, lockOwner);
+    } catch (e) {
+      console.warn("[LOCK] falha ao liberar lock (confirm-reservation fallback):", e && e.message ? e.message : e);
+    }
   } catch (error) {
+    try {
+      if (typeof lockKey !== 'undefined' && typeof lockOwner !== 'undefined') {
+        await releaseLock(lockKey, lockOwner);
+      }
+    } catch (e) {
+      // ignore
+    }
     res.status(500).json({ error: "Falha ao processar a reserva." });
   }
 });
@@ -2814,11 +2863,19 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
         code: "UNAUTHORIZED_CANCELLATION",
       });
     }
+    // Acquire lock for this cancel-temp operation
+    const lockKey = `${sheetTitle}:${rowIndex}`;
+    const lockOwner = reservationToken;
+    const gotLock = await acquireLock(lockKey, lockOwner, 15000);
+    if (!gotLock) {
+      return res.status(409).json({ error: "Unidade em operação por outro usuário.", code: "UNIT_LOCKED" });
+    }
 
-    // Remove a reserva temporária
-    tempReservations.delete(tempReservationKey);
+    try {
+      // Remove a reserva temporária
+      tempReservations.delete(tempReservationKey);
 
-    // Verifica o status atual antes de reverter
+      // Verifica o status atual antes de reverter
     const statusCheck = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
       range: `'${sheetTitle}'!L${rowIndex}`,
@@ -2837,10 +2894,13 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
         resource: { values: [["Disponível"]] },
       });
 
-      // Notifica outros clientes sobre a mudança
+      // Notifica outros clientes sobre a mudança (inclui metadata)
       await broadcastEvent(sheetTitle, "unitUpdated", {
         rowIndex,
         unitName: tempReservation.unitName,
+        changeType: "cancel-temp",
+        actor: tempReservation.userEmail,
+        ts: Date.now(),
       });
 
       console.log(`[CANCEL-TEMP] Reserva cancelada: ${tempReservationKey}`);
@@ -2849,14 +2909,16 @@ app.post("/api/cancel-temp-reservation", verifyToken, async (req, res) => {
         `[CANCEL-TEMP] Unidade ${tempReservationKey} já está como '${currentStatus}', não será revertida.`
       );
     }
-
     res.json({
       success: true,
       message: "Reserva temporária cancelada com sucesso.",
     });
+    // release lock
+    try { await releaseLock(lockKey, lockOwner); } catch (e) {}
     
   } catch (error) {
     console.error("Erro ao cancelar reserva temporária:", error);
+    try { if (typeof lockKey !== 'undefined' && typeof lockOwner !== 'undefined') await releaseLock(lockKey, lockOwner); } catch (e) {}
     res.status(500).json({ error: "Falha ao cancelar reserva temporária." });
   }
 });
@@ -3134,6 +3196,13 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
 
     let supabaseOk = false;
     let unitFullName = null;
+    // Acquire per-row lock to avoid concurrent cancels/reserves
+    const lockKey = `${sheetTitle}:${unitRowIndex}`;
+    const lockOwner = userEmail;
+    const gotLock = await acquireLock(lockKey, lockOwner, 15000);
+    if (!gotLock) {
+      return res.status(409).json({ error: "Unidade em operação por outro usuário.", code: "UNIT_LOCKED" });
+    }
     if (supabase) {
       try {
         const { data: implData } = await supabase // Usa o nome completo resolvido
@@ -3246,11 +3315,14 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
               // Converte dados do Supabase para formato array
               const unitDataArray = supabaseUnitToArray(unitDataFromSupabase);
 
-              // Broadcast IMEDIATO com dados do Supabase
+              // Broadcast IMEDIATO com dados do Supabase (inclui metadata)
               await broadcastEvent(sheetTitle, "unitUpdated", {
                 rowIndex: unitRowIndex,
                 unitName: unitFullName || unitDataFromSupabase.nome_unidade,
                 unitData: unitDataArray,
+                changeType: "cancel",
+                actor: userEmail,
+                ts: Date.now(),
               });
 
               console.log(
@@ -3273,6 +3345,9 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           await broadcastEvent(sheetTitle, "unitUpdated", {
             rowIndex: unitRowIndex,
             unitName: unitFullName,
+            changeType: "cancel",
+            actor: userEmail,
+            ts: Date.now(),
           });
           console.log(
             `[SSE] Broadcast de cancelamento enviado via fallback (Sheets) para linha ${unitRowIndex}`
@@ -3397,9 +3472,16 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
           // non-blocking
         }
       })();
+      // release per-row lock after background work
+      try {
+        await releaseLock(lockKey, lockOwner);
+      } catch (e) {
+        console.warn('[LOCK] falha ao liberar lock (cancel-reservation):', e && e.message ? e.message : e);
+      }
     })();
   } catch (error) {
     console.error("Erro ao cancelar a reserva:", error);
+    try { if (typeof lockKey !== 'undefined' && typeof lockOwner !== 'undefined') await releaseLock(lockKey, lockOwner); } catch (e) {}
     res.status(500).json({ error: "Falha ao cancelar a reserva." });
   }
 });
