@@ -776,13 +776,14 @@
             container.appendChild(imgAd);
           }
 
-          // Atualiza painel de debug indicando se estamos usando O:P (alt) como primário
+          // Atualiza painel de debug — indicamos se secondary é da mesma implantação
           try {
             const debugEl = document.getElementById('debug-mode');
-            const useAltAsPrimary = adicionalFlag && secondary && !implantacaoAdParam;
-            if (debugEl) debugEl.textContent = useAltAsPrimary ? 'modo: O:P (adicional como primário)' : 'modo: M:N (primário)';
-            // também expõe globalmente para inspeção via console
-            window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = useAltAsPrimary;
+            const secondaryIsSameImplant = !!(secondary && !implantacaoAdParam);
+            if (debugEl) debugEl.textContent = secondaryIsSameImplant ? (adicionalFlag ? 'camada: Adicional' : 'camada: Primária') : (adicionalFlag ? 'camada: Adicional (overlay)' : 'camada: Primária');
+            // Flags globais para uso por SSE/polling
+            window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__ = secondaryIsSameImplant;
+            window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = false; // removido: não usamos mais O:P como primário
           } catch (e) {}
 
           wrapper.appendChild(container);
@@ -794,23 +795,38 @@
               : unidades;
 
           // Render unidades da implantação principal
-          // Quando `adicional=true` e há `secondary` (imagem adicional da mesma implantação),
-          // renderizamos inicialmente usando as colunas O:P (coord_x_ad/coord_y_ad).
-          const useAltAsPrimary = adicionalFlag && secondary && !implantacaoAdParam;
+          // NOTA: agora sempre usamos as colunas M:N (índices 12 e 13) para coordenadas
+          // Se `secondary` for a mesma implantação (imageUrlAdicional), separam-se as camadas
+          // usando `implantacao_ref` (col Q / índice 16). Valores esperados:
+          // - unidade primária: implantacao (ou vazio/null para legacy)
+          // - unidade adicional: implantacao + '+adicional'
+          const secondaryIsSameImplant = !!(secondary && !implantacaoAdParam);
+          const primaryOwner = implantacao;
+          const additionalOwner = implantacao + "+adicional";
+
           rows.forEach((u, index) => {
-            const coordX = useAltAsPrimary ? u[14] : u[12];
-            const coordY = useAltAsPrimary ? u[15] : u[13];
+            const coordX = u[12];
+            const coordY = u[13];
             const letra = u[18];
             const status = (u[11] || "Disponível").toString();
+            const owner = (u[16] || "").toString();
 
-            if (!coordX || !coordY) {
-              return;
+            // Se não há coords, pula
+            if (!coordX && coordX !== 0) return;
+            if (!coordY && coordY !== 0) return;
+
+            // Se secondary é a mesma implantação, filtramos por implantacao_ref
+            if (secondaryIsSameImplant) {
+              const isAdditional = owner === additionalOwner;
+              const isPrimary = !owner || owner === primaryOwner;
+              const shouldRender = adicionalFlag ? isAdditional : isPrimary;
+              if (!shouldRender) return;
             }
 
             const indicator = document.createElement("div");
             const unitIndex = index;
             indicator.id = `unit-indicator-${unitIndex}`;
-            indicator.className = `unit-indicator status-${status}` + (useAltAsPrimary ? " additional-indicator" : "");
+            indicator.className = `unit-indicator status-${status}` + (adicionalFlag && secondaryIsSameImplant ? " additional-indicator" : "");
             indicator.style.left = `${coordX}%`;
             indicator.style.top = `${coordY}%`;
             indicator.style.width = `${dotSize}px`;
@@ -829,30 +845,25 @@
           });
 
           // Render unidades da implantação adicional (overlay de outra implantação)
-          // Sempre usa as colunas M:N da implantação secundária
-          // Se já usamos O:P como primário (useAltAsPrimary), NÃO renderizamos o overlay
-          // vindo da mesma implantação para evitar duplicação das marcações.
-          if (secondary && secondary.unidades) {
-            const useAltAsPrimaryForRender = adicionalFlag && secondary && !implantacaoAdParam;
-            if (useAltAsPrimaryForRender && !implantacaoAdParam) {
-              // Quando O:P está sendo usado como primário e secondary é da mesma implantação,
-              // pulamos a renderização do overlay para evitar duplicatas.
-            } else {
+          // Para o caso em que `implantacao_ad` foi fornecida (outra implantação),
+          // renderizamos o overlay normalmente usando as colunas M:N da secondary.
+          // Se secondary é a mesma implantação (imageUrlAdicional), já separamos
+          // as camadas via `implantacao_ref` acima — portanto pulamos o overlay.
+          if (secondary && secondary.unidades && implantacaoAdParam) {
             const rowsAd =
               secondary.unidades.length > 0 &&
               secondary.unidades[0][0]?.toString().toLowerCase().includes("etapa")
                 ? secondary.unidades.slice(1)
                 : secondary.unidades;
 
-              const useAltCoords = false; // sempre usar M:N da secondary
-
-              rowsAd.forEach((u, index) => {
-                const coordX = useAltCoords ? u[14] : u[12];
-                const coordY = useAltCoords ? u[15] : u[13];
-              const letra = useAltCoords ? u[18] : u[18];
+            rowsAd.forEach((u, index) => {
+              const coordX = u[12];
+              const coordY = u[13];
+              const letra = u[18];
               const status = (u[11] || "Disponível").toString();
 
-              if (!coordX || !coordY) return;
+              if (!coordX && coordX !== 0) return;
+              if (!coordY && coordY !== 0) return;
 
               const indicator = document.createElement("div");
               const unitIndex = index;
@@ -872,9 +883,8 @@
                 indicator.appendChild(letraSpan);
               }
 
-                container.appendChild(indicator);
-              });
-            }
+              container.appendChild(indicator);
+            });
           }
         }
 
@@ -1161,27 +1171,36 @@
                 rowIndex,
               });
 
-              // Se estamos preferindo as coords alternativas como camada principal,
-              // atualize a camada principal usando O:P (via updateSingleUnitAd).
-              const useAltAsPrimary = (typeof preferAltCoordsForPrimary !== 'undefined' && preferAltCoordsForPrimary) || window.preferAltCoordsForPrimary;
-              console.log('[SSE] unitUpdated: useAltAsPrimary=', useAltAsPrimary, 'coords:', {
-                coordX: unitData[12],
-                coordY: unitData[13],
-                coordXAd: unitData[14],
-                coordYAd: unitData[15],
-              });
-              try {
-                const debugEl = document.getElementById('debug-mode');
-                if (debugEl) debugEl.textContent = useAltAsPrimary ? 'modo: O:P (adicional como primário)' : 'modo: M:N (primário)';
-                window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = useAltAsPrimary;
-              } catch (e) {}
-              if (useAltAsPrimary) {
-                updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
-              } else {
-                // Atualiza via SSE (primary)
-                updateSingleUnit(unitData, rowIndex);
+              // Se secondary é a mesma implantação (imageUrlAdicional), usamos implantacao_ref
+              const secondarySame = !!window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__;
+              if (secondarySame) {
+                const owner = (unitData[16] || "").toString();
+                const primaryOwner = implantacao;
+                const additionalOwner = implantacao + "+adicional";
 
-                // Se payload tiver coords adicionais (mesma implantação), atualiza também a camada adicional
+                // Decide qual camada atualizar com base no implantacao_ref
+                if (owner === additionalOwner) {
+                  // Atualiza apenas a camada adicional (usa M:N da payload)
+                  updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
+                  // Remove marcador primário caso exista
+                  try {
+                    const primaryId = `unit-indicator-${rowIndex - 2}`;
+                    const el = document.getElementById(primaryId);
+                    if (el) el.remove();
+                  } catch (e) {}
+                } else {
+                  // Tratar como primária (owner vazio ou igual a implantacao)
+                  updateSingleUnit(unitData, rowIndex);
+                  // Remove marcador adicional caso exista
+                  try {
+                    const adId = `unit-indicator-ad-${rowIndex - 2}`;
+                    const el = document.getElementById(adId);
+                    if (el) el.remove();
+                  } catch (e) {}
+                }
+              } else {
+                // Comportamento legado/fallback: atualiza primary e, se tiver coords adicionais, também atualiza ad
+                updateSingleUnit(unitData, rowIndex);
                 try {
                   const coordXAd = unitData[14];
                   const coordYAd = unitData[15];
