@@ -160,6 +160,19 @@ redis.on("connect", () => console.log("[REDIS] Conectado com sucesso"));
 // Inicializa o Express App
 const app = express();
 
+// Serve static frontend files (fullscreen pages) when available
+try {
+  const staticDir = path.join(__dirname, '..', '..', 'frontend', 'public');
+  if (fs.existsSync(staticDir)) {
+    app.use('/', express.static(staticDir));
+    console.log(`[STATIC] Servindo arquivos estáticos de: ${staticDir}`);
+  } else {
+    console.warn(`[STATIC] Diretório estático não encontrado em: ${staticDir}`);
+  }
+} catch (e) {
+  console.warn('[STATIC] Falha ao configurar arquivos estáticos:', e && e.message ? e.message : e);
+}
+
 // NOVO: Cache em memória para abas de histórico já criadas
 const createdHistorySheets = new Set();
 
