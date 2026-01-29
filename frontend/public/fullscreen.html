@@ -791,18 +791,25 @@
 
           // Render unidades da implantação adicional (overlay de outra implantação)
           // Sempre usa as colunas M:N da implantação secundária
+          // Se já usamos O:P como primário (useAltAsPrimary), NÃO renderizamos o overlay
+          // vindo da mesma implantação para evitar duplicação das marcações.
           if (secondary && secondary.unidades) {
+            const useAltAsPrimaryForRender = adicionalFlag && secondary && !implantacaoAdParam;
+            if (useAltAsPrimaryForRender && !implantacaoAdParam) {
+              // Quando O:P está sendo usado como primário e secondary é da mesma implantação,
+              // pulamos a renderização do overlay para evitar duplicatas.
+            } else {
             const rowsAd =
               secondary.unidades.length > 0 &&
               secondary.unidades[0][0]?.toString().toLowerCase().includes("etapa")
                 ? secondary.unidades.slice(1)
                 : secondary.unidades;
 
-            const useAltCoords = false; // sempre usar M:N da secondary
+              const useAltCoords = false; // sempre usar M:N da secondary
 
-            rowsAd.forEach((u, index) => {
-              const coordX = useAltCoords ? u[14] : u[12];
-              const coordY = useAltCoords ? u[15] : u[13];
+              rowsAd.forEach((u, index) => {
+                const coordX = useAltCoords ? u[14] : u[12];
+                const coordY = useAltCoords ? u[15] : u[13];
               const letra = useAltCoords ? u[18] : u[18];
               const status = (u[11] || "Disponível").toString();
 
@@ -826,8 +833,9 @@
                 indicator.appendChild(letraSpan);
               }
 
-              container.appendChild(indicator);
-            });
+                container.appendChild(indicator);
+              });
+            }
           }
         }
 
