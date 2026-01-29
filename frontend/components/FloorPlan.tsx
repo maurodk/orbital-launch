@@ -94,15 +94,20 @@ export const FloorPlan = memo(function FloorPlan({
         const coordY = unidade[coordYIndex];
         const letra = unidade[18]; // Coluna S - Simbolo
         const ownerImplantacao = (unidade[16] || "").toString(); // Coluna Q - implantacao_ref
-        // Determine current implantation context based on active layer
-        const currentImplantacao =
-          activeLayer === "additional"
-            ? implantacaoAdditional || implantacao || implantacaoPrimary || ""
-            : implantacaoPrimary || implantacao || "";
+        // Determine owners
+        const primaryOwner = implantacaoPrimary || implantacao || "";
+        const additionalOwner = implantacaoAdditional || (implantacaoPrimary ? implantacaoPrimary + "+adicional" : "");
+        const isAdLayer = activeLayer === "additional";
 
-        // If this unit is owned by another implantation, skip rendering it for current implantacao
-        if (currentImplantacao && ownerImplantacao && ownerImplantacao !== currentImplantacao) {
-          return null;
+        // Filter by implantacao_ref when owners are available:
+        // - additional layer: only units with owner === additionalOwner
+        // - primary layer: units with owner === '' (legacy) or owner === primaryOwner
+        if (primaryOwner || additionalOwner) {
+          if (isAdLayer) {
+            if (!ownerImplantacao || ownerImplantacao !== additionalOwner) return null;
+          } else {
+            if (ownerImplantacao && ownerImplantacao !== primaryOwner) return null;
+          }
         }
         const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
         const normalizedStatus = rawStatus

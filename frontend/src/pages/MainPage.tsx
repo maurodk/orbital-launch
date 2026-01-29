@@ -966,6 +966,8 @@ export function MainPage() {
     updatedUnidades[unitIndexToClear][13] = ""; // Coluna N - coord_y
     // Remove symbol/letter when clearing
     updatedUnidades[unitIndexToClear][18] = ""; // Coluna S - Simbolo (letra)
+    // Remove também o owner localmente para manter a UI consistente
+    updatedUnidades[unitIndexToClear][16] = ""; // Coluna Q - implantacao_ref
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitIndexToClear + 2;
@@ -1637,6 +1639,9 @@ export function MainPage() {
     updatedUnidades[unitToMapIndex][13] = coordY; // Coluna N - coord_y
 
     updatedUnidades[unitToMapIndex][18] = unitLetter; // Coluna S - Simbolo (letra)
+    // Atualiza localmente o campo implantacao_ref (col Q index 16) para refletir a camada
+    const ownerToSet = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : selectedImplantationName;
+    updatedUnidades[unitToMapIndex][16] = ownerToSet; // Coluna Q - implantacao_ref
     setUnidades(updatedUnidades);
     try {
       const sheetRowIndex = unitToMapIndex + 2;

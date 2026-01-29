@@ -1771,10 +1771,10 @@ app.get("/api/data", verifyToken, async (req, res) => {
       }
       const sheetTitle = resolved.found;
 
-      // Busca unidades da planilha (Google Sheets)
+      // Busca unidades da planilha (Google Sheets) — inclui coluna Q (implantacao_ref)
       const implantacaoRes = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:P`,
+        range: `'${sheetTitle}'!A:Q`,
       });
 
       // Busca clientes do Supabase
@@ -1862,7 +1862,7 @@ app.get("/api/public-data", async (req, res) => {
     const sheetTitle = resolved.found;
     const implantacaoRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:P`,
+      range: `'${sheetTitle}'!A:Q`,
       valueRenderOption: "FORMATTED_VALUE",
     });
     let unidades = implantacaoRes.data.values || [];
