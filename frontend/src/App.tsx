@@ -4,6 +4,7 @@ import { Routes, Route } from "react-router-dom";
 import { MainPage } from "./pages/MainPage"; // Importa a página principal refatorada
 import { CVCrmMappingPage } from "./pages/CVCrmMappingPage"; // Importa a nova página
 import { Diretoria } from "./pages/Diretoria";
+import { FullscreenPage } from "./pages/FullscreenPage"; // Nova página fullscreen React
 import { Login } from "../components/Login"; // Login pode ser uma rota separada também
 
 import "./App.css";
@@ -16,6 +17,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/map-cvcrm" element={<CVCrmMappingPage />} />
       <Route path="/diretoria" element={<Diretoria />} />
+      <Route path="/fullscreen" element={<FullscreenPage />} />
     </Routes>
   );
 }
