@@ -410,6 +410,7 @@ function supabaseUnitToArray(unitData) {
 const allowedOrigins = [
   "https://lancamentos.vcaconstrutora.com.br", // Frontend em produção
   "https://apitelaodigital.suportevca.com.br", // Fullscreen host
+  "http://localhost:3000", // Backend servindo arquivos estáticos (fullscreen.html)
   "http://localhost:5173", // Frontend em desenvolvimento local
   "http://localhost:5174", // Frontend em desenvolvimento local (porta alternativa)
   "http://127.0.0.1:5500", // Live Server
@@ -1905,6 +1906,7 @@ app.get("/api/public-data", async (req, res) => {
       imageUrlAdicional: imageUrlAdicional || "",
       dotSize,
       sigla,
+      sheetTitle, // Nome exato da planilha para conexão SSE
     });
   } catch (error) {
     res.status(500).json({
