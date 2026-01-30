@@ -525,7 +525,29 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
         }
       }
 
-      const acao = status === 'processado' ? 'Reserva processada (Worker)' : 'Erro ao processar reserva (Worker)';
+      // Determine a action text more precisely:
+      // - If this notification is related to a pagamento (pagamento_id present),
+      //   use 'Pagamento Registrado' for successful processed payments.
+      // - Otherwise keep reservation-related wording.
+      let acao = 'Erro ao processar reserva (Worker)';
+      try {
+        const statusNorm = (status || '').toString().toLowerCase();
+        if (pagamento_id) {
+          if (statusNorm === 'processado' || statusNorm === 'pago' || statusNorm === 'paid') {
+            acao = 'Pagamento Registrado';
+          } else {
+            acao = 'Erro ao registrar pagamento (Worker)';
+          }
+        } else {
+          if (statusNorm === 'processado' || statusNorm === 'processed' || statusNorm === 'sucesso') {
+            acao = 'Reserva processada (Worker)';
+          } else {
+            acao = 'Erro ao processar reserva (Worker)';
+          }
+        }
+      } catch (e) {
+        acao = status === 'processado' ? 'Reserva processada (Worker)' : 'Erro ao processar reserva (Worker)';
+      }
 
       if (implantacaoName) {
         try {
@@ -4419,62 +4441,77 @@ async function addPixToSheet(
   valor,
   statusPagamento
 ) {
-  const dataHora = new Date().toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  });
+  // Persist PIX to Supabase `historico_pix` table
+  try {
+    const insertObj = {
+      implantacao_nome: implantacao || null,
+      cliente: cliente || null,
+      unidade: unidade || null,
+      identificador: identificador,
+      payload_emv: payloadEmv,
+      valor: typeof valor === 'string' ? Number(valor.replace(',', '.')) : Number(valor),
+      status_pagamento: statusPagamento || 'PENDENTE',
+      data_criacao: new Date().toISOString(),
+    };
 
-  const newRow = [
-    dataHora, // A - Data e Hora
-    cliente, // B - Cliente
-    unidade, // C - Unidade
-    identificador, // D - Identificador
-    payloadEmv, // E - Payload EMV
-    valor, // F - Valor
-    statusPagamento, // G - Status Pagamento
-  ];
+    const { data, error } = await supabase
+      .from('historico_pix')
+      .insert(insertObj)
+      .select()
+      .single();
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID_PIX,
-    range: `'${implantacao}'!A:G`,
-    valueInputOption: "RAW",
-    resource: { values: [newRow] },
-  });
+    if (error) {
+      // If unique constraint on identificador fails, return that error upward
+      console.error('[PIX] Erro ao inserir historico_pix:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (e) {
+    console.error('[PIX] Falha ao salvar PIX no Supabase:', e && e.message ? e.message : e);
+    throw e;
+  }
 }
 
-// Helper: Busca todos os PIX de um cliente/unidade específica
-async function getPixByClienteUnidade(sheets, implantacao, cliente, unidade) {
+// Helper: Busca todos os PIX de um cliente/unidade específica usando Supabase
+async function getPixByClienteUnidade(_sheets, implantacao, cliente, unidade) {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_PIX,
-      range: `'${implantacao}'!A:G`,
-    });
+    let query = supabase.from('historico_pix').select('id, implantacao_id, implantacao_nome, cliente, unidade, identificador, payload_emv, valor, status_pagamento, data_criacao, data_pagamento, created_at').order('created_at', { ascending: false });
 
-    const rows = response.data.values || [];
-    const pixList = [];
-
-    // Pula o cabeçalho (linha 1)
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const matchCliente = row[1] === cliente;
-      const matchUnidade = unidade ? row[2] === unidade : true;
-
-      if (matchCliente && matchUnidade) {
-        pixList.push({
-          rowIndex: i + 1, // +1 porque sheets é 1-indexed
-          dataHora: row[0] || "",
-          cliente: row[1] || "",
-          unidade: row[2] || "",
-          identificador: row[3] || "",
-          payloadEmv: row[4] || "",
-          valor: parseFloat(row[5]) || 0,
-          statusPagamento: row[6] || "PENDENTE",
-        });
-      }
+    if (implantacao) {
+      query = query.eq('implantacao_nome', implantacao);
     }
+    if (cliente) {
+      query = query.eq('cliente', cliente);
+    }
+    if (unidade) {
+      query = query.eq('unidade', unidade);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[PIX] Erro ao consultar historico_pix:', error);
+      return [];
+    }
+
+    // Map to previous expected shape
+    const pixList = (data || []).map((r) => ({
+      id: r.id,
+      implantacao_id: r.implantacao_id,
+      implantacao_nome: r.implantacao_nome,
+      cliente: r.cliente,
+      unidade: r.unidade,
+      identificador: r.identificador,
+      payloadEmv: r.payload_emv,
+      valor: Number(r.valor) || 0,
+      statusPagamento: r.status_pagamento || 'PENDENTE',
+      dataHora: r.data_criacao || r.created_at || null,
+      data_pagamento: r.data_pagamento || null,
+    }));
 
     return pixList;
   } catch (error) {
-    console.error("Erro ao buscar PIX:", error);
+    console.error('[PIX] Exceção ao buscar historico_pix:', error);
     return [];
   }
 }
@@ -4496,11 +4533,9 @@ app.post("/api/pix/create", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient();
-
-    // Adiciona o PIX na planilha
+    // Insere o PIX na tabela historico_pix do Supabase
     await addPixToSheet(
-      sheets,
+      null,
       implantacao,
       cliente,
       unidade,
@@ -4529,9 +4564,8 @@ app.get("/api/pix/list", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient();
     const pixList = await getPixByClienteUnidade(
-      sheets,
+      null,
       implantacao,
       cliente,
       unidade
@@ -4668,18 +4702,15 @@ app.get("/api/pix/pending", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient();
     const pixList = await getPixByClienteUnidade(
-      sheets,
+      null,
       implantacao,
       cliente,
       unidade
     );
 
-    // Busca o último PIX pendente
-    const pendingPix = pixList
-      .filter((pix) => pix.statusPagamento?.toUpperCase() === "PENDENTE")
-      .sort((a, b) => b.rowIndex - a.rowIndex)[0]; // Pega o mais recente
+    // Busca o último PIX pendente (ordenado por data)
+    const pendingPix = pixList.find((pix) => (pix.statusPagamento || '').toUpperCase() === "PENDENTE");
 
     if (pendingPix) {
       res.json({
@@ -4709,39 +4740,24 @@ app.post("/api/pix/transfer", verifyToken, async (req, res) => {
   }
 
   try {
-    const sheets = await getSheetsClient();
+    // Atualiza historico_pix no Supabase: troca unidade nas entradas correspondentes
+    const { data: updated, error } = await supabase
+      .from('historico_pix')
+      .update({ unidade: unidadeNova })
+      .eq('implantacao_nome', implantacao)
+      .eq('cliente', cliente)
+      .eq('unidade', unidadeAntiga)
+      .select();
 
-    // Busca todos os PIX da unidade antiga
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_PIX,
-      range: `'${implantacao}'!A:G`,
-    });
-
-    const rows = response.data.values || [];
-    const updates = [];
-
-    // Atualiza todas as linhas que correspondem ao cliente e unidade antiga
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (row[1] === cliente && row[2] === unidadeAntiga) {
-        updates.push({
-          range: `'${implantacao}'!C${i + 1}`, // Coluna C (Unidade)
-          values: [[unidadeNova]],
-        });
-      }
-    }
-
-    if (updates.length > 0) {
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: SPREADSHEET_ID_PIX,
-        resource: { data: updates, valueInputOption: "RAW" },
-      });
+    if (error) {
+      console.error('Erro ao transferir PIX no Supabase:', error);
+      return res.status(500).json({ error: 'Falha ao transferir PIX.' });
     }
 
     res.json({
       success: true,
-      message: `${updates.length} PIX(s) transferidos com sucesso.`,
-      pixTransferidos: updates.length,
+      message: `${(updated || []).length} PIX(s) transferidos com sucesso.`,
+      pixTransferidos: (updated || []).length,
     });
   } catch (error) {
     console.error("Erro ao transferir PIX:", error);
@@ -4780,41 +4796,31 @@ app.post("/api/pix/update-status", verifyToken, async (req, res) => {
       return res.status(500).json({ error: 'Erro ao atualizar no Supabase', details: supabaseError.message });
     }
 
-    // 2. Atualiza no Google Sheets (se existir)
+    // 2. Broadcast via SSE para notificar frontends conectados sobre mudança de status
     try {
-      const sheets = await getSheetsClient();
-      const implantacao = pixData.implantacao_nome;
-      
-      if (implantacao && SPREADSHEET_ID_PIX) {
-        // Busca a linha do PIX na planilha
-        const response = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID_PIX,
-          range: `'${implantacao}'!A:G`,
-        });
+      const implantacao = pixData.implantacao_nome || null;
+      const unitName = pixData.unidade || null;
+      const payload = {
+        pagamento_id: pixData.id || null,
+        identificador: identificador,
+        pagamentos_status: status,
+        unitName: unitName,
+      };
 
-        const rows = response.data.values || [];
-        
-        // Encontra a linha com o identificador
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (row[3] === identificador) { // Coluna D = identificador
-            // Atualiza o status na coluna G
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: SPREADSHEET_ID_PIX,
-              range: `'${implantacao}'!G${i + 1}`,
-              valueInputOption: "RAW",
-              resource: {
-                values: [[status]],
-              },
-            });
-            
-            break;
+      if (implantacao) {
+        await broadcastEvent(implantacao, 'unitUpdated', payload);
+      } else {
+        // Broadcast to all implantacoes as fallback
+        for (const imp of Array.from(sseClients.keys())) {
+          try {
+            await broadcastEvent(imp, 'unitUpdated', payload);
+          } catch (e) {
+            /* ignore */
           }
         }
       }
-    } catch (sheetsError) {
-      console.warn('⚠️ Erro ao atualizar Google Sheets (continuando):', sheetsError.message);
-      // Não retorna erro, pois o Supabase foi atualizado com sucesso
+    } catch (bErr) {
+      console.warn('[PIX] falha ao broadcast de update-status via SSE:', bErr && bErr.message ? bErr.message : bErr);
     }
 
     res.json({
