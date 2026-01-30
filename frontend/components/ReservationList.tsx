@@ -204,7 +204,7 @@ export function ReservationList({
                   const isAvailable = normalizedStatus === "disponivel";
                   const isReserved = normalizedStatus === "reservada";
                   const isBlocked = normalizedStatus === "bloqueada";
-                  const paymentStatus = unitData[17]?.toUpperCase(); // Coluna R - Pagamento
+                  const paymentStatus = unitData[20]?.toUpperCase(); // Coluna U? - Pagamento (alinhado com SSE / merged[20])
                   const clientName = unitData[7] || "—"; // Coluna H - cliente
                   const brokerName = unitData[9] || "—"; // Coluna J - corretor
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia

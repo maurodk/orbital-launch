@@ -1039,11 +1039,13 @@ export function MainPage() {
     const unidade = unit[2]; // Coluna C - Nome da unidade
 
     try {
-      // Busca se existe PIX pendente
+      // Busca se existe PIX pendente — usa dados da própria unidade (cliente / id_pre_cadastro)
+      const clienteParam = (unit[7] || "").toString(); // Coluna H - cliente
+      const idPreCadastroParam = (unit[6] || "").toString(); // Coluna G - id_pre_cadastro
       const response = await axios.get(
         `${apiUrl}/api/pix/pending?implantacao=${encodeURIComponent(
           implantacao
-        )}&cliente=${encodeURIComponent(cliente)}&unidade=${encodeURIComponent(
+        )}&cliente=${encodeURIComponent(clienteParam)}&id_pre_cadastro=${encodeURIComponent(idPreCadastroParam)}&unidade=${encodeURIComponent(
           unidade
         )}`,
         {
@@ -1093,12 +1095,12 @@ export function MainPage() {
     if (option === "pending") {
       // Busca dados do PIX pendente e abre PixModal em modo visualização
       try {
+        const clienteParam = (unit[7] || "").toString(); // Coluna H - cliente
+        const idPreCadastroParam = (unit[6] || "").toString(); // Coluna G - id_pre_cadastro
         const response = await axios.get(
           `${apiUrl}/api/pix/pending?implantacao=${encodeURIComponent(
             implantacao
-          )}&cliente=${encodeURIComponent(
-            cliente
-          )}&unidade=${encodeURIComponent(unidade)}`,
+          )}&cliente=${encodeURIComponent(clienteParam)}&id_pre_cadastro=${encodeURIComponent(idPreCadastroParam)}&unidade=${encodeURIComponent(unidade)}`,
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
