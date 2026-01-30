@@ -65,13 +65,14 @@ export function FullscreenPage() {
   const [hideDisponivel, setHideDisponivel] = useState(
     localStorage.getItem("hide-disponivel") === "true"
   );
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [showCursor, setShowCursor] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [implantacaoId, setImplantacaoId] = useState<number | null>(null);
+
+  // Touch/pinch zoom state
+  const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
 
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
   const autoRefreshRef = useRef<number | null>(null);
@@ -371,56 +372,57 @@ export function FullscreenPage() {
     };
   }, []);
 
-  // Fullscreen detection
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isNowFullscreen = !!document.fullscreenElement;
-      setIsFullscreen(isNowFullscreen);
-      // Ocultar controles imediatamente ao entrar em fullscreen
-      // Mostrar controles ao sair do fullscreen
-      setShowControls(!isNowFullscreen);
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  // Mostrar/ocultar controles ao mover o mouse no modo fullscreen
+  // Mostrar/ocultar controles ao mover o mouse (funciona em qualquer modo)
   useEffect(() => {
     const handleMouseMove = () => {
-      if (!isFullscreen) return;
-
-      // Mostrar controles
+      // Mostrar controles e cursor
       setShowControls(true);
+      setShowCursor(true);
 
       // Limpar timeout anterior
       if (mouseTimeoutRef.current) {
         clearTimeout(mouseTimeoutRef.current);
       }
 
-      // Ocultar após 2 segundos sem movimento
+      // Ocultar após 3 segundos sem movimento
       mouseTimeoutRef.current = window.setTimeout(() => {
-        if (document.fullscreenElement) {
-          setShowControls(false);
-        }
-      }, 2000);
+        setShowControls(false);
+        setShowCursor(false);
+      }, 3000);
     };
 
-    if (isFullscreen) {
-      document.addEventListener("mousemove", handleMouseMove);
-      // Ocultar imediatamente ao entrar em fullscreen
+    // Mostrar controles ao tocar na tela (mobile)
+    const handleTouchStart = () => {
+      setShowControls(true);
+      setShowCursor(true);
+      
+      if (mouseTimeoutRef.current) {
+        clearTimeout(mouseTimeoutRef.current);
+      }
+      
+      mouseTimeoutRef.current = window.setTimeout(() => {
+        setShowControls(false);
+        setShowCursor(false);
+      }, 3000);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("touchstart", handleTouchStart);
+
+    // Iniciar com controles visíveis, depois esconder
+    mouseTimeoutRef.current = window.setTimeout(() => {
       setShowControls(false);
-    }
+      setShowCursor(false);
+    }, 3000);
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("touchstart", handleTouchStart);
       if (mouseTimeoutRef.current) {
         clearTimeout(mouseTimeoutRef.current);
       }
     };
-  }, [isFullscreen]);
+  }, []);
 
   // Save colors to localStorage
   useEffect(() => {
@@ -451,48 +453,47 @@ export function FullscreenPage() {
     }
   };
 
-  // Zoom handlers - clique esquerdo aumenta, clique direito diminui
-  const handleClick = (e: React.MouseEvent) => {
-    // Não aplicar zoom se clicar nos controles
-    if ((e.target as HTMLElement).closest('[data-controls]')) return;
-    
-    if (e.button === 0) {
-      // Clique esquerdo - aumenta zoom
-      setZoom((prev) => Math.min(prev + 0.05, 5));
-    }
-  };
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    // Clique direito - diminui zoom
-    setZoom((prev) => Math.max(prev - 0.05, 0.5));
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Iniciar pan com botão do meio ou se zoom > 1 com shift+clique
-    if (e.button === 1 || (zoom > 1 && e.shiftKey && e.button === 0)) {
-      e.preventDefault();
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
-      });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsPanning(false);
-  };
-
   const resetZoom = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  };
+
+  // Touch handlers for mobile pinch-to-zoom
+  const getTouchDistance = (touches: React.TouchList): number => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch start
+      e.preventDefault();
+      setLastTouchDistance(getTouchDistance(e.touches));
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastTouchDistance !== null) {
+      // Pinch zoom
+      e.preventDefault();
+      const newDistance = getTouchDistance(e.touches);
+      const scale = newDistance / lastTouchDistance;
+      
+      setZoom((prev) => {
+        const newZoom = prev * scale;
+        return Math.min(Math.max(newZoom, 0.5), 5);
+      });
+      
+      setLastTouchDistance(newDistance);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      setLastTouchDistance(null);
+    }
   };
 
   // Get status color
@@ -562,14 +563,21 @@ export function FullscreenPage() {
         backgroundColor: "#221f25",
         color: "#fff",
         height: "100vh",
-        overflow: "auto",
+        overflow: "hidden",
+        position: "relative",
       }}
     >
-      {/* Top Bar */}
+      {/* Top Bar - OVERLAY (não soma altura) */}
       <div
+        data-controls
         style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
           padding: "10px 16px",
-          background: "#0b0b0b",
+          background: "rgba(11, 11, 11, 0.9)",
+          backdropFilter: "blur(10px)",
           display: "flex",
           alignItems: "center",
           gap: 16,
@@ -578,6 +586,7 @@ export function FullscreenPage() {
           opacity: showControls ? 1 : 0,
           transform: showControls ? "translateY(0)" : "translateY(-100%)",
           pointerEvents: showControls ? "auto" : "none",
+          zIndex: 1000,
         }}
       >
         <img
@@ -671,26 +680,24 @@ export function FullscreenPage() {
         </button>
       </div>
 
-      {/* Floor Plan Wrapper */}
+      {/* Floor Plan Wrapper - agora ocupa 100vh sempre */}
       <div
         ref={wrapperRef}
         style={{
           position: "relative",
           width: "100%",
-          height: isFullscreen ? "100vh" : "calc(100vh - 51px)",
+          height: "100vh",
           overflow: zoom > 1 ? "auto" : "hidden",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "#000",
-          cursor: isPanning ? "grabbing" : "zoom-in",
+          cursor: showCursor ? "default" : "none",
+          touchAction: "none", // Desabilita gestos padrão do navegador para controle manual
         }}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         {currentImageUrl ? (
           <div
@@ -704,7 +711,7 @@ export function FullscreenPage() {
               alignItems: "center",
               transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
               transformOrigin: "center center",
-              transition: isPanning ? "none" : "transform 0.1s ease-out",
+              transition: "transform 0.1s ease-out",
             }}
           >
             <img
@@ -781,6 +788,7 @@ export function FullscreenPage() {
 
       {/* Dot Size Control */}
       <div
+        data-controls
         style={{
           position: "fixed",
           bottom: 20,
@@ -882,6 +890,7 @@ export function FullscreenPage() {
 
       {/* Color Control */}
       <div
+        data-controls
         style={{
           position: "fixed",
           bottom: 20,

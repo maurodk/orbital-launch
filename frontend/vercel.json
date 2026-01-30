@@ -2,13 +2,12 @@
   "rewrites": [
     {
       "source": "/fullscreen",
-      "destination": "/fullscreen.html"
+      "destination": "/index.html"
     },
     {
       "source": "/fullscreen-cvcrm",
-      "destination": "/fullscreen-cvcrm.html"
-    }
-    ,
+      "destination": "/index.html"
+    },
     {
       "source": "/diretoria",
       "destination": "/index.html"

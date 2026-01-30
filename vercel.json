@@ -8,11 +8,11 @@
     },
     {
       "source": "/fullscreen",
-      "destination": "/frontend/public/fullscreen.html"
+      "destination": "/frontend/index.html"
     },
     {
       "source": "/fullscreen-cvcrm",
-      "destination": "/frontend/public/fullscreen-cvcrm.html"
+      "destination": "/frontend/index.html"
     }
   ]
 }
