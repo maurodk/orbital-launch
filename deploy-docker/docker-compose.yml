@@ -31,7 +31,7 @@ services:
       - CVCRM_PASSWORD=${CVCRM_PASSWORD_1}
       - SCREENSHOT_DIR=/app/screenshots
       - CHROME_HEADLESS=true
-      - BACKEND_INTERNAL_URL=http://backend:3000
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
       - INTERNAL_NOTIFY_SECRET=${INTERNAL_NOTIFY_SECRET}
     env_file:
       - .env
@@ -53,7 +53,7 @@ services:
       - CVCRM_PASSWORD=${CVCRM_PASSWORD_2}
       - SCREENSHOT_DIR=/app/screenshots
       - CHROME_HEADLESS=true
-      - BACKEND_INTERNAL_URL=http://backend:3000
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
       - INTERNAL_NOTIFY_SECRET=${INTERNAL_NOTIFY_SECRET}
     env_file:
       - .env
