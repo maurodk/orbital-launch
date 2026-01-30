@@ -73,11 +73,12 @@ export function FullscreenPage() {
 
   // Touch/pinch zoom state
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [isPanningTouch, setIsPanningTouch] = useState(false);
 
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
   const autoRefreshRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const mouseTimeoutRef = useRef<number | null>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
   // Parse unidades to structured format
@@ -372,54 +373,37 @@ export function FullscreenPage() {
     };
   }, []);
 
-  // Mostrar/ocultar controles ao mover o mouse (funciona em qualquer modo)
+  // Toggle controles ao clicar/tocar na tela
+  const toggleControls = () => {
+    setShowControls(prev => !prev);
+  };
+
+  // Mostrar controles e cursor ao mover o mouse (para PC)
   useEffect(() => {
+    let mouseTimeout: number | null = null;
+    
     const handleMouseMove = () => {
-      // Mostrar controles e cursor
       setShowControls(true);
       setShowCursor(true);
-
+      
       // Limpar timeout anterior
-      if (mouseTimeoutRef.current) {
-        clearTimeout(mouseTimeoutRef.current);
+      if (mouseTimeout) {
+        clearTimeout(mouseTimeout);
       }
-
+      
       // Ocultar após 3 segundos sem movimento
-      mouseTimeoutRef.current = window.setTimeout(() => {
-        setShowControls(false);
-        setShowCursor(false);
-      }, 3000);
-    };
-
-    // Mostrar controles ao tocar na tela (mobile)
-    const handleTouchStart = () => {
-      setShowControls(true);
-      setShowCursor(true);
-      
-      if (mouseTimeoutRef.current) {
-        clearTimeout(mouseTimeoutRef.current);
-      }
-      
-      mouseTimeoutRef.current = window.setTimeout(() => {
+      mouseTimeout = window.setTimeout(() => {
         setShowControls(false);
         setShowCursor(false);
       }, 3000);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("touchstart", handleTouchStart);
-
-    // Iniciar com controles visíveis, depois esconder
-    mouseTimeoutRef.current = window.setTimeout(() => {
-      setShowControls(false);
-      setShowCursor(false);
-    }, 3000);
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("touchstart", handleTouchStart);
-      if (mouseTimeoutRef.current) {
-        clearTimeout(mouseTimeoutRef.current);
+      if (mouseTimeout) {
+        clearTimeout(mouseTimeout);
       }
     };
   }, []);
@@ -458,7 +442,7 @@ export function FullscreenPage() {
     setPan({ x: 0, y: 0 });
   };
 
-  // Touch handlers for mobile pinch-to-zoom
+  // Touch handlers for mobile pinch-to-zoom and pan
   const getTouchDistance = (touches: React.TouchList): number => {
     if (touches.length < 2) return 0;
     const dx = touches[0].clientX - touches[1].clientX;
@@ -467,10 +451,22 @@ export function FullscreenPage() {
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    // Prevenir comportamento apenas se não for clique nos controles
+    if ((e.target as HTMLElement).closest('[data-controls]')) return;
+
     if (e.touches.length === 2) {
       // Pinch start
       e.preventDefault();
       setLastTouchDistance(getTouchDistance(e.touches));
+      setIsPanningTouch(false);
+    } else if (e.touches.length === 1) {
+      // Touch simples - pode ser pan (se zoom > 1) ou toggle de controles
+      setTouchStartPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      
+      if (zoom > 1) {
+        // Se com zoom, preparar para pan
+        setIsPanningTouch(true);
+      }
     }
   };
 
@@ -487,12 +483,41 @@ export function FullscreenPage() {
       });
       
       setLastTouchDistance(newDistance);
+    } else if (e.touches.length === 1 && isPanningTouch && touchStartPos && zoom > 1) {
+      // Pan com um dedo (quando zoom > 1)
+      e.preventDefault();
+      const deltaX = e.touches[0].clientX - touchStartPos.x;
+      const deltaY = e.touches[0].clientY - touchStartPos.y;
+      
+      setPan(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY,
+      }));
+      
+      setTouchStartPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (e.touches.length < 2) {
       setLastTouchDistance(null);
+    }
+    
+    if (e.touches.length === 0) {
+      // Touch terminou - se não moveu muito, é um tap (toggle controles)
+      if (touchStartPos && !isPanningTouch) {
+        const touch = e.changedTouches[0];
+        const deltaX = Math.abs(touch.clientX - touchStartPos.x);
+        const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+        
+        // Se moveu menos de 10px, considerar como tap
+        if (deltaX < 10 && deltaY < 10) {
+          toggleControls();
+        }
+      }
+      
+      setIsPanningTouch(false);
+      setTouchStartPos(null);
     }
   };
 
@@ -556,17 +581,27 @@ export function FullscreenPage() {
   }
 
   return (
-    <div
-      style={{
-        margin: 0,
-        fontFamily: "Inter, system-ui, sans-serif",
-        backgroundColor: "#221f25",
-        color: "#fff",
-        height: "100vh",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
+    <>
+      {/* Meta tag para sugerir orientação landscape */}
+      <style>{`
+        @media screen and (max-width: 768px) {
+          body {
+            transform: rotate(0deg);
+          }
+        }
+      `}</style>
+      
+      <div
+        style={{
+          margin: 0,
+          fontFamily: "Inter, system-ui, sans-serif",
+          backgroundColor: "#221f25",
+          color: "#fff",
+          height: "100vh",
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
       {/* Top Bar - OVERLAY (não soma altura) */}
       <div
         data-controls
@@ -952,5 +987,6 @@ export function FullscreenPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -60,6 +60,7 @@ export function PixModal({
   const apiUrl =
     process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
+  const BOTMAKER_TOKEN = import.meta.env.VITE_BOTMAKER_TOKEN || "";
 
   useEffect(() => {
     if (!show) {
@@ -262,19 +263,28 @@ export function PixModal({
       // Chama a função onConfirm para salvar os dados no Supabase
       await onConfirm(valor, identificador, payloadEmv);
 
-      // NOVO: Dispara o webhook da Botmaker através do nosso backend
+      // NOVO: Dispara o webhook da Botmaker (API externa)
       try {
-        if (contatoCliente) {
-          await axios.post(`${apiUrl}/api/botmaker/trigger-intent`, {
-            nomeCliente: clienteNome || unitData?.[7] || "N/A",
-            nomeEmpreendimento: implantacaoNome,
-            unidade: unitData?.[2] || "N/A",
-            contatoCliente: contatoCliente, // Usa o valor do estado
-            identificadorPix: identificador,
-          });
+        if (contatoCliente && BOTMAKER_TOKEN) {
+          await axios.post(
+            `${apiUrl}/api/botmaker/trigger-intent`,
+            {
+              nomeCliente: clienteNome || unitData?.[7] || "N/A",
+              nomeEmpreendimento: implantacaoNome,
+              unidade: unitData?.[2] || "N/A",
+              contatoCliente: contatoCliente,
+              identificadorPix: identificador,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${BOTMAKER_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
         } else {
           console.warn(
-            "Webhook da Botmaker não disparado: Telefone do cliente não encontrado."
+            "Webhook da Botmaker não disparado: Telefone do cliente ou token não encontrado."
           );
         }
       } catch (botmakerError) {
