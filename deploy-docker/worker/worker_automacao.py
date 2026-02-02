@@ -851,9 +851,6 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
     # Se chegou aqui, todas as tentativas falharam
     logger.error("Todas as tentativas de editar primeira série falharam")
     return False
-        except:
-            pass
-        return False
 
 
 def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
