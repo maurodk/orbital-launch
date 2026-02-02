@@ -162,106 +162,176 @@ export function FullscreenPage() {
     return filtered;
   }, [parsedUnidades, activeLayer, implantacao]);
 
-  // Fetch data function - busca 100% do Supabase
-  const fetchData = useCallback(async () => {
+  // Fetch data function - busca 100% do Supabase com retry logic
+  const fetchData = useCallback(async (isRefresh = false) => {
     if (!implantacao) return;
 
-    try {
-      console.log("[Fullscreen] Buscando dados do Supabase para:", implantacao);
-      
-      // 1. Buscar implantação pelo nome ou sigla
-      // Busca todas as correspondências e pega a primeira (ordenado por nome para pegar TORRE 1 antes de TORRE 2)
-      const { data: implList, error: implError } = await supabase
-        .from("implantacoes")
-        .select("id, nome, imagem_url, imagem_url_adicional, dot_size, sigla")
-        .or(`sigla.ilike.${implantacao},nome.ilike.%${implantacao}%`)
-        .order("nome", { ascending: true });
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000;
 
-      if (implError || !implList || implList.length === 0) {
-        console.error("[Fullscreen] Implantação não encontrada:", implError);
-        setError("Implantação não encontrada");
-        setLoading(false);
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[Fullscreen] Tentativa ${attempt}/${MAX_RETRIES} - Buscando dados do Supabase para:`, implantacao);
+        
+        // 1. Buscar implantação pelo nome ou sigla
+        // Busca todas as correspondências e pega a primeira (ordenado por nome para pegar TORRE 1 antes de TORRE 2)
+        const { data: implList, error: implError } = await supabase
+          .from("implantacoes")
+          .select("id, nome, imagem_url, imagem_url_adicional, dot_size, sigla")
+          .or(`sigla.ilike.${implantacao},nome.ilike.%${implantacao}%`)
+          .order("nome", { ascending: true });
+
+        if (implError) {
+          console.error(`[Fullscreen] Erro ao buscar implantação (tentativa ${attempt}):`, implError);
+          throw implError;
+        }
+
+        if (!implList || implList.length === 0) {
+          console.error(`[Fullscreen] Implantação não encontrada (tentativa ${attempt})`);
+          // Se é refresh e já temos dados, não mostrar erro crítico
+          if (isRefresh && data) {
+            console.log("[Fullscreen] Mantendo dados existentes após erro de refresh");
+            setConnectionStatus("Erro ao atualizar (mantendo dados)");
+            return;
+          }
+          throw new Error("Implantação não encontrada no banco de dados");
+        }
+
+        // Se encontrou múltiplas, logar e pegar a primeira (TORRE 1 vem antes de TORRE 2 em ordem alfabética)
+        if (implList.length > 1) {
+          console.log("[Fullscreen] Múltiplas implantações encontradas:", implList.map(i => i.nome));
+        }
+        
+        const implData = implList[0];
+
+        console.log("[Fullscreen] Implantação encontrada:", implData.nome, "ID:", implData.id);
+        console.log("[Fullscreen] Imagem URL:", implData.imagem_url);
+        console.log("[Fullscreen] Imagem URL Adicional:", implData.imagem_url_adicional);
+        setImplantacaoId(implData.id);
+
+        // 2. Buscar todas as unidades dessa implantação
+        const { data: unidadesData, error: unidadesError } = await supabase
+          .from("unidades")
+          .select("*")
+          .eq("implantacao_id", implData.id)
+          .order("row_index", { ascending: true });
+
+        if (unidadesError) {
+          console.error(`[Fullscreen] Erro ao buscar unidades (tentativa ${attempt}):`, unidadesError);
+          throw unidadesError;
+        }
+
+        console.log("[Fullscreen] Unidades encontradas:", unidadesData?.length || 0);
+
+        // 3. Converter unidades do formato Supabase para o formato esperado (array de arrays)
+        const unidadesArray = (unidadesData || []).map((u) => [
+          u.etapa || "",                    // 0
+          u.bloco || "",                    // 1
+          u.nome_unidade || "",             // 2
+          u.area_privativa || "",           // 3
+          u.tipologia || "",                // 4
+          "",                               // 5 (vazio)
+          u.id_pre_cadastro || "",          // 6
+          u.cliente || "",                  // 7
+          u.documento || "",                // 8
+          u.corretor || "",                 // 9
+          u.imobiliaria || "",              // 10
+          u.situacao || "Disponível",       // 11
+          u.coord_x?.toString() || "",      // 12
+          u.coord_y?.toString() || "",      // 13
+          u.coord_x_ad?.toString() || "",   // 14
+          u.coord_y_ad?.toString() || "",   // 15
+          u.implantacao_ref || "",          // 16
+          "",                               // 17 (vazio)
+          u.simbolo || "",                  // 18
+        ]);
+
+        // 4. Montar objeto de dados no formato esperado
+        const newData: ImplantacaoData = {
+          unidades: unidadesArray,
+          imageUrl: implData.imagem_url || "",
+          imageUrlAdicional: implData.imagem_url_adicional || "",
+          dotSize: implData.dot_size || 16,
+          sigla: implData.sigla || "",
+          sheetTitle: implData.nome,
+        };
+
+        // 5. Salvar no cache local
+        try {
+          localStorage.setItem(`fullscreen-cache-${implantacao}`, JSON.stringify(newData));
+          localStorage.setItem(`fullscreen-cache-timestamp-${implantacao}`, Date.now().toString());
+        } catch (cacheErr) {
+          console.warn("[Fullscreen] Erro ao salvar cache:", cacheErr);
+        }
+
+        setData(newData);
+        
+        // Usar dotSize do localStorage se existir, senão usar o do Supabase
+        const savedDotSize = localStorage.getItem(`dot-size-${implantacao}`);
+        if (!savedDotSize) {
+          setDotSize(newData.dotSize);
+        }
+        
+        setLastUpdated(new Date());
+        setError(null);
+        setConnectionStatus("Conectado");
+        console.log("[Fullscreen] Dados carregados com sucesso do Supabase");
+        
+        // Sucesso - sair do loop de retry
+        if (setLoading) setLoading(false);
         return;
+        
+      } catch (err) {
+        console.error(`[Fullscreen] Erro na tentativa ${attempt}/${MAX_RETRIES}:`, err);
+        
+        // Se não é a última tentativa, aguardar antes de tentar novamente
+        if (attempt < MAX_RETRIES) {
+          console.log(`[Fullscreen] Aguardando ${RETRY_DELAY}ms antes da próxima tentativa...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          continue;
+        }
+        
+        // Última tentativa falhou
+        console.error("[Fullscreen] Todas as tentativas falharam");
+        
+        // Tentar carregar do cache local como fallback
+        try {
+          const cachedData = localStorage.getItem(`fullscreen-cache-${implantacao}`);
+          const cachedTimestamp = localStorage.getItem(`fullscreen-cache-timestamp-${implantacao}`);
+          
+          if (cachedData) {
+            const parsedCache = JSON.parse(cachedData);
+            setData(parsedCache);
+            
+            const cacheAge = cachedTimestamp ? Date.now() - parseInt(cachedTimestamp, 10) : 0;
+            const cacheAgeMinutes = Math.floor(cacheAge / 60000);
+            
+            console.log(`[Fullscreen] Usando dados do cache (${cacheAgeMinutes} minutos atrás)`);
+            setConnectionStatus(`Offline - Cache (${cacheAgeMinutes}min atrás)`);
+            setError(null);
+            
+            if (setLoading) setLoading(false);
+            return;
+          }
+        } catch (cacheErr) {
+          console.error("[Fullscreen] Erro ao carregar cache:", cacheErr);
+        }
+        
+        // Se é refresh e já temos dados, manter os dados existentes
+        if (isRefresh && data) {
+          console.log("[Fullscreen] Mantendo dados existentes após falha de refresh");
+          setConnectionStatus("Erro ao atualizar (mantendo dados)");
+          return;
+        }
+        
+        // Sem cache e sem dados anteriores - mostrar erro
+        setError("Não foi possível carregar os dados. Verifique sua conexão.");
+        setConnectionStatus("Desconectado");
+      } finally {
+        if (setLoading) setLoading(false);
       }
-
-      // Se encontrou múltiplas, logar e pegar a primeira (TORRE 1 vem antes de TORRE 2 em ordem alfabética)
-      if (implList.length > 1) {
-        console.log("[Fullscreen] Múltiplas implantações encontradas:", implList.map(i => i.nome));
-      }
-      
-      const implData = implList[0];
-
-      console.log("[Fullscreen] Implantação encontrada:", implData.nome, "ID:", implData.id);
-      console.log("[Fullscreen] Imagem URL:", implData.imagem_url);
-      console.log("[Fullscreen] Imagem URL Adicional:", implData.imagem_url_adicional);
-      setImplantacaoId(implData.id);
-
-      // 2. Buscar todas as unidades dessa implantação
-      const { data: unidadesData, error: unidadesError } = await supabase
-        .from("unidades")
-        .select("*")
-        .eq("implantacao_id", implData.id)
-        .order("row_index", { ascending: true });
-
-      if (unidadesError) {
-        console.error("[Fullscreen] Erro ao buscar unidades:", unidadesError);
-        throw unidadesError;
-      }
-
-      console.log("[Fullscreen] Unidades encontradas:", unidadesData?.length || 0);
-
-      // 3. Converter unidades do formato Supabase para o formato esperado (array de arrays)
-      const unidadesArray = (unidadesData || []).map((u) => [
-        u.etapa || "",                    // 0
-        u.bloco || "",                    // 1
-        u.nome_unidade || "",             // 2
-        u.area_privativa || "",           // 3
-        u.tipologia || "",                // 4
-        "",                               // 5 (vazio)
-        u.id_pre_cadastro || "",          // 6
-        u.cliente || "",                  // 7
-        u.documento || "",                // 8
-        u.corretor || "",                 // 9
-        u.imobiliaria || "",              // 10
-        u.situacao || "Disponível",       // 11
-        u.coord_x?.toString() || "",      // 12
-        u.coord_y?.toString() || "",      // 13
-        u.coord_x_ad?.toString() || "",   // 14
-        u.coord_y_ad?.toString() || "",   // 15
-        u.implantacao_ref || "",          // 16
-        "",                               // 17 (vazio)
-        u.simbolo || "",                  // 18
-      ]);
-
-      // 4. Montar objeto de dados no formato esperado
-      const newData: ImplantacaoData = {
-        unidades: unidadesArray,
-        imageUrl: implData.imagem_url || "",
-        imageUrlAdicional: implData.imagem_url_adicional || "",
-        dotSize: implData.dot_size || 16,
-        sigla: implData.sigla || "",
-        sheetTitle: implData.nome,
-      };
-
-      setData(newData);
-      
-      // Usar dotSize do localStorage se existir, senão usar o do Supabase
-      const savedDotSize = localStorage.getItem(`dot-size-${implantacao}`);
-      if (!savedDotSize) {
-        setDotSize(newData.dotSize);
-      }
-      
-      setLastUpdated(new Date());
-      setError(null);
-      console.log("[Fullscreen] Dados carregados com sucesso do Supabase");
-      
-    } catch (err) {
-      console.error("Erro ao buscar dados do Supabase:", err);
-      setError("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
     }
-  }, [implantacao]);
+  }, [implantacao, data]);
 
   // Supabase Realtime - Subscribe to unidades table
   useEffect(() => {
@@ -294,15 +364,15 @@ export function FullscreenPage() {
             const situacao = newRecord.situacao as string || "Disponível";
             console.log(`[Realtime] UPDATE - Unidade: ${nomeUnidade}, Status: ${situacao}`);
             
-            // Recarregar dados completos (mesmo comportamento do cron de 30s)
-            fetchData();
+            // Recarregar dados completos (isRefresh = true para não limpar em caso de erro)
+            fetchData(true);
             setConnectionStatus("Atualizado em tempo real");
           } else if (eventType === "INSERT" && newRecord) {
             console.log("[Realtime] INSERT - Nova unidade:", newRecord.nome_unidade);
-            fetchData();
+            fetchData(true);
           } else if (eventType === "DELETE" && oldRecord) {
             console.log("[Realtime] DELETE - Unidade removida:", oldRecord.nome_unidade);
-            fetchData();
+            fetchData(true);
           }
         }
       )
@@ -323,7 +393,7 @@ export function FullscreenPage() {
         supabase.removeChannel(realtimeChannelRef.current);
       }
     };
-  }, [implantacaoId]);
+  }, [implantacaoId, fetchData]);
 
   // Initial load
   useEffect(() => {
@@ -335,9 +405,10 @@ export function FullscreenPage() {
 
     fetchData();
 
-    // Auto-refresh every 30 seconds (fallback)
+    // Auto-refresh every 30 seconds (fallback) - usa isRefresh = true
     autoRefreshRef.current = window.setInterval(() => {
-      fetchData();
+      console.log("[Fullscreen] Auto-refresh (30s)");
+      fetchData(true);
     }, 30000);
 
     return () => {
@@ -676,7 +747,7 @@ export function FullscreenPage() {
 
         {/* Refresh Button */}
         <button
-          onClick={fetchData}
+          onClick={() => fetchData(true)}
           style={{
             background: "#333",
             border: "1px solid #555",

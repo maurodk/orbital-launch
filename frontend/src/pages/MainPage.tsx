@@ -54,12 +54,6 @@ const AWS_API_URL =
 // SEMPRE usa AWS (backend está na EC2)
 const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
-interface ApiResponse {
-  unidades: string[][];
-  clientes: string[][];
-  sheetNotFound?: boolean;
-  message?: string;
-}
 export interface AppConfig {
   implantacaoAtual?: string;
 }
@@ -435,23 +429,78 @@ export function MainPage() {
     if (!implantacaoName) return;
     setSwitching(true);
     try {
-      const response = await axios.get<ApiResponse>(
-        `${apiUrl}/api/data?implantacao=${encodeURIComponent(implantacaoName)}`
-      );
+      // Buscar implantação por nome para obter o ID
+      const { data: implantacaoData, error: implantacaoError } = await supabase
+        .from('implantacoes')
+        .select('id')
+        .eq('nome', implantacaoName)
+        .single();
 
-      // Verifica se a planilha existe
-      if (response.data.sheetNotFound) {
-        setUnidades([]);
-        setClientes([]);
-      } else {
-        // Unidades vêm do Google Sheets (tem header) → remove com .slice(1)
-        const unidadesData = response.data.unidades.slice(1) || [];
-        // Clientes vêm do Supabase (sem header) → NÃO remove primeiro elemento
-        const clientesData = response.data.clientes || [];
-        
-        setUnidades(unidadesData);
-        setClientes(clientesData);
+      if (implantacaoError || !implantacaoData) {
+        console.error('Erro ao buscar implantação:', implantacaoError);
+        setError(`Implantação "${implantacaoName}" não encontrada.`);
+        return;
       }
+
+      const implantacaoId = implantacaoData.id;
+
+      // Buscar unidades diretamente do Supabase
+      const { data: unidadesSupabase, error: unidadesError } = await supabase
+        .from('unidades')
+        .select('*')
+        .eq('implantacao_id', implantacaoId)
+        .order('row_index', { ascending: true });
+
+      if (unidadesError) {
+        console.error('Erro ao buscar unidades:', unidadesError);
+        setError(`Não foi possível carregar as unidades para "${implantacaoName}".`);
+        return;
+      }
+
+      // Buscar clientes diretamente do Supabase
+      const { data: clientesSupabase, error: clientesError } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('implantacao_id', implantacaoId);
+
+      if (clientesError) {
+        console.error('Erro ao buscar clientes:', clientesError);
+        // Não retorna erro aqui, apenas log, pois clientes não é crítico
+      }
+
+      // Converter unidades do formato Supabase para o formato array esperado pelo frontend
+      const unidadesData = (unidadesSupabase || []).map((u) => [
+        u.row_index?.toString() || "",       // [0] row_index
+        u.etapa || "",                       // [1] etapa
+        u.bloco || "",                       // [2] bloco
+        u.nome_unidade || "",                // [3] nome_unidade
+        u.area_privativa || "",              // [4] area_privativa
+        u.tipologia || "",                   // [5] tipologia
+        u.id_pre_cadastro || "",             // [6] id_pre_cadastro
+        u.cliente || "",                     // [7] cliente
+        u.documento || "",                   // [8] documento
+        u.corretor || "",                    // [9] corretor
+        u.imobiliaria || "",                 // [10] imobiliaria
+        u.situacao || "Disponível",          // [11] situacao
+        u.coord_x?.toString() || "",         // [12] coord_x
+        u.coord_y?.toString() || "",         // [13] coord_y
+        "",                                  // [14] placeholder
+        "",                                  // [15] placeholder
+        "",                                  // [16] implantacao_ref (pode ser preenchido se necessário)
+        "",                                  // [17] placeholder
+        "",                                  // [18] Simbolo (letra)
+      ]);
+
+      // Converter clientes do formato Supabase para o formato array esperado
+      const clientesData = (clientesSupabase || []).map((c) => [
+        c.nome || "",
+        c.documento || "",
+        c.corretor || "",
+        c.telefone || "",
+      ]);
+
+      setUnidades(unidadesData);
+      setClientes(clientesData);
     } catch (err) {
       console.error(`Erro ao carregar dados para ${implantacaoName}`, err);
       setError(`Não foi possível carregar os dados para "${implantacaoName}".`);
