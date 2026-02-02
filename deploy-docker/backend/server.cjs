@@ -4636,6 +4636,7 @@ app.get("/api/pix/list", verifyToken, async (req, res) => {
 // Endpoint: Dashboard Diretoria - agregados de reservas/pagamentos/unidades
 app.get("/api/diretoria", verifyToken, async (req, res) => {
   try {
+    // Buscar unidades para estatísticas gerais
     const { data: unidadesData, error: unidadesErr } = await supabase
       .from("unidades")
       .select("*");
@@ -4644,16 +4645,18 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       console.error("Erro ao buscar unidades:", unidadesErr);
     }
 
-    const { data: pagamentosData, error: pagamentosErr } = await supabase
-      .from("pagamentos")
-      .select("*");
+    // Buscar pagamentos válidos através da VIEW
+    const { data: pagamentosValidosData, error: viewErr } = await supabase
+      .from("view_diretoria_pagamentos")
+      .select("*")
+      .eq("pagamento_valido", true);
 
-    if (pagamentosErr) {
-      console.error("Erro ao buscar pagamentos:", pagamentosErr);
+    if (viewErr) {
+      console.error("Erro ao buscar view_diretoria_pagamentos:", viewErr);
     }
 
     const unidades = unidadesData || [];
-    const pagamentos = pagamentosData || [];
+    const pagamentosValidos = pagamentosValidosData || [];
 
     const toNumber = (v) => {
       if (v == null) return 0;
@@ -4675,48 +4678,45 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       }, {});
     };
 
-    const unidadesReservadasPorTipologia = countBy(reservedUnits, "tipologia");
-    const unidadesReservadasPorImobiliaria = countBy(reservedUnits, "imobiliaria");
-    const unidadesReservadasPorCorretor = countBy(reservedUnits, "corretor");
+    // Usar dados da VIEW que já tem join com unidades
+    const unidadesReservadasPorTipologia = countBy(pagamentosValidos, "tipologia");
+    const unidadesReservadasPorImobiliaria = countBy(pagamentosValidos, "imobiliaria");
+    const unidadesReservadasPorCorretor = countBy(pagamentosValidos, "corretor");
 
-    const pagamentosValidos = (pagamentos || []).filter((p) => {
-      const status = (p.status || "").toString().toLowerCase();
-      return status !== "cancelado" && status !== "canceled";
-    });
-
+    // Calcular totais apenas dos pagamentos válidos (já filtrados pela VIEW)
     const totalValorUnidadesReservadas = pagamentosValidos.reduce(
-      (s, p) => s + toNumber(p.valor_unidade || p.valorUnidade || p.valor_total || p.valorTotal),
+      (s, p) => s + toNumber(p.valor_unidade || p.valor_total),
       0
     );
 
     const totalPix = pagamentosValidos.reduce(
-      (s, p) => s + toNumber(p.valor_pix || p.valorPix || 0),
+      (s, p) => s + toNumber(p.valor_pix),
       0
     );
 
     const totalCartao = pagamentosValidos.reduce(
-      (s, p) => s + toNumber(p.valor_cartao || p.valorCartao || 0),
+      (s, p) => s + toNumber(p.valor_cartao),
       0
     );
 
     const totalDinheiro = pagamentosValidos.reduce(
-      (s, p) => s + toNumber(p.valor_dinheiro || p.valorDinheiro || 0),
+      (s, p) => s + toNumber(p.valor_dinheiro),
       0
     );
 
     const totalCheque = pagamentosValidos.reduce(
-      (s, p) => s + toNumber(p.valor_cheque || p.valorCheque || 0),
+      (s, p) => s + toNumber(p.valor_cheque),
       0
     );
 
     const quantidadeReservas = pagamentosValidos.length;
 
     const unidadesBloqueadas = (unidades || []).filter(
-      (u) => normalizeStatus(u.situacao || "") === "bloqueada"
+      (u) => (u.situacao || "").toString().trim() === "Bloqueada"
     ).length;
 
     const unidadesDisponiveis = (unidades || []).filter(
-      (u) => normalizeStatus(u.situacao || "") === "disponivel" || normalizeStatus(u.situacao || "") === "disponível"
+      (u) => (u.situacao || "").toString().trim() === "Disponível"
     ).length;
 
     res.json({
