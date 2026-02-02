@@ -1,6 +1,6 @@
 // src/pages/MainPage.tsx
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { useReactToPrint } from "react-to-print";
@@ -429,7 +429,7 @@ export function MainPage() {
       .map((item) => [item.data, item.originalIndex]);
   }, [unidades, searchTerm, statusFilter]);
 
-  const fetchUnitData = async (implantacaoName: string) => {
+  const fetchUnitData = useCallback(async (implantacaoName: string) => {
     if (!implantacaoName) return;
     setSwitching(true);
     try {
@@ -515,7 +515,7 @@ export function MainPage() {
     } finally {
       setSwitching(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -671,6 +671,7 @@ export function MainPage() {
     return () => {
       unsubscribe.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -990,30 +991,6 @@ export function MainPage() {
       es.addEventListener("unitsImported", handleUnitsImported);
       es.addEventListener("clientsImported", handleClientsImported);
     };
-
-    // Setup Supabase Realtime subscription for immediate updates
-    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
-    if (currentImplantation?.id) {
-      realtimeChannel = supabase
-        .channel(`mainpage-unidades-${currentImplantation.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'unidades',
-            filter: `implantacao_id=eq.${currentImplantation.id}`,
-          },
-          async (payload) => {
-            console.log('Realtime unidades change:', payload);
-            // Refresh unit data when any change occurs
-            await fetchUnitData(selectedImplantationName).catch((e) =>
-              console.error('Erro ao atualizar unidades via Realtime:', e)
-            );
-          }
-        )
-        .subscribe();
-    }
 
     // start SSE
     createEventSource();
