@@ -392,15 +392,19 @@ export function MainPage() {
           .replace(/[\u0300-\u036f]/g, "")
           .trim();
 
-        const unitName = data[2]?.toLowerCase() || "";           // C - nome_unidade
-        const blockName = data[3]?.toLowerCase() || "";          // D - bloco
-        const tipologia = data[4]?.toLowerCase() || "";          // E - tipologia
-        const clientName = (data[7] || "").toString().toLowerCase();  // H - cliente
-        const brokerName = (data[9] || "").toString().toLowerCase();  // J - corretor
-        const term = searchTerm
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "");
+        const normalize = (s: unknown) =>
+          String(s || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim();
+
+        const unitName = normalize(data[2]);           // C - nome_unidade
+        const blockName = normalize(data[3]);          // D - bloco
+        const tipologia = normalize(data[4]);          // E - tipologia
+        const clientName = normalize(data[7]);         // H - cliente
+        const brokerName = normalize(data[9]);         // J - corretor
+        const term = normalize(searchTerm);
 
         // Normaliza statusFilter para comparação
         const normalizedFilter =
@@ -674,6 +678,30 @@ export function MainPage() {
       currentImplantation?.sigla || gerarSigla(selectedImplantationName);
     if (!sigla) {
       return;
+    }
+
+    // Setup Supabase Realtime subscription for immediate updates
+    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+    if (currentImplantation?.id) {
+      realtimeChannel = supabase
+        .channel(`mainpage-unidades-${currentImplantation.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'unidades',
+            filter: `implantacao_id=eq.${currentImplantation.id}`,
+          },
+          async (payload) => {
+            console.log('Realtime unidades change:', payload);
+            // Refresh unit data when any change occurs
+            await fetchUnitData(selectedImplantationName).catch((e) =>
+              console.error('Erro ao atualizar unidades via Realtime:', e)
+            );
+          }
+        )
+        .subscribe();
     }
 
     // Intelligent SSE connection with backoff, network detection and polling-fallback.
@@ -963,6 +991,30 @@ export function MainPage() {
       es.addEventListener("clientsImported", handleClientsImported);
     };
 
+    // Setup Supabase Realtime subscription for immediate updates
+    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+    if (currentImplantation?.id) {
+      realtimeChannel = supabase
+        .channel(`mainpage-unidades-${currentImplantation.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'unidades',
+            filter: `implantacao_id=eq.${currentImplantation.id}`,
+          },
+          async (payload) => {
+            console.log('Realtime unidades change:', payload);
+            // Refresh unit data when any change occurs
+            await fetchUnitData(selectedImplantationName).catch((e) =>
+              console.error('Erro ao atualizar unidades via Realtime:', e)
+            );
+          }
+        )
+        .subscribe();
+    }
+
     // start SSE
     createEventSource();
 
@@ -992,8 +1044,13 @@ export function MainPage() {
       } catch (_e) {
         void 0;
       }
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel).catch((e) =>
+          console.error('Erro ao remover canal Realtime:', e)
+        );
+      }
     };
-  }, [selectedImplantationName, currentImplantation]);
+  }, [selectedImplantationName, currentImplantation, fetchUnitData]);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
