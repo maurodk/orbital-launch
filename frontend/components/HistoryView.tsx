@@ -111,9 +111,19 @@ export function HistoryView({ history }: HistoryViewProps) {
         .history-table tbody td { padding:10px 8px; border-top:1px solid rgba(255,255,255,0.03); color:#e6e6e6; font-size:14px; }
 
         .action-pill { display:inline-block; padding:6px 12px; border-radius:999px; font-weight:700; font-size:0.85rem; color:#fff; background:#2a2a2a; }
-        .action-pill.action-reserva-processada-worker { background: linear-gradient(180deg,#16a34a,#15803d); }
-        .action-pill.action-erro-ao-processar-reserva-worker { background: linear-gradient(180deg,#ef4444,#dc2626); }
-        .action-pill.action-pagamento-registrado { background: linear-gradient(180deg,#f59e0b,#d97706); }
+        .action-pill.action-reserva-processada-worker { background: linear-gradient(180deg,#16a34a,#15803d); box-shadow: 0 2px 8px rgba(22,163,74,0.3); }
+        .action-pill.action-erro-ao-processar-reserva-worker { background: linear-gradient(180deg,#ef4444,#dc2626); box-shadow: 0 2px 8px rgba(239,68,68,0.4); animation: pulse-error 2s infinite; }
+        .action-pill.action-pagamento-registrado { background: linear-gradient(180deg,#f59e0b,#d97706); box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
+        .action-pill.action-reserva-criada { background: linear-gradient(180deg,#10b981,#059669); }
+        .action-pill.action-reserva-cancelada { background: linear-gradient(180deg,#f43f5e,#e11d48); }
+        .action-pill.action-unidade-bloqueada { background: linear-gradient(180deg,#f97316,#ea580c); }
+        .action-pill.action-unidade-desbloqueada { background: linear-gradient(180deg,#14b8a6,#0d9488); }
+        .action-pill.action-troca-de-unidade { background: linear-gradient(180deg,#3b82f6,#2563eb); }
+        
+        @keyframes pulse-error {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
 
         @media (max-width:640px) {
           .history-table thead { display:none; }

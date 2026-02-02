@@ -306,12 +306,48 @@ export function MainPage() {
   const fetchHistory = async (implantacaoName: string) => {
     if (!implantacaoName) return;
     try {
-      const response = await axios.get<string[][]>(
-        `${apiUrl}/api/history/${implantacaoName}`
-      );
-      setHistory(response.data || []);
+      // Buscar o ID da implantação pelo nome
+      const { data: implantacaoData, error: implantacaoError } = await supabase
+        .from("implantacoes")
+        .select("id")
+        .eq("nome", implantacaoName)
+        .single();
+
+      if (implantacaoError || !implantacaoData) {
+        console.error(`Erro ao buscar implantação ${implantacaoName}:`, implantacaoError);
+        setHistory([]);
+        return;
+      }
+
+      // Buscar histórico do Supabase
+      const { data: historicoData, error: historicoError } = await supabase
+        .from("historico")
+        .select("*")
+        .eq("implantacao_id", implantacaoData.id)
+        .order("timestamp_iso", { ascending: false });
+
+      if (historicoError) {
+        console.error(`Erro ao carregar histórico para ${implantacaoName}:`, historicoError);
+        setHistory([]);
+        return;
+      }
+
+      // Transformar os dados do Supabase para o formato esperado pelos componentes
+      // Formato esperado: [id, data_formatada, unidade_nome, acao, cliente, corretor, usuario, reserva_url]
+      const formattedHistory = (historicoData || []).map((item) => [
+        String(item.id), // Índice 0: ID
+        item.data_formatada || new Date(item.timestamp_iso).toLocaleString("pt-BR"), // Índice 1: Data formatada
+        item.unidade_nome || "", // Índice 2: Unidade
+        item.acao || "", // Índice 3: Ação
+        item.cliente || "", // Índice 4: Cliente
+        item.corretor || "", // Índice 5: Corretor
+        item.usuario || "", // Índice 6: Usuário
+        item.reserva_url || "", // Índice 7: URL da reserva
+      ]);
+
+      setHistory(formattedHistory);
     } catch (err) {
-      console.error(`Erro ao carregar histórico para ${implantacaoName}`, err);
+      console.error(`Erro ao carregar histórico para ${implantacaoName}:`, err);
       setHistory([]);
     }
   };
@@ -775,23 +811,48 @@ export function MainPage() {
         try {
           if (event && event.data) {
             const parsed = JSON.parse(event.data || "{}");
-            if (parsed && parsed.row && Array.isArray(parsed.row)) {
-              const newRow = parsed.row;
+            
+            // Se o SSE enviar um objeto do Supabase diretamente
+            if (parsed && parsed.historico) {
+              const item = parsed.historico;
+              const newRow = [
+                String(item.id),
+                item.data_formatada || new Date(item.timestamp_iso).toLocaleString("pt-BR"),
+                item.unidade_nome || "",
+                item.acao || "",
+                item.cliente || "",
+                item.corretor || "",
+                item.usuario || "",
+                item.reserva_url || "",
+              ];
+              
               setHistory((current) => {
-                // avoid duplicates: compare timestamp ISO of newest row
+                // Evita duplicatas comparando o ID
                 if (current.length > 0 && current[0] && current[0][0] === newRow[0]) {
                   return current;
                 }
                 return [newRow, ...current];
               });
-              return; // handled via SSE payload
+              return;
+            }
+            
+            // Formato antigo (array) - mantido para compatibilidade
+            if (parsed && parsed.row && Array.isArray(parsed.row)) {
+              const newRow = parsed.row;
+              setHistory((current) => {
+                if (current.length > 0 && current[0] && current[0][0] === newRow[0]) {
+                  return current;
+                }
+                return [newRow, ...current];
+              });
+              return;
             }
           }
         } catch (e) {
           console.error("Erro ao processar payload SSE historyUpdated:", e);
         }
 
-        // Fallback: fetch full history if SSE payload didn't include the row
+        // Fallback: buscar histórico completo se SSE não incluiu os dados
         fetchHistory(selectedImplantationName).catch((e) =>
           console.error("Erro ao recarregar histórico via SSE:", e)
         );
