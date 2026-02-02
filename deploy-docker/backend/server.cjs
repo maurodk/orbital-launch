@@ -576,7 +576,7 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
                 .limit(1)
                 .single();
               const implantacao_id = implData ? implData.id : null;
-              await supabase.from('historico').insert({
+              const { data: insertedHistorico, error: insertError } = await supabase.from('historico').insert({
                 timestamp_iso: new Date().toISOString(),
                 data_formatada: null,
                 unidade_nome: unidade || null,
@@ -585,11 +585,21 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
                 corretor: corretorName || null,
                 implantacao_id: implantacao_id,
                 reserva_url: reserva_url || null,
-              });
+                usuario: 'Worker',
+              }).select();
+              
+              if (insertError) {
+                console.error('[INTERNAL] Erro ao inserir histórico:', insertError);
+              }
+              
               // Build a compatible history row for immediate SSE update
               const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-              const dataFormatada = `'${now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })} às ${now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-              const historyRow = [now.toISOString(), dataFormatada, unidade || null, acao, clienteName || "N/A", corretorName || "N/A", "Worker", reserva_url || ""];
+              const dataFormatada = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) + ' às ' + now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+              
+              // Use the inserted ID if available, otherwise use timestamp as temporary ID
+              const historicoId = (insertedHistorico && insertedHistorico[0] && insertedHistorico[0].id) ? String(insertedHistorico[0].id) : now.toISOString();
+              
+              const historyRow = [historicoId, dataFormatada, unidade || null, acao, clienteName || "N/A", corretorName || "N/A", "Worker", reserva_url || ""];
               // notify clients about history update and include the row
               // Attempt to include rowIndex for better frontend updates (best-effort)
               try {
@@ -623,7 +633,7 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       } else {
         // If we couldn't infer implantacao, write to Supabase historico without implantacao_id
         try {
-          await supabase.from('historico').insert({
+          const { data: insertedHistorico, error: insertError } = await supabase.from('historico').insert({
             timestamp_iso: new Date().toISOString(),
             data_formatada: null,
             unidade_nome: unidade || null,
@@ -631,12 +641,22 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
             cliente: clienteName || null,
             corretor: corretorName || null,
             reserva_url: reserva_url || null,
-          });
+            usuario: 'Worker',
+          }).select();
+          
+          if (insertError) {
+            console.error('[INTERNAL] Erro ao inserir histórico sem implantação:', insertError);
+          }
+          
           // Broadcast to all connected clients so they can refresh histories generically
           // Include a constructed history row so clients can update immediately
           const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-          const dataFormatada = `'${now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })} às ${now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-          const historyRow = [now.toISOString(), dataFormatada, unidade || null, acao, clienteName || "N/A", corretorName || "N/A", "Worker", reserva_url || ""];
+          const dataFormatada = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) + ' às ' + now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          
+          // Use the inserted ID if available, otherwise use timestamp as temporary ID
+          const historicoId = (insertedHistorico && insertedHistorico[0] && insertedHistorico[0].id) ? String(insertedHistorico[0].id) : now.toISOString();
+          
+          const historyRow = [historicoId, dataFormatada, unidade || null, acao, clienteName || "N/A", corretorName || "N/A", "Worker", reserva_url || ""];
           for (const imp of Array.from(sseClients.keys())) {
             try {
               try {

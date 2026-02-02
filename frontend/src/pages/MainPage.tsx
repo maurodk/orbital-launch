@@ -812,6 +812,8 @@ export function MainPage() {
           if (event && event.data) {
             const parsed = JSON.parse(event.data || "{}");
             
+            console.log("[SSE historyUpdated] Payload recebido:", parsed);
+            
             // Se o SSE enviar um objeto do Supabase diretamente
             if (parsed && parsed.historico) {
               const item = parsed.historico;
@@ -826,6 +828,8 @@ export function MainPage() {
                 item.reserva_url || "",
               ];
               
+              console.log("[SSE historyUpdated] Adicionando row (formato objeto):", newRow);
+              
               setHistory((current) => {
                 // Evita duplicatas comparando o ID
                 if (current.length > 0 && current[0] && current[0][0] === newRow[0]) {
@@ -839,6 +843,9 @@ export function MainPage() {
             // Formato antigo (array) - mantido para compatibilidade
             if (parsed && parsed.row && Array.isArray(parsed.row)) {
               const newRow = parsed.row;
+              
+              console.log("[SSE historyUpdated] Adicionando row (formato array):", newRow);
+              
               setHistory((current) => {
                 if (current.length > 0 && current[0] && current[0][0] === newRow[0]) {
                   return current;
@@ -853,6 +860,7 @@ export function MainPage() {
         }
 
         // Fallback: buscar histórico completo se SSE não incluiu os dados
+        console.log("[SSE historyUpdated] Usando fallback - buscando histórico completo");
         fetchHistory(selectedImplantationName).catch((e) =>
           console.error("Erro ao recarregar histórico via SSE:", e)
         );
