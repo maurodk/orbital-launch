@@ -54,67 +54,8 @@ export function PixHistoryModal({
     setLoading(true);
     try {
       console.log("[PixHistoryModal] Props recebidas:", { cliente, unidade, implantacao });
-      
-      // RESOLUÇÃO DE NOME: Tenta buscar o cliente na tabela de clientes
-      let clienteNomeBusca = cliente;
-      
-      if (cliente) {
-        // Primeiro tenta buscar por id_pre_cadastro
-        let { data: clienteData, error: clientError } = await supabase
-          .from("clientes")
-          .select("nome, id_pre_cadastro")
-          .eq("id_pre_cadastro", cliente)
-          .limit(1);
 
-        // Se não encontrou por id_pre_cadastro, tenta buscar por nome
-        if ((!clienteData || clienteData.length === 0) && cliente) {
-          const { data: clienteDataByName, error: clientErrorByName } = await supabase
-            .from("clientes")
-            .select("nome, id_pre_cadastro")
-            .eq("nome", cliente)
-            .limit(1);
-          
-          console.log("[PixHistoryModal] Busca cliente por nome:", { 
-            buscado: cliente, 
-            resultado: clienteDataByName, 
-            erro: clientErrorByName 
-          });
-
-          if (clienteDataByName && clienteDataByName.length > 0) {
-            clienteData = clienteDataByName;
-            clientError = clientErrorByName;
-          }
-        }
-
-        console.log("[PixHistoryModal] Busca cliente final:", { 
-          buscado: cliente, 
-          resultado: clienteData, 
-          erro: clientError 
-        });
-
-        if (clientError) {
-           console.error("[PixHistoryModal] Erro ao buscar cliente:", clientError);
-        }
-
-        if (clienteData && clienteData.length > 0 && clienteData[0].nome) {
-          clienteNomeBusca = clienteData[0].nome;
-          setDisplayClientName(clienteNomeBusca);
-        }
-      }
-
-      console.log("[PixHistoryModal] Nome do cliente para busca:", clienteNomeBusca);
-
-      // Construir a query base - PRIMEIRO vamos buscar TODOS os PIX da implantação e unidade
-      // para ver o que realmente está gravado
-      const queryDebug = await supabase
-        .from("historico_pix")
-        .select("cliente, unidade, implantacao_nome")
-        .eq("implantacao_nome", implantacao)
-        .eq("unidade", unidade);
-      
-      console.log("[PixHistoryModal] DEBUG - Todos os PIX desta unidade:", queryDebug.data);
-
-      // Agora a query real com filtro de cliente
+      // Construir a query base - buscar TODOS os PIX da implantação e unidade
       let query = supabase
         .from("historico_pix")
         .select("*")
@@ -125,15 +66,14 @@ export function PixHistoryModal({
         query = query.eq("implantacao_nome", implantacao);
       }
       
-      // Filtro por cliente (obrigatório) - mostra TODOS os PIX feitos por este cliente
-      // Isso é crucial para quando o cliente trocar de unidade
-      if (clienteNomeBusca) {
-        query = query.eq("cliente", clienteNomeBusca);
+      // Filtro por unidade (obrigatório) - mostra TODOS os PIX feitos para esta unidade
+      if (unidade) {
+        query = query.eq("unidade", unidade);
       }
 
       console.log("[PixHistoryModal] Filtros aplicados:", { 
         implantacao, 
-        cliente: clienteNomeBusca 
+        unidade
       });
 
       const { data, error } = await query;
@@ -144,7 +84,7 @@ export function PixHistoryModal({
         registros: data 
       });
 
-      // Se encontramos dados e temos PIX, confirmar o nome do cliente do primeiro registro para exibir
+      // Atualiza o nome do cliente exibido com base no primeiro PIX encontrado
       if (data && data.length > 0 && data[0].cliente) {
         setDisplayClientName(data[0].cliente);
       }
