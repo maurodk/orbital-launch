@@ -53,6 +53,8 @@ export function PixHistoryModal({
   const fetchPixHistory = async () => {
     setLoading(true);
     try {
+      console.log("[PixHistoryModal] Props recebidas:", { cliente, unidade, implantacao });
+      
       // RESOLUÇÃO DE NOME: Se o cliente for um ID (ex: "1"), buscamos o nome real na tabela de clientes
       let clienteNomeBusca = cliente;
       
@@ -60,9 +62,15 @@ export function PixHistoryModal({
         // Tenta buscar por id_pre_cadastro para garantir que temos o nome correto
         const { data: clienteData, error: clientError } = await supabase
           .from("clientes")
-          .select("nome")
+          .select("nome, id_pre_cadastro")
           .eq("id_pre_cadastro", cliente)
           .limit(1);
+
+        console.log("[PixHistoryModal] Busca cliente por id_pre_cadastro:", { 
+          buscado: cliente, 
+          resultado: clienteData, 
+          erro: clientError 
+        });
 
         if (clientError) {
            console.error("[PixHistoryModal] Erro ao buscar cliente:", clientError);
@@ -73,6 +81,8 @@ export function PixHistoryModal({
           setDisplayClientName(clienteNomeBusca);
         }
       }
+
+      console.log("[PixHistoryModal] Nome do cliente para busca:", clienteNomeBusca);
 
       // Construir a query base
       let query = supabase
@@ -91,8 +101,18 @@ export function PixHistoryModal({
         query = query.eq("cliente", clienteNomeBusca);
       }
 
+      console.log("[PixHistoryModal] Filtros aplicados:", { 
+        implantacao, 
+        cliente: clienteNomeBusca 
+      });
+
       const { data, error } = await query;
       if (error) throw error;
+
+      console.log("[PixHistoryModal] Resultados da query:", { 
+        total: data?.length, 
+        registros: data 
+      });
 
       // Se encontramos dados e temos PIX, confirmar o nome do cliente do primeiro registro para exibir
       if (data && data.length > 0 && data[0].cliente) {
