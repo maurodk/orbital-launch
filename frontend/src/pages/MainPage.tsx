@@ -429,6 +429,20 @@ export function MainPage() {
       .map((item) => [item.data, item.originalIndex]);
   }, [unidades, searchTerm, statusFilter]);
 
+  // Array filtrado apenas com os dados das unidades para o FloorPlan
+  const filteredUnidadesForMap: string[][] = useMemo(() => {
+    return filteredUnidades.map(([data]) => data);
+  }, [filteredUnidades]);
+
+  // Mapa de índices filtrados para índices originais
+  const filteredIndexMap: Record<number, number> = useMemo(() => {
+    const map: Record<number, number> = {};
+    filteredUnidades.forEach(([, originalIndex], filteredIndex) => {
+      map[filteredIndex] = originalIndex;
+    });
+    return map;
+  }, [filteredUnidades]);
+
   const fetchUnitData = useCallback(async (implantacaoName: string) => {
     if (!implantacaoName) return;
     setSwitching(true);
@@ -1172,6 +1186,14 @@ export function MainPage() {
       setIsCancelModalOpen(true);
     } else if (normalizedStatus === "bloqueada") {
       setBlockModalState({ isOpen: true, isBlocking: false, apiError: "" });
+    }
+  };
+
+  // Handler para FloorPlan que converte índice filtrado para índice original
+  const handleFloorPlanUnitClick = (filteredIndex: number) => {
+    const originalIndex = filteredIndexMap[filteredIndex];
+    if (typeof originalIndex === 'number') {
+      handleUnitClick(originalIndex);
     }
   };
 
@@ -2450,10 +2472,10 @@ export function MainPage() {
                         );
                       })()
                     }
-                    unidades={unidades}
+                    unidades={filteredUnidadesForMap}
                     isMappingMode={isMappingMode}
                     unitToMapIndex={unitToMapIndex}
-                    onUnitClick={handleUnitClick}
+                    onUnitClick={handleFloorPlanUnitClick}
                     onMapClick={handleMapClickAndSaveCoords}
                     dotSize={dotSize}
                     hideAvailable={hideAvailable}
