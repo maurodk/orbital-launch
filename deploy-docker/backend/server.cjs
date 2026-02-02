@@ -3847,7 +3847,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
                     // enqueue job
                     try {
                       const jobPayload = { pagamento_id: newPag.id, implantacao: sheetTitle, timestamp: Date.now() };
-                      await redis.lpush('fila_reservas', JSON.stringify(jobPayload));
+                      await redis.rpush('fila_reservas', JSON.stringify(jobPayload));
                       console.log(`[API] Transfer job enqueued for pagamento ${newPag.id}`);
                     } catch (e) {
                       console.warn('[API] Falha ao enfileirar job de transferência:', e && e.message ? e.message : e);
@@ -5393,7 +5393,7 @@ app.post("/api/add-payment", verifyToken, async (req, res) => {
             timestamp: Date.now()
         };
         
-        await redis.lpush("fila_reservas", JSON.stringify(jobPayload));
+        await redis.rpush("fila_reservas", JSON.stringify(jobPayload));
         console.log(`[API] Job de pagamento ${pagamentoInserido.id} enviado para a fila Redis.`);
     }
 
