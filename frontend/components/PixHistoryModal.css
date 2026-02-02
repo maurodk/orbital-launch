@@ -113,6 +113,12 @@
   border: 1px solid #ffa726;
 }
 
+.status-badge.expired {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+  border: 1px solid #f44336;
+}
+
 .pix-record-body {
   display: flex;
   flex-direction: column;

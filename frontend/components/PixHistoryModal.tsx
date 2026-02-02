@@ -39,6 +39,9 @@ export function PixHistoryModal({
   const [loading, setLoading] = useState(false);
   const [valorTotal, setValorTotal] = useState(0);
   const [numeroParcelas, setNumeroParcelas] = useState(0);
+  const [pixPagos, setPixPagos] = useState(0);
+  const [pixPendentes, setPixPendentes] = useState(0);
+  const [pixExpirados, setPixExpirados] = useState(0);
   const [displayClientName, setDisplayClientName] = useState(cliente);
 
   // Atualiza o nome exibido quando a prop muda
@@ -82,15 +85,16 @@ export function PixHistoryModal({
         query = query.eq("implantacao_nome", implantacao);
       }
       
-      // Filtro por unidade (obrigatório) - mostra TODOS os PIX daquela unidade
-      if (unidade) {
-        query = query.eq("unidade", unidade);
+      // Filtro por cliente (obrigatório) - mostra TODOS os PIX feitos por este cliente
+      // Isso é crucial para quando o cliente trocar de unidade
+      if (clienteNomeBusca) {
+        query = query.eq("cliente", clienteNomeBusca);
       }
 
       const { data, error } = await query;
       if (error) throw error;
 
-      // Se encontramos dados e temos PIX, usar o nome do cliente do primeiro registro para exibir
+      // Se encontramos dados e temos PIX, confirmar o nome do cliente do primeiro registro para exibir
       if (data && data.length > 0 && data[0].cliente) {
         setDisplayClientName(data[0].cliente);
       }
@@ -103,13 +107,18 @@ export function PixHistoryModal({
 
       setPixList(parsedData);
 
-      // Calcula totais apenas dos PIX pagos
-      const pixPagos = parsedData.filter((pix) => pix.status_pagamento?.toUpperCase() === "PAGO");
+      // Calcula totais e estatísticas por status
+      const pixPagosList = parsedData.filter((pix) => pix.status_pagamento?.toUpperCase() === "PAGO");
+      const pixPendentesList = parsedData.filter((pix) => pix.status_pagamento?.toUpperCase() === "PENDENTE");
+      const pixExpiradosList = parsedData.filter((pix) => pix.status_pagamento?.toUpperCase() === "EXPIRADO");
 
       setValorTotal(
-        pixPagos.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0)
+        pixPagosList.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0)
       );
-      setNumeroParcelas(pixPagos.length);
+      setNumeroParcelas(parsedData.length);
+      setPixPagos(pixPagosList.length);
+      setPixPendentes(pixPendentesList.length);
+      setPixExpirados(pixExpiradosList.length);
     } catch (error) {
       console.error("Erro ao buscar histórico PIX:", error);
     } finally {
@@ -140,6 +149,9 @@ export function PixHistoryModal({
     if (normalized === "PAGO") {
       return <span className="status-badge paid">✓ PAGO</span>;
     }
+    if (normalized === "EXPIRADO") {
+      return <span className="status-badge expired">✕ EXPIRADO</span>;
+    }
     return <span className="status-badge pending">⏳ PENDENTE</span>;
   };
 
@@ -165,7 +177,19 @@ export function PixHistoryModal({
                 <span className="summary-value">{numeroParcelas}</span>
               </div>
               <div className="summary-item">
-                <span className="summary-label">Valor Total:</span>
+                <span className="summary-label">Pagos:</span>
+                <span className="summary-value" style={{color: "var(--accent-green)"}}>{pixPagos}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Pendentes:</span>
+                <span className="summary-value" style={{color: "#ffa726"}}>{pixPendentes}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Expirados:</span>
+                <span className="summary-value" style={{color: "#f44336"}}>{pixExpirados}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Valor Pago:</span>
                 <span className="summary-value total">
                   {formatCurrency(valorTotal)}
                 </span>
