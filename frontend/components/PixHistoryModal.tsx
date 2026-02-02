@@ -55,18 +55,38 @@ export function PixHistoryModal({
     try {
       console.log("[PixHistoryModal] Props recebidas:", { cliente, unidade, implantacao });
       
-      // RESOLUÇÃO DE NOME: Se o cliente for um ID (ex: "1"), buscamos o nome real na tabela de clientes
+      // RESOLUÇÃO DE NOME: Tenta buscar o cliente na tabela de clientes
       let clienteNomeBusca = cliente;
       
       if (cliente) {
-        // Tenta buscar por id_pre_cadastro para garantir que temos o nome correto
-        const { data: clienteData, error: clientError } = await supabase
+        // Primeiro tenta buscar por id_pre_cadastro
+        let { data: clienteData, error: clientError } = await supabase
           .from("clientes")
           .select("nome, id_pre_cadastro")
           .eq("id_pre_cadastro", cliente)
           .limit(1);
 
-        console.log("[PixHistoryModal] Busca cliente por id_pre_cadastro:", { 
+        // Se não encontrou por id_pre_cadastro, tenta buscar por nome
+        if ((!clienteData || clienteData.length === 0) && cliente) {
+          const { data: clienteDataByName, error: clientErrorByName } = await supabase
+            .from("clientes")
+            .select("nome, id_pre_cadastro")
+            .eq("nome", cliente)
+            .limit(1);
+          
+          console.log("[PixHistoryModal] Busca cliente por nome:", { 
+            buscado: cliente, 
+            resultado: clienteDataByName, 
+            erro: clientErrorByName 
+          });
+
+          if (clienteDataByName && clienteDataByName.length > 0) {
+            clienteData = clienteDataByName;
+            clientError = clientErrorByName;
+          }
+        }
+
+        console.log("[PixHistoryModal] Busca cliente final:", { 
           buscado: cliente, 
           resultado: clienteData, 
           erro: clientError 
@@ -84,7 +104,17 @@ export function PixHistoryModal({
 
       console.log("[PixHistoryModal] Nome do cliente para busca:", clienteNomeBusca);
 
-      // Construir a query base
+      // Construir a query base - PRIMEIRO vamos buscar TODOS os PIX da implantação e unidade
+      // para ver o que realmente está gravado
+      const queryDebug = await supabase
+        .from("historico_pix")
+        .select("cliente, unidade, implantacao_nome")
+        .eq("implantacao_nome", implantacao)
+        .eq("unidade", unidade);
+      
+      console.log("[PixHistoryModal] DEBUG - Todos os PIX desta unidade:", queryDebug.data);
+
+      // Agora a query real com filtro de cliente
       let query = supabase
         .from("historico_pix")
         .select("*")
