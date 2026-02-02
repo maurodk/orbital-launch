@@ -225,7 +225,7 @@ export function MainPage() {
 
   // Extrair implantacao e cliente do contexto atual
   const implantacao = selectedImplantationName;
-  const cliente = unidades.length > 0 ? unidades[0][1] || "" : ""; // Coluna B - cliente
+  const cliente = unidades.length > 0 ? unidades[0][7] || "" : ""; // Coluna H - cliente (primeiro registro)
 
   const reservationManager = useReservationManager(apiUrl);
 
@@ -469,26 +469,29 @@ export function MainPage() {
       }
 
       // Converter unidades do formato Supabase para o formato array esperado pelo frontend
+      // Mantém compatibilidade com estrutura de colunas do Google Sheets
       const unidadesData = (unidadesSupabase || []).map((u) => [
-        u.row_index?.toString() || "",       // [0] row_index
-        u.etapa || "",                       // [1] etapa
-        u.bloco || "",                       // [2] bloco
-        u.nome_unidade || "",                // [3] nome_unidade
-        u.area_privativa || "",              // [4] area_privativa
-        u.tipologia || "",                   // [5] tipologia
-        u.id_pre_cadastro || "",             // [6] id_pre_cadastro
-        u.cliente || "",                     // [7] cliente
-        u.documento || "",                   // [8] documento
-        u.corretor || "",                    // [9] corretor
-        u.imobiliaria || "",                 // [10] imobiliaria
-        u.situacao || "Disponível",          // [11] situacao
-        u.coord_x?.toString() || "",         // [12] coord_x
-        u.coord_y?.toString() || "",         // [13] coord_y
-        "",                                  // [14] placeholder
-        "",                                  // [15] placeholder
-        "",                                  // [16] implantacao_ref (pode ser preenchido se necessário)
-        "",                                  // [17] placeholder
-        "",                                  // [18] Simbolo (letra)
+        u.row_index?.toString() || "",       // [0] A - row_index
+        u.etapa || "",                       // [1] B - etapa
+        u.nome_unidade || "",                // [2] C - nome_unidade
+        u.bloco || "",                       // [3] D - bloco
+        u.tipologia || "",                   // [4] E - tipologia
+        u.area_privativa || "",              // [5] F - area_privativa
+        u.id_pre_cadastro || "",             // [6] G - id_pre_cadastro
+        u.cliente || "",                     // [7] H - cliente
+        u.documento || "",                   // [8] I - documento
+        u.corretor || "",                    // [9] J - corretor
+        u.imobiliaria || "",                 // [10] K - imobiliaria
+        u.situacao || "Disponível",          // [11] L - situacao
+        u.coord_x?.toString() || "",         // [12] M - coord_x
+        u.coord_y?.toString() || "",         // [13] N - coord_y
+        "",                                  // [14] O - placeholder
+        "",                                  // [15] P - placeholder
+        u.implantacao_ref || "",             // [16] Q - implantacao_ref
+        "",                                  // [17] R - placeholder
+        u.simbolo || "",                     // [18] S - simbolo (letra)
+        u.motivo || "",                      // [19] T - motivo
+        "",                                  // [20] U - pagamento (placeholder)
       ]);
 
       // Converter clientes do formato Supabase para o formato array esperado

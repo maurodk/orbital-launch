@@ -93,23 +93,23 @@ export function FullscreenPage() {
         : data.unidades;
 
     return rows.map((u) => ({
-      etapa: u[0] || "",
-      bloco: u[1] || "",
-      nome_unidade: u[2] || "",
-      area_privativa: u[3] || "",
-      tipologia: u[4] || "",
-      id_pre_cadastro: u[6] || "",
-      cliente: u[7] || "",
-      documento: u[8] || "",
-      corretor: u[9] || "",
-      imobiliaria: u[10] || "",
-      situacao: u[11] || "Disponível",
-      coord_x: u[12] || "",
-      coord_y: u[13] || "",
-      coord_x_ad: u[14] || "",
-      coord_y_ad: u[15] || "",
-      implantacao_ref: u[16] || "",
-      simbolo: u[18] || "",
+      etapa: u[1] || "",                   // B - etapa
+      bloco: u[3] || "",                   // D - bloco
+      nome_unidade: u[2] || "",            // C - nome_unidade
+      area_privativa: u[5] || "",          // F - area_privativa
+      tipologia: u[4] || "",               // E - tipologia
+      id_pre_cadastro: u[6] || "",         // G - id_pre_cadastro
+      cliente: u[7] || "",                 // H - cliente
+      documento: u[8] || "",               // I - documento
+      corretor: u[9] || "",                // J - corretor
+      imobiliaria: u[10] || "",            // K - imobiliaria
+      situacao: u[11] || "Disponível",     // L - situacao
+      coord_x: u[12] || "",                // M - coord_x
+      coord_y: u[13] || "",                // N - coord_y
+      coord_x_ad: u[14] || "",             // O - coord_x_ad
+      coord_y_ad: u[15] || "",             // P - coord_y_ad
+      implantacao_ref: u[16] || "",        // Q - implantacao_ref
+      simbolo: u[18] || "",                // S - simbolo
       raw: u,
     }));
   }, [data?.unidades]);
@@ -224,26 +224,28 @@ export function FullscreenPage() {
         console.log("[Fullscreen] Unidades encontradas:", unidadesData?.length || 0);
 
         // 3. Converter unidades do formato Supabase para o formato esperado (array de arrays)
+        // Mantém compatibilidade com estrutura de colunas do Google Sheets
         const unidadesArray = (unidadesData || []).map((u) => [
-          u.etapa || "",                    // 0
-          u.bloco || "",                    // 1
-          u.nome_unidade || "",             // 2
-          u.area_privativa || "",           // 3
-          u.tipologia || "",                // 4
-          "",                               // 5 (vazio)
-          u.id_pre_cadastro || "",          // 6
-          u.cliente || "",                  // 7
-          u.documento || "",                // 8
-          u.corretor || "",                 // 9
-          u.imobiliaria || "",              // 10
-          u.situacao || "Disponível",       // 11
-          u.coord_x?.toString() || "",      // 12
-          u.coord_y?.toString() || "",      // 13
-          u.coord_x_ad?.toString() || "",   // 14
-          u.coord_y_ad?.toString() || "",   // 15
-          u.implantacao_ref || "",          // 16
-          "",                               // 17 (vazio)
-          u.simbolo || "",                  // 18
+          u.row_index?.toString() || "",    // 0  A - row_index
+          u.etapa || "",                    // 1  B - etapa
+          u.nome_unidade || "",             // 2  C - nome_unidade
+          u.bloco || "",                    // 3  D - bloco
+          u.tipologia || "",                // 4  E - tipologia
+          u.area_privativa || "",           // 5  F - area_privativa
+          u.id_pre_cadastro || "",          // 6  G - id_pre_cadastro
+          u.cliente || "",                  // 7  H - cliente
+          u.documento || "",                // 8  I - documento
+          u.corretor || "",                 // 9  J - corretor
+          u.imobiliaria || "",              // 10 K - imobiliaria
+          u.situacao || "Disponível",       // 11 L - situacao
+          u.coord_x?.toString() || "",      // 12 M - coord_x
+          u.coord_y?.toString() || "",      // 13 N - coord_y
+          u.coord_x_ad?.toString() || "",   // 14 O - coord_x_ad
+          u.coord_y_ad?.toString() || "",   // 15 P - coord_y_ad
+          u.implantacao_ref || "",          // 16 Q - implantacao_ref
+          "",                               // 17 R - placeholder
+          u.simbolo || "",                  // 18 S - simbolo
+          u.motivo || "",                   // 19 T - motivo
         ]);
 
         // 4. Montar objeto de dados no formato esperado
