@@ -4660,7 +4660,7 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
     const { data: todosOsPagamentosData, error: pagamentosErr } = await supabase
       .from("pagamentos")
       .select("*")
-      .eq("status", "PROCESSADO");
+      .eq("status", "processado");
 
     if (pagamentosErr) {
       console.error("Erro ao buscar pagamentos processados:", pagamentosErr);
