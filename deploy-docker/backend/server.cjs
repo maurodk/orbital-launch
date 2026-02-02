@@ -526,24 +526,36 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       }
 
       // Determine a action text more precisely:
-      // - If this notification is related to a pagamento (pagamento_id present),
-      //   use 'Pagamento Registrado' for successful processed payments.
-      // - Otherwise keep reservation-related wording.
+      // - If reserva_id is present and status is processado, it's a successful reservation by worker
+      // - If pagamento_id is present but no reserva_id, it's just a payment registration
+      // - Otherwise, it's an error
       let acao = 'Erro ao processar reserva (Worker)';
       try {
         const statusNorm = (status || '').toString().toLowerCase();
-        if (pagamento_id) {
+        
+        // Priority 1: Check if it's a successful reservation (has reserva_id)
+        if (reserva_id && (statusNorm === 'processado' || statusNorm === 'pago' || statusNorm === 'paid' || statusNorm === 'processed' || statusNorm === 'sucesso')) {
+          acao = 'Reserva processada (Worker)';
+        }
+        // Priority 2: Payment registration (no reserva_id but has pagamento_id)
+        else if (pagamento_id && !reserva_id) {
           if (statusNorm === 'processado' || statusNorm === 'pago' || statusNorm === 'paid') {
             acao = 'Pagamento Registrado';
           } else {
             acao = 'Erro ao registrar pagamento (Worker)';
           }
-        } else {
+        }
+        // Priority 3: General reservation processing (no pagamento_id)
+        else if (!pagamento_id) {
           if (statusNorm === 'processado' || statusNorm === 'processed' || statusNorm === 'sucesso') {
             acao = 'Reserva processada (Worker)';
           } else {
             acao = 'Erro ao processar reserva (Worker)';
           }
+        }
+        // Default: error
+        else {
+          acao = 'Erro ao processar reserva (Worker)';
         }
       } catch (e) {
         acao = status === 'processado' ? 'Reserva processada (Worker)' : 'Erro ao processar reserva (Worker)';
