@@ -196,7 +196,9 @@ export function ReservationList({
             </thead>
             <tbody>
               {unidades.length > 0 ? (
-                unidades.map(([unitData, originalIndex]) => {
+                <>
+                  {console.log('🔴 RENDERIZANDO', unidades.length, 'linhas no tbody')}
+                  {unidades.map(([unitData, originalIndex]) => {
                   // Normaliza status: remove acentos, lowercase, trim
                   const rawStatus = unitData[11] || "Disponível"; // Coluna L - situacao
                   const normalizedStatus = rawStatus
@@ -448,7 +450,8 @@ export function ReservationList({
                       </td>
                     </tr>
                   );
-                })
+                })}
+                </>
               ) : (
                 <tr>
                   <td colSpan={isSelectionMode ? 7 : 6} className="no-results-message">
