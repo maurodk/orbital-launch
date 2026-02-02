@@ -52,11 +52,9 @@ export function PixHistoryModal({
     try {
       // RESOLUÇÃO DE NOME: Se o cliente for um ID (ex: "1"), buscamos o nome real na tabela de clientes
       let clienteNomeBusca = cliente;
-      let clientResolved = false;
       
       if (cliente) {
         // Tenta buscar por id_pre_cadastro para garantir que temos o nome correto
-        // Usando .select() e .limit(1) ao invés de maybeSingle para evitar erros se houver duplicatas
         const { data: clienteData, error: clientError } = await supabase
           .from("clientes")
           .select("nome")
@@ -69,47 +67,32 @@ export function PixHistoryModal({
 
         if (clienteData && clienteData.length > 0 && clienteData[0].nome) {
           clienteNomeBusca = clienteData[0].nome;
-          clientResolved = true;
           setDisplayClientName(clienteNomeBusca);
         }
       }
 
+      // Construir a query base
       let query = supabase
         .from("historico_pix")
         .select("*")
         .order("data_criacao", { ascending: false });
 
-      // Lógica de filtro aprimorada:
-      // 1. Se o nome foi resolvido (ou se o cliente original já parecia um nome), filtra pelo nome.
-      // 2. Se o cliente parece um ID numérico e NÃO foi resolvido, ignoramos o filtro de cliente e usamos apenas a unidade (fallback).
-      // 3. Se o cliente não é numérico (é um nome), usamos ele.
-      
-      const isNumericId = /^\d+$/.test(cliente);
-      const shouldUseClientFilter = clientResolved || !isNumericId;
-
-      if (shouldUseClientFilter && clienteNomeBusca) {
-        query = query.eq("cliente", clienteNomeBusca);
-      }
+      // Filtro por implantação (obrigatório)
       if (implantacao) {
         query = query.eq("implantacao_nome", implantacao);
       }
       
-      // Se não estamos filtrando por cliente (porque falhou a resolução de ID),
-      // OU se temos a unidade e o filtro de cliente não foi aplicado (fallback), filtramos por unidade.
-      // Isso garante que se o ID do cliente não for encontrado, ao menos mostramos o histórico da unidade.
-      if (unidade && !shouldUseClientFilter) {
+      // Filtro por unidade (obrigatório) - mostra TODOS os PIX daquela unidade
+      if (unidade) {
         query = query.eq("unidade", unidade);
       }
 
       const { data, error } = await query;
       if (error) throw error;
 
-      // Se encontramos dados e o nome do cliente não foi resolvido (fallback),
-      // usamos o nome do cliente do primeiro registro encontrado para exibir na UI.
-      if (data && data.length > 0 && !clientResolved && isNumericId) {
-        if (data[0].cliente) {
-          setDisplayClientName(data[0].cliente);
-        }
+      // Se encontramos dados e temos PIX, usar o nome do cliente do primeiro registro para exibir
+      if (data && data.length > 0 && data[0].cliente) {
+        setDisplayClientName(data[0].cliente);
       }
 
       // Garante que valor é número
