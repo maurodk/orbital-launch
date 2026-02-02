@@ -577,7 +577,7 @@ export function MainPage() {
             if (!fullName) {
               setShowFullNameModal(true);
             }
-          } catch (_err) {
+          } catch {
             setShowFullNameModal(true);
           }
 
@@ -740,7 +740,7 @@ export function MainPage() {
       if (es) {
         try {
           es.close();
-        } catch (_e) {
+        } catch {
           void 0;
         }
       }
@@ -761,7 +761,7 @@ export function MainPage() {
       };
 
       // Error handler: try reconnection with exponential backoff, and use polling fallback
-      es.onerror = async (err) => {
+      es.onerror = async () => {
         // Silenciado: SSE erro/fechamento é normal em timeout/reconexão (ERR_HTTP2_PROTOCOL_ERROR)
 
         // If offline, wait for navigator to come back
@@ -985,7 +985,7 @@ export function MainPage() {
           );
           setUnidadesCount(countResponse.data.count || 0);
           setUnidadesConfigured(countResponse.data.configured || false);
-        } catch (_err) {
+        } catch {
           void 0;
         }
       };
@@ -1036,12 +1036,12 @@ export function MainPage() {
       try {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
-      } catch (_e) {
+      } catch {
         void 0;
       }
       try {
         if (es) es.close();
-      } catch (_e) {
+      } catch {
         void 0;
       }
       if (realtimeChannel) {
@@ -1839,7 +1839,7 @@ export function MainPage() {
       // implantacaoRef explicitly marks additional-layer mappings when needed
       const implantacaoRefValue = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : undefined;
 
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         rowIndex: sheetRowIndex,
         letra: unitLetter,
         implantacao: implantacaoForPayload,
