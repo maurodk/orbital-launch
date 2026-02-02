@@ -188,6 +188,7 @@ export function ReservationList({
             <colgroup>
               {isSelectionMode && <col style={{ width: 40 }} />}
               <col style={{ width: 220 }} />
+              <col style={{ width: 120 }} />
               <col style={{ width: 240 }} />
               <col style={{ width: 140 }} />
               <col style={{ width: 220 }} />
@@ -198,6 +199,7 @@ export function ReservationList({
               <tr>
                 {isSelectionMode && <th style={{ width: "40px" }}></th>}
                 <th>Unidade</th>
+                <th>Etapa</th>
                 <th>Tipologia</th>
                 <th>Status</th>
                 <th>Cliente</th>
@@ -338,6 +340,8 @@ export function ReservationList({
                         </div>
                       </td>
 
+                      <td className="etapa-cell">{unitData[1] || "—"}</td>
+
                       <td className="typology-cell">{tipologia}</td>
 
                       <td className="status-cell">
@@ -465,7 +469,7 @@ export function ReservationList({
                 </>
               ) : (
                 <tr>
-                  <td colSpan={isSelectionMode ? 7 : 6} className="no-results-message">
+                  <td colSpan={isSelectionMode ? 8 : 7} className="no-results-message">
                     Nenhuma unidade encontrada com os filtros aplicados.
                   </td>
                 </tr>
