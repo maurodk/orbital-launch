@@ -762,7 +762,7 @@ export function MainPage() {
 
       // Error handler: try reconnection with exponential backoff, and use polling fallback
       es.onerror = async (err) => {
-        console.warn("SSE erro/fechamento detectado:", err);
+        // Silenciado: SSE erro/fechamento é normal em timeout/reconexão (ERR_HTTP2_PROTOCOL_ERROR)
 
         // If offline, wait for navigator to come back
         if (typeof navigator !== "undefined" && !navigator.onLine) {
