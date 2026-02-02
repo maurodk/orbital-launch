@@ -4721,6 +4721,15 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       0
     );
 
+    // Debug: Log dos totais calculados
+    console.log("📊 TOTAIS POR FORMA DE PAGAMENTO:");
+    console.log(`  Total de pagamentos processados: ${todosOsPagamentos.length}`);
+    console.log(`  Total PIX: R$ ${totalPix}`);
+    console.log(`  Total Cartão: R$ ${totalCartao}`);
+    console.log(`  Total Dinheiro: R$ ${totalDinheiro}`);
+    console.log(`  Total Cheque: R$ ${totalCheque}`);
+    console.log(`  Amostra de pagamento:`, todosOsPagamentos[0]);
+
     // CORREÇÃO: Contar apenas unidades únicas com situação "Reservada", não quantidade de pagamentos
     const quantidadeReservas = reservedUnits.length;
 

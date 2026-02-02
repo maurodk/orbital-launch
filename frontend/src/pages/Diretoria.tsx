@@ -170,7 +170,7 @@ export function Diretoria() {
         <section className="panels-row">
           <div className="panel big">
             <h3 className="panel-title">Totais por forma de pagamento</h3>
-            <div className="panel-body payments">
+            <div className="panel-body payments" style={{ height: '350px', overflowY: 'auto' }}>
               <div className="donut">
                 <svg viewBox="0 0 42 42" className="donut-chart">
                   {(() => {
