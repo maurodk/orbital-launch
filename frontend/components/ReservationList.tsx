@@ -70,6 +70,17 @@ export function ReservationList({
   // DEBUG: Verificar quantas unidades estão sendo recebidas
   console.log('ReservationList recebeu:', unidades.length, 'unidades');
   console.log('Primeiras 3 unidades:', unidades.slice(0, 3).map(([data]) => data[2]));
+  
+  // DEBUG: Contar quantos tbody existem no DOM
+  setTimeout(() => {
+    const allTbody = document.querySelectorAll('tbody[data-reservation-list="true"]');
+    console.log('🟢 Total de <tbody> no DOM:', allTbody.length);
+    allTbody.forEach((tbody, index) => {
+      const count = tbody.getAttribute('data-count');
+      const rows = tbody.querySelectorAll('tr').length;
+      console.log(`  tbody[${index}] - data-count=${count}, linhas reais=${rows}`);
+    });
+  }, 100);
 
   // ReservationList: no debug logs — presentation only (history drives status visibility)
 
@@ -194,7 +205,7 @@ export function ReservationList({
                 <th>Ação</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody data-reservation-list="true" data-count={unidades.length}>
               {unidades.length > 0 ? (
                 <>
                   {console.log('🔴 RENDERIZANDO', unidades.length, 'linhas no tbody')}
