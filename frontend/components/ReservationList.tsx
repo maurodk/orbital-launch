@@ -67,6 +67,10 @@ export function ReservationList({
     null
   );
 
+  // DEBUG: Verificar quantas unidades estão sendo recebidas
+  console.log('ReservationList recebeu:', unidades.length, 'unidades');
+  console.log('Primeiras 3 unidades:', unidades.slice(0, 3).map(([data]) => data[2]));
+
   // ReservationList: no debug logs — presentation only (history drives status visibility)
 
   return (
