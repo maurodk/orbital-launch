@@ -4645,7 +4645,7 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       console.error("Erro ao buscar unidades:", unidadesErr);
     }
 
-    // Buscar pagamentos válidos através da VIEW
+    // Buscar pagamentos válidos através da VIEW (para valor total reservado)
     const { data: pagamentosValidosData, error: viewErr } = await supabase
       .from("view_diretoria_pagamentos")
       .select("*")
@@ -4655,8 +4655,19 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       console.error("Erro ao buscar view_diretoria_pagamentos:", viewErr);
     }
 
+    // Buscar TODOS os pagamentos processados para o donut chart
+    const { data: todosOsPagamentosData, error: pagamentosErr } = await supabase
+      .from("pagamentos")
+      .select("*")
+      .eq("pagamento_status", "PROCESSADO");
+
+    if (pagamentosErr) {
+      console.error("Erro ao buscar pagamentos processados:", pagamentosErr);
+    }
+
     const unidades = unidadesData || [];
     const pagamentosValidos = pagamentosValidosData || [];
+    const todosOsPagamentos = todosOsPagamentosData || [];
 
     const toNumber = (v) => {
       if (v == null) return 0;
@@ -4678,10 +4689,10 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       }, {});
     };
 
-    // Usar dados da VIEW que já tem join com unidades
-    const unidadesReservadasPorTipologia = countBy(pagamentosValidos, "tipologia");
-    const unidadesReservadasPorImobiliaria = countBy(pagamentosValidos, "imobiliaria");
-    const unidadesReservadasPorCorretor = countBy(pagamentosValidos, "corretor");
+    // CORREÇÃO: Contar baseado nas unidades reservadas, não nos pagamentos válidos
+    const unidadesReservadasPorTipologia = countBy(reservedUnits, "tipologia");
+    const unidadesReservadasPorImobiliaria = countBy(reservedUnits, "imobiliaria");
+    const unidadesReservadasPorCorretor = countBy(reservedUnits, "corretor");
 
     // Calcular totais apenas dos pagamentos válidos (já filtrados pela VIEW)
     const totalValorUnidadesReservadas = pagamentosValidos.reduce(
@@ -4689,22 +4700,23 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       0
     );
 
-    const totalPix = pagamentosValidos.reduce(
+    // CORREÇÃO: Calcular totais por forma de pagamento usando TODOS os pagamentos processados
+    const totalPix = todosOsPagamentos.reduce(
       (s, p) => s + toNumber(p.valor_pix),
       0
     );
 
-    const totalCartao = pagamentosValidos.reduce(
+    const totalCartao = todosOsPagamentos.reduce(
       (s, p) => s + toNumber(p.valor_cartao),
       0
     );
 
-    const totalDinheiro = pagamentosValidos.reduce(
+    const totalDinheiro = todosOsPagamentos.reduce(
       (s, p) => s + toNumber(p.valor_dinheiro),
       0
     );
 
-    const totalCheque = pagamentosValidos.reduce(
+    const totalCheque = todosOsPagamentos.reduce(
       (s, p) => s + toNumber(p.valor_cheque),
       0
     );
