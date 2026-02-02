@@ -80,6 +80,8 @@ export function FullscreenPage() {
   const autoRefreshRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const isFetchingRef = useRef<boolean>(false);  // Controle para evitar múltiplas chamadas simultâneas
+  const dataRef = useRef<ImplantacaoData | null>(null);  // Ref para acessar data atual sem causar re-render
 
   // Parse unidades to structured format
   const parsedUnidades = useMemo((): UnitData[] => {
@@ -162,10 +164,22 @@ export function FullscreenPage() {
     return filtered;
   }, [parsedUnidades, activeLayer, implantacao]);
 
+  // Atualizar ref quando data mudar
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
   // Fetch data function - busca 100% do Supabase com retry logic
   const fetchData = useCallback(async (isRefresh = false) => {
     if (!implantacao) return;
 
+    // Evitar múltiplas chamadas simultâneas
+    if (isFetchingRef.current) {
+      console.log("[Fullscreen] Fetch já em andamento, ignorando chamada duplicada");
+      return;
+    }
+
+    isFetchingRef.current = true;
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000;
 
@@ -189,9 +203,10 @@ export function FullscreenPage() {
         if (!implList || implList.length === 0) {
           console.error(`[Fullscreen] Implantação não encontrada (tentativa ${attempt})`);
           // Se é refresh e já temos dados, não mostrar erro crítico
-          if (isRefresh && data) {
+          if (isRefresh && dataRef.current) {
             console.log("[Fullscreen] Mantendo dados existentes após erro de refresh");
             setConnectionStatus("Erro ao atualizar (mantendo dados)");
+            isFetchingRef.current = false;
             return;
           }
           throw new Error("Implantação não encontrada no banco de dados");
@@ -281,6 +296,7 @@ export function FullscreenPage() {
         
         // Sucesso - sair do loop de retry
         if (setLoading) setLoading(false);
+        isFetchingRef.current = false;
         return;
         
       } catch (err) {
@@ -313,6 +329,7 @@ export function FullscreenPage() {
             setError(null);
             
             if (setLoading) setLoading(false);
+            isFetchingRef.current = false;
             return;
           }
         } catch (cacheErr) {
@@ -320,9 +337,10 @@ export function FullscreenPage() {
         }
         
         // Se é refresh e já temos dados, manter os dados existentes
-        if (isRefresh && data) {
+        if (isRefresh && dataRef.current) {
           console.log("[Fullscreen] Mantendo dados existentes após falha de refresh");
           setConnectionStatus("Erro ao atualizar (mantendo dados)");
+          isFetchingRef.current = false;
           return;
         }
         
@@ -331,9 +349,10 @@ export function FullscreenPage() {
         setConnectionStatus("Desconectado");
       } finally {
         if (setLoading) setLoading(false);
+        isFetchingRef.current = false;
       }
     }
-  }, [implantacao, data]);
+  }, [implantacao]);
 
   // Supabase Realtime - Subscribe to unidades table
   useEffect(() => {
@@ -395,7 +414,8 @@ export function FullscreenPage() {
         supabase.removeChannel(realtimeChannelRef.current);
       }
     };
-  }, [implantacaoId, fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [implantacaoId]);
 
   // Initial load
   useEffect(() => {
@@ -405,6 +425,7 @@ export function FullscreenPage() {
       return;
     }
 
+    // Fazer fetch inicial apenas uma vez
     fetchData();
 
     // Auto-refresh every 30 seconds (fallback) - usa isRefresh = true
@@ -418,7 +439,8 @@ export function FullscreenPage() {
         clearInterval(autoRefreshRef.current);
       }
     };
-  }, [implantacao, fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [implantacao]);
 
   // Ocultar barra de rolagem do navegador (mantendo funcionalidade do scroll)
   useEffect(() => {

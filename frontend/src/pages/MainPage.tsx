@@ -496,10 +496,11 @@ export function MainPage() {
 
       // Converter clientes do formato Supabase para o formato array esperado
       const clientesData = (clientesSupabase || []).map((c) => [
-        c.nome || "",
-        c.documento || "",
-        c.corretor || "",
-        c.telefone || "",
+        c.id || "",          // [0] ID
+        c.nome || "",        // [1] Nome
+        c.documento || "",   // [2] Documento (CPF/CNPJ)
+        c.corretor || "",    // [3] Corretor
+        c.telefone || "",    // [4] Telefone
       ]);
 
       setUnidades(unidadesData);
