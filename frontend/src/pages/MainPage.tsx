@@ -392,11 +392,11 @@ export function MainPage() {
           .replace(/[\u0300-\u036f]/g, "")
           .trim();
 
-        const unitName = data[2]?.toLowerCase() || "";
-        const blockName = data[1]?.toLowerCase() || "";
-        const tipologia = data[4]?.toLowerCase() || ""; // Coluna E - Tipologia
-        const clientName = data[6]?.toLowerCase() || "";
-        const brokerName = data[8]?.toLowerCase() || "";
+        const unitName = data[2]?.toLowerCase() || "";           // C - nome_unidade
+        const blockName = data[3]?.toLowerCase() || "";          // D - bloco
+        const tipologia = data[4]?.toLowerCase() || "";          // E - tipologia
+        const clientName = (data[7] || "").toString().toLowerCase();  // H - cliente
+        const brokerName = (data[9] || "").toString().toLowerCase();  // J - corretor
         const term = searchTerm
           .toLowerCase()
           .normalize("NFD")

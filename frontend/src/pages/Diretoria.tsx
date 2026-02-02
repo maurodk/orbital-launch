@@ -30,47 +30,86 @@ export function Diretoria() {
   const [searchImobiliaria, setSearchImobiliaria] = useState("");
   const [searchCorretor, setSearchCorretor] = useState("");
 
+  // Função para buscar dados
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      let token = null;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        token = session?.access_token || null;
+      } catch {
+        token = null;
+      }
+
+      const resp = await axios.get(`${apiUrl}/api/diretoria`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      setData((resp.data as DiretoriaData) || {});
+      setError(null);
+    } catch (err: unknown) {
+      console.error(err);
+      let message = "Erro ao carregar dados";
+      if (axios.isAxiosError(err)) {
+        message = err.response?.data?.error || err.message || message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      } else if (typeof err === "string") {
+        message = err;
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Carregamento inicial + Realtime subscriptions
   useEffect(() => {
     let mounted = true;
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // obtain current session access token and include in Authorization header
-        let token = null;
-        try {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-          token = session?.access_token || null;
-        } catch {
-          token = null;
+
+    // Fetch inicial
+    if (mounted) fetchData();
+
+    // Subscrever a mudanças em unidades (para detectar cancelamentos/reservas)
+    const unidadesChannel = supabase
+      .channel('diretoria-unidades')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'unidades',
+        },
+        () => {
+          console.log('[Diretoria] Unidade atualizada - recarregando dados');
+          if (mounted) fetchData();
         }
+      )
+      .subscribe();
 
-        const resp = await axios.get(`${apiUrl}/api/diretoria`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!mounted) return;
-        setData((resp.data as DiretoriaData) || {});
-      } catch (err: unknown) {
-          console.error(err);
-          let message = "Erro ao carregar dados";
-          if (axios.isAxiosError(err)) {
-            message = err.response?.data?.error || err.message || message;
-          } else if (err instanceof Error) {
-            message = err.message;
-          } else if (typeof err === "string") {
-            message = err;
-          }
-          setError(message);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchData();
+    // Subscrever a mudanças em pagamentos
+    const pagamentosChannel = supabase
+      .channel('diretoria-pagamentos')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pagamentos',
+        },
+        () => {
+          console.log('[Diretoria] Pagamento atualizado - recarregando dados');
+          if (mounted) fetchData();
+        }
+      )
+      .subscribe();
 
     return () => {
       mounted = false;
+      supabase.removeChannel(unidadesChannel);
+      supabase.removeChannel(pagamentosChannel);
     };
   }, []);
 

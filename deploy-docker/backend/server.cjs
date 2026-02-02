@@ -3317,6 +3317,18 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
               supabaseOk = false;
             } else {
               supabaseOk = true;
+              
+              // CORREÇÃO: Marcar pagamentos associados como cancelados
+              try {
+                await supabase
+                  .from("pagamentos")
+                  .update({ status: "cancelado" })
+                  .eq("unidade", unitFullName)
+                  .eq("implantacao", sheetTitle);
+                console.log(`[CANCELAMENTO] Pagamentos da unidade ${unitFullName} marcados como cancelados`);
+              } catch (payErr) {
+                console.error("[CANCELAMENTO] Erro ao cancelar pagamentos:", payErr);
+              }
             }
           } else {
             // Se a unidade não existe no Supabase (pode acontecer se a sincronização falhou antes),
@@ -4649,9 +4661,10 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       return Number.isFinite(n) ? n : 0;
     };
 
+    // CORREÇÃO: Filtrar apenas unidades com situação EXATAMENTE igual a "Reservada"
     const reservedUnits = (unidades || []).filter((u) => {
-      const s = normalizeStatus(u.situacao || u.situacao_original || "");
-      return s === "reservada" || s === "reservando";
+      const situacao = (u.situacao || "").toString().trim();
+      return situacao === "Reservada";
     });
 
     const countBy = (arr, key) => {
