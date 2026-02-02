@@ -216,7 +216,7 @@ export function Diretoria() {
 
           <div className="panel small">
             <h3 className="panel-title">Reservas por Tipologia</h3>
-            <div className="panel-body bars">
+            <div className="panel-body bars" style={{ maxHeight: '350px', overflowY: 'auto' }}>
               {Object.keys(data.unidadesReservadasPorTipologia || {}).length === 0 && <div className="empty">Nenhuma tipologia reservada</div>}
               {(
                 Object.entries(data.unidadesReservadasPorTipologia || {}) as [string, number][]
@@ -226,7 +226,7 @@ export function Diretoria() {
                 const pct = Math.round((Number(v) / total) * 100);
                 return (
                   <div className="bar-row" key={i}>
-                    <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v} — {pct}%</span></div>
+                    <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v}</span></div>
                     <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
                   </div>
                 );
@@ -241,7 +241,7 @@ export function Diretoria() {
             <div className="list-tools">
               <input className="list-search" placeholder="Pesquisar imobiliária" value={searchImobiliaria} onChange={(ev)=>setSearchImobiliaria(ev.target.value)} />
             </div>
-            <div className="list-body">
+            <div className="list-body" style={{ maxHeight: '350px', overflowY: 'auto' }}>
               {(
                 (Object.entries(data.unidadesReservadasPorImobiliaria || {}) as [string, number][])
                 .filter(([k]) => k.toLowerCase().includes(searchImobiliaria.trim().toLowerCase()))
@@ -256,7 +256,7 @@ export function Diretoria() {
             <div className="list-tools">
               <input className="list-search" placeholder="Pesquisar corretor" value={searchCorretor} onChange={(ev)=>setSearchCorretor(ev.target.value)} />
             </div>
-            <div className="list-body">
+            <div className="list-body" style={{ maxHeight: '350px', overflowY: 'auto' }}>
               {(
                 (Object.entries(data.unidadesReservadasPorCorretor || {}) as [string, number][])
                 .filter(([k]) => k.toLowerCase().includes(searchCorretor.trim().toLowerCase()))

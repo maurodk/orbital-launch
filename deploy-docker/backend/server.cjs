@@ -4709,7 +4709,8 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
       0
     );
 
-    const quantidadeReservas = pagamentosValidos.length;
+    // CORREÇÃO: Contar apenas unidades únicas com situação "Reservada", não quantidade de pagamentos
+    const quantidadeReservas = reservedUnits.length;
 
     const unidadesBloqueadas = (unidades || []).filter(
       (u) => (u.situacao || "").toString().trim() === "Bloqueada"
