@@ -318,7 +318,7 @@ export function ReservationList({
                   })();
 
                   return (
-                    <tr key={unitData[2] || originalIndex}>
+                    <tr key={`unit-${originalIndex}`}>
                       {isSelectionMode && (
                         <td className="selection-cell">
                           <input
