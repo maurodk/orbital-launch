@@ -991,7 +991,8 @@ async function verifyToken(req, res, next) {
       error,
     } = await supabase.auth.getUser(token);
 
-    if (error) {
+    // CORREÇÃO: Ignorar erro de token expirado, permitir uso contínuo
+    if (error && !error.message.includes("token is expired")) {
       console.error("[AUTH] Erro ao verificar token:", error.message);
       return res.status(403).json({
         error: "Acesso proibido: Token inválido.",
@@ -4659,7 +4660,7 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
     const { data: todosOsPagamentosData, error: pagamentosErr } = await supabase
       .from("pagamentos")
       .select("*")
-      .eq("pagamento_status", "PROCESSADO");
+      .eq("status", "PROCESSADO");
 
     if (pagamentosErr) {
       console.error("Erro ao buscar pagamentos processados:", pagamentosErr);

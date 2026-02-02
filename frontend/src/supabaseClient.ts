@@ -3,7 +3,13 @@ import { createClient, type User, type AuthChangeEvent, type Session } from '@su
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xedjenxobpxhuoqqteed.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true, // Habilita refresh automático do token
+    persistSession: true, // Mantém sessão salva
+    detectSessionInUrl: true,
+  }
+});
 
 // Helper para autenticação
 export const auth = {
