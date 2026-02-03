@@ -3643,6 +3643,159 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
   }
 });
 
+// Endpoint interno para cancelar reserva quando PIX expira (chamado pelo trigger do Supabase)
+app.post("/api/internal/cancel-expired-pix", async (req, res) => {
+  try {
+    const secret = process.env.INTERNAL_NOTIFY_SECRET;
+    if (secret) {
+      const header = req.headers["x-internal-secret"] || req.headers["x-internal-token"];
+      if (!header || header !== secret) {
+        console.warn("/api/internal/cancel-expired-pix: secret mismatch or missing");
+        return res.status(403).json({ error: "forbidden" });
+      }
+    }
+
+    const { pix_id, implantacao, cliente, unidade, valor, identificador } = req.body || {};
+    
+    if (!implantacao || !unidade) {
+      return res.status(400).json({ error: "implantacao and unidade required" });
+    }
+
+    console.log(`[PIX EXPIRADO] ====== PIX EXPIROU - CANCELANDO RESERVA ======`);
+    console.log(`[PIX EXPIRADO] PIX ID: ${pix_id}`);
+    console.log(`[PIX EXPIRADO] Identificador: ${identificador}`);
+    console.log(`[PIX EXPIRADO] Cliente: ${cliente}`);
+    console.log(`[PIX EXPIRADO] Unidade: ${unidade}`);
+    console.log(`[PIX EXPIRADO] Valor: R$ ${valor}`);
+    console.log(`[PIX EXPIRADO] Implantação: ${implantacao}`);
+
+    // Buscar a unidade no Supabase para obter o row_index
+    const { data: unidadeData, error: unidadeError } = await supabase
+      .from('unidades')
+      .select('row_index, implantacao_id, cliente, situacao')
+      .eq('nome_unidade', unidade)
+      .maybeSingle();
+
+    if (unidadeError || !unidadeData) {
+      console.error(`[PIX EXPIRADO] Unidade ${unidade} não encontrada no Supabase:`, unidadeError);
+      return res.status(404).json({ error: "Unidade não encontrada" });
+    }
+
+    // Verifica se a unidade ainda está reservada para este cliente
+    if (unidadeData.situacao !== 'Reservada') {
+      console.log(`[PIX EXPIRADO] Unidade ${unidade} não está mais reservada (status: ${unidadeData.situacao}). Cancelamento ignorado.`);
+      return res.json({ success: true, message: "Unidade não está mais reservada, cancelamento não necessário" });
+    }
+
+    if (unidadeData.cliente !== cliente) {
+      console.log(`[PIX EXPIRADO] Unidade ${unidade} está reservada para outro cliente (${unidadeData.cliente}). Cancelamento ignorado.`);
+      return res.json({ success: true, message: "Unidade reservada para outro cliente, cancelamento não necessário" });
+    }
+
+    const unitRowIndex = unidadeData.row_index;
+    
+    // Chama a lógica interna de cancelamento (reutiliza código do endpoint /api/cancel-reservation)
+    try {
+      const sheets = await getSheetsClient();
+      const {
+        found: sheetTitle,
+        error: sheetError,
+      } = await resolveSheetName(sheets, SPREADSHEET_ID_IMPLANTACAO, implantacao);
+      
+      if (sheetError) {
+        console.error(`[PIX EXPIRADO] Erro ao resolver nome da planilha:`, sheetError);
+        return res.status(404).json({ error: sheetError });
+      }
+
+      // Acquire lock
+      const lockKey = `${sheetTitle}:${unitRowIndex}`;
+      const lockOwner = 'sistema_pix_expirado';
+      const gotLock = await acquireLock(lockKey, lockOwner, 15000);
+      
+      if (!gotLock) {
+        console.warn(`[PIX EXPIRADO] Não foi possível obter lock para unidade ${unidade}. Operação em andamento.`);
+        return res.status(409).json({ error: "Unidade em operação" });
+      }
+
+      try {
+        // Limpa os campos da unidade (colunas G:K = id_pre_cadastro, cliente, documento, corretor, imobiliaria)
+        const clearRange = `'${sheetTitle}'!G${unitRowIndex}:K${unitRowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: clearRange,
+          valueInputOption: "RAW",
+          resource: { values: [["", "", "", "", ""]] },
+        });
+
+        // Atualiza situação para Disponível (coluna L)
+        const statusRange = `'${sheetTitle}'!L${unitRowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+          range: statusRange,
+          valueInputOption: "USER_ENTERED",
+          resource: { values: [["Disponível"]] },
+        });
+
+        // Atualiza no Supabase
+        const { error: updateError } = await supabase
+          .from('unidades')
+          .update({
+            id_pre_cadastro: null,
+            cliente: null,
+            documento: null,
+            corretor: null,
+            imobiliaria: null,
+            situacao: 'Disponível',
+            updated_at: new Date().toISOString()
+          })
+          .eq('implantacao_id', unidadeData.implantacao_id)
+          .eq('row_index', unitRowIndex);
+
+        if (updateError) {
+          console.error(`[PIX EXPIRADO] Erro ao atualizar unidade no Supabase:`, updateError);
+        }
+
+        // Adiciona entrada no histórico
+        await addHistoryEntry(
+          sheets,
+          implantacao,
+          unidade,
+          "PIX Expirado - Reserva Cancelada",
+          cliente,
+          null,
+          "Sistema"
+        );
+
+        // Broadcast atualização
+        await broadcastEvent(implantacao, "unitUpdated", {
+          rowIndex: unitRowIndex,
+          unitName: unidade,
+          changeType: "cancel-expired-pix",
+          actor: "Sistema",
+          ts: Date.now(),
+        });
+
+        console.log(`[PIX EXPIRADO] Reserva cancelada com sucesso para unidade ${unidade}`);
+        console.log(`[PIX EXPIRADO] ===========================================`);
+
+        res.json({ success: true, message: "Reserva cancelada devido a PIX expirado" });
+
+        await releaseLock(lockKey, lockOwner);
+      } catch (innerError) {
+        console.error(`[PIX EXPIRADO] Erro ao processar cancelamento:`, innerError);
+        await releaseLock(lockKey, lockOwner);
+        throw innerError;
+      }
+    } catch (error) {
+      console.error(`[PIX EXPIRADO] Erro fatal no cancelamento:`, error);
+      return res.status(500).json({ error: "Falha ao cancelar reserva" });
+    }
+  } catch (e) {
+    console.error("[PIX EXPIRADO] Erro no endpoint:", e && e.message ? e.message : e);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
 // NOVO: Endpoint para TROCAR unidade
 app.post("/api/change-unit", verifyToken, async (req, res) => {
   const { implantacao, oldUnitIndex, newUnitIndex } = req.body;
