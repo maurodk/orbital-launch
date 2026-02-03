@@ -688,6 +688,31 @@ export function MainPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Helper para verificar se usuário está interagindo com uma unidade específica
+  const isUserInteractingWithUnit = useCallback((unitIndex: number): boolean => {
+    return (
+      selectedUnitIndex === unitIndex ||
+      pixModalState.unitIndex === unitIndex ||
+      pixOptionsModalState.unitIndex === unitIndex ||
+      pixHistoryModalState.unitIndex === unitIndex ||
+      paymentModalState.unitIndex === unitIndex ||
+      changeUnitModalState.unitIndex === unitIndex ||
+      (reservationModalState.isOpen && selectedUnitIndex === unitIndex) ||
+      (blockModalState.isOpen && selectedUnitIndex === unitIndex) ||
+      unitToMapIndex === unitIndex
+    );
+  }, [
+    selectedUnitIndex,
+    pixModalState.unitIndex,
+    pixOptionsModalState.unitIndex,
+    pixHistoryModalState.unitIndex,
+    paymentModalState.unitIndex,
+    changeUnitModalState.unitIndex,
+    reservationModalState.isOpen,
+    blockModalState.isOpen,
+    unitToMapIndex
+  ]);
+
   useEffect(() => {
     const sigla =
       currentImplantation?.sigla || gerarSigla(selectedImplantationName);
@@ -710,6 +735,17 @@ export function MainPage() {
           },
           async (payload) => {
             console.log('Realtime unidades change:', payload);
+            
+            // Verificar se há alguma unidade sendo editada
+            const hasActiveInteraction = unidades.some((_, idx) => isUserInteractingWithUnit(idx));
+            
+            if (hasActiveInteraction) {
+              console.log('[Realtime] Update pausado - usuário interagindo com unidade');
+              // Ainda assim, buscar dados em background para sincronizar após interação
+              // mas não aplicar mudanças no estado ainda
+              return;
+            }
+            
             // Refresh unit data when any change occurs
             await fetchUnitData(selectedImplantationName).catch((e) =>
               console.error('Erro ao atualizar unidades via Realtime:', e)
@@ -843,6 +879,13 @@ export function MainPage() {
 
           if (unitData && Array.isArray(unitData) && typeof rowIndex === "number") {
             const idx = rowIndex - 2;
+            
+            // SKIP: Não atualizar se usuário está interagindo com esta unidade
+            if (isUserInteractingWithUnit(idx)) {
+              console.log(`[SSE] Update pausado - usuário editando unidade ${idx}`);
+              return;
+            }
+            
             setUnidades((currentUnidades) => {
               if (idx < 0 || idx >= currentUnidades.length) return currentUnidades;
               const copy = currentUnidades.slice();
@@ -861,6 +904,13 @@ export function MainPage() {
               }
 
               if (typeof pagamentos_status !== "undefined") merged[20] = pagamentos_status;
+              
+              // COMPARAÇÃO: Evitar re-render se dados são idênticos
+              if (JSON.stringify(existing) === JSON.stringify(merged)) {
+                console.log(`[SSE] Sem mudanças na unidade ${idx} - skip re-render`);
+                return currentUnidades;
+              }
+              
               copy[idx] = merged;
               return copy;
             });
@@ -872,8 +922,21 @@ export function MainPage() {
               const copy = currentUnidades.slice();
               if (typeof rowIndex === "number") {
                 const idx = rowIndex - 2;
+                
+                // SKIP: Não atualizar se usuário está interagindo com esta unidade
+                if (isUserInteractingWithUnit(idx)) {
+                  console.log(`[SSE] Update de pagamento pausado - usuário editando unidade ${idx}`);
+                  return currentUnidades;
+                }
+                
                 if (idx >= 0 && idx < copy.length) {
                   const row = Array.isArray(copy[idx]) ? copy[idx].slice() : copy[idx];
+                  
+                  // COMPARAÇÃO: Evitar re-render se status não mudou
+                  if (row[20] === pagamentos_status) {
+                    return currentUnidades;
+                  }
+                  
                   row[20] = pagamentos_status;
                   copy[idx] = row;
                 }
@@ -885,7 +948,19 @@ export function MainPage() {
                 for (let i = 0; i < copy.length; i++) {
                   const name = normalize(copy[i][2]);
                   if (name === target) {
+                    // SKIP: Não atualizar se usuário está interagindo com esta unidade
+                    if (isUserInteractingWithUnit(i)) {
+                      console.log(`[SSE] Update de pagamento pausado - usuário editando unidade ${i}`);
+                      return currentUnidades;
+                    }
+                    
                     const row = Array.isArray(copy[i]) ? copy[i].slice() : copy[i];
+                    
+                    // COMPARAÇÃO: Evitar re-render se status não mudou
+                    if (row[20] === pagamentos_status) {
+                      return currentUnidades;
+                    }
+                    
                     row[20] = pagamentos_status;
                     copy[i] = row;
                     break;
