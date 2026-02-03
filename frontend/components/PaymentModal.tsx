@@ -156,16 +156,39 @@ export function PaymentModal({
           setValorUnidade(Number.isFinite(parsed as number) ? (parsed as number) : null);
         }
 
-        // 2. Buscar PIX pagos
-        const { data: pixData, error: pixError } = await supabase
-          .from("historico_pix")
-          .select("id, valor, data_pagamento, updated_at")
-          .eq("implantacao_id", implantacaoId)
-          .eq("unidade", unitData[2]) // Nome da unidade
-          .eq("status_pagamento", "PAGO");
+        // 2. Buscar PIX pagos - FILTRADO POR CLIENTE + UNIDADE + IMPLANTAÇÃO
+        // Busca o nome correto do cliente (consistente com a lógica de inserção)
+        const idPreCadastro = unitData[6]; // ID do pré-cadastro
+        let clienteNome = unitData[7] || ""; // Fallback para o nome do unitData
+        
+        if (idPreCadastro) {
+          const { data: clienteData } = await supabase
+            .from('clientes')
+            .select('nome')
+            .eq('id_pre_cadastro', idPreCadastro)
+            .maybeSingle();
+          
+          if (clienteData?.nome) {
+            clienteNome = clienteData.nome;
+          }
+        }
 
-        if (!cancelled && !pixError && pixData) {
-          setPixPagos(pixData);
+        // Só busca PIX se houver um cliente válido
+        if (clienteNome) {
+          const { data: pixData, error: pixError } = await supabase
+            .from("historico_pix")
+            .select("id, valor, data_pagamento, updated_at")
+            .eq("implantacao_id", implantacaoId)
+            .eq("unidade", unitData[2]) // Nome da unidade
+            .eq("cliente", clienteNome) // NOVO: Filtro por cliente
+            .eq("status_pagamento", "PAGO");
+
+          if (!cancelled && !pixError && pixData) {
+            setPixPagos(pixData);
+          }
+        } else {
+          // Se não houver cliente, zera os PIX pagos
+          if (!cancelled) setPixPagos([]);
         }
 
       } finally {
