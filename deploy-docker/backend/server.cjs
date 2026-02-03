@@ -5229,6 +5229,11 @@ app.post("/api/check-and-log-payment", verifyToken, async (req, res) => {
 
 // NOVO: Endpoint para disparar o webhook da Botmaker
 app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
+  console.log("\n=== [BOTMAKER] INÍCIO DA REQUISIÇÃO ===");
+  console.log("[BOTMAKER] Timestamp:", new Date().toISOString());
+  console.log("[BOTMAKER] IP do cliente:", req.ip);
+  console.log("[BOTMAKER] User-Agent:", req.headers["user-agent"]);
+  
   const {
     nomeCliente,
     nomeEmpreendimento,
@@ -5237,6 +5242,13 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
     identificadorPix,
   } = req.body;
 
+  console.log("[BOTMAKER] Dados recebidos:");
+  console.log("  - nomeCliente:", nomeCliente || "(vazio)");
+  console.log("  - nomeEmpreendimento:", nomeEmpreendimento || "(vazio)");
+  console.log("  - unidade:", unidade || "(vazio)");
+  console.log("  - contatoCliente:", contatoCliente || "(vazio)");
+  console.log("  - identificadorPix:", identificadorPix || "(vazio)");
+
   if (
     !nomeCliente ||
     !nomeEmpreendimento ||
@@ -5244,6 +5256,14 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
     !contatoCliente ||
     !identificadorPix
   ) {
+    console.error("[BOTMAKER] ERRO: Dados incompletos para o webhook");
+    console.error("[BOTMAKER] Faltando:", {
+      nomeCliente: !nomeCliente,
+      nomeEmpreendimento: !nomeEmpreendimento,
+      unidade: !unidade,
+      contatoCliente: !contatoCliente,
+      identificadorPix: !identificadorPix,
+    });
     return res.status(400).json({ error: "Dados incompletos para o webhook." });
   }
 
@@ -5251,12 +5271,22 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
     "https://api.botmaker.com/v2.0/chats-actions/trigger-intent";
   const BOTMAKER_ACCESS_TOKEN = process.env.BOTMAKER_ACCESS_TOKEN;
 
+  console.log("[BOTMAKER] URL da API:", BOTMAKER_API_URL);
+  console.log("[BOTMAKER] Token configurado:", BOTMAKER_ACCESS_TOKEN ? "Sim" : "Não");
+  if (BOTMAKER_ACCESS_TOKEN) {
+    console.log("[BOTMAKER] Token length:", BOTMAKER_ACCESS_TOKEN.length);
+    console.log("[BOTMAKER] Token (primeiros 10 chars):", BOTMAKER_ACCESS_TOKEN.substring(0, 10) + "...");
+  }
+
   if (!BOTMAKER_ACCESS_TOKEN) {
-    console.error("[BOTMAKER] Access token não configurado no .env");
+    console.error("[BOTMAKER] ERRO: Access token não configurado no .env");
     return res
       .status(500)
       .json({ error: "Configuração do servidor incompleta." });
   }
+
+  const timestamp = await gerarTimestamp();
+  console.log("[BOTMAKER] Timestamp gerado:", timestamp);
 
   const body = {
     chat: {
@@ -5268,11 +5298,17 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
       nomeCliente,
       nomeEmpreendimento,
       unidade,
-      pix: `?id=${identificadorPix}&timestamp=${await gerarTimestamp()}`,
+      pix: `?id=${identificadorPix}&timestamp=${timestamp}`,
     },
   };
 
+  console.log("[BOTMAKER] Body da requisição para Botmaker:");
+  console.log(JSON.stringify(body, null, 2));
+
   try {
+    console.log("[BOTMAKER] Enviando requisição para Botmaker API...");
+    const requestStartTime = Date.now();
+    
     const response = await fetch(BOTMAKER_API_URL, {
       method: "POST",
       headers: {
@@ -5283,7 +5319,21 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
       body: JSON.stringify(body),
     });
 
+    const requestDuration = Date.now() - requestStartTime;
+    console.log("[BOTMAKER] Resposta recebida em", requestDuration, "ms");
+    console.log("[BOTMAKER] Status da resposta:", response.status, response.statusText);
+    console.log("[BOTMAKER] Headers da resposta:", JSON.stringify([...response.headers.entries()], null, 2));
+
     const responseData = await response.json();
+    console.log("[BOTMAKER] Dados da resposta:");
+    console.log(JSON.stringify(responseData, null, 2));
+
+    if (!response.ok) {
+      console.error("[BOTMAKER] ERRO: API retornou status não-sucesso:", response.status);
+      console.error("[BOTMAKER] Resposta de erro:", responseData);
+    } else {
+      console.log("[BOTMAKER] ✓ Webhook disparado com sucesso!");
+    }
 
     // Repassa o status da API da Botmaker, se não for sucesso.
     res.status(response.status).json({
@@ -5291,8 +5341,20 @@ app.post("/api/botmaker/trigger-intent", verifyToken, async (req, res) => {
       message: "Webhook da Botmaker processado.",
       botmakerResponse: responseData,
     });
+    
+    console.log("=== [BOTMAKER] FIM DA REQUISIÇÃO ===\n");
   } catch (error) {
-    console.error("[BOTMAKER] Erro ao disparar webhook:", error);
+    console.error("\n=== [BOTMAKER] ERRO CRÍTICO ===");
+    console.error("[BOTMAKER] Tipo de erro:", error.name);
+    console.error("[BOTMAKER] Mensagem:", error.message);
+    console.error("[BOTMAKER] Stack trace:");
+    console.error(error.stack);
+    
+    if (error.cause) {
+      console.error("[BOTMAKER] Causa do erro:", error.cause);
+    }
+    
+    console.error("=== [BOTMAKER] FIM DO ERRO ===\n");
     res.status(500).json({ error: "Falha ao disparar o webhook." });
   }
 });

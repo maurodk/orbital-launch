@@ -266,15 +266,23 @@ export function PixModal({
       // NOVO: Dispara o webhook da Botmaker (API externa)
       try {
         if (contatoCliente && BOTMAKER_TOKEN) {
-          await axios.post(
+          const botmakerPayload = {
+            nomeCliente: clienteNome || unitData?.[7] || "N/A",
+            nomeEmpreendimento: implantacaoNome,
+            unidade: unitData?.[2] || "N/A",
+            contatoCliente: contatoCliente,
+            identificadorPix: identificador,
+          };
+          
+          console.log("[BOTMAKER] Iniciando chamada à API Botmaker");
+          console.log("[BOTMAKER] URL:", `${apiUrl}/api/botmaker/trigger-intent`);
+          console.log("[BOTMAKER] Payload:", JSON.stringify(botmakerPayload, null, 2));
+          console.log("[BOTMAKER] Token presente:", BOTMAKER_TOKEN ? "Sim" : "Não");
+          console.log("[BOTMAKER] Token length:", BOTMAKER_TOKEN.length);
+          
+          const botmakerResponse = await axios.post(
             `${apiUrl}/api/botmaker/trigger-intent`,
-            {
-              nomeCliente: clienteNome || unitData?.[7] || "N/A",
-              nomeEmpreendimento: implantacaoNome,
-              unidade: unitData?.[2] || "N/A",
-              contatoCliente: contatoCliente,
-              identificadorPix: identificador,
-            },
+            botmakerPayload,
             {
               headers: {
                 Authorization: `Bearer ${BOTMAKER_TOKEN}`,
@@ -282,16 +290,28 @@ export function PixModal({
               },
             }
           );
+          
+          console.log("[BOTMAKER] Resposta recebida com sucesso");
+          console.log("[BOTMAKER] Status:", botmakerResponse.status);
+          console.log("[BOTMAKER] Data:", JSON.stringify(botmakerResponse.data, null, 2));
         } else {
           console.warn(
-            "Webhook da Botmaker não disparado: Telefone do cliente ou token não encontrado."
+            "[BOTMAKER] Webhook não disparado: Telefone do cliente ou token não encontrado."
           );
+          console.warn("[BOTMAKER] contatoCliente:", contatoCliente || "(vazio)");
+          console.warn("[BOTMAKER] BOTMAKER_TOKEN presente:", BOTMAKER_TOKEN ? "Sim" : "Não");
         }
       } catch (botmakerError) {
         console.error(
-          "Falha ao disparar o webhook da Botmaker:",
+          "[BOTMAKER] Falha ao disparar o webhook da Botmaker:",
           botmakerError
         );
+        if (axios.isAxiosError(botmakerError)) {
+          console.error("[BOTMAKER] Status:", botmakerError.response?.status);
+          console.error("[BOTMAKER] Dados da resposta:", botmakerError.response?.data);
+          console.error("[BOTMAKER] Headers:", botmakerError.response?.headers);
+          console.error("[BOTMAKER] Mensagem de erro:", botmakerError.message);
+        }
       }
 
       setPayload(payloadEmv);
