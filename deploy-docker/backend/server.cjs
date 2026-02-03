@@ -2677,13 +2677,33 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
               .eq("row_index", parseInt(rowIndex, 10))
               .limit(1)
               .single();
+          
+          // Buscar imobiliária do cliente se não foi informada nos dados da reserva
+          let imobiliariaFinal = data[4] || null;
+          if (!imobiliariaFinal && clientName) {
+            try {
+              const { data: clientData } = await supabase
+                .from("clientes")
+                .select("imobiliaria")
+                .eq("nome", clientName)
+                .maybeSingle();
+              
+              if (clientData && clientData.imobiliaria) {
+                imobiliariaFinal = clientData.imobiliaria;
+                console.log(`[RESERVA] Imobiliária '${imobiliariaFinal}' recuperada do cliente '${clientName}'`);
+              }
+            } catch (e) {
+              console.warn("[RESERVA] Erro ao buscar imobiliária do cliente:", e.message);
+            }
+          }
+          
           // Build payload: o array data[] representa G:L (5 colunas + situacao)
           const payload = {
             id_pre_cadastro: data[0] || null, // G: ID Pré-Cadastro (índice 0 do array data)
             cliente: data[1] || clientName || null, // H: Cliente (índice 1 do array data)
             documento: data[2] || null, // I: Documento (índice 2 do array data)
             corretor: data[3] || null, // J: Corretor (índice 3 do array data)
-            imobiliaria: data[4] || null, // K: Imobiliária (índice 4 do array data)
+            imobiliaria: imobiliariaFinal, // K: Imobiliária (do array data ou da tabela clientes)
             situacao: "Reservada", // L: Situação - CRÍTICO para SSE
             implantacao_id,
             nome_unidade:
