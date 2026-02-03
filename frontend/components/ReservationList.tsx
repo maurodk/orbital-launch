@@ -112,27 +112,10 @@ export function ReservationList({
         </div>
 
         {/* Botões de seleção em cadeia */}
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            marginTop: "10px",
-            flexWrap: "wrap",
-          }}
-        >
+        <div className="selection-mode-controls">
           <button
             onClick={onToggleSelectionMode}
-            style={{
-              padding: "8px 12px",
-              backgroundColor: isSelectionMode ? "#6ad700" : "#2a2a2a",
-              color: "#ffffff",
-              border: `1px solid ${isSelectionMode ? "#6ad700" : "#444"}`,
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "bold",
-              transition: "all 0.2s",
-            }}
+            className="selection-mode-button"
           >
             {isSelectionMode
               ? `Seleção: ${selectedUnits.size} unidade(s)`
@@ -142,17 +125,7 @@ export function ReservationList({
           {isSelectionMode && selectedUnits.size > 0 && (
             <button
               onClick={onBulkBlock}
-              style={{
-                padding: "8px 12px",
-                backgroundColor: "#ff4444",
-                color: "#ffffff",
-                border: "1px solid #ff4444",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "11px",
-                fontWeight: "bold",
-                transition: "all 0.2s",
-              }}
+              className="bulk-block-button"
             >
               Bloquear Selecionadas
             </button>
@@ -173,7 +146,6 @@ export function ReservationList({
             <colgroup>
               {isSelectionMode && <col style={{ width: 40 }} />}
               <col style={{ width: 220 }} />
-              <col style={{ width: 120 }} />
               <col style={{ width: 240 }} />
               <col style={{ width: 140 }} />
               <col style={{ width: 220 }} />
@@ -184,7 +156,6 @@ export function ReservationList({
               <tr>
                 {isSelectionMode && <th style={{ width: "40px" }}></th>}
                 <th>Unidade</th>
-                <th>Etapa</th>
                 <th>Tipologia</th>
                 <th>Status</th>
                 <th>Cliente</th>
@@ -324,8 +295,6 @@ export function ReservationList({
                         </div>
                       </td>
 
-                      <td className="etapa-cell">{unitData[1] || "—"}</td>
-
                       <td className="typology-cell">{tipologia}</td>
 
                       <td className="status-cell">
@@ -453,7 +422,7 @@ export function ReservationList({
                 </>
               ) : (
                 <tr>
-                  <td colSpan={isSelectionMode ? 8 : 7} className="no-results-message">
+                  <td colSpan={isSelectionMode ? 7 : 6} className="no-results-message">
                     Nenhuma unidade encontrada com os filtros aplicados.
                   </td>
                 </tr>
@@ -652,6 +621,123 @@ export function ReservationList({
       )}
       {/* Local table styles to keep rows aligned */}
       <style>{`
+        /* Container principal */
+        .reservation-list-container {
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .list-filters-sticky {
+          flex-shrink: 0;
+        }
+
+        .table-scroll-container {
+          flex: 1;
+          overflow: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        @media (max-width: 768px) {
+          .reservation-list-container {
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .reservation-list-container {
+            font-size: 11px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .reservation-list-container {
+            font-size: 10px;
+          }
+        }
+
+        /* Controles de modo de seleção */
+        .selection-mode-controls {
+          display: flex;
+          gap: 10px;
+          margin-top: 10px;
+          flex-wrap: wrap;
+        }
+
+        .selection-mode-button {
+          padding: 8px 12px;
+          background-color: #2a2a2a;
+          color: #ffffff;
+          border: 1px solid #444;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: bold;
+          transition: all 0.2s;
+        }
+
+        .selection-mode-button:hover {
+          background-color: #333;
+        }
+
+        .selection-mode-button.active,
+        button.selection-mode-button:has([data-selected]) {
+          background-color: #6ad700;
+          border-color: #6ad700;
+        }
+
+        .bulk-block-button {
+          padding: 8px 12px;
+          background-color: #ff4444;
+          color: #ffffff;
+          border: 1px solid #ff4444;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: bold;
+          transition: all 0.2s;
+        }
+
+        .bulk-block-button:hover {
+          background-color: #ff5555;
+        }
+
+        @media (max-width: 768px) {
+          .selection-mode-controls {
+            gap: 8px;
+            margin-top: 8px;
+          }
+          .selection-mode-button,
+          .bulk-block-button {
+            padding: 6px 10px;
+            font-size: 10px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .selection-mode-controls {
+            gap: 6px;
+            margin-top: 6px;
+          }
+          .selection-mode-button,
+          .bulk-block-button {
+            padding: 5px 8px;
+            font-size: 9px;
+            flex: 1 1 auto;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .selection-mode-button,
+          .bulk-block-button {
+            padding: 4px 6px;
+            font-size: 8px;
+            min-width: 0;
+          }
+        }
+
         .reservation-table {
           width: 100%;
           border-collapse: collapse;
@@ -697,35 +783,93 @@ export function ReservationList({
 
         .status-cell { text-align: center; width: 140px; }
         .status-inner { display: flex; align-items: center; justify-content: center; }
-        .status-badge { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 4px 10px; border-radius: 6px; }
+        .status-badge { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
 
         .client-cell, .broker-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .blocked-cell { background-color: #3a2a2a; font-style: italic; color: #ffa500; padding: 12px; text-align: left; border-left: 3px solid #ffa500; }
 
         .action-cell { width: 220px; }
-        .action-buttons-cell { display: flex; gap: 8px; align-items: center; }
+        .action-buttons-cell { display: flex; gap: 8px; align-items: center; justify-content: center; }
 
-        /* Responsive adjustments for portrait / narrow screens */
-        @media (max-width: 900px) {
-          .unit-name { max-width: 160px; font-size: 13px; }
-          .client-cell, .broker-cell { max-width: 140px; }
-          .action-cell { width: auto; }
-          .action-buttons-cell { flex-wrap: wrap; gap: 6px; }
-          .action-buttons-cell button { padding: 6px 8px; min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; }
-          .action-buttons-cell button .button-text { display: none; }
-          .action-buttons-cell .pix-button-in-table img { width: 18px; height: 18px; }
+        /* Tablets e telas médias (paisagem móvel) */
+        @media (max-width: 1024px) {
+          .reservation-table th, .reservation-table td { padding: 8px 10px; font-size: 13px; }
+          .reservation-table thead th { font-size: 11px; padding: 10px 8px; }
+          .unit-cell { min-width: 140px; }
+          .unit-name { max-width: 140px; font-size: 13px; }
+          .typology-cell { max-width: 180px; font-size: 12px; }
+          .status-cell { width: 110px; }
+          .status-badge { height: 24px; padding: 3px 8px; font-size: 11px; }
+          .client-cell, .broker-cell { max-width: 140px; font-size: 12px; }
+          .action-cell { width: 180px; }
+          .action-buttons-cell { gap: 6px; }
+          .action-buttons-cell button { padding: 6px 10px; font-size: 12px; }
+          .action-buttons-cell .button-icon { width: 14px; height: 14px; }
         }
 
-        /* Even narrower screens — show compact icons and allow horizontal scroll if needed */
-        @media (max-width: 480px) {
-          .reservation-table th, .reservation-table td { padding: 10px 8px; }
-          .unit-cell { min-width: 140px; }
-          .unit-name { max-width: 120px; font-size: 13px; }
+        /* Telas médias/pequenas - esconder corretor */
+        @media (max-width: 900px) {
+          .broker-cell { display: none; }
+          .reservation-table thead th:nth-child(6) { display: none; }
+          .unit-name { max-width: 120px; font-size: 12px; }
+          .client-cell { max-width: 120px; font-size: 12px; }
+          .action-cell { width: auto; }
+          .action-buttons-cell { flex-wrap: wrap; gap: 5px; }
+          .action-buttons-cell button { padding: 5px 8px; min-width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+          .action-buttons-cell button .button-text { display: none; }
+          .action-buttons-cell .pix-button-in-table img { width: 16px; height: 16px; }
+        }
+
+        /* Mobile paisagem - mais compacto */
+        @media (max-width: 768px) {
+          .reservation-table th, .reservation-table td { padding: 6px 8px; font-size: 12px; }
+          .reservation-table thead th { font-size: 10px; padding: 8px 6px; }
+          .unit-cell { min-width: 100px; }
+          .unit-name { max-width: 100px; font-size: 12px; }
+          .typology-cell { max-width: 120px; font-size: 11px; }
+          .status-cell { width: 90px; }
+          .status-badge { height: 22px; padding: 2px 6px; font-size: 10px; }
+          .client-cell { max-width: 100px; font-size: 11px; }
+          .action-buttons-cell button { padding: 4px 6px; min-width: 28px; height: 28px; font-size: 11px; }
+          .action-buttons-cell .button-icon { width: 13px; height: 13px; }
+        }
+
+        /* Mobile retrato - mínimo essencial */
+        @media (max-width: 640px) {
+          .reservation-table th, .reservation-table td { padding: 5px 6px; font-size: 11px; }
+          .reservation-table thead th { font-size: 9px; padding: 6px 4px; }
           .typology-cell { display: none; }
-          .client-cell, .broker-cell { display: none; }
-          .action-buttons-cell { gap: 6px; }
+          .reservation-table thead th:nth-child(3) { display: none; }
+          .client-cell { display: none; }
+          .reservation-table thead th:nth-child(5) { display: none; }
+          .unit-cell { min-width: 90px; }
+          .unit-name { max-width: 90px; font-size: 11px; }
+          .status-cell { width: 80px; }
+          .status-badge { height: 20px; padding: 2px 5px; font-size: 9px; }
+          .action-buttons-cell { gap: 4px; }
+          .action-buttons-cell button { padding: 4px 5px; min-width: 26px; height: 26px; }
+          .action-buttons-cell .button-icon { width: 12px; height: 12px; }
+          .action-buttons-cell .pix-button-in-table img { width: 14px; height: 14px; }
           .table-wrapper { overflow-x: auto; }
+          .blocked-cell { font-size: 10px; padding: 8px; }
+        }
+
+        /* Telas muito pequenas */
+        @media (max-width: 480px) {
+          .reservation-table th, .reservation-table td { padding: 4px 5px; font-size: 10px; }
+          .reservation-table thead th { font-size: 8px; padding: 5px 3px; }
+          .unit-cell { min-width: 80px; }
+          .unit-name { max-width: 80px; font-size: 10px; }
+          .status-cell { width: 70px; }
+          .status-badge { height: 18px; padding: 1px 4px; font-size: 8px; white-space: nowrap; }
+          .action-buttons-cell { gap: 3px; flex-wrap: nowrap; }
+          .action-buttons-cell button { padding: 3px 4px; min-width: 24px; height: 24px; }
+          .action-buttons-cell .button-icon { width: 11px; height: 11px; }
+          .action-buttons-cell .pix-button-in-table img { width: 12px; height: 12px; }
+          .selection-cell { width: 30px; }
+          .selection-checkbox { width: 14px; height: 14px; }
+          .blocked-cell { font-size: 9px; padding: 6px; }
         }
       `}</style>
     </div>
