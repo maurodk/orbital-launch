@@ -460,10 +460,12 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       }
     }
 
-    const { unidade, pagamento_id, status, rowIndex, implantacao, reserva_id, reserva_url } = req.body || {};
+    const { unidade, pagamento_id, status, rowIndex, implantacao, reserva_id, reserva_url, worker_id } = req.body || {};
     if (!unidade && !pagamento_id) {
       return res.status(400).json({ error: "unidade or pagamento_id required" });
     }
+
+    console.log(`[INTERNAL] Pagamento ${pagamento_id} processado pelo worker: ${worker_id || 'unknown'}`);
 
     const payload = { unitName: unidade, pagamento_id, pagamentos_status: status, rowIndex, reserva_id, reserva_url };
 

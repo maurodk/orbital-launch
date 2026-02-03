@@ -9,7 +9,6 @@ import {
   FiClock,
   FiUserPlus,
   FiEdit,
-  FiAlertCircle,
   FiDollarSign,
   FiRefreshCw,
   FiTrash2,
@@ -184,96 +183,6 @@ export function ReservationList({
                   const tipologia = unitData[4] || "—"; // Coluna E - tipologia
                   const motivo = unitData[19] || ""; // Coluna T - motivo (assumindo que está nessa posição)
 
-                  // Determina ícone de processamento a partir do histórico (somente quando aplicável)
-                  const processingIcon = (() => {
-                    try {
-                      const unitName = unitData[2];
-                      if (!unitName || !fullHistory || fullHistory.length === 0) return null;
-
-                      // Busca todas as entradas do histórico referentes a essa unidade
-                      const entriesForUnit = fullHistory
-                        .filter((row) => (row[2] || "") === unitName && row[0])
-                        .map((r) => r.slice())
-                        .sort((a, b) => {
-                          // Ordena por timestamp ISO (index 0) desc
-                          try {
-                            const ta = a[0] || "";
-                            const tb = b[0] || "";
-                            if (ta === tb) return 0;
-                            return ta < tb ? 1 : -1;
-                          } catch {
-                            return 0;
-                          }
-                        });
-
-                      // Se não houver entradas com timestamp, cai para busca simples por reserva_url ou por ocorrências
-                      const latest = entriesForUnit.length > 0 ? entriesForUnit[0] : null;
-                      if (latest && latest[3]) {
-                        const actionText = (latest[3] || "").toString();
-                        const lowerAction = actionText.toLowerCase();
-                        // Se a última ação é apenas 'Reservada' (ou similar) — sem 'processada' — não mostrar ícone
-                        if (/\breservad[ao]\b/.test(lowerAction) && !lowerAction.includes('processad')) {
-                          return null;
-                        }
-                        // Se a última ação contém 'Reserva processada (Worker)' → mostrar ícone
-                        if (actionText.includes("Reserva processada (Worker)")) {
-                          const reservaUrl = latest[7] || null;
-                          const imgTag = (
-                            <img
-                              src="/cvcrm.ico"
-                              alt="cvcrm"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                              }}
-                              style={{ width: 16, height: 16, marginLeft: 6 }}
-                            />
-                          );
-                          return reservaUrl ? <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a> : imgTag;
-                        }
-
-                        // Se a última ação indica cancelamento → não mostrar ícone
-                        const lower = actionText.toLowerCase();
-                        if (lower.includes("cancel") || lower.includes("cancelad") || lower.includes("cancelamento")) {
-                          return null;
-                        }
-
-                        // Se a última ação é Pagamento Registrado → mostrar ícone de pagamento/pendente
-                        if (actionText.includes("Pagamento Registrado")) {
-                          return <FiClock size={14} style={{ marginLeft: 6, color: "#f59e0b" }} />;
-                        }
-                      }
-
-                      // Fallbacks: se não houver latest, procurar por qualquer entrada com reserva_url (mais antiga)
-                      const entryWithUrl = fullHistory.find((r) => r && r[2] === unitName && r[7]);
-                      if (entryWithUrl && entryWithUrl[7]) {
-                        const reservaUrl = entryWithUrl[7];
-                        const imgTag = (
-                          <img
-                            src="/cvcrm.ico"
-                            alt="cvcrm"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = "none";
-                            }}
-                            style={{ width: 16, height: 16, marginLeft: 6 }}
-                          />
-                        );
-                        return <a href={reservaUrl} target="_blank" rel="noreferrer">{imgTag}</a>;
-                      }
-
-                      // Outros casos: procurar por ocorrências de erro/pagamento em qualquer entrada (mais antigo)
-                      if (fullHistory.some((r) => r && r[2] === unitName && ((r[3] || "").toString().includes("Erro ao processar reserva (Worker)")))) {
-                        return <FiAlertCircle size={14} style={{ marginLeft: 6, color: "#ef4444" }} />;
-                      }
-                      if (fullHistory.some((r) => r && r[2] === unitName && ((r[3] || "").toString().includes("Pagamento Registrado")))) {
-                        return <FiClock size={14} style={{ marginLeft: 6, color: "#f59e0b" }} />;
-                      }
-
-                      return null;
-                    } catch {
-                      return null;
-                    }
-                  })();
-
                   return (
                     <tr key={`unit-${originalIndex}`}>
                       {isSelectionMode && (
@@ -289,10 +198,7 @@ export function ReservationList({
                       )}
 
                       <td className="unit-cell">
-                        <div className="unit-content">
-                          <span className="unit-name" title={unitData[2]}>{unitData[2]}</span>
-                          {processingIcon}
-                        </div>
+                        <span className="unit-name" title={unitData[2]}>{unitData[2]}</span>
                       </td>
 
                       <td className="typology-cell">{tipologia}</td>

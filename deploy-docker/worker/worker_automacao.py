@@ -13,6 +13,7 @@ from datetime import datetime
 import traceback
 from typing import Dict, List, Optional
 import calendar
+import socket
 
 # Carregar variáveis de ambiente do arquivo .env
 from dotenv import load_dotenv
@@ -65,16 +66,21 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 QUEUE_NAME = "fila_reservas"
 
+# Identificar o worker (hostname do container ou nome do host)
+WORKER_ID = os.getenv("HOSTNAME", socket.gethostname())
+
 # Configuração de logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format=f'%(asctime)s - [WORKER: {WORKER_ID}] - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('worker_automacao.log'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
+
+logger.info(f"Worker iniciado com ID: {WORKER_ID}")
 
 
 def save_screenshot_on_error(driver, prefix: str = "error"):
@@ -1322,12 +1328,12 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
             pass
 
         resultado["sucesso"] = True
-        logger.info(f"SUCESSO TOTAL para o ID {id_precadastro}!")
+        logger.info(f"[SUCESSO] Worker {WORKER_ID} finalizou com sucesso o processamento para ID {id_precadastro}!")
         
     except Exception as e:
         resultado["erro"] = str(e)
         resultado["etapa"] = "Processamento"
-        logger.error(f"ERRO no ID {id_precadastro}: {str(e)}")
+        logger.error(f"[ERRO] Worker {WORKER_ID} falhou no processamento do ID {id_precadastro}: {str(e)}")
         save_screenshot_on_error(driver, prefix=f"erro_{id_precadastro}")
     
     finally:
@@ -1472,6 +1478,7 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
             "pagamento_id": pagamento_id,
             "unidade": unidade,
             "status": "processado" if sucesso else "erro",
+            "worker_id": WORKER_ID,
         }
         if rowIndex:
             payload["rowIndex"] = int(rowIndex)
@@ -1500,7 +1507,7 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
 def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: Dict):
     """Processa um job específico vindo da fila"""
     pagamento_id = job_data.get("pagamento_id")
-    logger.info(f"Iniciando processamento do pagamento ID: {pagamento_id}")
+    logger.info(f"[PROCESSANDO] Worker {WORKER_ID} iniciando processamento do pagamento ID: {pagamento_id}")
     
     try:
         # Buscar dados atualizados no Supabase
@@ -1587,7 +1594,7 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
             logger.warning(f"Falha ao notificar backend após atualizar status do pagamento {pagamento_id}: {e}")
         
     except Exception as e:
-        logger.error(f"Erro ao processar job {pagamento_id}: {e}")
+        logger.error(f"[ERRO JOB] Worker {WORKER_ID} falhou ao processar job {pagamento_id}: {e}")
         atualizar_status_pagamento(supabase, pagamento_id, False, str(e), reserva_id=None)
         try:
             unidade_notify = None
@@ -1733,7 +1740,7 @@ def main():
                 # item é uma tupla (nome_fila, dados)
                 _, dados_json = item
                 job_data = json.loads(dados_json)
-                logger.info(f"Job recebido: {job_data}")
+                logger.info(f"[JOB CAPTURADO] Worker {WORKER_ID} pegou o job: {job_data}")
 
                 # Verificar se estamos na página de login (sessão deslogada)
                 try:
