@@ -1868,7 +1868,7 @@ export function MainPage() {
           .from('clientes')
           .select('nome')
           .eq('id_pre_cadastro', idPreCadastro)
-          .single();
+          .maybeSingle(); // Permite 0 ou 1 resultado
         
         if (clienteData?.nome) {
           clienteNome = clienteData.nome;

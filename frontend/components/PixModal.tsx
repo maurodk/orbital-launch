@@ -96,7 +96,7 @@ export function PixModal({
             .from('clientes')
             .select('nome, documento')
             .eq('id_pre_cadastro', idPreCadastro)
-            .single();
+            .maybeSingle(); // Permite 0 ou 1 resultado
 
           if (error) {
             console.error('Erro ao buscar dados do cliente:', error);
@@ -105,6 +105,10 @@ export function PixModal({
           } else if (data) {
             setClienteNome(data.nome || "");
             setClienteDocumento(data.documento || "");
+          } else {
+            // Nenhum cliente encontrado - usa dados do unitData como fallback
+            setClienteNome("");
+            setClienteDocumento("");
           }
         } catch (err) {
           console.error('Erro ao buscar cliente no Supabase:', err);
@@ -145,7 +149,7 @@ export function PixModal({
           .from('historico_pix')
           .select('status_pagamento, data_pagamento')
           .eq('identificador', currentPixId)
-          .single();
+          .maybeSingle(); // Permite 0 ou 1 resultado
 
         if (error) {
           console.error('Erro ao verificar status do PIX:', error);
