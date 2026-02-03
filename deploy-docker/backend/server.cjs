@@ -2750,13 +2750,24 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
           // Update cliente status and try to store imobiliaria/documento there as well (best-effort)
           if (clientName) {
             try {
+              // Prepara objeto de atualização (só atualiza campos não-nulos)
+              const clienteUpdate = {
+                status: "JA RESERVOU"
+              };
+              
+              // Só atualiza imobiliaria se houver valor válido
+              if (payload.imobiliaria && String(payload.imobiliaria).trim() !== "") {
+                clienteUpdate.imobiliaria = payload.imobiliaria;
+              }
+              
+              // Só atualiza documento se houver valor válido
+              if (payload.documento && String(payload.documento).trim() !== "") {
+                clienteUpdate.documento = payload.documento;
+              }
+
               const { error: clienteErr } = await supabase // eslint-disable-line no-unused-vars
                 .from("clientes")
-                .update({
-                  status: "JA RESERVOU",
-                  imobiliaria: payload.imobiliaria || null,
-                  documento: payload.documento || null,
-                })
+                .update(clienteUpdate)
                 .eq("nome", clientName);
               if (clienteErr)
                 console.error("Supabase: error updating cliente", clienteErr);
@@ -4716,7 +4727,12 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
 
     const countBy = (arr, key) => {
       return arr.reduce((acc, cur) => {
-        const k = (cur && cur[key]) || "(Sem)";
+        let k = (cur && cur[key]) || "";
+        // Tratar strings vazias, null, undefined e remover espaços
+        k = String(k).trim();
+        if (!k || k === "" || k === "null" || k === "undefined") {
+          k = "(Sem)";
+        }
         acc[k] = (acc[k] || 0) + 1;
         return acc;
       }, {});
@@ -4727,11 +4743,14 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
     const unidadesReservadasPorImobiliaria = countBy(reservedUnits, "imobiliaria");
     const unidadesReservadasPorCorretor = countBy(reservedUnits, "corretor");
 
-    // Calcular totais apenas dos pagamentos válidos (já filtrados pela VIEW)
-    const totalValorUnidadesReservadas = pagamentosValidos.reduce(
-      (s, p) => s + toNumber(p.valor_unidade || p.valor_total),
-      0
-    );
+    // CORREÇÃO: Calcular valor total somando o campo 'valor' das unidades reservadas
+    const totalValorUnidadesReservadas = reservedUnits.reduce((s, u) => {
+      // O campo 'valor' pode estar formatado como "R$ 1.234,56" ou "1234.56"
+      const valorStr = String(u.valor || "0");
+      // Remove R$, pontos e substitui vírgula por ponto
+      const valorLimpo = valorStr.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
+      return s + toNumber(valorLimpo);
+    }, 0);
 
     // CORREÇÃO: Calcular totais por forma de pagamento usando TODOS os pagamentos processados
     const totalPix = todosOsPagamentos.reduce(
