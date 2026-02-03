@@ -30,7 +30,6 @@ interface ReservationListProps {
     status: "all" | "Disponível" | "Reservada" | "Bloqueada"
   ) => void;
   totalUnidades: number;
-  fullHistory: string[][]; // Histórico completo (linhas de histórico)
   // Seleção em cadeia
   isSelectionMode: boolean;
   selectedUnits: Set<number>;
@@ -58,7 +57,6 @@ export function ReservationList({
   onToggleUnitSelection,
   onToggleSelectionMode,
   onBulkBlock,
-  fullHistory,
 }: ReservationListProps) {
   const totalEncontrado = unidades.length;
   const [showManageModal, setShowManageModal] = useState(false);

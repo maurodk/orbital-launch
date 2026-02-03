@@ -2578,7 +2578,6 @@ export function MainPage() {
                     setSearchTerm={setSearchTerm}
                     statusFilter={statusFilter}
                     setStatusFilter={setStatusFilter}
-                    fullHistory={history}
                     totalUnidades={unidades.length}
                     isSelectionMode={isSelectionMode}
                     selectedUnits={selectedUnits}
