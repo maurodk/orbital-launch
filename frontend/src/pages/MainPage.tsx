@@ -46,6 +46,7 @@ import {
 import { FullNameModal } from "../../components/FullNameModal";
 import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
+import { useTokenRefresh } from "../hooks/useTokenRefresh";
 
 const AWS_API_URL =
   import.meta.env.VITE_AWS_API_URL ||
@@ -228,6 +229,9 @@ export function MainPage() {
   const cliente = unidades.length > 0 ? unidades[0][7] || "" : ""; // Coluna H - cliente (primeiro registro)
 
   const reservationManager = useReservationManager(apiUrl);
+  
+  // Hook para refresh automático do token (mantém sessão ativa)
+  useTokenRefresh();
 
   // Estados para os novos modais
   const [isNewImplantationModalOpen, setIsNewImplantationModalOpen] =
@@ -1116,7 +1120,7 @@ export function MainPage() {
         );
       }
     };
-  }, [selectedImplantationName, currentImplantation, fetchUnitData]);
+  }, [selectedImplantationName, currentImplantation, fetchUnitData, isUserInteractingWithUnit, unidades]);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
