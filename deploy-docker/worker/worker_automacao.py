@@ -1446,6 +1446,7 @@ def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: boo
         dados_atualizacao = {
             "status": "processado" if sucesso else "erro",
             "data_processamento": datetime.now().isoformat(),
+            "worker_id": WORKER_ID,  # Registra qual worker processou
         }
         
         if erro:
@@ -1455,7 +1456,7 @@ def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: boo
             dados_atualizacao["reserva_id"] = reserva_id
         
         supabase.table("pagamentos").update(dados_atualizacao).eq("id", pagamento_id).execute()
-        logger.info(f"Pagamento {pagamento_id} atualizado: {'processado' if sucesso else 'erro'} (reserva_id={reserva_id})")
+        logger.info(f"Pagamento {pagamento_id} atualizado por Worker {WORKER_ID}: {'processado' if sucesso else 'erro'} (reserva_id={reserva_id})")
     except Exception as e:
         logger.error(f"Erro ao atualizar status do pagamento: {e}")
 

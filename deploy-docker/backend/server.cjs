@@ -4807,7 +4807,10 @@ app.get("/api/diretoria", verifyToken, async (req, res) => {
     console.log(`  Total Cartão: R$ ${totalCartao}`);
     console.log(`  Total Dinheiro: R$ ${totalDinheiro}`);
     console.log(`  Total Cheque: R$ ${totalCheque}`);
-    console.log(`  Amostra de pagamento:`, todosOsPagamentos[0]);
+    if (todosOsPagamentos[0]) {
+      console.log(`  Amostra de pagamento:`, todosOsPagamentos[0]);
+      console.log(`  Worker que processou: ${todosOsPagamentos[0].worker_id || 'N/A'}`);
+    }
 
     // CORREÇÃO: Contar apenas unidades únicas com situação "Reservada", não quantidade de pagamentos
     const quantidadeReservas = reservedUnits.length;
