@@ -26,12 +26,27 @@ require("dotenv").config();
 const SUPABASE_URL = process.env.SUPABASE_URL || null;
 const SUPABASE_SERVICE_ROLE =
   process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_KEY || null;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || null;
+
 let supabase = null;
+let supabaseAuth = null; // Cliente separado para autenticação de usuários
+
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
   supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+  console.log("✅ Supabase SERVICE_ROLE inicializado");
 } else {
   console.warn(
     "Supabase: variáveis SUPABASE_URL ou SUPABASE_SERVICE_ROLE não configuradas. Operações Supabase serão ignoradas."
+  );
+}
+
+// Cliente para validação de tokens de usuários (usa ANON_KEY)
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log("✅ Supabase AUTH (ANON_KEY) inicializado para validação de tokens");
+} else {
+  console.warn(
+    "⚠️ SUPABASE_ANON_KEY não configurada. Validação de tokens pode falhar."
   );
 }
 
@@ -978,22 +993,35 @@ async function verifyToken(req, res, next) {
   }
 
   const token = authHeader.split("Bearer ")[1];
+  
+  console.log("[AUTH] Token length:", token.length);
+  console.log("[AUTH] Token (primeiros 50 chars):", token.substring(0, 50) + "...");
 
   try {
-    if (!supabase) {
-      console.error("[AUTH] Supabase não configurado");
+    // Usa o cliente de autenticação (ANON_KEY) para validar tokens de usuários
+    const clientToUse = supabaseAuth || supabase;
+    
+    if (!clientToUse) {
+      console.error("[AUTH] Nenhum cliente Supabase configurado");
       return res.status(500).send("Supabase não configurado.");
     }
 
-    console.log("[AUTH] Verificando token...");
+    console.log("[AUTH] Usando cliente:", supabaseAuth ? "supabaseAuth (ANON_KEY)" : "supabase (SERVICE_ROLE)");
+    console.log("[AUTH] Verificando token com supabase.auth.getUser()...");
+    
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await clientToUse.auth.getUser(token);
+
+    console.log("[AUTH] Resultado da verificação:");
+    console.log("[AUTH] - user:", user ? user.email : "null");
+    console.log("[AUTH] - error:", error ? error.message : "null");
 
     // CORREÇÃO: Ignorar erro de token expirado, permitir uso contínuo
     if (error && !error.message.includes("token is expired")) {
-      console.error("[AUTH] Erro ao verificar token:", error.message);
+      console.error("[AUTH] ❌ Erro ao verificar token:", error.message);
+      console.error("[AUTH] Detalhes do erro:", JSON.stringify(error, null, 2));
       return res.status(403).json({
         error: "Acesso proibido: Token inválido.",
         details: error.message,
@@ -1001,18 +1029,20 @@ async function verifyToken(req, res, next) {
     }
 
     if (!user) {
-      console.error("[AUTH] Usuário não encontrado");
+      console.error("[AUTH] ❌ Usuário não encontrado após verificação");
       return res.status(403).send("Acesso proibido: Token inválido.");
     }
 
     console.log(
-      "[AUTH] Token verificado com sucesso para usuário:",
+      "[AUTH] ✅ Token verificado com sucesso para usuário:",
       user.email
     );
     req.user = { email: user.email, uid: user.id };
     return next();
   } catch (error) {
-    console.error("[AUTH] Exceção ao verificar token:", error);
+    console.error("[AUTH] ❌ Exceção ao verificar token:", error);
+    console.error("[AUTH] Tipo do erro:", error.name);
+    console.error("[AUTH] Stack trace:", error.stack);
     return res.status(403).json({
       error: "Acesso proibido: Token inválido.",
       details: error.message,

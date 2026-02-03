@@ -429,15 +429,6 @@ export function MainPage() {
       .map((item) => [item.data, item.originalIndex]);
   }, [unidades, searchTerm, statusFilter]);
 
-  // DEBUG: Log do filtro
-  console.log('DEBUG MainPage - Total unidades:', unidades.length);
-  console.log('DEBUG MainPage - Unidades filtradas:', filteredUnidades.length);
-  console.log('DEBUG MainPage - searchTerm:', searchTerm);
-  console.log('DEBUG MainPage - statusFilter:', statusFilter);
-  if (filteredUnidades.length < 20) {
-    console.log('DEBUG MainPage - Nomes filtrados:', filteredUnidades.map(([data]) => data[2]));
-  }
-
   // Array filtrado apenas com os dados das unidades para o FloorPlan
   const filteredUnidadesForMap: string[][] = useMemo(() => {
     return filteredUnidades.map(([data]) => data);
