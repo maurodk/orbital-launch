@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../src/supabaseClient";
 import "./BlockMappingOverlay.css";
 
-interface BlockMapping {
+export interface BlockMapping {
   id?: string;
   nome_bloco: string;
   x: number;
@@ -21,6 +21,7 @@ interface BlockMappingToolProps {
   availableBlocks: string[];
   activeLayer?: "primary" | "additional";
   onMappingsChange: (mappings: BlockMapping[]) => void;
+  onSelectedBlockChange?: (block: string) => void;
 }
 
 export function BlockMappingTool({
@@ -31,10 +32,10 @@ export function BlockMappingTool({
   availableBlocks,
   activeLayer = "primary",
   onMappingsChange,
+  onSelectedBlockChange,
 }: BlockMappingToolProps) {
   const [selectedBlock, setSelectedBlock] = useState<string>("");
   const [existingMappings, setExistingMappings] = useState<BlockMapping[]>([]);
-  // const [isDrawing, setIsDrawing] = useState(false); // Reservado para funcionalidade futura
 
   const currentLayerRef = activeLayer === "additional"
     ? `${implantacaoName}+adicional`
@@ -90,6 +91,12 @@ export function BlockMappingTool({
   };
   */
 
+  useEffect(() => {
+    if (onSelectedBlockChange) {
+      onSelectedBlockChange(selectedBlock);
+    }
+  }, [selectedBlock, onSelectedBlockChange]);
+
   const handleDeleteMapping = async (mappingId: string) => {
     if (!confirm("Deseja remover este mapeamento?")) return;
 
@@ -133,9 +140,9 @@ export function BlockMappingTool({
             <strong>Instruções:</strong>
           </p>
           <ol style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "#0c4a6e" }}>
-            <li>Clique e arraste no mapa para desenhar um retângulo</li>
-            <li>Ajuste o tamanho conforme necessário</li>
-            <li>Clique em "Salvar" para confirmar</li>
+            <li>Clique e arraste no mapa para desenhar um retângulo sobre o bloco</li>
+            <li>O mapeamento será salvo automaticamente ao soltar o mouse</li>
+            <li>Você pode remapear o mesmo bloco quantas vezes quiser</li>
           </ol>
         </div>
       )}

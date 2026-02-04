@@ -214,6 +214,7 @@ export function MainPage() {
   // Estados para mapeamento de blocos vendidos
   const [isBlockMappingMode, setIsBlockMappingMode] = useState(false);
   const [blockMappings, setBlockMappings] = useState<BlockMapping[]>([]);
+  const [selectedBlockToMap, setSelectedBlockToMap] = useState<string>("");
 
   const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
     null
@@ -1420,6 +1421,47 @@ export function MainPage() {
     }
   };
 
+  // Handler para salvar mapeamento de bloco desenhado
+  const handleRectangleComplete = async (rect: { startX: number; startY: number; width: number; height: number }) => {
+    if (!selectedBlockToMap || !currentImplantation) return;
+    
+    const currentLayerRef = activeLayer === "additional"
+      ? `${selectedImplantationName}+adicional`
+      : selectedImplantationName;
+
+    try {
+      const { error } = await supabase
+        .from("blocos_mapping")
+        .upsert({
+          implantacao_id: currentImplantation.id || "",
+          nome_bloco: selectedBlockToMap,
+          x: rect.startX,
+          y: rect.startY,
+          width: rect.width,
+          height: rect.height,
+          implantacao_ref: currentLayerRef,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Recarregar mapeamentos
+      const { data } = await supabase
+        .from("blocos_mapping")
+        .select("*")
+        .eq("implantacao_id", currentImplantation.id || "")
+        .eq("implantacao_ref", currentLayerRef);
+      
+      setBlockMappings(data || []);
+      alert(`Mapeamento do bloco "${selectedBlockToMap}" salvo com sucesso!`);
+      setSelectedBlockToMap(""); // Limpa seleção após salvar
+    } catch (error) {
+      console.error("Erro ao salvar mapeamento:", error);
+      alert("Erro ao salvar mapeamento. Tente novamente.");
+    }
+  };
+
   const handleCloseModals = () => {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
@@ -2428,6 +2470,7 @@ export function MainPage() {
               availableBlocks={availableBlocks}
               activeLayer={activeLayer}
               onMappingsChange={setBlockMappings}
+              onSelectedBlockChange={setSelectedBlockToMap}
             />
           )}
           {switching && (
@@ -2860,6 +2903,8 @@ export function MainPage() {
                     blockMappings={blockMappings}
                     blockStats={blockStats}
                     isBlockMappingMode={isBlockMappingMode}
+                    selectedBlockToMap={selectedBlockToMap}
+                    onRectangleComplete={handleRectangleComplete}
                   />
                 )}
                 {view === "list" && (

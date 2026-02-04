@@ -15,6 +15,7 @@ import {
 } from "react-zoom-pan-pinch";
 import { FiZoomIn, FiZoomOut, FiMaximize, FiRefreshCcw } from "react-icons/fi";
 import { BlockMappingOverlay } from "./BlockMappingOverlay";
+import { BlockDrawingOverlay } from "./BlockDrawingOverlay";
 
 // Interface para mapeamento de blocos
 interface BlockMapping {
@@ -53,6 +54,8 @@ interface FloorPlanProps {
   blockMappings?: BlockMapping[];
   blockStats?: Record<string, BlockStats>;
   isBlockMappingMode?: boolean;
+  selectedBlockToMap?: string;
+  onRectangleComplete?: (rect: { startX: number; startY: number; width: number; height: number }) => void;
 }
 
 const Controls = () => {
@@ -103,6 +106,8 @@ export const FloorPlan = memo(function FloorPlan({
   blockMappings = [],
   blockStats = {},
   isBlockMappingMode = false,
+  selectedBlockToMap = "",
+  onRectangleComplete,
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -262,6 +267,15 @@ export const FloorPlan = memo(function FloorPlan({
               activeLayer={activeLayer}
               implantacaoName={implantacao || implantacaoPrimary || ""}
             />
+
+            {/* Overlay de desenho para mapeamento de blocos */}
+            {isBlockMappingMode && selectedBlockToMap && onRectangleComplete && (
+              <BlockDrawingOverlay
+                selectedBlock={selectedBlockToMap}
+                onRectangleComplete={onRectangleComplete}
+                containerRef={containerRef}
+              />
+            )}
 
             {renderedUnits.map((unit) => {
               if (!unit) return null;
