@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { BlockMappingOverlay } from "../../components/BlockMappingOverlay";
 
 interface UnitData {
   etapa: string;
@@ -26,6 +27,23 @@ interface UnitData {
   implantacao_ref: string;
   simbolo: string;
   raw: string[];
+}
+
+interface BlockMapping {
+  id?: string;
+  nome_bloco: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  implantacao_ref?: string;
+}
+
+interface BlockStats {
+  total: number;
+  reservadas: number;
+  bloqueadas: number;
+  disponiveis: number;
 }
 
 interface ImplantacaoData {
@@ -70,6 +88,9 @@ export function FullscreenPage() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [implantacaoId, setImplantacaoId] = useState<number | null>(null);
+
+  // Estados para blocos vendidos
+  const [blockMappings, setBlockMappings] = useState<BlockMapping[]>([]);
 
   // Touch/pinch zoom state
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
@@ -164,10 +185,74 @@ export function FullscreenPage() {
     return filtered;
   }, [parsedUnidades, activeLayer, implantacao]);
 
+  // Calcular estatísticas de blocos para overlay de vendido
+  const blockStats = useMemo<Record<string, BlockStats>>(() => {
+    const stats: Record<string, BlockStats> = {};
+    
+    if (!data?.unidades) return stats;
+    
+    data.unidades.forEach((unidade) => {
+      const bloco = unidade[3]; // Coluna D - bloco
+      const etapa = unidade[1]; // Coluna B - etapa
+      const situacao = (unidade[11] || "Disponível")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+      
+      if (!bloco || bloco.trim() === "") return;
+      
+      // Concatenar bloco + etapa para criar chave única
+      const blocoKey = etapa && etapa.trim() !== "" ? `${bloco} - ${etapa}` : bloco;
+      
+      if (!stats[blocoKey]) {
+        stats[blocoKey] = { total: 0, reservadas: 0, bloqueadas: 0, disponiveis: 0 };
+      }
+      
+      stats[blocoKey].total++;
+      
+      if (situacao === "reservada") {
+        stats[blocoKey].reservadas++;
+      } else if (situacao === "bloqueada") {
+        stats[blocoKey].bloqueadas++;
+      } else if (situacao === "disponivel") {
+        stats[blocoKey].disponiveis++;
+      }
+    });
+    
+    return stats;
+  }, [data?.unidades]);
+
   // Atualizar ref quando data mudar
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
+
+  // Carregar mapeamentos de blocos vendidos
+  useEffect(() => {
+    const loadBlockMappings = async () => {
+      if (!implantacaoId || !implantacao) return;
+      
+      const currentLayerRef = activeLayer === "additional"
+        ? `${implantacao}+adicional`
+        : implantacao;
+      
+      try {
+        const { data: mappings, error } = await supabase
+          .from("blocos_mapping")
+          .select("*")
+          .eq("implantacao_id", implantacaoId)
+          .eq("implantacao_ref", currentLayerRef);
+        
+        if (error) throw error;
+        setBlockMappings(mappings || []);
+      } catch (error) {
+        console.error("Erro ao carregar mapeamentos de blocos:", error);
+      }
+    };
+    
+    loadBlockMappings();
+  }, [implantacaoId, implantacao, activeLayer]);
 
   // Fetch data function - busca 100% do Supabase com retry logic
   const fetchData = useCallback(async (isRefresh = false) => {
@@ -857,6 +942,14 @@ export function FullscreenPage() {
                 userSelect: "none",
               }}
               draggable={false}
+            />
+
+            {/* Overlay de blocos vendidos */}
+            <BlockMappingOverlay
+              blockMappings={blockMappings}
+              blockStats={blockStats}
+              activeLayer={activeLayer}
+              implantacaoName={implantacao}
             />
 
             {/* Unit Indicators */}
