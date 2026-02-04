@@ -56,7 +56,7 @@ export function MappingSidebar({
         return acc; // skip units owned by other implantation
       }
 
-      const blockName = unidade[1] || "Sem Bloco"; // Coluna B - bloco
+      const blockName = unidade[3] || "Sem Bloco"; // Coluna D - bloco
       if (!acc[blockName]) {
         acc[blockName] = [];
       }
