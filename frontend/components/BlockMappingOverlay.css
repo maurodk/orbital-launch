@@ -20,15 +20,11 @@
 
 .block-sold-content {
   position: relative;
-  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-  border: 2px solid #ffffff;
+  background: transparent;
+  border: none;
   border-radius: 20px;
   padding: 20px 30px;
-  box-shadow: 
-    0 10px 40px rgba(220, 38, 38, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-    0 20px 60px rgba(0, 0, 0, 0.4),
-    0 0 30px rgba(220, 38, 38, 0.5);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -63,38 +59,11 @@
   }
 }
 
-.block-sold-content::before,
-.block-sold-content::after {
-  content: '';
-  position: absolute;
-  width: 150%;
-  height: 40px;
-  background: repeating-linear-gradient(
-    90deg,
-    #fbbf24,
-    #fbbf24 30px,
-    #000000 30px,
-    #000000 60px
-  );
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  z-index: 10;
-  top: 50%;
-  left: 50%;
-}
-
-.block-sold-content::before {
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.block-sold-content::after {
-  transform: translate(-50%, -50%) rotate(-45deg);
-}
-
 .block-sold-badge {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.98);
+  background: transparent;
   padding: 12px 24px;
   border-radius: 50px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
@@ -126,7 +95,7 @@
 .block-sold-text {
   font-size: 24px;
   font-weight: 900;
-  color: #7f1d1d;
+  color: #dc2626;
   letter-spacing: 2px;
   text-transform: uppercase;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
