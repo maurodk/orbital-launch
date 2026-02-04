@@ -893,7 +893,7 @@ export function MainPage() {
             
             // Verifica se a mudança é de outra camada para evitar refresh desnecessário
             if (payload.new && typeof payload.new === 'object' && 'implantacao_ref' in payload.new) {
-              const changedRef = (payload.new as any).implantacao_ref || '';
+              const changedRef = (payload.new as Record<string, unknown>).implantacao_ref || '';
               const currentLayerRef = activeLayer === 'additional' 
                 ? `${selectedImplantationName}+adicional` 
                 : selectedImplantationName;
@@ -2066,7 +2066,7 @@ export function MainPage() {
       const implantacaoForPayload = selectedImplantationName;
 
       // implantacaoRef explicitly marks additional-layer mappings when needed
-      const implantacaoRefValue = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : undefined;
+      const implantacaoRefValue = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : selectedImplantationName;
 
       const payload: Record<string, unknown> = {
         rowIndex: sheetRowIndex,
@@ -2074,11 +2074,32 @@ export function MainPage() {
         implantacao: implantacaoForPayload,
         coordX: coordX,
         coordY: coordY,
-        implantacaoRef: implantacaoRefValue,
+        implantacaoRef: implantacaoRefValue, // Sempre envia para marcar a camada
       };
 
-      // Aguarda o backend confirmar antes de atualizar o estado
-      await axios.post(`${apiUrl}/api/update-coords`, payload);
+      // Retry logic para lidar com conflitos de concorrência
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (attempts < maxAttempts) {
+        try {
+          await axios.post(`${apiUrl}/api/update-coords`, payload);
+          break; // Sucesso, sai do loop
+        } catch (err: unknown) {
+          attempts++;
+          const axiosError = err as { response?: { status?: number } };
+          
+          // Se for erro 500 e ainda tem tentativas, aguarda e tenta novamente
+          if (axiosError.response?.status === 500 && attempts < maxAttempts) {
+            console.log(`[MAPPING] Tentativa ${attempts} falhou, aguardando ${attempts * 500}ms antes de tentar novamente...`);
+            await new Promise(resolve => setTimeout(resolve, attempts * 500)); // Backoff exponencial
+            continue;
+          }
+          
+          // Se não for 500 ou acabaram as tentativas, lança o erro
+          throw err;
+        }
+      }
       
       // Só atualiza o estado após confirmação do backend
       setUnidades(updatedUnidades);
@@ -2088,9 +2109,19 @@ export function MainPage() {
       setTimeout(() => {
         recentlyMappedUnits.current.delete(unitToMapIndex);
       }, 3000); // Protege por 3 segundos
-    } catch (err) {
-      setError("Falha ao salvar as coordenadas.");
-      console.error(err);
+    } catch (err: unknown) {
+      console.error("Erro ao salvar coordenadas:", err);
+      
+      const axiosError = err as { response?: { status?: number }; code?: string; message?: string };
+      
+      // Mensagem de erro mais amigável dependendo do tipo
+      if (axiosError.response?.status === 500) {
+        setError("Erro no servidor ao salvar. Tente novamente em alguns segundos.");
+      } else if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
+        setError("Tempo esgotado ao salvar. Verifique sua conexão.");
+      } else {
+        setError("Falha ao salvar as coordenadas. Tente novamente.");
+      }
     }
     setUnitToMapIndex(null);
     setUnitLetter(""); // Limpa a letra após salvar
