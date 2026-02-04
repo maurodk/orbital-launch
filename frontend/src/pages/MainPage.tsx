@@ -2484,6 +2484,7 @@ export function MainPage() {
               activeLayer={activeLayer}
               onMappingsChange={setBlockMappings}
               onSelectedBlockChange={setSelectedBlockToMap}
+              currentMappings={blockMappings}
             />
           )}
           {switching && (

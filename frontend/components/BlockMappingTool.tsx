@@ -22,6 +22,7 @@ interface BlockMappingToolProps {
   activeLayer?: "primary" | "additional";
   onMappingsChange: (mappings: BlockMapping[]) => void;
   onSelectedBlockChange?: (block: string) => void;
+  currentMappings?: BlockMapping[];
 }
 
 export function BlockMappingTool({
@@ -33,9 +34,12 @@ export function BlockMappingTool({
   activeLayer = "primary",
   onMappingsChange,
   onSelectedBlockChange,
+  currentMappings = [],
 }: BlockMappingToolProps) {
   const [selectedBlock, setSelectedBlock] = useState<string>("");
-  const [existingMappings, setExistingMappings] = useState<BlockMapping[]>([]);
+
+  // Usar currentMappings do parent em vez de estado local
+  const existingMappings = currentMappings;
 
   const currentLayerRef = activeLayer === "additional"
     ? `${implantacaoName}+adicional`
@@ -56,7 +60,6 @@ export function BlockMappingTool({
         .eq("implantacao_ref", currentLayerRef);
 
       if (error) throw error;
-      setExistingMappings(data || []);
       onMappingsChange(data || []);
     } catch (error) {
       console.error("Erro ao carregar mapeamentos de blocos:", error);
