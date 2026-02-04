@@ -465,12 +465,17 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       return res.status(400).json({ error: "unidade or pagamento_id required" });
     }
 
-    console.log(`[INTERNAL] ====== WORKER PROCESSOU PAGAMENTO ======`);
-    console.log(`[INTERNAL] Worker ID: ${worker_id || 'unknown'}`);
+    // Determinar se é início ou fim do processamento
+    const isInicio = status === false || status === 'iniciado' || status === 'processando';
+    const isErro = status === 'erro' || status === 'error' || status === 'falhou';
+    const isSucesso = status === 'processado' || status === 'pago' || status === 'sucesso';
+
+    console.log(`[INTERNAL] ====== WORKER ${isInicio ? 'INICIOU' : (isSucesso ? 'CONCLUIU' : 'ERRO NO')} PROCESSAMENTO ======`);
+    console.log(`[INTERNAL] Worker: ${worker_id || 'unknown'}`);
     console.log(`[INTERNAL] Pagamento ID: ${pagamento_id}`);
     console.log(`[INTERNAL] Unidade: ${unidade || 'N/A'}`);
     console.log(`[INTERNAL] Status: ${status}`);
-    console.log(`[INTERNAL] Reserva ID: ${reserva_id || 'N/A'}`);
+    if (reserva_id) console.log(`[INTERNAL] Reserva ID: ${reserva_id}`);
     console.log(`[INTERNAL] Implantação: ${implantacao || 'N/A'}`);
     console.log(`[INTERNAL] ==========================================`);
 
@@ -1411,9 +1416,25 @@ async function setupPagamentosRealtime() {
           try {
             const ev = payload.event || payload.eventType || 'unknown';
             const record = payload.new || payload.record || payload;
+            const oldRecord = payload.old || null;
             const status = record && record.status;
+            const oldStatus = oldRecord && oldRecord.status;
             const unidade = record && (record.unidade || record.nome_unidade || null);
             const pagamento_id = record && record.id;
+
+            // NOVO: Liberar PIX quando pagamento muda para status "erro"
+            if (ev === 'UPDATE' && pagamento_id && status === 'erro' && oldStatus !== 'erro') {
+              try {
+                console.log(`[REALTIME] Pagamento ${pagamento_id} entrou em erro - liberando PIX vinculados`);
+                await supabase
+                  .from('historico_pix')
+                  .update({ pagamento_id: null })
+                  .eq('pagamento_id', pagamento_id);
+                console.log(`[REALTIME] PIX do pagamento ${pagamento_id} liberados com sucesso`);
+              } catch (pixErr) {
+                console.error(`[REALTIME] Erro ao liberar PIX do pagamento ${pagamento_id}:`, pixErr);
+              }
+            }
 
             // Try to infer implantacao and rowIndex from 'unidades' table
             let implantacaoName = null;

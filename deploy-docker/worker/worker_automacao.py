@@ -66,8 +66,8 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 QUEUE_NAME = "fila_reservas"
 
-# Identificar o worker (hostname do container ou nome do host)
-WORKER_ID = os.getenv("HOSTNAME", socket.gethostname())
+# Identificar o worker (usa WORKER_NAME se disponível, senão hostname)
+WORKER_ID = os.getenv("WORKER_NAME") or os.getenv("HOSTNAME", socket.gethostname())
 
 # Configuração de logging
 logging.basicConfig(
@@ -1508,7 +1508,6 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
 def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: Dict):
     """Processa um job específico vindo da fila"""
     pagamento_id = job_data.get("pagamento_id")
-    logger.info(f"[PROCESSANDO] Worker {WORKER_ID} iniciando processamento do pagamento ID: {pagamento_id}")
     
     try:
         # Buscar dados atualizados no Supabase
@@ -1523,6 +1522,44 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
             return
 
         cliente_info = pag.get("clientes", {})
+        unidade = pag.get("unidade")
+        
+        # NOVO: Buscar nome da implantação para log inicial
+        implantacao_name = None
+        try:
+            if supabase and unidade:
+                resp = supabase.table("unidades").select("implantacao_id").ilike("nome_unidade", f"%{unidade}%").limit(1).execute()
+                unidade_row = None
+                if resp and getattr(resp, 'data', None):
+                    if isinstance(resp.data, list) and len(resp.data) > 0:
+                        unidade_row = resp.data[0]
+                    elif isinstance(resp.data, dict):
+                        unidade_row = resp.data
+                
+                if unidade_row and unidade_row.get("implantacao_id"):
+                    impl_resp = supabase.table("implantacoes").select("nome").eq("id", unidade_row["implantacao_id"]).limit(1).execute()
+                    if impl_resp and getattr(impl_resp, 'data', None):
+                        if isinstance(impl_resp.data, list) and len(impl_resp.data) > 0:
+                            implantacao_name = impl_resp.data[0].get("nome")
+                        elif isinstance(impl_resp.data, dict):
+                            implantacao_name = impl_resp.data.get("nome")
+        except Exception as e:
+            logger.debug(f"Não foi possível buscar implantação: {e}")
+        
+        # LOG INICIAL: Notifica backend que começou o processamento
+        logger.info(f"====== WORKER INICIOU PROCESSAMENTO ======")
+        logger.info(f"Worker: {WORKER_ID}")
+        logger.info(f"Pagamento ID: {pagamento_id}")
+        logger.info(f"Unidade: {unidade or 'N/A'}")
+        logger.info(f"Cliente: {cliente_info.get('nome') or 'N/A'}")
+        logger.info(f"Implantação: {implantacao_name or 'N/A'}")
+        logger.info(f"==========================================")
+        
+        # Notifica backend que processamento iniciou
+        try:
+            notify_backend_status(pagamento_id, unidade, False, implantacao=implantacao_name, reserva_id=None)
+        except Exception as e:
+            logger.debug(f"Falha ao notificar início: {e}")
         
         # Montar objeto de reserva
         dados_reserva = {
