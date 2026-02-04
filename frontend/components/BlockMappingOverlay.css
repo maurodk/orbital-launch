@@ -20,7 +20,7 @@
 
 .block-sold-content {
   position: relative;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.4);
   border: none;
   border-radius: 20px;
   padding: 20px 30px;
@@ -31,7 +31,7 @@
   justify-content: center;
   gap: 10px;
   animation: pulse-reduced 2s ease-in-out infinite;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
   overflow: hidden;
   width: 100%;
   height: 100%;
