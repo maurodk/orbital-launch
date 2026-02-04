@@ -112,29 +112,30 @@ export function ReservationList({
           return;
         }
 
-        // Ações que indicam que o plano foi montado/processado
-        const processedActions = ["Reserva processada (Worker)", "Pagamento Registrado"];
+        // Apenas "Pagamento Registrado" desabilita os botões de trocar/cancelar
+        // "Reserva processada (Worker)" NÃO desabilita
+        const paymentAction = "Pagamento Registrado";
         
         // Ações que indicam reset do ciclo (liberam nova montagem de plano)
         const resetActions = ["Cancelada", "Reservada"];
         
-        // Encontra o índice da primeira ação de processamento
-        const processedIndex = data.findIndex(h => processedActions.includes(h.acao));
+        // Encontra o índice da primeira ação de pagamento registrado
+        const paymentIndex = data.findIndex(h => h.acao === paymentAction);
         
-        if (processedIndex === -1) {
-          // Não há registro de processamento, botão liberado
+        if (paymentIndex === -1) {
+          // Não há registro de pagamento, botões liberados
           setIsPaymentProcessed(false);
           return;
         }
         
-        // Verifica se há ações de reset ANTES do processamento (mais recentes)
-        const hasResetBeforeProcessed = data.slice(0, processedIndex).some(h => 
+        // Verifica se há ações de reset ANTES do pagamento (mais recentes)
+        const hasResetBeforePayment = data.slice(0, paymentIndex).some(h => 
           resetActions.includes(h.acao)
         );
         
-        // Se houver reset antes do processamento, libera (novo ciclo)
-        // Se não houver reset, mantém bloqueado (plano ainda válido)
-        setIsPaymentProcessed(!hasResetBeforeProcessed);
+        // Se houver reset antes do pagamento, libera (novo ciclo)
+        // Se não houver reset, mantém bloqueado (pagamento ainda válido)
+        setIsPaymentProcessed(!hasResetBeforePayment);
       } catch (err) {
         console.error("Erro ao verificar status do pagamento:", err);
         setIsPaymentProcessed(false);
