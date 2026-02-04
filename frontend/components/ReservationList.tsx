@@ -93,13 +93,13 @@ export function ReservationList({
       setIsProcessing(false);
 
       try {
-        // Busca no histórico se existe entrada "Reserva processada (Worker)" para esta unidade
+        // Busca as últimas ações no histórico para esta unidade (ordenado por mais recente)
         const { data, error } = await supabase
           .from("historico")
-          .select("acao")
+          .select("acao, timestamp_iso")
           .eq("unidade_nome", unitName)
-          .eq("acao", "Reserva processada (Worker)")
-          .limit(1);
+          .order("timestamp_iso", { ascending: false })
+          .limit(5); // Pega as 5 últimas ações
 
         if (error) {
           console.error("Erro ao verificar histórico:", error);
@@ -107,7 +107,28 @@ export function ReservationList({
           return;
         }
 
-        setIsPaymentProcessed(data && data.length > 0);
+        if (!data || data.length === 0) {
+          setIsPaymentProcessed(false);
+          return;
+        }
+
+        // Verifica a ação mais recente relevante
+        // Se a última ação for "Reserva processada (Worker)", bloqueia
+        // Se depois disso houver "Cancelada" ou "Reservada", libera (ciclo novo)
+        const lastAction = data[0].acao || "";
+        
+        if (lastAction === "Reserva processada (Worker)") {
+          // Confirma que não há cancelamento/nova reserva posterior
+          const hasSubsequentReset = data.slice(1).some(h => 
+            h.acao === "Cancelada" || h.acao === "Reservada"
+          );
+          
+          // Se não encontrou reset posterior, mantém bloqueado
+          setIsPaymentProcessed(!hasSubsequentReset);
+        } else {
+          // Última ação não é processamento, então está livre
+          setIsPaymentProcessed(false);
+        }
       } catch (err) {
         console.error("Erro ao verificar status do pagamento:", err);
         setIsPaymentProcessed(false);
@@ -409,22 +430,29 @@ export function ReservationList({
             </div>
             
             <div className="manage-actions-grid">
-              {!isPaymentProcessed && !isProcessing && (
-                <button
-                  className="manage-action-card payment"
-                  onClick={() => {
-                    onPaymentClick(selectedUnitIndex);
-                    setShowManageModal(false);
-                    setSelectedUnitIndex(null);
-                  }}
-                >
-                  <div className="action-icon-wrapper"><FiDollarSign size={24} /></div>
-                  <div className="action-details">
-                    <span className="action-title">Pagamento</span>
-                    <span className="action-desc">Registrar ou visualizar pagamentos</span>
-                  </div>
-                </button>
-              )}
+              <button
+                className="manage-action-card payment"
+                disabled={isPaymentProcessed || isProcessing}
+                onClick={() => {
+                  if (isPaymentProcessed || isProcessing) return;
+                  onPaymentClick(selectedUnitIndex);
+                  setShowManageModal(false);
+                  setSelectedUnitIndex(null);
+                }}
+              >
+                <div className="action-icon-wrapper"><FiDollarSign size={24} /></div>
+                <div className="action-details">
+                  <span className="action-title">Pagamento</span>
+                  <span className="action-desc">
+                    {isProcessing 
+                      ? "Aguarde o processamento..." 
+                      : isPaymentProcessed 
+                      ? "Plano já foi processado" 
+                      : "Registrar ou visualizar pagamentos"
+                    }
+                  </span>
+                </div>
+              </button>
 
               <button
                 className="manage-action-card change"
