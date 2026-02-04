@@ -82,26 +82,66 @@ export function PaymentModal({
   const totalCartao = useMemo(() => extraPayments.filter(p => p.tipo === 'cartao').reduce((acc, curr) => acc + curr.valor, 0), [extraPayments]);
   const totalCheque = useMemo(() => extraPayments.filter(p => p.tipo === 'cheque').reduce((acc, curr) => acc + curr.valor, 0), [extraPayments]);
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (paymentConfirmDisabled || isSubmitting) return;
     setIsSubmitting(true);
     
-    const paymentData: PaymentData = {
-      pagamentoPresencial,
-      valorTotal: valorTotalPagamento,
-      valorPix: totalPix,
-      valorDinheiro: totalDinheiro,
-      valorCartao: totalCartao,
-      valorCheque: totalCheque,
-      tipoVenda,
-      planosPadrao,
-      planoSelecionado,
-      diaVencimento,
-      valorUnidade
-    };
+    try {
+      // VERIFICAÇÃO CRÍTICA: Confirma que a unidade ainda está reservada
+      const unitName = unitData?.[2]; // Coluna C - nome_unidade
+      if (!unitName || !implantacaoId) {
+        alert("Dados da unidade incompletos. Tente novamente.");
+        setIsSubmitting(false);
+        return;
+      }
 
-    onConfirm(paymentData);
-    setTimeout(() => setIsSubmitting(false), 2000);
+      const { data: unidadeAtual, error: unidadeError } = await supabase
+        .from("unidades")
+        .select("situacao")
+        .eq("nome_unidade", unitName)
+        .eq("implantacao_id", implantacaoId)
+        .maybeSingle();
+
+      if (unidadeError) {
+        console.error("Erro ao verificar situação da unidade:", unidadeError);
+        alert("Erro ao verificar a situação da unidade. Tente novamente.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!unidadeAtual || unidadeAtual.situacao !== "Reservada") {
+        alert(
+          "⚠️ A unidade não está mais reservada!\n\n" +
+          "Alguém pode ter cancelado a reserva acidentalmente.\n" +
+          "Por favor, verifique a situação da unidade antes de continuar."
+        );
+        setIsSubmitting(false);
+        onClose(); // Fecha o modal para forçar o usuário a verificar
+        return;
+      }
+
+      // Se passou pela verificação, prossegue com o pagamento
+      const paymentData: PaymentData = {
+        pagamentoPresencial,
+        valorTotal: valorTotalPagamento,
+        valorPix: totalPix,
+        valorDinheiro: totalDinheiro,
+        valorCartao: totalCartao,
+        valorCheque: totalCheque,
+        tipoVenda,
+        planosPadrao,
+        planoSelecionado,
+        diaVencimento,
+        valorUnidade
+      };
+
+      onConfirm(paymentData);
+      setTimeout(() => setIsSubmitting(false), 2000);
+    } catch (err) {
+      console.error("Erro ao confirmar pagamento:", err);
+      alert("Erro inesperado ao processar pagamento. Tente novamente.");
+      setIsSubmitting(false);
+    }
   };
 
   const handleAddExtraPayment = () => {

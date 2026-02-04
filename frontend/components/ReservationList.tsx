@@ -65,12 +65,14 @@ export function ReservationList({
     null
   );
   const [isPaymentProcessed, setIsPaymentProcessed] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Verifica se o pagamento já foi processado com sucesso pelo worker
   useEffect(() => {
     const checkPaymentStatus = async () => {
       if (!showManageModal || selectedUnitIndex === null) {
         setIsPaymentProcessed(false);
+        setIsProcessing(false);
         return;
       }
 
@@ -79,6 +81,16 @@ export function ReservationList({
 
       const [unitData] = unitTuple;
       const unitName = unitData[2]; // Coluna C - nome_unidade
+      const paymentStatus = (unitData[20] || '').toString().toLowerCase(); // Coluna U - status pagamento
+
+      // Verifica se está em processamento
+      if (paymentStatus === 'processando') {
+        setIsProcessing(true);
+        setIsPaymentProcessed(false);
+        return;
+      }
+
+      setIsProcessing(false);
 
       try {
         // Busca no histórico se existe entrada "Reserva processada (Worker)" para esta unidade
@@ -387,7 +399,9 @@ export function ReservationList({
             <div className="manage-modal-header">
               <h2>Gerenciar Unidade</h2>
               <p className="manage-modal-subtitle">
-                {isPaymentProcessed 
+                {isProcessing 
+                  ? "⏳ Processamento em andamento... Aguarde a conclusão do worker." 
+                  : isPaymentProcessed 
                   ? "Plano de pagamento já foi processado. Você pode trocar de unidade ou cancelar a reserva." 
                   : "Selecione uma ação para a unidade selecionada"
                 }
@@ -395,7 +409,7 @@ export function ReservationList({
             </div>
             
             <div className="manage-actions-grid">
-              {!isPaymentProcessed && (
+              {!isPaymentProcessed && !isProcessing && (
                 <button
                   className="manage-action-card payment"
                   onClick={() => {
@@ -414,7 +428,9 @@ export function ReservationList({
 
               <button
                 className="manage-action-card change"
+                disabled={isProcessing}
                 onClick={() => {
+                  if (isProcessing) return;
                   onChangeUnitClick(selectedUnitIndex);
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
@@ -423,13 +439,15 @@ export function ReservationList({
                 <div className="action-icon-wrapper"><FiRefreshCw size={24} /></div>
                 <div className="action-details">
                   <span className="action-title">Trocar Unidade</span>
-                  <span className="action-desc">Mover reserva para outra unidade</span>
+                  <span className="action-desc">{isProcessing ? "Aguarde o processamento..." : "Mover reserva para outra unidade"}</span>
                 </div>
               </button>
 
               <button
                 className="manage-action-card cancel"
+                disabled={isProcessing}
                 onClick={() => {
+                  if (isProcessing) return;
                   // Trigger cancel reservation flow
                   // Find the tuple with matching originalIndex
                   const unitTuple = unidades.find(([, idx]) => idx === selectedUnitIndex);
@@ -447,7 +465,7 @@ export function ReservationList({
                 <div className="action-icon-wrapper"><FiTrash2 size={24} /></div>
                 <div className="action-details">
                   <span className="action-title">Cancelar Reserva</span>
-                  <span className="action-desc">Liberar unidade para venda</span>
+                  <span className="action-desc">{isProcessing ? "Aguarde o processamento..." : "Liberar unidade para venda"}</span>
                 </div>
               </button>
             </div>
@@ -507,6 +525,22 @@ export function ReservationList({
               transform: translateY(-2px);
               border-color: #444;
               background: #333;
+            }
+            .manage-action-card:disabled,
+            .manage-action-card[disabled] {
+              opacity: 0.5;
+              cursor: not-allowed;
+              transform: none;
+            }
+            .manage-action-card:disabled:hover,
+            .manage-action-card[disabled]:hover {
+              transform: none;
+              border-color: #333;
+              background: #2a2a2a;
+            }
+            .manage-action-card:disabled .action-icon-wrapper,
+            .manage-action-card[disabled] .action-icon-wrapper {
+              opacity: 0.6;
             }
             .action-icon-wrapper {
               width: 48px;
