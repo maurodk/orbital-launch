@@ -473,7 +473,9 @@ export function ReservationList({
                 <div className="action-icon-wrapper"><FiRefreshCw size={24} /></div>
                 <div className="action-details">
                   <span className="action-title">Trocar Unidade</span>
-                  <span className="action-desc">{isProcessing ? "Aguarde o processamento..." : "Mover reserva para outra unidade"}</span>
+                  <span className="action-desc">
+                    {isProcessing ? "Aguarde o processamento..." : "Mover reserva para outra unidade"}
+                  </span>
                 </div>
               </button>
 
@@ -499,7 +501,9 @@ export function ReservationList({
                 <div className="action-icon-wrapper"><FiTrash2 size={24} /></div>
                 <div className="action-details">
                   <span className="action-title">Cancelar Reserva</span>
-                  <span className="action-desc">{isProcessing ? "Aguarde o processamento..." : "Liberar unidade para venda"}</span>
+                  <span className="action-desc">
+                    {isProcessing ? "Aguarde o processamento..." : "Liberar unidade para venda"}
+                  </span>
                 </div>
               </button>
             </div>
