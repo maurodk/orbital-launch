@@ -20,28 +20,16 @@
 
 .block-sold-content {
   position: relative;
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-  border: 2px solid #ffffff;
-  border-radius: 20px;
-  padding: 20px 30px;
-  box-shadow: 
-    0 10px 40px rgba(248, 113, 113, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-    0 20px 60px rgba(0, 0, 0, 0.3),
-    0 0 30px rgba(248, 113, 113, 0.4);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  animation: pulse-reduced 2s ease-in-out infinite;
-  backdrop-filter: blur(10px);
-  overflow: hidden;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  min-width: 150px;
-  min-height: 100px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
 }
 
 @keyframes pulse-reduced {
@@ -66,54 +54,51 @@
 .block-sold-badge {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  padding: 12px 24px;
-  border-radius: 50px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  background: transparent;
+  padding: 20px 40px;
+  border: 6px solid #dc2626;
+  border-radius: 12px;
+  box-shadow: 
+    inset 0 0 0 2px #dc2626,
+    0 4px 20px rgba(220, 38, 38, 0.4);
   position: relative;
   z-index: 20;
+  transform: rotate(-15deg);
+  animation: stamp-appear 0.6s ease-out both;
 }
 
 .block-sold-icon {
-  width: 28px;
-  height: 28px;
-  color: #dc2626;
-  animation: checkmark 0.6s ease-out 0.2s both;
+  display: none;
 }
 
-@keyframes checkmark {
+@keyframes stamp-appear {
   0% {
-    transform: scale(0) rotate(-45deg);
+    transform: rotate(-15deg) scale(0.5);
     opacity: 0;
   }
   50% {
-    transform: scale(1.2) rotate(0deg);
+    transform: rotate(-15deg) scale(1.1);
   }
   100% {
-    transform: scale(1) rotate(0deg);
+    transform: rotate(-15deg) scale(1);
     opacity: 1;
   }
 }
 
 .block-sold-text {
-  font-size: 24px;
+  font-size: 48px;
   font-weight: 900;
-  color: #7f1d1d;
-  letter-spacing: 2px;
+  color: #dc2626;
+  letter-spacing: 8px;
   text-transform: uppercase;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  font-family: 'Arial Black', Arial, sans-serif;
 }
 
 .block-sold-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ffffff;
-  text-align: center;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  letter-spacing: 1px;
-  position: relative;
-  z-index: 20;
+  display: none;
 }
 
 
