@@ -64,6 +64,7 @@
 }
 
 /* Fitas de demarcação - X completo de canto a canto */
+/* TEMPORARIAMENTE DESABILITADO
 .block-sold-content::before,
 .block-sold-content::after {
   content: '';
@@ -90,6 +91,7 @@
 .block-sold-content::after {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
+*/
 
 .block-sold-badge {
   display: flex;
