@@ -18,6 +18,7 @@ import { MappingSidebar } from "../../components/MappingSidebar";
 import { ImplantationSwitcher } from "../../components/ImplantationSwitcher";
 import { Header } from "../../components/Header";
 import { HamburgerMenu } from "../../components/HamburgerMenu";
+import { BlockMappingTool } from "../../components/BlockMappingTool";
 import { NewImplantationModal } from "../../components/NewImplantationModal";
 import { EditImplantationModal } from "../../components/EditImplantationModalWithTabs";
 import {
@@ -86,6 +87,23 @@ interface ManualData {
   cliente: string;
   documento: string;
   corretor: string;
+}
+
+interface BlockMapping {
+  id?: string;
+  nome_bloco: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  implantacao_ref?: string;
+}
+
+interface BlockStats {
+  total: number;
+  reservadas: number;
+  bloqueadas: number;
+  disponiveis: number;
 }
 
 const formatCPF = (cpf: string | null | undefined): string => {
@@ -192,6 +210,10 @@ export function MainPage() {
   // Estados para seleção em cadeia
   const [selectedUnits, setSelectedUnits] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
+
+  // Estados para mapeamento de blocos vendidos
+  const [isBlockMappingMode, setIsBlockMappingMode] = useState(false);
+  const [blockMappings, setBlockMappings] = useState<BlockMapping[]>([]);
 
   const [termoParaImprimir, setTermoParaImprimir] = useState<TermoData | null>(
     null
@@ -451,6 +473,43 @@ export function MainPage() {
     return map;
   }, [filteredUnidades]);
 
+  // Calcular estatísticas de cada bloco
+  const blockStats = useMemo<Record<string, BlockStats>>(() => {
+    const stats: Record<string, BlockStats> = {};
+    
+    unidades.forEach((unidade) => {
+      const bloco = unidade[3]; // Coluna D - bloco
+      const situacao = (unidade[11] || "Disponível")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+      
+      if (!bloco || bloco.trim() === "") return;
+      
+      if (!stats[bloco]) {
+        stats[bloco] = { total: 0, reservadas: 0, bloqueadas: 0, disponiveis: 0 };
+      }
+      
+      stats[bloco].total++;
+      
+      if (situacao === "reservada") {
+        stats[bloco].reservadas++;
+      } else if (situacao === "bloqueada") {
+        stats[bloco].bloqueadas++;
+      } else if (situacao === "disponivel") {
+        stats[bloco].disponiveis++;
+      }
+    });
+    
+    return stats;
+  }, [unidades]);
+
+  // Lista de blocos disponíveis
+  const availableBlocks = useMemo(() => {
+    return [...new Set(unidades.map(u => u[3]).filter(b => b && b.trim() !== ""))].sort();
+  }, [unidades]);
+
   const fetchUnitData = useCallback(async (implantacaoName: string) => {
     if (!implantacaoName) return;
     setSwitching(true);
@@ -695,6 +754,31 @@ export function MainPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Carregar mapeamentos de blocos do Supabase
+  useEffect(() => {
+    if (!currentImplantation?.id) return;
+    
+    const loadBlockMappings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("blocos_mapping")
+          .select("*")
+          .eq("implantacao_id", currentImplantation.id);
+        
+        if (error) {
+          console.error("Erro ao carregar mapeamentos de blocos:", error);
+          return;
+        }
+        
+        setBlockMappings(data || []);
+      } catch (error) {
+        console.error("Erro ao carregar mapeamentos de blocos:", error);
+      }
+    };
+    
+    loadBlockMappings();
+  }, [currentImplantation?.id]);
 
   // Helper para verificar se usuário está interagindo com uma unidade específica
   const isUserInteractingWithUnit = useCallback((unitIndex: number): boolean => {
@@ -2315,6 +2399,7 @@ export function MainPage() {
             setView("history");
             setIsMappingMode(false);
           }}
+          onBlockMappingClick={() => setIsBlockMappingMode(!isBlockMappingMode)}
           onLogout={handleLogout}
         />
 
@@ -2332,6 +2417,17 @@ export function MainPage() {
               unitLetter={unitLetter}
               onLetterChange={setUnitLetter}
               activeLayer={activeLayer}
+            />
+          )}
+          {isBlockMappingMode && currentImplantation && (
+            <BlockMappingTool
+              isActive={isBlockMappingMode}
+              onToggle={setIsBlockMappingMode}
+              implantacaoId={currentImplantation.id || ""}
+              implantacaoName={selectedImplantationName}
+              availableBlocks={availableBlocks}
+              activeLayer={activeLayer}
+              onMappingsChange={setBlockMappings}
             />
           )}
           {switching && (
@@ -2761,7 +2857,8 @@ export function MainPage() {
                     unitLetter={unitLetter}
                     implantacaoPrimary={selectedImplantationName}
                     implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
-                    
+                    blockMappings={blockMappings}
+                    blockStats={blockStats}
                   />
                 )}
                 {view === "list" && (

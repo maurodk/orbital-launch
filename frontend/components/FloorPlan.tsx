@@ -14,6 +14,25 @@ import {
   useControls,
 } from "react-zoom-pan-pinch";
 import { FiZoomIn, FiZoomOut, FiMaximize, FiRefreshCcw } from "react-icons/fi";
+import { BlockMappingOverlay } from "./BlockMappingOverlay";
+
+// Interface para mapeamento de blocos
+interface BlockMapping {
+  id?: string;
+  nome_bloco: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  implantacao_ref?: string;
+}
+
+interface BlockStats {
+  total: number;
+  reservadas: number;
+  bloqueadas: number;
+  disponiveis: number;
+}
 
 // Interface atualizada com as novas props
 interface FloorPlanProps {
@@ -31,6 +50,8 @@ interface FloorPlanProps {
   implantacao?: string;
   implantacaoPrimary?: string;
   implantacaoAdditional?: string;
+  blockMappings?: BlockMapping[];
+  blockStats?: Record<string, BlockStats>;
 }
 
 const Controls = () => {
@@ -78,6 +99,8 @@ export const FloorPlan = memo(function FloorPlan({
   implantacao = "",
   implantacaoPrimary = "",
   implantacaoAdditional = "",
+  blockMappings = [],
+  blockStats = {},
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -225,6 +248,14 @@ export const FloorPlan = memo(function FloorPlan({
               src={activeLayer === "additional" && additionalImageUrl ? additionalImageUrl : imageUrl}
               alt="Planta Humanizada do Empreendimento"
               className="floor-plan-image"
+            />
+
+            {/* Overlay de blocos vendidos */}
+            <BlockMappingOverlay
+              blockMappings={blockMappings}
+              blockStats={blockStats}
+              activeLayer={activeLayer}
+              implantacaoName={implantacao || implantacaoPrimary || ""}
             />
 
             {renderedUnits.map((unit) => {
