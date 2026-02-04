@@ -99,7 +99,7 @@ export function ReservationList({
           .select("acao, timestamp_iso")
           .eq("unidade_nome", unitName)
           .order("timestamp_iso", { ascending: false })
-          .limit(5); // Pega as 5 últimas ações
+          .limit(10); // Pega as 10 últimas ações para ter contexto suficiente
 
         if (error) {
           console.error("Erro ao verificar histórico:", error);
@@ -112,23 +112,29 @@ export function ReservationList({
           return;
         }
 
-        // Verifica a ação mais recente relevante
-        // Se a última ação for "Reserva processada (Worker)", bloqueia
-        // Se depois disso houver "Cancelada" ou "Reservada", libera (ciclo novo)
-        const lastAction = data[0].acao || "";
+        // Ações que indicam que o plano foi montado/processado
+        const processedActions = ["Reserva processada (Worker)", "Pagamento Registrado"];
         
-        if (lastAction === "Reserva processada (Worker)") {
-          // Confirma que não há cancelamento/nova reserva posterior
-          const hasSubsequentReset = data.slice(1).some(h => 
-            h.acao === "Cancelada" || h.acao === "Reservada"
-          );
-          
-          // Se não encontrou reset posterior, mantém bloqueado
-          setIsPaymentProcessed(!hasSubsequentReset);
-        } else {
-          // Última ação não é processamento, então está livre
+        // Ações que indicam reset do ciclo (liberam nova montagem de plano)
+        const resetActions = ["Cancelada", "Reservada"];
+        
+        // Encontra o índice da primeira ação de processamento
+        const processedIndex = data.findIndex(h => processedActions.includes(h.acao));
+        
+        if (processedIndex === -1) {
+          // Não há registro de processamento, botão liberado
           setIsPaymentProcessed(false);
+          return;
         }
+        
+        // Verifica se há ações de reset ANTES do processamento (mais recentes)
+        const hasResetBeforeProcessed = data.slice(0, processedIndex).some(h => 
+          resetActions.includes(h.acao)
+        );
+        
+        // Se houver reset antes do processamento, libera (novo ciclo)
+        // Se não houver reset, mantém bloqueado (plano ainda válido)
+        setIsPaymentProcessed(!hasResetBeforeProcessed);
       } catch (err) {
         console.error("Erro ao verificar status do pagamento:", err);
         setIsPaymentProcessed(false);
