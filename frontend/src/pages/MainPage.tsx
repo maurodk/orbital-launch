@@ -717,6 +717,140 @@ export function MainPage() {
     unitToMapIndex
   ]);
 
+  // Monitor historico_pix para cancelar automaticamente reservas quando PIX expira
+  useEffect(() => {
+    if (!currentImplantation?.id || !selectedImplantationName) return;
+
+    console.log('[PixExpiredMonitor] Iniciando monitoramento de PIX expirado para implantação:', selectedImplantationName);
+
+    const pixChannel = supabase
+      .channel(`pix-expired-monitor-${currentImplantation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'historico_pix',
+          filter: `implantacao_nome=eq.${selectedImplantationName}`,
+        },
+        async (payload) => {
+          try {
+            const newRecord = payload.new as {
+              id: string;
+              status_pagamento: string;
+              cliente: string;
+              unidade: string;
+              implantacao_nome: string;
+              identificador: string;
+            };
+
+            console.log('[PixExpiredMonitor] Mudança detectada no historico_pix:', newRecord);
+
+            // Verifica se o status mudou para EXPIRADO
+            if (newRecord.status_pagamento?.toUpperCase() === 'EXPIRADO') {
+              console.log('[PixExpiredMonitor] PIX EXPIRADO detectado! Cancelando reserva automaticamente...', {
+                cliente: newRecord.cliente,
+                unidade: newRecord.unidade,
+                identificador: newRecord.identificador,
+              });
+
+              // Busca a unidade correspondente no estado atual usando setUnidades callback
+              setUnidades((currentUnidades) => {
+                const unitIndex = currentUnidades.findIndex(
+                  (u) => u[2] === newRecord.unidade && u[7] === newRecord.cliente
+                );
+
+                if (unitIndex === -1) {
+                  console.warn('[PixExpiredMonitor] Unidade não encontrada para cancelamento automático:', {
+                    unidade: newRecord.unidade,
+                    cliente: newRecord.cliente,
+                  });
+                  return currentUnidades; // Retorna sem mudanças
+                }
+
+                const unidadeAlvo = currentUnidades[unitIndex];
+                const clientNameToRelease = unidadeAlvo[7]; // Coluna H - cliente
+                const idPreCadastro = unidadeAlvo[6]; // Coluna G - id_pre_cadastro
+                const brokerNameToLog = unidadeAlvo[9] || "N/A"; // Coluna J - corretor
+
+                console.log('[PixExpiredMonitor] Unidade encontrada no índice:', unitIndex, {
+                  unidade: unidadeAlvo[2],
+                  cliente: clientNameToRelease,
+                  idPreCadastro: idPreCadastro,
+                });
+
+                // Chama o backend para cancelar a reserva oficialmente (async sem await)
+                (async () => {
+                  try {
+                    const sheetRowIndex = unitIndex + 2;
+                    await axios.post(
+                      `${apiUrl}/api/cancel-reservation`,
+                      {
+                        unitRowIndex: sheetRowIndex,
+                        clientName: clientNameToRelease,
+                        implantacao: selectedImplantationName,
+                        idPreCadastro: idPreCadastro,
+                        brokerName: brokerNameToLog,
+                        reason: 'PIX_EXPIRADO', // Adiciona motivo do cancelamento
+                      },
+                      {
+                        headers: {
+                          Authorization: `Bearer ${localStorage.getItem("token")}`,
+                        },
+                      }
+                    );
+
+                    console.log('[PixExpiredMonitor] Reserva cancelada com sucesso no backend');
+
+                    // Atualiza o histórico
+                    await fetchHistory(selectedImplantationName);
+                  } catch (err) {
+                    console.error('[PixExpiredMonitor] Erro ao cancelar reserva no backend:', err);
+                  }
+                })();
+
+                // Libera o cliente para fazer nova reserva
+                if (clientNameToRelease) {
+                  setClientes((currentClientes) => {
+                    return currentClientes.map((c) =>
+                      c[1] === clientNameToRelease
+                        ? [...c.slice(0, 5), "PODE RESERVAR"]
+                        : c
+                    );
+                  });
+                }
+
+                // Retorna as unidades atualizadas
+                return currentUnidades.map((unidade, index) => {
+                  if (index === unitIndex) {
+                    const newUnit = [...unidade];
+                    newUnit[6] = ""; // Coluna G - id_pre_cadastro
+                    newUnit[7] = ""; // Coluna H - cliente
+                    newUnit[8] = ""; // Coluna I - documento
+                    newUnit[9] = ""; // Coluna J - corretor
+                    newUnit[10] = ""; // Coluna K - imobiliaria
+                    newUnit[11] = "Disponível"; // Coluna L - situacao
+                    return newUnit;
+                  }
+                  return unidade;
+                });
+              });
+            }
+          } catch (error) {
+            console.error('[PixExpiredMonitor] Erro ao processar PIX expirado:', error);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[PixExpiredMonitor] Removendo canal de monitoramento');
+      supabase.removeChannel(pixChannel).catch((e) =>
+        console.error('[PixExpiredMonitor] Erro ao remover canal:', e)
+      );
+    };
+  }, [currentImplantation?.id, selectedImplantationName]);
+
   useEffect(() => {
     const sigla =
       currentImplantation?.sigla || gerarSigla(selectedImplantationName);

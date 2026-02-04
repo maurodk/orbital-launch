@@ -156,15 +156,27 @@ export function PixModal({
           return;
         }
 
-        if (data && data.status_pagamento === 'PAGO') {
-          setShowPaymentSuccess(true);
-          
-          // Fecha o modal após 4 segundos
-          setTimeout(() => {
-            onClose();
-            setShowPaymentSuccess(false);
-            setCurrentPixId(null);
-          }, 4000);
+        if (data) {
+          // Verifica se o PIX foi PAGO
+          if (data.status_pagamento === 'PAGO') {
+            setShowPaymentSuccess(true);
+            
+            // Fecha o modal após 4 segundos
+            setTimeout(() => {
+              onClose();
+              setShowPaymentSuccess(false);
+              setCurrentPixId(null);
+            }, 4000);
+          }
+          // Verifica se o PIX EXPIROU - apenas mostra mensagem, não fecha o modal
+          else if (data.status_pagamento === 'EXPIRADO') {
+            console.log('[PixModal] PIX expirado detectado');
+            
+            // Apenas mostra mensagem de expiração - o cancelamento automático é feito pelo MainPage
+            if (!error) {
+              setError('Este PIX expirou. A reserva foi cancelada automaticamente.');
+            }
+          }
         }
       } catch (err) {
         console.error('Erro ao verificar PIX:', err);
