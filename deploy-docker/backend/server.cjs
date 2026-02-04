@@ -3606,6 +3606,32 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
         }
       }
 
+      // Broadcast do histórico para refletir o cancelamento
+      try {
+        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+        const dataFormatada = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) + ' às ' + now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        
+        const historyRow = [
+          now.toISOString(), // ID temporário usando timestamp
+          dataFormatada,
+          unitFullName || `Unidade na linha ${unitRowIndex}`,
+          "Cancelada",
+          clientName || "N/A",
+          brokerName || "N/A",
+          userEmail,
+          "", // reserva_url
+        ];
+        
+        await broadcastEvent(sheetTitle, 'historyUpdated', { 
+          message: `Cancelamento registrado: ${unitFullName}`, 
+          row: historyRow 
+        });
+        
+        console.log(`[SSE] Broadcast de histórico enviado para cancelamento da unidade ${unitFullName}`);
+      } catch (histErr) {
+        console.error('[SSE] Falha ao enviar broadcast de histórico:', histErr.message);
+      }
+
       // Tentar notificar o CVCRM para cancelar a reserva associada (não bloqueante)
       (async () => {
         try {

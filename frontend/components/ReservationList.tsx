@@ -1,6 +1,7 @@
 // frontend/src/components/ReservationList.tsx - VERSÃO CORRIGIDA
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../src/supabaseClient";
 import {
   FiSearch,
   FiLock,
@@ -63,6 +64,46 @@ export function ReservationList({
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(
     null
   );
+  const [isPaymentProcessed, setIsPaymentProcessed] = useState(false);
+
+  // Verifica se o pagamento já foi processado com sucesso pelo worker
+  useEffect(() => {
+    const checkPaymentStatus = async () => {
+      if (!showManageModal || selectedUnitIndex === null) {
+        setIsPaymentProcessed(false);
+        return;
+      }
+
+      const unitTuple = unidades.find(([, idx]) => idx === selectedUnitIndex);
+      if (!unitTuple) return;
+
+      const [unitData] = unitTuple;
+      const unitName = unitData[2]; // Coluna C - nome_unidade
+
+      try {
+        // Busca no histórico se existe entrada "Reserva processada (Worker)" para esta unidade
+        const { data, error } = await supabase
+          .from("historico")
+          .select("acao")
+          .eq("unidade_nome", unitName)
+          .eq("acao", "Reserva processada (Worker)")
+          .limit(1);
+
+        if (error) {
+          console.error("Erro ao verificar histórico:", error);
+          setIsPaymentProcessed(false);
+          return;
+        }
+
+        setIsPaymentProcessed(data && data.length > 0);
+      } catch (err) {
+        console.error("Erro ao verificar status do pagamento:", err);
+        setIsPaymentProcessed(false);
+      }
+    };
+
+    checkPaymentStatus();
+  }, [showManageModal, selectedUnitIndex, unidades]);
 
   // ReservationList: no debug logs — presentation only (history drives status visibility)
 
@@ -345,24 +386,31 @@ export function ReservationList({
           <div className="modal-content manage-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="manage-modal-header">
               <h2>Gerenciar Unidade</h2>
-              <p className="manage-modal-subtitle">Selecione uma ação para a unidade selecionada</p>
+              <p className="manage-modal-subtitle">
+                {isPaymentProcessed 
+                  ? "Plano de pagamento já foi processado. Você pode trocar de unidade ou cancelar a reserva." 
+                  : "Selecione uma ação para a unidade selecionada"
+                }
+              </p>
             </div>
             
             <div className="manage-actions-grid">
-              <button
-                className="manage-action-card payment"
-                onClick={() => {
-                  onPaymentClick(selectedUnitIndex);
-                  setShowManageModal(false);
-                  setSelectedUnitIndex(null);
-                }}
-              >
-                <div className="action-icon-wrapper"><FiDollarSign size={24} /></div>
-                <div className="action-details">
-                  <span className="action-title">Pagamento</span>
-                  <span className="action-desc">Registrar ou visualizar pagamentos</span>
-                </div>
-              </button>
+              {!isPaymentProcessed && (
+                <button
+                  className="manage-action-card payment"
+                  onClick={() => {
+                    onPaymentClick(selectedUnitIndex);
+                    setShowManageModal(false);
+                    setSelectedUnitIndex(null);
+                  }}
+                >
+                  <div className="action-icon-wrapper"><FiDollarSign size={24} /></div>
+                  <div className="action-details">
+                    <span className="action-title">Pagamento</span>
+                    <span className="action-desc">Registrar ou visualizar pagamentos</span>
+                  </div>
+                </button>
+              )}
 
               <button
                 className="manage-action-card change"
