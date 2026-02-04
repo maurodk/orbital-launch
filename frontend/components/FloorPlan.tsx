@@ -52,6 +52,7 @@ interface FloorPlanProps {
   implantacaoAdditional?: string;
   blockMappings?: BlockMapping[];
   blockStats?: Record<string, BlockStats>;
+  isBlockMappingMode?: boolean;
 }
 
 const Controls = () => {
@@ -101,6 +102,7 @@ export const FloorPlan = memo(function FloorPlan({
   implantacaoAdditional = "",
   blockMappings = [],
   blockStats = {},
+  isBlockMappingMode = false,
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -217,7 +219,10 @@ export const FloorPlan = memo(function FloorPlan({
         minScale={0.5}
         maxScale={8}
         limitToBounds={true}
-        panning={{ velocityDisabled: true }}
+        panning={{ disabled: isBlockMappingMode, velocityDisabled: true }}
+        wheel={{ disabled: isBlockMappingMode }}
+        pinch={{ disabled: isBlockMappingMode }}
+        doubleClick={{ disabled: isBlockMappingMode }}
       >
         <div
           className={`controls-bar ${showControls ? "visible" : ""}`}

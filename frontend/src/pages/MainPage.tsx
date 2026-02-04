@@ -2859,6 +2859,7 @@ export function MainPage() {
                     implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
                     blockMappings={blockMappings}
                     blockStats={blockStats}
+                    isBlockMappingMode={isBlockMappingMode}
                   />
                 )}
                 {view === "list" && (
