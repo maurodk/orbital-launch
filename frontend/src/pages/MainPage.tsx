@@ -1266,7 +1266,7 @@ export function MainPage() {
         );
       }
     };
-  }, [selectedImplantationName, currentImplantation, fetchUnitData, isUserInteractingWithUnit, unidades]);
+  }, [selectedImplantationName, currentImplantation, fetchUnitData, isUserInteractingWithUnit, unidades, activeLayer]);
 
   const handleImplantationChange = async (newName: string) => {
     const newImplantation = implantacoes.find((imp) => imp.nome === newName);
@@ -2037,8 +2037,14 @@ export function MainPage() {
     if (unitToMapIndex === null) return;
     const coordX = x.toFixed(3);
     const coordY = y.toFixed(3);
+    
     // Cópia profunda para evitar mutação do estado original
     const updatedUnidades = unidades.map(u => [...u]);
+    
+    // Log para debug - verifica o bloco antes de atualizar
+    const blockBefore = updatedUnidades[unitToMapIndex][3];
+    console.log(`[MAPPING DEBUG] Bloco antes: "${blockBefore}" (índice 3)`);
+    console.log(`[MAPPING DEBUG] Unidade completa antes:`, [...updatedUnidades[unitToMapIndex]]);
 
     // Sempre grava nas colunas primárias M:N (coord_x / coord_y)
     updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
@@ -2048,7 +2054,12 @@ export function MainPage() {
     // Atualiza localmente o campo implantacao_ref (col Q index 16) para refletir a camada
     const ownerToSet = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : selectedImplantationName;
     updatedUnidades[unitToMapIndex][16] = ownerToSet; // Coluna Q - implantacao_ref
-    setUnidades(updatedUnidades);
+    
+    // Log para debug - verifica o bloco depois de atualizar
+    const blockAfter = updatedUnidades[unitToMapIndex][3];
+    console.log(`[MAPPING DEBUG] Bloco depois: "${blockAfter}" (índice 3)`);
+    console.log(`[MAPPING DEBUG] Unidade completa depois:`, [...updatedUnidades[unitToMapIndex]]);
+    
     try {
       const sheetRowIndex = unitToMapIndex + 2;
       const implantacaoForPayload = selectedImplantationName;
@@ -2065,7 +2076,11 @@ export function MainPage() {
         implantacaoRef: implantacaoRefValue,
       };
 
+      // Aguarda o backend confirmar antes de atualizar o estado
       await axios.post(`${apiUrl}/api/update-coords`, payload);
+      
+      // Só atualiza o estado após confirmação do backend
+      setUnidades(updatedUnidades);
     } catch (err) {
       setError("Falha ao salvar as coordenadas.");
       console.error(err);
