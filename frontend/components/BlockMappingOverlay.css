@@ -63,7 +63,6 @@
   }
 }
 
-/* Fitas de demarcação - X completo de canto a canto */
 .block-sold-content::before,
 .block-sold-content::after {
   content: '';
@@ -90,7 +89,6 @@
 .block-sold-content::after {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
-*/
 
 .block-sold-badge {
   display: flex;
@@ -147,7 +145,6 @@
 
 
 
-/* Responsivo */
 @media (max-width: 768px) {
   .block-sold-text {
     font-size: 18px;
@@ -167,7 +164,6 @@
   }
 }
 
-/* Modo de mapeamento de blocos */
 .block-mapping-mode {
   cursor: crosshair !important;
 }
