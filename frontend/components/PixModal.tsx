@@ -237,6 +237,12 @@ export function PixModal({
       setError("O valor deve ser maior que zero.");
       return;
     }
+    
+    if (valor < 1000) {
+      setError("O valor mínimo para gerar PIX é R$ 1.000,00");
+      return;
+    }
+    
     setError("");
     setIsGenerating(true);
 
