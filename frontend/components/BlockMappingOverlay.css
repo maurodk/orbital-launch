@@ -63,26 +63,6 @@
   }
 }
 
-/* Fitas de demarcação - X completo de canto a canto */
-.block-sold-content::before,
-.block-sold-content::after {
-  content: '';
-  position: absolute;
-  width: 150%;
-  height: 40px;
-  background: repeating-linear-gradient(
-    90deg,
-    #fbbf24,
-    #fbbf24 30px,
-    #000000 30px,
-    #000000 60px
-  );
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  z-index: 10;
-  top: 50%;
-  left: 50%;
-}
-
 .block-sold-content::before {
   transform: translate(-50%, -50%) rotate(45deg);
 }
@@ -90,7 +70,6 @@
 .block-sold-content::after {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
-*/
 
 .block-sold-badge {
   display: flex;
