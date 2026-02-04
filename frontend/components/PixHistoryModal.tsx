@@ -72,7 +72,7 @@ export function PixHistoryModal({
       } else {
         // Se não houver cliente, não busca nada
         console.log("[PixHistoryModal] Nenhum cliente informado, não buscando PIX");
-        setHistorico([]);
+        setPixList([]);
         setLoading(false);
         return;
       }
