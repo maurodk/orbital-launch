@@ -879,9 +879,21 @@ export function MainPage() {
             
             if (hasActiveInteraction) {
               console.log('[Realtime] Update pausado - usuário interagindo com unidade');
-              // Ainda assim, buscar dados em background para sincronizar após interação
-              // mas não aplicar mudanças no estado ainda
               return;
+            }
+            
+            // Verifica se a mudança é de outra camada para evitar refresh desnecessário
+            if (payload.new && typeof payload.new === 'object' && 'implantacao_ref' in payload.new) {
+              const changedRef = (payload.new as any).implantacao_ref || '';
+              const currentLayerRef = activeLayer === 'additional' 
+                ? `${selectedImplantationName}+adicional` 
+                : selectedImplantationName;
+              
+              // Se a mudança é de outra camada, ignora para não atrapalhar mapeamento simultâneo
+              if (changedRef !== currentLayerRef && changedRef !== '' && currentLayerRef !== '') {
+                console.log('[Realtime] Update ignorado - mudança em outra camada');
+                return;
+              }
             }
             
             // Refresh unit data when any change occurs
@@ -2025,7 +2037,8 @@ export function MainPage() {
     if (unitToMapIndex === null) return;
     const coordX = x.toFixed(3);
     const coordY = y.toFixed(3);
-    const updatedUnidades = [...unidades];
+    // Cópia profunda para evitar mutação do estado original
+    const updatedUnidades = unidades.map(u => [...u]);
 
     // Sempre grava nas colunas primárias M:N (coord_x / coord_y)
     updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
