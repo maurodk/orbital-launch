@@ -238,8 +238,8 @@ export function PixModal({
       return;
     }
 
-    if (valor < 0.05) {
-      setError("O valor mínimo para gerar PIX é R$ 0,05");
+    if (valor < 1000) {
+      setError("O valor mínimo para gerar PIX é R$ 1000,00");
       return;
     }
     
@@ -391,7 +391,7 @@ export function PixModal({
                 type="text"
                 value={displayValor}
                 onChange={handleValorChange}
-                placeholder="R$ 0,00"
+                placeholder="R$ 1.000,00"
                 className="valor-input"
               />
             </div>
@@ -399,7 +399,7 @@ export function PixModal({
             <button
               className="modal-reserve-button"
               onClick={handleGenerateQr}
-              disabled={isGenerating || valor < 0.05}
+              disabled={isGenerating || valor < 1000}
             >
               {isGenerating ? "Gerando..." : "Gerar QR Code"}
             </button>
