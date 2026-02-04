@@ -1461,11 +1461,15 @@ def atualizar_status_pagamento(supabase: Client, pagamento_id: str, sucesso: boo
         logger.error(f"Erro ao atualizar status do pagamento: {e}")
 
 
-def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool, rowIndex: Optional[int] = None, implantacao: Optional[str] = None, reserva_id: Optional[str] = None):
+def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bool = None, rowIndex: Optional[int] = None, implantacao: Optional[str] = None, reserva_id: Optional[str] = None, status_override: Optional[str] = None):
     """Notifica o backend interno para que ele possa broadcastar o status via SSE.
 
     Usa as variáveis de ambiente `BACKEND_INTERNAL_URL` (ou `BACKEND_URL`) e opcionalmente
     `INTERNAL_NOTIFY_SECRET` para autenticação.
+    
+    Args:
+        sucesso: True=processado, False=erro, None=processando (quando status_override não é fornecido)
+        status_override: Se fornecido, sobrescreve a lógica de status baseada em sucesso
     """
     try:
         base = os.getenv("BACKEND_INTERNAL_URL") or os.getenv("BACKEND_URL") or "http://localhost:3000"
@@ -1475,10 +1479,20 @@ def notify_backend_status(pagamento_id: str, unidade: Optional[str], sucesso: bo
         if secret:
             headers["x-internal-secret"] = secret
 
+        # Determina o status a enviar
+        if status_override:
+            final_status = status_override
+        elif sucesso is True:
+            final_status = "processado"
+        elif sucesso is False:
+            final_status = "erro"
+        else:
+            final_status = "processando"
+
         payload = {
             "pagamento_id": pagamento_id,
             "unidade": unidade,
-            "status": "processado" if sucesso else "erro",
+            "status": final_status,
             "worker_id": WORKER_ID,
         }
         if rowIndex:
@@ -1555,9 +1569,9 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         logger.info(f"Implantação: {implantacao_name or 'N/A'}")
         logger.info(f"==========================================")
         
-        # Notifica backend que processamento iniciou
+        # Notifica backend que processamento iniciou (status 'processando')
         try:
-            notify_backend_status(pagamento_id, unidade, False, implantacao=implantacao_name, reserva_id=None)
+            notify_backend_status(pagamento_id, unidade, None, implantacao=implantacao_name, reserva_id=None, status_override="processando")
         except Exception as e:
             logger.debug(f"Falha ao notificar início: {e}")
         

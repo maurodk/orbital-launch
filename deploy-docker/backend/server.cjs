@@ -497,13 +497,15 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
     }
 
     // Additionally, try to record this event in the historico (Sheets + Supabase)
-    try {
-      let implantacaoName = implantacao || null;
-      let clienteName = null;
-      let corretorName = null;
+    // IMPORTANTE: Não registra no histórico quando status é 'processando' (início do processamento)
+    if (!isInicio) {
+      try {
+        let implantacaoName = implantacao || null;
+        let clienteName = null;
+        let corretorName = null;
 
-      // If pagamento_id provided, try to fetch related cliente info
-      if (pagamento_id) {
+        // If pagamento_id provided, try to fetch related cliente info
+        if (pagamento_id) {
         try {
           const { data: pagData } = await supabase
             .from('pagamentos')
@@ -720,8 +722,11 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
           console.error('[INTERNAL] Falha ao gravar histórico sem implantacao:', e && e.message);
         }
       }
-    } catch (e) {
-      console.warn('[INTERNAL] Erro ao tentar gravar histórico a partir da notificação:', e && e.message ? e.message : e);
+      } catch (e) {
+        console.warn('[INTERNAL] Erro ao tentar gravar histórico a partir da notificação:', e && e.message ? e.message : e);
+      }
+    } else {
+      console.log('[INTERNAL] Status "processando" - não registra no histórico (apenas log de início)');
     }
 
     return res.json({ success: true });
