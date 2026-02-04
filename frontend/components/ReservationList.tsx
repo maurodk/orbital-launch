@@ -113,11 +113,11 @@ export function ReservationList({
         }
 
         // Apenas "Pagamento Registrado" desabilita os botões de trocar/cancelar
-        // "Reserva processada (Worker)" NÃO desabilita
+        // "Reserva processada (Worker)" libera os botões após o pagamento
         const paymentAction = "Pagamento Registrado";
         
-        // Ações que indicam reset do ciclo (liberam nova montagem de plano)
-        const resetActions = ["Cancelada", "Reservada"];
+        // Ações que indicam reset do ciclo ou conclusão do processamento (liberam os botões)
+        const resetActions = ["Cancelada", "Reservada", "Reserva processada (Worker)"];
         
         // Encontra o índice da primeira ação de pagamento registrado
         const paymentIndex = data.findIndex(h => h.acao === paymentAction);
@@ -128,13 +128,13 @@ export function ReservationList({
           return;
         }
         
-        // Verifica se há ações de reset ANTES do pagamento (mais recentes)
+        // Verifica se há ações de reset/processamento ANTES do pagamento (mais recentes)
         const hasResetBeforePayment = data.slice(0, paymentIndex).some(h => 
           resetActions.includes(h.acao)
         );
         
-        // Se houver reset antes do pagamento, libera (novo ciclo)
-        // Se não houver reset, mantém bloqueado (pagamento ainda válido)
+        // Se houver reset/processamento antes do pagamento, libera (novo ciclo ou processamento concluído)
+        // Se não houver, mantém bloqueado (pagamento ainda válido)
         setIsPaymentProcessed(!hasResetBeforePayment);
       } catch (err) {
         console.error("Erro ao verificar status do pagamento:", err);
