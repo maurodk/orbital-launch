@@ -132,6 +132,10 @@ export function MainPage() {
     mode: "select" as "select" | "manual",
   });
   const [currentLogoUrl, setCurrentLogoUrl] = useState<string>("/logo-uni.png");
+  
+  // Proteção contra sobrescrita após mapeamento
+  const recentlyMappedUnits = useRef<Set<number>>(new Set());
+  
   const [blockModalState, setBlockModalState] = useState({
     isOpen: false,
     isBlocking: true,
@@ -694,6 +698,11 @@ export function MainPage() {
 
   // Helper para verificar se usuário está interagindo com uma unidade específica
   const isUserInteractingWithUnit = useCallback((unitIndex: number): boolean => {
+    // Verifica se a unidade foi mapeada recentemente (nos últimos 3 segundos)
+    if (recentlyMappedUnits.current.has(unitIndex)) {
+      return true;
+    }
+    
     return (
       selectedUnitIndex === unitIndex ||
       pixModalState.unitIndex === unitIndex ||
@@ -1046,10 +1055,12 @@ export function MainPage() {
               const merged = new Array(maxLen);
               for (let i = 0; i < maxLen; i++) {
                 const incoming = unitData[i];
-                if (typeof incoming !== "undefined" && incoming !== null && incoming !== "") {
+                // Proteção extra: nunca sobrescrever dados estruturais importantes com vazios
+                const isStructuralField = i <= 5 || i === 11; // índices 0-5 (row_index, etapa, nome, bloco, tipologia, area) e 11 (situacao)
+                if (typeof incoming !== "undefined" && incoming !== null && incoming !== "" && (!isStructuralField || String(incoming).trim() !== "")) {
                   merged[i] = incoming;
                 } else {
-                  merged[i] = existing[i];
+                  merged[i] = existing[i] || "";
                 }
               }
 
@@ -2040,11 +2051,6 @@ export function MainPage() {
     
     // Cópia profunda para evitar mutação do estado original
     const updatedUnidades = unidades.map(u => [...u]);
-    
-    // Log para debug - verifica o bloco antes de atualizar
-    const blockBefore = updatedUnidades[unitToMapIndex][3];
-    console.log(`[MAPPING DEBUG] Bloco antes: "${blockBefore}" (índice 3)`);
-    console.log(`[MAPPING DEBUG] Unidade completa antes:`, [...updatedUnidades[unitToMapIndex]]);
 
     // Sempre grava nas colunas primárias M:N (coord_x / coord_y)
     updatedUnidades[unitToMapIndex][12] = coordX; // Coluna M - coord_x
@@ -2054,11 +2060,6 @@ export function MainPage() {
     // Atualiza localmente o campo implantacao_ref (col Q index 16) para refletir a camada
     const ownerToSet = activeLayer === "additional" ? `${selectedImplantationName}+adicional` : selectedImplantationName;
     updatedUnidades[unitToMapIndex][16] = ownerToSet; // Coluna Q - implantacao_ref
-    
-    // Log para debug - verifica o bloco depois de atualizar
-    const blockAfter = updatedUnidades[unitToMapIndex][3];
-    console.log(`[MAPPING DEBUG] Bloco depois: "${blockAfter}" (índice 3)`);
-    console.log(`[MAPPING DEBUG] Unidade completa depois:`, [...updatedUnidades[unitToMapIndex]]);
     
     try {
       const sheetRowIndex = unitToMapIndex + 2;
@@ -2081,6 +2082,12 @@ export function MainPage() {
       
       // Só atualiza o estado após confirmação do backend
       setUnidades(updatedUnidades);
+      
+      // Marca temporariamente que esta unidade foi mapeada para evitar sobrescrita imediata
+      recentlyMappedUnits.current.add(unitToMapIndex);
+      setTimeout(() => {
+        recentlyMappedUnits.current.delete(unitToMapIndex);
+      }, 3000); // Protege por 3 segundos
     } catch (err) {
       setError("Falha ao salvar as coordenadas.");
       console.error(err);
