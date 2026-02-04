@@ -480,6 +480,7 @@ export function MainPage() {
     
     unidades.forEach((unidade) => {
       const bloco = unidade[3]; // Coluna D - bloco
+      const etapa = unidade[1]; // Coluna B - etapa
       const situacao = (unidade[11] || "Disponível")
         .toLowerCase()
         .normalize("NFD")
@@ -488,27 +489,39 @@ export function MainPage() {
       
       if (!bloco || bloco.trim() === "") return;
       
-      if (!stats[bloco]) {
-        stats[bloco] = { total: 0, reservadas: 0, bloqueadas: 0, disponiveis: 0 };
+      // Concatenar bloco + etapa para criar chave única
+      const blocoKey = etapa && etapa.trim() !== "" ? `${bloco} - ${etapa}` : bloco;
+      
+      if (!stats[blocoKey]) {
+        stats[blocoKey] = { total: 0, reservadas: 0, bloqueadas: 0, disponiveis: 0 };
       }
       
-      stats[bloco].total++;
+      stats[blocoKey].total++;
       
       if (situacao === "reservada") {
-        stats[bloco].reservadas++;
+        stats[blocoKey].reservadas++;
       } else if (situacao === "bloqueada") {
-        stats[bloco].bloqueadas++;
+        stats[blocoKey].bloqueadas++;
       } else if (situacao === "disponivel") {
-        stats[bloco].disponiveis++;
+        stats[blocoKey].disponiveis++;
       }
     });
     
     return stats;
   }, [unidades]);
 
-  // Lista de blocos disponíveis
+  // Lista de blocos disponíveis (concatenando bloco + etapa)
   const availableBlocks = useMemo(() => {
-    return [...new Set(unidades.map(u => u[3]).filter(b => b && b.trim() !== ""))].sort();
+    const blocks = unidades
+      .map(u => {
+        const bloco = u[3]; // Coluna D - bloco
+        const etapa = u[1]; // Coluna B - etapa
+        if (!bloco || bloco.trim() === "") return null;
+        return etapa && etapa.trim() !== "" ? `${bloco} - ${etapa}` : bloco;
+      })
+      .filter((b): b is string => b !== null);
+    
+    return [...new Set(blocks)].sort();
   }, [unidades]);
 
   const fetchUnitData = useCallback(async (implantacaoName: string) => {
