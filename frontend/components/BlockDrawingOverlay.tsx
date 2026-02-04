@@ -16,7 +16,7 @@ interface Rectangle {
 interface BlockDrawingOverlayProps {
   selectedBlock: string;
   onRectangleComplete: (rect: Rectangle) => void;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function BlockDrawingOverlay({
