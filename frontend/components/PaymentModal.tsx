@@ -179,9 +179,9 @@ export function PaymentModal({
             .from("historico_pix")
             .select("id, valor, data_pagamento, updated_at")
             .eq("implantacao_id", implantacaoId)
-            .eq("unidade", unitData[2]) // Nome da unidade
-            .eq("cliente", clienteNome) // NOVO: Filtro por cliente
-            .eq("status_pagamento", "PAGO");
+            .eq("cliente", clienteNome) // Filtro por cliente (independente da unidade)
+            .eq("status_pagamento", "PAGO")
+            .is("pagamento_id", null); // NOVO: Apenas PIX ainda não utilizados em nenhum pagamento
 
           if (!cancelled && !pixError && pixData) {
             setPixPagos(pixData);

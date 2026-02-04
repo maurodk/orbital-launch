@@ -3389,13 +3389,32 @@ app.post("/api/cancel-reservation", verifyToken, async (req, res) => {
             } else {
               supabaseOk = true;
               
-              // CORREÇÃO: Marcar pagamentos associados como cancelados
+              // CORREÇÃO: Marcar pagamentos associados como cancelados E liberar PIX
               try {
+                // Busca os pagamentos para pegar os IDs antes de cancelar
+                const { data: pagamentosParaCancelar } = await supabase
+                  .from("pagamentos")
+                  .select("id")
+                  .eq("unidade", unitFullName);
+
+                if (pagamentosParaCancelar && pagamentosParaCancelar.length > 0) {
+                  const pagamentoIds = pagamentosParaCancelar.map(p => p.id);
+                  
+                  // Libera PIX vinculados a estes pagamentos (remove pagamento_id)
+                  await supabase
+                    .from("historico_pix")
+                    .update({ pagamento_id: null })
+                    .in("pagamento_id", pagamentoIds);
+                  
+                  console.log(`[CANCELAMENTO] ${pagamentoIds.length} pagamento(s) liberado(s) - PIX disponíveis novamente`);
+                }
+
+                // Marca pagamentos como cancelados
                 await supabase
                   .from("pagamentos")
                   .update({ status: "cancelado" })
-                  .eq("unidade", unitFullName)
-                  .eq("implantacao", sheetTitle);
+                  .eq("unidade", unitFullName);
+                  
                 console.log(`[CANCELAMENTO] Pagamentos da unidade ${unitFullName} marcados como cancelados`);
               } catch (payErr) {
                 console.error("[CANCELAMENTO] Erro ao cancelar pagamentos:", payErr);
@@ -5623,6 +5642,39 @@ app.post("/api/add-payment", verifyToken, async (req, res) => {
 
     // 4. ENFILEIRAR JOB NO REDIS
     if (pagamentoInserido) {
+        // 4.1 NOVO: Vincular PIX pagos a este pagamento
+        if (pagamento.valorPix && pagamento.valorPix > 0 && clientName && finalImplantacaoId) {
+            try {
+                // Busca PIX pagos do cliente que ainda não foram utilizados
+                const { data: pixPagos, error: pixError } = await supabase
+                    .from("historico_pix")
+                    .select("id, valor")
+                    .eq("implantacao_id", finalImplantacaoId)
+                    .eq("cliente", clientName)
+                    .eq("status_pagamento", "PAGO")
+                    .is("pagamento_id", null)
+                    .order("data_pagamento", { ascending: true }); // Usa PIX mais antigos primeiro
+
+                if (!pixError && pixPagos && pixPagos.length > 0) {
+                    // Vincula os PIX a este pagamento
+                    const pixIds = pixPagos.map(p => p.id);
+                    const { error: updateError } = await supabase
+                        .from("historico_pix")
+                        .update({ pagamento_id: pagamentoInserido.id })
+                        .in("id", pixIds);
+
+                    if (updateError) {
+                        console.error("Erro ao vincular PIX ao pagamento:", updateError);
+                    } else {
+                        console.log(`[API] ${pixIds.length} PIX(s) vinculados ao pagamento ${pagamentoInserido.id}`);
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao processar vinculação de PIX:", err);
+                // Não lança erro, apenas registra - o pagamento já foi criado
+            }
+        }
+
         const jobPayload = {
             pagamento_id: pagamentoInserido.id,
             implantacao: implantacao,

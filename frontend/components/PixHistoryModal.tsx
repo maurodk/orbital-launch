@@ -55,7 +55,7 @@ export function PixHistoryModal({
     try {
       console.log("[PixHistoryModal] Props recebidas:", { cliente, unidade, implantacao });
 
-      // Construir a query base - buscar TODOS os PIX da implantação e unidade
+      // Construir a query base - buscar apenas PIX do cliente atual
       let query = supabase
         .from("historico_pix")
         .select("*")
@@ -66,14 +66,20 @@ export function PixHistoryModal({
         query = query.eq("implantacao_nome", implantacao);
       }
       
-      // Filtro por unidade (obrigatório) - mostra TODOS os PIX feitos para esta unidade
-      if (unidade) {
-        query = query.eq("unidade", unidade);
+      // Filtro por cliente (obrigatório) - mostra apenas PIX do cliente atual
+      if (cliente) {
+        query = query.eq("cliente", cliente);
+      } else {
+        // Se não houver cliente, não busca nada
+        console.log("[PixHistoryModal] Nenhum cliente informado, não buscando PIX");
+        setHistorico([]);
+        setLoading(false);
+        return;
       }
 
       console.log("[PixHistoryModal] Filtros aplicados:", { 
         implantacao, 
-        unidade
+        cliente
       });
 
       const { data, error } = await query;
