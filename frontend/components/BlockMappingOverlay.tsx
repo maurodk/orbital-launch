@@ -113,7 +113,6 @@ export function BlockMappingOverlay({
                 </div>
                 <div className="block-sold-name">{mapping.nome_bloco}</div>
               </div>
-              <div className="block-sold-shine"></div>
             </div>
           );
         })}
