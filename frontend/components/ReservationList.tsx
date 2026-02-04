@@ -65,6 +65,7 @@ export function ReservationList({
     null
   );
   const [isPaymentProcessed, setIsPaymentProcessed] = useState(false);
+  const [canChangeOrCancel, setCanChangeOrCancel] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Verifica se o pagamento já foi processado com sucesso pelo worker
@@ -72,6 +73,7 @@ export function ReservationList({
     const checkPaymentStatus = async () => {
       if (!showManageModal || selectedUnitIndex === null) {
         setIsPaymentProcessed(false);
+        setCanChangeOrCancel(true);
         setIsProcessing(false);
         return;
       }
@@ -109,33 +111,46 @@ export function ReservationList({
 
         if (!data || data.length === 0) {
           setIsPaymentProcessed(false);
+          setCanChangeOrCancel(true);
           return;
         }
 
-        // Apenas "Pagamento Registrado" desabilita os botões de trocar/cancelar
-        // "Reserva processada (Worker)" libera os botões após o pagamento
         const paymentAction = "Pagamento Registrado";
+        const workerProcessAction = "Reserva processada (Worker)";
         
-        // Ações que indicam reset do ciclo ou conclusão do processamento (liberam os botões)
-        const resetActions = ["Cancelada", "Reservada", "Reserva processada (Worker)"];
+        // Ações que resetam completamente o ciclo
+        const fullResetActions = ["Cancelada", "Reservada"];
         
-        // Encontra o índice da primeira ação de pagamento registrado
+        // Encontra índices das ações relevantes
         const paymentIndex = data.findIndex(h => h.acao === paymentAction);
+        const workerProcessIndex = data.findIndex(h => h.acao === workerProcessAction);
         
+        // Se não há pagamento registrado, tudo liberado
         if (paymentIndex === -1) {
-          // Não há registro de pagamento, botões liberados
           setIsPaymentProcessed(false);
+          setCanChangeOrCancel(true);
           return;
         }
         
-        // Verifica se há ações de reset/processamento ANTES do pagamento (mais recentes)
-        const hasResetBeforePayment = data.slice(0, paymentIndex).some(h => 
-          resetActions.includes(h.acao)
+        // Verifica se há reset completo ANTES do pagamento (mais recente)
+        const hasFullResetBeforePayment = data.slice(0, paymentIndex).some(h => 
+          fullResetActions.includes(h.acao)
         );
         
-        // Se houver reset/processamento antes do pagamento, libera (novo ciclo ou processamento concluído)
-        // Se não houver, mantém bloqueado (pagamento ainda válido)
-        setIsPaymentProcessed(!hasResetBeforePayment);
+        // Se houver reset completo, libera tudo
+        if (hasFullResetBeforePayment) {
+          setIsPaymentProcessed(false);
+          setCanChangeOrCancel(true);
+          return;
+        }
+        
+        // Há pagamento sem reset completo posterior
+        // Botão de pagamento fica desabilitado se há "Pagamento Registrado" ou "Reserva processada (Worker)"
+        const hasWorkerProcessBeforePayment = workerProcessIndex !== -1 && workerProcessIndex < paymentIndex;
+        setIsPaymentProcessed(true); // Sempre desabilita o botão de pagamento
+        
+        // Botões de trocar/cancelar: libera se há "Reserva processada (Worker)" DEPOIS do pagamento
+        setCanChangeOrCancel(hasWorkerProcessBeforePayment);
       } catch (err) {
         console.error("Erro ao verificar status do pagamento:", err);
         setIsPaymentProcessed(false);
@@ -463,9 +478,9 @@ export function ReservationList({
 
               <button
                 className="manage-action-card change"
-                disabled={isPaymentProcessed || isProcessing}
+                disabled={!canChangeOrCancel || isProcessing}
                 onClick={() => {
-                  if (isPaymentProcessed || isProcessing) return;
+                  if (!canChangeOrCancel || isProcessing) return;
                   onChangeUnitClick(selectedUnitIndex);
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
@@ -477,8 +492,8 @@ export function ReservationList({
                   <span className="action-desc">
                     {isProcessing 
                       ? "Aguarde o processamento..." 
-                      : isPaymentProcessed 
-                      ? "Plano já foi processado" 
+                      : !canChangeOrCancel 
+                      ? "Aguarde o processamento do plano" 
                       : "Mover reserva para outra unidade"
                     }
                   </span>
@@ -487,9 +502,9 @@ export function ReservationList({
 
               <button
                 className="manage-action-card cancel"
-                disabled={isPaymentProcessed || isProcessing}
+                disabled={!canChangeOrCancel || isProcessing}
                 onClick={() => {
-                  if (isPaymentProcessed || isProcessing) return;
+                  if (!canChangeOrCancel || isProcessing) return;
                   // Trigger cancel reservation flow
                   // Find the tuple with matching originalIndex
                   const unitTuple = unidades.find(([, idx]) => idx === selectedUnitIndex);
@@ -510,8 +525,8 @@ export function ReservationList({
                   <span className="action-desc">
                     {isProcessing 
                       ? "Aguarde o processamento..." 
-                      : isPaymentProcessed 
-                      ? "Plano já foi processado" 
+                      : !canChangeOrCancel 
+                      ? "Aguarde o processamento do plano" 
                       : "Liberar unidade para venda"
                     }
                   </span>
