@@ -462,9 +462,9 @@ export function ReservationList({
 
               <button
                 className="manage-action-card change"
-                disabled={isProcessing}
+                disabled={isPaymentProcessed || isProcessing}
                 onClick={() => {
-                  if (isProcessing) return;
+                  if (isPaymentProcessed || isProcessing) return;
                   onChangeUnitClick(selectedUnitIndex);
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
@@ -474,16 +474,21 @@ export function ReservationList({
                 <div className="action-details">
                   <span className="action-title">Trocar Unidade</span>
                   <span className="action-desc">
-                    {isProcessing ? "Aguarde o processamento..." : "Mover reserva para outra unidade"}
+                    {isProcessing 
+                      ? "Aguarde o processamento..." 
+                      : isPaymentProcessed 
+                      ? "Plano já foi processado" 
+                      : "Mover reserva para outra unidade"
+                    }
                   </span>
                 </div>
               </button>
 
               <button
                 className="manage-action-card cancel"
-                disabled={isProcessing}
+                disabled={isPaymentProcessed || isProcessing}
                 onClick={() => {
-                  if (isProcessing) return;
+                  if (isPaymentProcessed || isProcessing) return;
                   // Trigger cancel reservation flow
                   // Find the tuple with matching originalIndex
                   const unitTuple = unidades.find(([, idx]) => idx === selectedUnitIndex);
@@ -502,7 +507,12 @@ export function ReservationList({
                 <div className="action-details">
                   <span className="action-title">Cancelar Reserva</span>
                   <span className="action-desc">
-                    {isProcessing ? "Aguarde o processamento..." : "Liberar unidade para venda"}
+                    {isProcessing 
+                      ? "Aguarde o processamento..." 
+                      : isPaymentProcessed 
+                      ? "Plano já foi processado" 
+                      : "Liberar unidade para venda"
+                    }
                   </span>
                 </div>
               </button>
