@@ -31,7 +31,7 @@
   justify-content: center;
   gap: 10px;
   animation: pulse-reduced 2s ease-in-out infinite;
-  backdrop-filter: blur(15px);
+  backdrop-filter: blur(50px);
   overflow: hidden;
   width: 100%;
   height: 100%;
