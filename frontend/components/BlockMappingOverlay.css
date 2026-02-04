@@ -63,7 +63,7 @@
   }
 }
 
-/* Fitas de demarcação - X completo de borda a borda */
+/* Fitas de demarcação - X completo de canto a canto */
 .block-sold-content::before,
 .block-sold-content::after {
   content: '';
@@ -79,16 +79,20 @@
   );
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   z-index: 10;
-  top: 50%;
-  left: 50%;
 }
 
 .block-sold-content::before {
-  transform: translate(-50%, -50%) rotate(-45deg);
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  transform: rotate(45deg);
 }
 
 .block-sold-content::after {
-  transform: translate(-50%, -50%) rotate(45deg);
+  top: 0;
+  right: 0;
+  transform-origin: top right;
+  transform: rotate(-45deg);
 }
 
 .block-sold-badge {
