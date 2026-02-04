@@ -117,6 +117,11 @@ export function BlockMappingTool({
 
   if (!isActive) return null;
 
+  // Filtrar blocos que já foram mapeados
+  const unmappedBlocks = availableBlocks.filter(
+    block => !existingMappings.some(mapping => mapping.nome_bloco === block)
+  );
+
   return (
     <div className="block-mapping-controls">
       <h3>🎯 Mapear Blocos</h3>
@@ -127,12 +132,18 @@ export function BlockMappingTool({
         onChange={(e) => setSelectedBlock(e.target.value)}
       >
         <option value="">Escolha um bloco...</option>
-        {availableBlocks.map((block) => (
+        {unmappedBlocks.map((block) => (
           <option key={block} value={block}>
             {block}
           </option>
         ))}
       </select>
+      
+      {unmappedBlocks.length === 0 && (
+        <p style={{ marginTop: "10px", fontSize: "13px", color: "#059669", fontWeight: "500" }}>
+          ✅ Todos os blocos já foram mapeados!
+        </p>
+      )}
 
       {selectedBlock && (
         <div style={{ marginTop: "10px", padding: "10px", background: "#f0f9ff", borderRadius: "6px" }}>
