@@ -238,7 +238,7 @@ export function PixModal({
       return;
     }
     
-    if (valor < 0.05) {
+    if (valor < 0,05) {
       setError("O valor mínimo para gerar PIX é R$ 0,05");
       return;
     }
