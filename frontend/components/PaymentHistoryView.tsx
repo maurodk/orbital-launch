@@ -1,7 +1,15 @@
 // frontend/components/PaymentHistoryView.tsx
 
 import { useState, useEffect, useMemo } from "react";
-import { FiSearch, FiDollarSign, FiClock, FiCheckCircle, FiXCircle } from "react-icons/fi";
+import { 
+  FiSearch, 
+  FiDollarSign, 
+  FiClock, 
+  FiCheckCircle, 
+  FiXCircle,
+  FiCreditCard,
+  FiSmartphone
+} from "react-icons/fi";
 import { supabase } from "../src/supabaseClient";
 
 interface Payment {
@@ -254,7 +262,7 @@ export function PaymentHistoryView() {
     <div className="payment-history-container">
       <style>{`
         .payment-history-container {
-          padding: 20px;
+          padding: 15px;
           background-color: #1e1e1e;
           color: #eaeaea;
           min-height: 100vh;
@@ -269,27 +277,31 @@ export function PaymentHistoryView() {
 
         .payment-history-header h1 {
           color: #6ad700;
-          font-size: 28px;
+          font-size: 24px;
           margin: 0;
         }
 
         .tabs-container {
           display: flex;
-          gap: 10px;
+          gap: 5px;
           margin-bottom: 20px;
           border-bottom: 2px solid #2a2a2a;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
 
         .tab-button {
-          padding: 12px 24px;
+          padding: 10px 16px;
           background: transparent;
           border: none;
           color: #eaeaea;
           cursor: pointer;
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 500;
           border-bottom: 3px solid transparent;
           transition: all 0.3s ease;
+          white-space: nowrap;
+          flex-shrink: 0;
         }
 
         .tab-button:hover {
@@ -370,27 +382,30 @@ export function PaymentHistoryView() {
           background-color: #2a2a2a;
           border-radius: 8px;
           padding: 10px;
+          -webkit-overflow-scrolling: touch;
         }
 
         .payment-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 14px;
+          font-size: 13px;
+          min-width: 800px;
         }
 
         .payment-table th {
           background-color: #1e1e1e;
           color: #6ad700;
-          padding: 12px;
+          padding: 10px 8px;
           text-align: left;
           font-weight: 600;
           position: sticky;
           top: 0;
           z-index: 10;
+          white-space: nowrap;
         }
 
         .payment-table td {
-          padding: 12px;
+          padding: 10px 8px;
           border-bottom: 1px solid #3a3a3a;
           vertical-align: middle;
         }
@@ -441,7 +456,9 @@ export function PaymentHistoryView() {
         }
 
         .empty-state-icon {
-          font-size: 64px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
           margin-bottom: 20px;
         }
 
@@ -481,6 +498,90 @@ export function PaymentHistoryView() {
 
         .pix-status-CANCELADO {
           color: #dc3545;
+        }
+
+        /* Responsividade Mobile */
+        @media (max-width: 768px) {
+          .payment-history-container {
+            padding: 10px;
+          }
+
+          .payment-history-header h1 {
+            font-size: 20px;
+          }
+
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+
+          .stat-card {
+            padding: 15px;
+          }
+
+          .stat-value {
+            font-size: 20px;
+          }
+
+          .stat-label {
+            font-size: 11px;
+          }
+
+          .tab-button {
+            padding: 8px 12px;
+            font-size: 13px;
+          }
+
+          .filters-section {
+            padding: 15px;
+          }
+
+          .filter-button {
+            padding: 6px 12px;
+            font-size: 12px;
+          }
+
+          .payment-table {
+            font-size: 12px;
+          }
+
+          .payment-table th,
+          .payment-table td {
+            padding: 8px 6px;
+          }
+
+          .status-badge {
+            padding: 3px 8px;
+            font-size: 11px;
+          }
+
+          .payment-methods {
+            font-size: 11px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .payment-history-header h1 {
+            font-size: 18px;
+          }
+
+          .payment-history-header svg {
+            width: 24px;
+            height: 24px;
+          }
+
+          .stats-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .stat-card {
+            padding: 12px;
+          }
+
+          .tab-button {
+            padding: 8px 10px;
+            font-size: 12px;
+          }
         }
       `}</style>
 
@@ -621,7 +722,9 @@ export function PaymentHistoryView() {
             </table>
           ) : (
             <div className="empty-state">
-              <div className="empty-state-icon">💳</div>
+              <div className="empty-state-icon">
+                <FiCreditCard size={64} color="#6c757d" />
+              </div>
               <p>Nenhum pagamento encontrado com os filtros selecionados.</p>
             </div>
           )}
@@ -663,7 +766,9 @@ export function PaymentHistoryView() {
             </table>
           ) : (
             <div className="empty-state">
-              <div className="empty-state-icon">📱</div>
+              <div className="empty-state-icon">
+                <FiSmartphone size={64} color="#6c757d" />
+              </div>
               <p>Nenhuma transação PIX encontrada.</p>
             </div>
           )}
@@ -697,7 +802,9 @@ export function PaymentHistoryView() {
             </table>
           ) : (
             <div className="empty-state">
-              <div className="empty-state-icon">✅</div>
+              <div className="empty-state-icon">
+                <FiCheckCircle size={64} color="#28a745" />
+              </div>
               <p>Todas as reservas possuem pagamento registrado!</p>
             </div>
           )}

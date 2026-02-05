@@ -1,7 +1,7 @@
 // frontend/components/HamburgerMenu.tsx
 
 import { useState } from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, DollarSign, Target } from "lucide-react";
 
 interface HamburgerMenuProps {
   onNewImplantationClick: () => void;
@@ -242,6 +242,9 @@ export function HamburgerMenu({
                   fontSize: "14px",
                   color: "#eaeaea",
                   transition: "background-color 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = "#2a2a2a";
@@ -250,7 +253,8 @@ export function HamburgerMenu({
                   e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
-                🎯 Mapear Blocos
+                <Target size={16} />
+                Mapear Blocos
               </button>
             </>
           )}
@@ -276,6 +280,9 @@ export function HamburgerMenu({
                   fontSize: "14px",
                   color: "#eaeaea",
                   transition: "background-color 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = "#2a2a2a";
@@ -284,7 +291,8 @@ export function HamburgerMenu({
                   e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
-                💰 Histórico de Pagamentos
+                <DollarSign size={16} />
+                Histórico de Pagamentos
               </button>
             </>
           )}
