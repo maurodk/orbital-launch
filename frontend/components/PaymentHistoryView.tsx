@@ -11,6 +11,7 @@ import {
   FiSmartphone
 } from "react-icons/fi";
 import { supabase } from "../src/supabaseClient";
+import { PasswordModal } from "./PasswordModal";
 
 interface Payment {
   id: string;
@@ -48,6 +49,7 @@ interface ReserveWithoutPayment {
 type FilterStatus = "todos" | "pendente" | "processado" | "expirado";
 
 export function PaymentHistoryView() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [pixHistory, setPixHistory] = useState<PixHistory[]>([]);
   const [reservesWithoutPayment, setReservesWithoutPayment] = useState<ReserveWithoutPayment[]>([]);
@@ -57,8 +59,17 @@ export function PaymentHistoryView() {
   const [activeTab, setActiveTab] = useState<"geral" | "pix" | "pendentes">("geral");
 
   useEffect(() => {
-    loadPaymentData();
+    const auth = localStorage.getItem("diretoriaAuth");
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    }
   }, []);
+
+  useEffect(() {
+    if (isAuthenticated) {
+      loadPaymentData();
+    }
+  }, [isAuthenticated]);
 
   const loadPaymentData = async () => {
     setLoading(true);
@@ -277,6 +288,10 @@ export function PaymentHistoryView() {
     if (payment.valor_cheque > 0) methods.push(`Cheque: ${formatCurrency(payment.valor_cheque)}`);
     return methods.length > 0 ? methods.join(" | ") : "Nenhum pagamento registrado";
   };
+
+  if (!isAuthenticated) {
+    return <PasswordModal onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   if (loading) {
     return (

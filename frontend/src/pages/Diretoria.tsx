@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { supabase } from "../supabaseClient";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
+import { PasswordModal } from "../../components/PasswordModal";
 import "./Diretoria.css";
 
 interface DiretoriaData {
@@ -24,11 +25,20 @@ const AWS_API_URL =
 const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
 export function Diretoria() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DiretoriaData>({});
   const [searchImobiliaria, setSearchImobiliaria] = useState("");
   const [searchCorretor, setSearchCorretor] = useState("");
+
+  // Verificar autenticação ao montar
+  useEffect(() => {
+    const auth = localStorage.getItem("diretoriaAuth");
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    }
+  }, []);
 
   // Função para buscar dados (acesso público, sem autenticação)
   const fetchData = async () => {
@@ -100,6 +110,10 @@ export function Diretoria() {
       supabase.removeChannel(pagamentosChannel);
     };
   }, []);
+
+  if (!isAuthenticated) {
+    return <PasswordModal onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   if (loading) return <div className="diretoria-loading">Carregando dashboard...</div>;
   if (error) return <div className="diretoria-error">Erro: {error}</div>;
