@@ -4929,7 +4929,8 @@ app.get("/api/pix/list", verifyToken, async (req, res) => {
 });
 
 // Endpoint: Dashboard Diretoria - agregados de reservas/pagamentos/unidades
-app.get("/api/diretoria", verifyToken, async (req, res) => {
+// NOTA: Acesso público (sem autenticação) para permitir visualização da diretoria
+app.get("/api/diretoria", async (req, res) => {
   try {
     // Buscar unidades para estatísticas gerais
     const { data: unidadesData, error: unidadesErr } = await supabase

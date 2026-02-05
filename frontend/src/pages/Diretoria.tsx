@@ -30,23 +30,11 @@ export function Diretoria() {
   const [searchImobiliaria, setSearchImobiliaria] = useState("");
   const [searchCorretor, setSearchCorretor] = useState("");
 
-  // Função para buscar dados
+  // Função para buscar dados (acesso público, sem autenticação)
   const fetchData = async () => {
     try {
       setLoading(true);
-      let token = null;
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        token = session?.access_token || null;
-      } catch {
-        token = null;
-      }
-
-      const resp = await axios.get(`${apiUrl}/api/diretoria`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const resp = await axios.get(`${apiUrl}/api/diretoria`);
       setData((resp.data as DiretoriaData) || {});
       setError(null);
     } catch (err: unknown) {
