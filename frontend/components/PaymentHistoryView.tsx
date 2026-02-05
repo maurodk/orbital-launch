@@ -119,33 +119,58 @@ export function PaymentHistoryView() {
         setPixHistory(pixData || []);
       }
 
-      // Buscar reservas sem pagamento (histórico de reservas - limitado aos 200 mais recentes)
+      // Buscar reservas sem pagamento através da análise do histórico
+      // Lógica: Se a última ação de uma unidade não for "Pagamento", "Cancelada" ou "Worker", 
+      // então há uma reserva sem pagamento
       const { data: historicoData, error: historicoError } = await supabase
         .from("historico")
         .select("unidade_nome, cliente, corretor, timestamp_iso, acao")
-        .or("acao.ilike.%Reserva processada%,acao.ilike.%Pagamento Registrado%")
         .order("timestamp_iso", { ascending: false })
-        .limit(200);
+        .limit(500);
 
       if (historicoError) {
         console.error("Erro ao buscar histórico:", historicoError);
       } else {
-        // Filtrar apenas reservas que não tem pagamento correspondente
-        const historicoFormatted = (historicoData || []).map((h) => ({
-          unidade_nome: h.unidade_nome,
-          cliente: h.cliente,
-          corretor: h.corretor,
-          data: h.timestamp_iso,
-          acao: h.acao,
-        }));
+        // Agrupar histórico por unidade e pegar apenas a ação mais recente de cada uma
+        const unidadesMaisRecentes = new Map<string, {
+          unidade_nome: string;
+          cliente: string;
+          corretor: string;
+          data: string;
+          acao: string;
+        }>();
 
-        // Verificar quais reservas não têm pagamento
-        const unidadesComPagamento = new Set(
-          formattedPayments.map((p) => p.unidade)
-        );
-        const pendentes = historicoFormatted.filter(
-          (h) => !unidadesComPagamento.has(h.unidade_nome)
-        );
+        (historicoData || []).forEach((h) => {
+          const unidadeNome = h.unidade_nome;
+          if (!unidadeNome) return;
+
+          // Se ainda não temos essa unidade no Map, adiciona (já está ordenado por mais recente)
+          if (!unidadesMaisRecentes.has(unidadeNome)) {
+            unidadesMaisRecentes.set(unidadeNome, {
+              unidade_nome: unidadeNome,
+              cliente: h.cliente || "",
+              corretor: h.corretor || "",
+              data: h.timestamp_iso,
+              acao: h.acao || "",
+            });
+          }
+        });
+
+        // Filtrar unidades cuja última ação NÃO é pagamento, cancelamento ou processamento por worker
+        const pendentes: ReserveWithoutPayment[] = [];
+        unidadesMaisRecentes.forEach((registro) => {
+          const acao = registro.acao.toLowerCase();
+          
+          // Se a última ação NÃO for uma dessas, significa que há reserva sem pagamento
+          const isPagamento = acao.includes("pagamento registrado");
+          const isWorkerProcessado = acao.includes("reserva processada (worker)");
+          const isCancelada = acao.includes("cancelada") || acao.includes("cancelamento");
+          
+          if (!isPagamento && !isWorkerProcessado && !isCancelada) {
+            pendentes.push(registro);
+          }
+        });
+
         setReservesWithoutPayment(pendentes);
       }
     } catch (error) {
