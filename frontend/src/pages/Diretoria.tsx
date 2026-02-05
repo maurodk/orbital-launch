@@ -212,8 +212,8 @@ export function Diretoria() {
                 return (
                   <div className="bar-row" key={i}>
                     <div className="bar-meta">
-                      <span className="bar-num">{v}</span>
                       <span className="bar-key">{k}</span>
+                      <span className="bar-num">{v}</span>
                     </div>
                   </div>
                 );
