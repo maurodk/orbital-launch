@@ -350,12 +350,13 @@ export function MainPage() {
         return;
       }
 
-      // Buscar histórico do Supabase
+      // Buscar histórico do Supabase (limitado aos 100 mais recentes para performance)
       const { data: historicoData, error: historicoError } = await supabase
         .from("historico")
         .select("*")
         .eq("implantacao_id", implantacaoData.id)
-        .order("timestamp_iso", { ascending: false });
+        .order("timestamp_iso", { ascending: false })
+        .limit(100);
 
       if (historicoError) {
         console.error(`Erro ao carregar histórico para ${implantacaoName}:`, historicoError);

@@ -64,7 +64,7 @@ export function PaymentHistoryView() {
     setLoading(true);
     let formattedPayments: Payment[] = [];
     try {
-      // Buscar pagamentos com informações do cliente
+      // Buscar pagamentos com informações do cliente (limitado aos 500 mais recentes)
       const { data: paymentsData, error: paymentsError } = await supabase
         .from("pagamentos")
         .select(`
@@ -83,7 +83,8 @@ export function PaymentHistoryView() {
             nome
           )
         `)
-        .order("data_criacao", { ascending: false });
+        .order("data_criacao", { ascending: false })
+        .limit(500);
 
       if (paymentsError) {
         console.error("Erro ao buscar pagamentos:", paymentsError);
@@ -105,23 +106,25 @@ export function PaymentHistoryView() {
         setPayments(formattedPayments);
       }
 
-      // Buscar histórico de PIX
+      // Buscar histórico de PIX (limitado aos 300 mais recentes)
       const { data: pixData, error: pixError } = await supabase
         .from("historico_pix")
         .select("*")
-        .order("data_criacao", { ascending: false });
+        .order("data_criacao", { ascending: false })
+        .limit(300);
 
       if (pixError) {
         console.error("Erro ao buscar histórico PIX:", pixError);
       } else {
         setPixHistory(pixData || []);
       }
-
-      // Buscar reservas sem pagamento (histórico de reservas)
+ - limitado aos 200 mais recentes)
       const { data: historicoData, error: historicoError } = await supabase
         .from("historico")
         .select("unidade_nome, cliente, corretor, timestamp_iso, acao")
         .or('acao.ilike.%Reserva processada%,acao.ilike.%Pagamento Registrado%')
+        .order("timestamp_iso", { ascending: false })
+        .limit(200ike.%Pagamento Registrado%')
         .order("timestamp_iso", { ascending: false });
 
       if (historicoError) {
