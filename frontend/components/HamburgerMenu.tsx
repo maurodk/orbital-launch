@@ -9,6 +9,7 @@ interface HamburgerMenuProps {
   onListViewClick: () => void;
   onHistoryClick: () => void;
   onBlockMappingClick?: () => void;
+  onPaymentHistoryClick?: () => void;
   onLogout?: () => void;
 }
 
@@ -18,6 +19,7 @@ export function HamburgerMenu({
   onListViewClick,
   onHistoryClick,
   onBlockMappingClick,
+  onPaymentHistoryClick,
   onLogout,
 }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -249,6 +251,40 @@ export function HamburgerMenu({
                 }}
               >
                 🎯 Mapear Blocos
+              </button>
+            </>
+          )}
+
+          {onPaymentHistoryClick && (
+            <>
+              <div
+                style={{
+                  height: "1px",
+                  backgroundColor: "#2a2a2a",
+                  margin: "5px 0",
+                }}
+              />
+              <button
+                onClick={() => handleItemClick(onPaymentHistoryClick)}
+                style={{
+                  width: "100%",
+                  padding: "12px 20px",
+                  border: "none",
+                  backgroundColor: "transparent",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  color: "#eaeaea",
+                  transition: "background-color 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#2a2a2a";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                💰 Histórico de Pagamentos
               </button>
             </>
           )}
