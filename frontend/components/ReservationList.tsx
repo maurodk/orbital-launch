@@ -115,6 +115,15 @@ export function ReservationList({
           return;
         }
 
+        // Verifica se o histórico mais recente (topo) é "Erro ao registrar pagamento (Worker)"
+        const mostRecentAction = data[0]?.acao || '';
+        if (mostRecentAction === "Erro ao registrar pagamento (Worker)") {
+          // Libera todos os botões quando há erro no topo do histórico
+          setIsPaymentProcessed(false);
+          setCanChangeOrCancel(true);
+          return;
+        }
+
         const paymentAction = "Pagamento Registrado";
         const workerProcessAction = "Reserva processada (Worker)";
         
