@@ -204,18 +204,17 @@ export function Diretoria() {
 
           <div className="panel small">
             <h3 className="panel-title">Reservas por Tipologia</h3>
-            <div className="panel-body bars" style={{ height: '350px', overflowY: 'auto' }}>
+            <div className="panel-body bars">
               {Object.keys(data.unidadesReservadasPorTipologia || {}).length === 0 && <div className="empty">Nenhuma tipologia reservada</div>}
               {(
                 Object.entries(data.unidadesReservadasPorTipologia || {}) as [string, number][]
               ).map(([k, v], i) => {
-                const values = (Object.values(data.unidadesReservadasPorTipologia || {}) as number[]).map(Number);
-                const total = values.reduce((s, n) => s + n, 0) || 1;
-                const pct = Math.round((Number(v) / total) * 100);
                 return (
                   <div className="bar-row" key={i}>
-                    <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v}</span></div>
-                    <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
+                    <div className="bar-meta">
+                      <span className="bar-num">{v}</span>
+                      <span className="bar-key">{k}</span>
+                    </div>
                   </div>
                 );
               })}
