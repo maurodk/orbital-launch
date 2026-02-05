@@ -123,7 +123,7 @@ export function PaymentHistoryView() {
       const { data: historicoData, error: historicoError } = await supabase
         .from("historico")
         .select("unidade_nome, cliente, corretor, timestamp_iso, acao")
-        .or('acao.ilike.%Reserva processada%,acao.ilike.%Pagamento Registrado%')
+        .or("acao.ilike.%Reserva processada%,acao.ilike.%Pagamento Registrado%")
         .order("timestamp_iso", { ascending: false })
         .limit(200);
 

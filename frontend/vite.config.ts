@@ -10,19 +10,17 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['react-icons', 'lucide-react', 'react-select'],
-          'firebase': ['firebase'],
           'supabase': ['@supabase/supabase-js'],
+          'axios': ['axios'],
         },
       },
     },
     chunkSizeWarningLimit: 1000,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
+    minify: 'esbuild',
+    target: 'esnext',
+  },
+  esbuild: {
+    drop: ['console', 'debugger'],
   },
   server: {
     hmr: {
