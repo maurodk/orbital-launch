@@ -118,14 +118,14 @@ export function PaymentHistoryView() {
       } else {
         setPixHistory(pixData || []);
       }
- - limitado aos 200 mais recentes)
+
+      // Buscar reservas sem pagamento (histórico de reservas - limitado aos 200 mais recentes)
       const { data: historicoData, error: historicoError } = await supabase
         .from("historico")
         .select("unidade_nome, cliente, corretor, timestamp_iso, acao")
         .or('acao.ilike.%Reserva processada%,acao.ilike.%Pagamento Registrado%')
         .order("timestamp_iso", { ascending: false })
-        .limit(200ike.%Pagamento Registrado%')
-        .order("timestamp_iso", { ascending: false });
+        .limit(200);
 
       if (historicoError) {
         console.error("Erro ao buscar histórico:", historicoError);
