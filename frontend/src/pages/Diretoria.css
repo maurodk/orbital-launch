@@ -73,9 +73,9 @@
 .payment-row:nth-child(3)::before{ background:#fdcb6e }
 .payment-row:nth-child(4)::before{ background:#6c5ce7 }
 
-.panel.small .bars{ max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:10px }
-.bar-row{ display:flex; flex-direction:column; gap:6px }
-.bar-meta{ display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted); padding:0 12px; min-height:28px }
+.panel.small .bars{ max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:10px; align-items:flex-start }
+.bar-row{ display:flex; flex-direction:column; gap:6px; width:100%; align-items:flex-start }
+.bar-meta{ display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted); padding:0 12px; min-height:28px; width:100% }
 .bar-meta .bar-key{ text-align:left; font-weight:500; flex:1; color:var(--text) }
 .bar-meta .bar-num{ color:var(--accent); font-weight:700; text-align:right; font-size:20px; min-width:50px; padding-left:16px }
 .bar-track{ height:10px; background:rgba(255,255,255,0.03); border-radius:999px; overflow:hidden }

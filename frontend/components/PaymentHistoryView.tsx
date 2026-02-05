@@ -301,7 +301,7 @@ export function PaymentHistoryView() {
           bottom: 0;
           width: 100vw;
           height: 100vh;
-          background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+          background: url('/backgroundblack.png') center/cover no-repeat, linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
           color: #eaeaea;
           overflow: hidden;
           display: flex;
@@ -554,10 +554,11 @@ export function PaymentHistoryView() {
           border-radius: 12px;
           padding: 0;
           -webkit-overflow-scrolling: touch;
-          max-height: calc(100vh - 500px);
+          max-height: calc(100vh - 450px);
           border: 1px solid rgba(106, 215, 0, 0.1);
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
           transition: all 0.3s ease;
+          touch-action: pan-y;
         }
 
         .table-wrapper:hover {
@@ -830,7 +831,7 @@ export function PaymentHistoryView() {
           }
 
           .table-wrapper {
-            max-height: calc(100vh - 600px);
+            max-height: calc(100vh - 500px);
           }
         }
 
@@ -850,11 +851,23 @@ export function PaymentHistoryView() {
 
           .payment-history-content {
             padding: 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
           }
 
           .stats-grid {
             grid-template-columns: 1fr;
             gap: 12px;
+          }
+
+          .table-wrapper {
+            max-height: calc(100vh - 550px);
+            overflow-x: auto;
+            overflow-y: auto;
+          }
+
+          .payment-table {
+            min-width: 750px;
           }
 
           .stat-card {
