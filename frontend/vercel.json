@@ -16,5 +16,9 @@
       "source": "/diretoria/(.*)",
       "destination": "/index.html"
     }
+    {
+      "source":"/pagamentos",
+      "destination":"/index.html"
+    }
   ]
 }
