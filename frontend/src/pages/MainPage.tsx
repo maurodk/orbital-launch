@@ -1475,6 +1475,46 @@ export function MainPage() {
     }
   };
 
+  // Handler para salvar mapeamento de bloco colado via CTRL+V
+  const handleBlockMappingPaste = async (blockName: string, rect: { startX: number; startY: number; width: number; height: number }) => {
+    if (!blockName || !currentImplantation) return;
+
+    const currentLayerRef = activeLayer === "additional"
+      ? `${selectedImplantationName}+adicional`
+      : selectedImplantationName;
+
+    try {
+      const { error } = await supabase
+        .from("blocos_mapping")
+        .upsert({
+          implantacao_id: currentImplantation.id || "",
+          nome_bloco: blockName,
+          x: rect.startX,
+          y: rect.startY,
+          width: rect.width,
+          height: rect.height,
+          implantacao_ref: currentLayerRef,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Recarregar mapeamentos
+      const { data } = await supabase
+        .from("blocos_mapping")
+        .select("*")
+        .eq("implantacao_id", currentImplantation.id || "")
+        .eq("implantacao_ref", currentLayerRef);
+
+      setBlockMappings(data || []);
+      alert(`Mapeamento do bloco "${blockName}" salvo com sucesso!`);
+    } catch (error) {
+      console.error("Erro ao salvar mapeamento colado:", error);
+      alert("Erro ao salvar mapeamento. Tente novamente.");
+    }
+  };
+
   const handleCloseModals = () => {
     setReservationModalState({ isOpen: false, mode: "select" });
     setIsCancelModalOpen(false);
@@ -2438,7 +2478,7 @@ export function MainPage() {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Helmet>
 
-      <div className={`page-wrapper ${isMappingMode ? "sidebar-visible" : ""}`}>
+      <div className={`page-wrapper ${isMappingMode || isBlockMappingMode ? "sidebar-visible" : ""}`}>
         {/* Header - fixo apenas quando não estiver no mapa visual */}
         <Header title="Lançamento - Espelho Digital" isFixed={view !== "map"} />
 
@@ -2919,6 +2959,7 @@ export function MainPage() {
                     isBlockMappingMode={isBlockMappingMode}
                     selectedBlockToMap={selectedBlockToMap}
                     onRectangleComplete={handleRectangleComplete}
+                    onBlockMappingPaste={handleBlockMappingPaste}
                   />
                 )}
                 {view === "list" && (

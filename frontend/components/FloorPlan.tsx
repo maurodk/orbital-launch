@@ -56,6 +56,7 @@ interface FloorPlanProps {
   isBlockMappingMode?: boolean;
   selectedBlockToMap?: string;
   onRectangleComplete?: (rect: { startX: number; startY: number; width: number; height: number }) => void;
+  onBlockMappingPaste?: (blockName: string, rect: { startX: number; startY: number; width: number; height: number }) => void;
 }
 
 const Controls = () => {
@@ -108,6 +109,7 @@ export const FloorPlan = memo(function FloorPlan({
   isBlockMappingMode = false,
   selectedBlockToMap = "",
   onRectangleComplete,
+  onBlockMappingPaste,
 }: FloorPlanProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -268,12 +270,47 @@ export const FloorPlan = memo(function FloorPlan({
               implantacaoName={implantacao || implantacaoPrimary || ""}
             />
 
+            {/* Contornos dos mapeamentos existentes visíveis durante o modo de mapeamento */}
+            {isBlockMappingMode && blockMappings
+              .filter((mapping) => {
+                const currentLayerRef = activeLayer === "additional"
+                  ? `${implantacao || implantacaoPrimary}+adicional`
+                  : (implantacao || implantacaoPrimary || "");
+                const mappingRef = mapping.implantacao_ref || (implantacao || implantacaoPrimary || "");
+                return mappingRef === currentLayerRef;
+              })
+              .map((mapping) => (
+                <div
+                  key={`outline-${mapping.id || mapping.nome_bloco}`}
+                  className="block-mapping-outline"
+                  style={{
+                    left: `${mapping.x}%`,
+                    top: `${mapping.y}%`,
+                    width: `${mapping.width}%`,
+                    height: `${mapping.height}%`,
+                  }}
+                  title={mapping.nome_bloco}
+                >
+                  <span className="block-mapping-label">{mapping.nome_bloco}</span>
+                </div>
+              ))
+            }
+
             {/* Overlay de desenho para mapeamento de blocos */}
-            {isBlockMappingMode && selectedBlockToMap && onRectangleComplete && (
+            {isBlockMappingMode && onRectangleComplete && (
               <BlockDrawingOverlay
                 selectedBlock={selectedBlockToMap}
                 onRectangleComplete={onRectangleComplete}
                 containerRef={containerRef}
+                existingMappings={blockMappings.filter((mapping) => {
+                  const currentLayerRef = activeLayer === "additional"
+                    ? `${implantacao || implantacaoPrimary}+adicional`
+                    : (implantacao || implantacaoPrimary || "");
+                  const mappingRef = mapping.implantacao_ref || (implantacao || implantacaoPrimary || "");
+                  return mappingRef === currentLayerRef;
+                })}
+                availableBlocks={[]}
+                onPasteMapping={onBlockMappingPaste}
               />
             )}
 

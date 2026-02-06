@@ -125,44 +125,111 @@ export function BlockMappingTool({
     block => !existingMappings.some(mapping => mapping.nome_bloco === block)
   );
 
-  return (
-    <div className="block-mapping-controls">
-      <h3>🎯 Mapear Blocos</h3>
-      
-      <label>Selecione o bloco:</label>
-      <select
-        value={selectedBlock}
-        onChange={(e) => setSelectedBlock(e.target.value)}
-      >
-        <option value="">Escolha um bloco...</option>
-        {unmappedBlocks.map((block) => (
-          <option key={block} value={block}>
-            {block}
-          </option>
-        ))}
-      </select>
-      
-      {unmappedBlocks.length === 0 && (
-        <p style={{ marginTop: "10px", fontSize: "13px", color: "#059669", fontWeight: "500" }}>
-          ✅ Todos os blocos já foram mapeados!
-        </p>
-      )}
+  const mappedBlocks = availableBlocks.filter(
+    block => existingMappings.some(mapping => mapping.nome_bloco === block)
+  );
 
-      {selectedBlock && (
-        <div style={{ marginTop: "10px", padding: "10px", background: "#f0f9ff", borderRadius: "6px" }}>
-          <p style={{ margin: "0 0 10px 0", fontSize: "14px", color: "#0369a1" }}>
-            <strong>Instruções:</strong>
-          </p>
-          <ol style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "#0c4a6e" }}>
-            <li>Clique e arraste no mapa para desenhar um retângulo sobre o bloco</li>
-            <li>O mapeamento será salvo automaticamente ao soltar o mouse</li>
-            <li>Você pode remapear o mesmo bloco quantas vezes quiser</li>
-          </ol>
+  return (
+    <aside className="mapping-sidebar block-mapping-sidebar">
+      <h3 className="sidebar-title">🎯 Mapear Blocos</h3>
+
+      <div className="sidebar-controls">
+        <div className="form-group">
+          <label htmlFor="block-select">Selecione o bloco para mapear</label>
+          <select
+            id="block-select"
+            value={selectedBlock}
+            onChange={(e) => setSelectedBlock(e.target.value)}
+            className="sidebar-input"
+          >
+            <option value="">Escolha um bloco...</option>
+            {unmappedBlocks.map((block) => (
+              <option key={block} value={block}>
+                {block}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
+
+        {unmappedBlocks.length === 0 && (
+          <p className="block-all-mapped-msg">
+            ✅ Todos os blocos já foram mapeados!
+          </p>
+        )}
+
+        {selectedBlock && (
+          <div className="block-instructions">
+            <p className="block-instructions-title">📐 Instruções:</p>
+            <ol className="block-instructions-list">
+              <li>Clique e arraste no mapa para desenhar um retângulo</li>
+              <li>O mapeamento salva automaticamente ao soltar</li>
+              <li>Use <kbd>Ctrl+C</kbd> para copiar um retângulo existente</li>
+              <li>Use <kbd>Ctrl+V</kbd> para colar e reposicionar</li>
+            </ol>
+          </div>
+        )}
+      </div>
+
+      <div className="unit-groups-container">
+        {/* Blocos não mapeados */}
+        {unmappedBlocks.length > 0 && (
+          <div className="unit-group">
+            <div className="group-header" style={{ cursor: "default" }}>
+              <div className="group-header-title">
+                <strong>Não Mapeados</strong>
+                <span>{unmappedBlocks.length} BLOCOS</span>
+              </div>
+            </div>
+            <div className="group-content">
+              {unmappedBlocks.map((block) => (
+                <div
+                  key={block}
+                  className={`unit-item ${selectedBlock === block ? "selected" : ""}`}
+                  onClick={() => setSelectedBlock(block)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <span className="unit-status" style={{ background: "#6b7280" }} />
+                  <span className="unit-name">{block}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Blocos mapeados */}
+        {mappedBlocks.length > 0 && (
+          <div className="unit-group">
+            <div className="group-header" style={{ cursor: "default" }}>
+              <div className="group-header-title">
+                <strong>Mapeados</strong>
+                <span>{mappedBlocks.length} BLOCOS</span>
+              </div>
+            </div>
+            <div className="group-content">
+              {mappedBlocks.map((block) => {
+                const mapping = existingMappings.find(m => m.nome_bloco === block);
+                return (
+                  <div key={block} className="unit-item" data-mapped="true">
+                    <span className="unit-status" style={{ background: "var(--accent-green, #6ad700)" }} />
+                    <span className="unit-name">{block}</span>
+                    <button
+                      className="select-unit-button block-remove-btn"
+                      onClick={() => mapping?.id && handleDeleteMapping(mapping.id)}
+                      title="Remover mapeamento"
+                      style={{ color: "#ef4444" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       <button
-        className="secondary"
+        className="block-exit-btn"
         onClick={() => {
           setSelectedBlock("");
           onToggle(false);
@@ -170,22 +237,6 @@ export function BlockMappingTool({
       >
         Sair do Modo Mapeamento
       </button>
-
-      {existingMappings.length > 0 && (
-        <div className="block-mapping-list">
-          <h4 style={{ margin: "0 0 10px 0", fontSize: "14px", color: "#6b7280" }}>
-            Blocos Mapeados:
-          </h4>
-          {existingMappings.map((mapping) => (
-            <div key={mapping.id} className="block-mapping-item">
-              <span className="block-mapping-item-name">{mapping.nome_bloco}</span>
-              <button onClick={() => mapping.id && handleDeleteMapping(mapping.id)}>
-                Remover
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </aside>
   );
 }
