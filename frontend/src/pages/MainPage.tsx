@@ -862,11 +862,31 @@ export function MainPage() {
 
             // Verifica se o status mudou para EXPIRADO
             if (newRecord.status_pagamento?.toUpperCase() === 'EXPIRADO') {
-              console.log('[PixExpiredMonitor] PIX EXPIRADO detectado! Cancelando reserva automaticamente...', {
+              console.log('[PixExpiredMonitor] PIX EXPIRADO detectado! Verificando se há PIX pago antes de cancelar...', {
                 cliente: newRecord.cliente,
                 unidade: newRecord.unidade,
                 identificador: newRecord.identificador,
               });
+
+              // Verifica se já existe algum PIX pago para este cliente/unidade
+              const { data: pixPago } = await supabase
+                .from('historico_pix')
+                .select('id')
+                .eq('cliente', newRecord.cliente)
+                .eq('unidade', newRecord.unidade)
+                .eq('implantacao_nome', newRecord.implantacao_nome)
+                .eq('status_pagamento', 'PAGO')
+                .limit(1);
+
+              if (pixPago && pixPago.length > 0) {
+                console.log('[PixExpiredMonitor] PIX expirado ignorado - cliente já tem PIX pago para esta unidade:', {
+                  cliente: newRecord.cliente,
+                  unidade: newRecord.unidade,
+                });
+                return;
+              }
+
+              console.log('[PixExpiredMonitor] Nenhum PIX pago encontrado. Cancelando reserva automaticamente...');
 
               // Busca a unidade correspondente no estado atual usando setUnidades callback
               setUnidades((currentUnidades) => {
