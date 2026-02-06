@@ -71,6 +71,10 @@ export function PixModal({
       setPayload(null);
       setError("");
       setContatoCliente("");
+      setCurrentPixId(null);
+      setShowPaymentSuccess(false);
+      setClienteNome("");
+      setClienteDocumento("");
     } else if (showPending && pendingPixData) {
       setPayload(pendingPixData.payloadEmv);
       setValor(pendingPixData.valor);

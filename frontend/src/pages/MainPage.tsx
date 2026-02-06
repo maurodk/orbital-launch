@@ -2379,16 +2379,8 @@ export function MainPage() {
         throw new Error(pixError.message || "Erro ao salvar PIX no banco de dados.");
       }
 
-      // Fecha o modal PIX após salvar
-      setPixModalState({
-        isOpen: false,
-        unitIndex: null,
-        showPending: false,
-        pendingPixData: null,
-      });
-
-      // Opcional: Mostrar mensagem de sucesso
-      alert("PIX gerado com sucesso e salvo no banco de dados!");
+      // Não fecha o modal — o PixModal exibirá o QR Code automaticamente
+      console.log('[handleConfirmPixData] PIX salvo com sucesso. QR Code será exibido no modal.');
     } catch (error: unknown) {
       console.error("Erro ao salvar PIX:", error);
       const err = error as Error;
