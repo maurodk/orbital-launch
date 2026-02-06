@@ -65,7 +65,7 @@ export function PaymentHistoryView() {
     }
   }, []);
 
-  useEffect(() {
+  useEffect(() => {
     if (isAuthenticated) {
       loadPaymentData();
     }
