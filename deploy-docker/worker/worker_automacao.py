@@ -866,7 +866,7 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
     - Sinal 2: 1 parcela de 10%/3, vence 7 dias após Sinal 1
     - Sinal 3: 1 parcela de 10%/3, vence no dia escolhido (05/15/25) do mês seguinte ao Sinal 2
     - Sinal 4: 1 parcela de 10%/3, vence no mesmo dia escolhido do mês seguinte ao Sinal 3
-    - PARCELAMENTO INCORPORADORA: 100 parcelas (plano1) ou 36 parcelas (plano2), vence no mesmo dia escolhido do mês seguinte ao Sinal 4
+    - PARCELAMENTO INCORPORADORA: 100 parcelas (plano1) ou 48 parcelas (plano2), vence no mesmo dia escolhido do mês seguinte ao Sinal 4
     
     Args:
         driver: WebDriver
@@ -880,9 +880,9 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         import calendar
         from datetime import datetime, timedelta
 
-        # Detectar plano: padrão = 1 (100x), se global 'plano2' = True, então 36x
+        # Detectar plano: padrão = 1 (100x), se global 'plano2' = True, então 48x
         plano2 = getattr(adicionar_series_plano1, "plano2", False)
-        n_parcelas_parcelamento = 36 if plano2 else 100
+        n_parcelas_parcelamento = 48 if plano2 else 100
 
         logger.info(f"Iniciando adição de séries para {'Plano 2' if plano2 else 'Plano 1'}...")
 
