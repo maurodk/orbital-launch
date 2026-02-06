@@ -20,22 +20,22 @@
 
 .block-sold-content {
   position: relative;
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.3) 0%, rgba(234, 88, 12, 0.3) 100%);
-  border: 4px solid rgba(255, 255, 255, 0.4);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(234, 88, 12, 0.15) 100%);
+  border: 4px solid rgba(255, 255, 255, 0.3);
   border-radius: 20px;
   padding: 15px 20px;
   box-shadow: 
-    0 10px 40px rgba(249, 115, 22, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-    0 20px 60px rgba(0, 0, 0, 0.4),
-    0 0 30px rgba(220, 38, 38, 0.5);
+    0 10px 40px rgba(249, 115, 22, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset,
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(220, 38, 38, 0.3);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 10px;
   animation: pulse-reduced 2s ease-in-out infinite;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(3px);
   width: 100%;
   height: 100%;
   box-sizing: border-box;
