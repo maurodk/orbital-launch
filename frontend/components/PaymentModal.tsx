@@ -66,8 +66,8 @@ export function PaymentModal({
 
   const planosPadraoOptions = [
     { id: "plano1", label: "10% + 100x" },
-    { id: "plano2", label: "10% + 36x" },
-    { id: "plano3", label: "10% + 36x + 03 Intermediárias + 64x" },
+    { id: "plano2", label: "10% + 48x" },
+    { id: "plano3", label: "10% + 100x + 04 Intermediárias (8,5%)" },
     { id: "plano4", label: "À vista" },
     { id: "plano5", label: "À vista em 3x" },
   ];
@@ -366,7 +366,7 @@ export function PaymentModal({
     const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
     // O valor restante para parcelar é: Total - PIX (Sinal 1) - (Sinal 2 + Sinal 3 + Sinal 4)
     const valorParcelTotal = saldoRestante - (valorSinal234 * 3);
-    const valorParcela36 = Math.round((valorParcelTotal / 36) * 100) / 100;
+    const valorParcela48 = Math.round((valorParcelTotal / 48) * 100) / 100;
 
     return {
       vencSinal1: formatarData(vencSinal1),
@@ -377,7 +377,7 @@ export function PaymentModal({
       valorDez,
       valorSinal234,
       valorParcelTotal,
-      valorParcela36,
+      valorParcela48,
     };
   })();
 
@@ -392,24 +392,24 @@ export function PaymentModal({
     const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
     const vencParcel1 = mesSeguinteNoDia(vencSinal4, diaBase);
-    // Intermediária: 1 ano após o Sinal 4
-    const vencInter = new Date(vencSinal4);
-    vencInter.setFullYear(vencInter.getFullYear() + 1);
+    
+    // Intermediárias: datas fixas 12/2026, 12/2027, 12/2028, 12/2029
+    const vencInter1 = `${String(diaBase).padStart(2, '0')}/12/2026`;
+    const vencInter2 = `${String(diaBase).padStart(2, '0')}/12/2027`;
+    const vencInter3 = `${String(diaBase).padStart(2, '0')}/12/2028`;
+    const vencInter4 = `${String(diaBase).padStart(2, '0')}/12/2029`;
 
     const saldoRestante = valorUnidade - valorTotalPagamento;
     const valorDez = Math.round(saldoRestante * 0.1 * 100) / 100;
     const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
     
-    const valorP1Total = Math.round(saldoRestante * 0.24 * 100) / 100;
-    const valorParcela36 = Math.round((valorP1Total / 36) * 100) / 100;
+    // Parcelamento único de 100x - 81,5%
+    const valorP1Total = Math.round(saldoRestante * 0.815 * 100) / 100;
+    const valorParcela100 = Math.round((valorP1Total / 100) * 100) / 100;
 
-    const valorInterTotal = Math.round(saldoRestante * 0.08 * 100) / 100;
-    const valorParcelaInter = Math.round((valorInterTotal / 3) * 100) / 100;
-
-    // O último parcelamento absorve qualquer diferença de arredondamento para fechar o valor total
-    // Saldo = Total - PIX - Sinais(2,3,4) - P1 - Intermediária
-    const valorP2Total = saldoRestante - (valorSinal234 * 3) - valorP1Total - valorInterTotal;
-    const valorParcela64 = Math.round((valorP2Total / 64) * 100) / 100;
+    // 4 intermediárias totalizando 8,5%
+    const valorInterTotal = Math.round(saldoRestante * 0.085 * 100) / 100;
+    const valorParcelaInter = Math.round((valorInterTotal / 4) * 100) / 100;
 
     return {
       vencSinal1: formatarData(vencSinal1),
@@ -417,11 +417,13 @@ export function PaymentModal({
       vencSinal3: formatarData(vencSinal3),
       vencSinal4: formatarData(vencSinal4),
       vencParcel1: formatarData(vencParcel1),
-      vencInter: formatarData(vencInter),
+      vencInter1,
+      vencInter2,
+      vencInter3,
+      vencInter4,
       valorSinal234,
-      valorParcela36,
-      valorParcelaInter,
-      valorParcela64
+      valorParcela100,
+      valorParcelaInter
     };
   })();
 
@@ -934,10 +936,10 @@ export function PaymentModal({
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">36 Parcelas</span>
+                                    <span className="preview-item-label">48 Parcelas</span>
                                     <span className="preview-item-date">A partir de {plano2Preview.vencParcel}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorParcela36)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorParcela48)}</span>
                                 </div>
                               </div>
                             )}
@@ -976,29 +978,45 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal234)}</span>
                                 </div>
-                                <div className="preview-row">
+                                <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">36 Parcelas (24%)</span>
+                                    <span className="preview-item-label">100 Parcelas (81,5%)</span>
                                     <span className="preview-item-date">A partir de {plano3Preview.vencParcel1}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcela36)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcela100)}</span>
                                 </div>
-                                <div className="preview-row highlight">
+                                <div className="preview-row">
                                   <span className="preview-item-icon">⭐</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">3 Intermediárias (8%)</span>
-                                    <span className="preview-item-date">A partir de {plano3Preview.vencInter}</span>
+                                    <span className="preview-item-label">Intermediária 1 (2,125%)</span>
+                                    <span className="preview-item-date">{plano3Preview.vencInter1}</span>
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcelaInter)}</span>
                                 </div>
                                 <div className="preview-row">
-                                  <span className="preview-item-icon">📅</span>
+                                  <span className="preview-item-icon">⭐</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">64 Parcelas (58%)</span>
-                                    <span className="preview-item-date">Após as 36x</span>
+                                    <span className="preview-item-label">Intermediária 2 (2,125%)</span>
+                                    <span className="preview-item-date">{plano3Preview.vencInter2}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcela64)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcelaInter)}</span>
+                                </div>
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">⭐</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Intermediária 3 (2,125%)</span>
+                                    <span className="preview-item-date">{plano3Preview.vencInter3}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcelaInter)}</span>
+                                </div>
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">⭐</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Intermediária 4 (2,125%)</span>
+                                    <span className="preview-item-date">{plano3Preview.vencInter4}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorParcelaInter)}</span>
                                 </div>
                               </div>
                             )}
