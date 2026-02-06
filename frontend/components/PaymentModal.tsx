@@ -334,7 +334,14 @@ export function PaymentModal({
     const valorDez = Math.round(saldoRestante * 0.1 * 100) / 100;
     const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
     const valorParcelTotal = saldoRestante - (valorSinal234 * 3);
-    const valorParcela100 = Math.round((valorParcelTotal / 100) * 100) / 100;
+    let valorParcela100 = Math.round((valorParcelTotal / 100) * 100) / 100;
+    
+    // Ajuste para garantir valor exato
+    const totalCalculado = valorTotalPagamento + (valorSinal234 * 3) + (valorParcela100 * 100);
+    const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+    if (diferenca !== 0) {
+      valorParcela100 = Math.round((valorParcela100 + (diferenca / 100)) * 100) / 100;
+    }
 
     return {
       vencSinal1: formatarData(vencSinal1),
@@ -366,7 +373,14 @@ export function PaymentModal({
     const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
     // O valor restante para parcelar é: Total - PIX (Sinal 1) - (Sinal 2 + Sinal 3 + Sinal 4)
     const valorParcelTotal = saldoRestante - (valorSinal234 * 3);
-    const valorParcela48 = Math.round((valorParcelTotal / 48) * 100) / 100;
+    let valorParcela48 = Math.round((valorParcelTotal / 48) * 100) / 100;
+    
+    // Ajuste para garantir valor exato
+    const totalCalculado = valorTotalPagamento + (valorSinal234 * 3) + (valorParcela48 * 48);
+    const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+    if (diferenca !== 0) {
+      valorParcela48 = Math.round((valorParcela48 + (diferenca / 48)) * 100) / 100;
+    }
 
     return {
       vencSinal1: formatarData(vencSinal1),
@@ -403,13 +417,20 @@ export function PaymentModal({
     const valorDez = Math.round(saldoRestante * 0.1 * 100) / 100;
     const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
     
-    // Parcelamento único de 100x - 81,5%
-    const valorP1Total = Math.round(saldoRestante * 0.815 * 100) / 100;
-    const valorParcela100 = Math.round((valorP1Total / 100) * 100) / 100;
-
     // 4 intermediárias totalizando 8,5%
     const valorInterTotal = Math.round(saldoRestante * 0.085 * 100) / 100;
     const valorParcelaInter = Math.round((valorInterTotal / 4) * 100) / 100;
+    
+    // Parcelamento único de 100x - calcular como resto para garantir valor exato
+    const valorP1Total = saldoRestante - (valorSinal234 * 3) - (valorParcelaInter * 4);
+    let valorParcela100 = Math.round((valorP1Total / 100) * 100) / 100;
+    
+    // Ajuste para garantir valor exato
+    const totalCalculado = valorTotalPagamento + (valorSinal234 * 3) + (valorParcelaInter * 4) + (valorParcela100 * 100);
+    const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+    if (diferenca !== 0) {
+      valorParcela100 = Math.round((valorParcela100 + (diferenca / 100)) * 100) / 100;
+    }
 
     return {
       vencSinal1: formatarData(vencSinal1),
@@ -462,7 +483,14 @@ export function PaymentModal({
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
 
     const saldoRestante = valorUnidade - valorTotalPagamento;
-    const parcela = Math.round((saldoRestante / 3) * 100) / 100;
+    let parcela = Math.round((saldoRestante / 3) * 100) / 100;
+    
+    // Ajuste para garantir valor exato
+    const totalCalculado = valorTotalPagamento + (parcela * 3);
+    const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+    if (diferenca !== 0) {
+      parcela = Math.round((parcela + (diferenca / 3)) * 100) / 100;
+    }
 
     return {
       vencSinal1: formatarData(vencSinal1),

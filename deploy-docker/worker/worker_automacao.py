@@ -936,8 +936,22 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido
         data_parcelamento_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
         data_parcelamento = data_parcelamento_obj.strftime("%d/%m/%Y")
+        
+        # Calcular valor exato do parcelamento (compensando arredondamentos)
         valor_parcelamento_total = saldo_restante - (valor_sinal_234 * 3)
         valor_parcela = round(valor_parcelamento_total / n_parcelas_parcelamento, 2)
+        
+        # IMPORTANTE: Ajustar para garantir que o total seja exato
+        # Somar tudo: PIX + 3 sinais + (n_parcelas * valor_parcela)
+        total_calculado = valor_pix + (valor_sinal_234 * 3) + (valor_parcela * n_parcelas_parcelamento)
+        diferenca = round(valor_unidade_total - total_calculado, 2)
+        
+        # Se houver diferença (arredondamento), ajustar a última parcela
+        if diferenca != 0:
+            valor_parcela_ajustado = round(valor_parcela + (diferenca / n_parcelas_parcelamento), 2)
+            logger.info(f"[Plano] Ajuste de arredondamento: diferença={diferenca:.2f}, nova parcela={valor_parcela_ajustado:.2f}")
+            valor_parcela = valor_parcela_ajustado
+        
         logger.info(f"[Plano] Parcelamento: total={valor_parcelamento_total:.2f}, {n_parcelas_parcelamento}x de {valor_parcela:.2f}, venc={data_parcelamento}, forma=TRANSFERÊNCIA BANCÁRIA")
 
         if not adicionar_serie(
@@ -973,13 +987,24 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
         valor_dez_porcento = round(saldo_restante * 0.10, 2)
         valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
         
-        # Parcelamento único de 100x - 81,5% (100% - 10% - 8,5%)
-        valor_p1_total = round(saldo_restante * 0.815, 2)
-        valor_parcela_p1 = round(valor_p1_total / 100, 2)
-        
         # 4 intermediárias totalizando 8,5% do saldo
         valor_inter_total = round(saldo_restante * 0.085, 2)
         valor_parcela_inter = round(valor_inter_total / 4, 2)
+        
+        # Parcelamento único de 100x - calcular como resto para garantir valor exato
+        # Total = PIX + Sinal234*3 + Intermediárias*4 + Parcelamento*100
+        valor_p1_total = saldo_restante - (valor_sinal_234 * 3) - (valor_parcela_inter * 4)
+        valor_parcela_p1 = round(valor_p1_total / 100, 2)
+        
+        # IMPORTANTE: Verificar se o total fecha exatamente
+        total_calculado = valor_pix + (valor_sinal_234 * 3) + (valor_parcela_inter * 4) + (valor_parcela_p1 * 100)
+        diferenca = round(valor_unidade_total - total_calculado, 2)
+        
+        # Se houver diferença, ajustar o parcelamento (100x)
+        if diferenca != 0:
+            valor_parcela_p1_ajustado = round(valor_parcela_p1 + (diferenca / 100), 2)
+            logger.info(f"[Plano3] Ajuste de arredondamento: diferença={diferenca:.2f}, nova parcela 100x={valor_parcela_p1_ajustado:.2f}")
+            valor_parcela_p1 = valor_parcela_p1_ajustado
 
         hoje = datetime.now()
 
@@ -1048,7 +1073,16 @@ def adicionar_series_plano4(driver: webdriver.Chrome, valor_unidade_total: float
 
         desconto = round(valor_unidade_total * 0.05, 2)
         valor_total_descontado = round(valor_unidade_total - desconto, 2)
+        # Garantir que o saldo restante seja exato (Total descontado - PIX)
         saldo_restante = round(valor_total_descontado - valor_pix, 2)
+        
+        # Verificar se o total fecha exatamente
+        total_calculado = valor_pix + saldo_restante
+        diferenca = round(valor_total_descontado - total_calculado, 2)
+        if diferenca != 0:
+            saldo_restante = round(saldo_restante + diferenca, 2)
+            logger.info(f"[Plano4] Ajuste de arredondamento: diferença={diferenca:.2f}, novo Sinal 2={saldo_restante:.2f}")
+        
         hoje = datetime.now()
 
         logger.info(f"[Plano4] Valor original={valor_unidade_total:.2f}, desconto={desconto:.2f}, total_com_desconto={valor_total_descontado:.2f}")
@@ -1096,6 +1130,14 @@ def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float
 
         saldo_restante = round(valor_unidade_total - valor_pix, 2)
         parcela = round((saldo_restante / 3.0), 2)
+        
+        # Verificar se o total fecha exatamente
+        total_calculado = valor_pix + (parcela * 3)
+        diferenca = round(valor_unidade_total - total_calculado, 2)
+        if diferenca != 0:
+            parcela = round(parcela + (diferenca / 3), 2)
+            logger.info(f"[Plano5] Ajuste de arredondamento: diferença={diferenca:.2f}, nova parcela={parcela:.2f}")
+        
         hoje = datetime.now()
 
         def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
