@@ -253,9 +253,8 @@ export function MainPage() {
   const [showFullNameModal, setShowFullNameModal] = useState(false);
   // Removido userFullName - não está sendo usado no momento
 
-  // Extrair implantacao e cliente do contexto atual
+  // Extrair implantacao do contexto atual
   const implantacao = selectedImplantationName;
-  const cliente = unidades.length > 0 ? unidades[0][7] || "" : ""; // Coluna H - cliente (primeiro registro)
 
   const reservationManager = useReservationManager(apiUrl);
   
@@ -3093,11 +3092,10 @@ export function MainPage() {
                 show={pixHistoryModalState.isOpen}
                 onClose={handleCloseModals}
                 implantacao={selectedImplantationName}
-                cliente={cliente}
-                unidade={
+                unitData={
                   pixHistoryModalState.unitIndex !== null
-                    ? unidades[pixHistoryModalState.unitIndex]?.[2] || ""
-                    : ""
+                    ? unidades[pixHistoryModalState.unitIndex] || null
+                    : null
                 }
               />
               <ChangeUnitModal

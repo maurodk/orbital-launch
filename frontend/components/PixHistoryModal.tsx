@@ -22,8 +22,7 @@ interface PixHistoryModalProps {
   show: boolean;
   onClose: () => void;
   implantacao: string;
-  cliente: string;
-  unidade: string;
+  unitData: string[] | null;
 }
 
 
@@ -32,8 +31,7 @@ export function PixHistoryModal({
   show,
   onClose,
   implantacao,
-  cliente,
-  unidade,
+  unitData,
 }: PixHistoryModalProps) {
   const [pixList, setPixList] = useState<PixRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,18 +40,44 @@ export function PixHistoryModal({
   const [pixPagos, setPixPagos] = useState(0);
   const [pixPendentes, setPixPendentes] = useState(0);
   const [pixExpirados, setPixExpirados] = useState(0);
-  const [displayClientName, setDisplayClientName] = useState(cliente);
+  const [resolvedClientName, setResolvedClientName] = useState("");
 
-  // Atualiza o nome exibido quando a prop muda
+  const unidade = unitData?.[2] || "";
+
+  // Resolve o nome do cliente via id_pre_cadastro (consistente com PaymentModal)
   useEffect(() => {
-    setDisplayClientName(cliente);
-  }, [cliente]);
+    if (!unitData) {
+      setResolvedClientName("");
+      return;
+    }
+
+    const idPreCadastro = unitData[6];
+    let clienteNome = unitData[7] || "";
+
+    if (idPreCadastro) {
+      (async () => {
+        const { data: clienteData } = await supabase
+          .from('clientes')
+          .select('nome')
+          .eq('id_pre_cadastro', idPreCadastro)
+          .maybeSingle();
+
+        if (clienteData?.nome) {
+          setResolvedClientName(clienteData.nome);
+        } else {
+          setResolvedClientName(clienteNome);
+        }
+      })();
+    } else {
+      setResolvedClientName(clienteNome);
+    }
+  }, [unitData]);
 
   // Busca histórico de PIX do Supabase
   const fetchPixHistory = async () => {
     setLoading(true);
     try {
-      console.log("[PixHistoryModal] Props recebidas:", { cliente, unidade, implantacao });
+      console.log("[PixHistoryModal] Props recebidas:", { resolvedClientName, unidade, implantacao });
 
       // Construir a query base - buscar apenas PIX do cliente atual
       let query = supabase
@@ -67,11 +91,11 @@ export function PixHistoryModal({
       }
       
       // Filtro por cliente (obrigatório) - mostra apenas PIX do cliente atual
-      if (cliente) {
-        query = query.eq("cliente", cliente);
+      if (resolvedClientName) {
+        query = query.eq("cliente", resolvedClientName);
       } else {
         // Se não houver cliente, não busca nada
-        console.log("[PixHistoryModal] Nenhum cliente informado, não buscando PIX");
+        console.log("[PixHistoryModal] Nenhum cliente resolvido, não buscando PIX");
         setPixList([]);
         setLoading(false);
         return;
@@ -79,7 +103,7 @@ export function PixHistoryModal({
 
       console.log("[PixHistoryModal] Filtros aplicados:", { 
         implantacao, 
-        cliente
+        cliente: resolvedClientName
       });
 
       const { data, error } = await query;
@@ -89,11 +113,6 @@ export function PixHistoryModal({
         total: data?.length, 
         registros: data 
       });
-
-      // Atualiza o nome do cliente exibido com base no primeiro PIX encontrado
-      if (data && data.length > 0 && data[0].cliente) {
-        setDisplayClientName(data[0].cliente);
-      }
 
       // Garante que valor é número
       const parsedData = (data || []).map((item) => ({
@@ -123,11 +142,11 @@ export function PixHistoryModal({
   };
 
   useEffect(() => {
-    if (show && cliente && unidade) {
+    if (show && resolvedClientName && unidade) {
       fetchPixHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, cliente, unidade]);
+  }, [show, resolvedClientName, unidade]);
 
   if (!show) return null;
 
@@ -161,7 +180,7 @@ export function PixHistoryModal({
           &times;
         </button>
         <h2>Histórico de PIX - {unidade}</h2>
-        <p className="pix-history-client">Cliente: {displayClientName}</p>
+        <p className="pix-history-client">Cliente: {resolvedClientName}</p>
 
         {loading ? (
           <div className="loading-state">Carregando...</div>
