@@ -165,7 +165,7 @@ export function Diretoria() {
           <article className="kpi-card money">
             <div className="kpi-label">Valor total reservado</div>
             <div className="kpi-value">R$ {Number(data.totalValorUnidadesReservadas ?? 0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-            <div className="kpi-delta">Recebido / Em processo</div>
+            <div className="kpi-delta">Total valor de unidade reservada</div>
           </article>
         </section>
 
