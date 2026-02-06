@@ -2769,36 +2769,9 @@ app.post("/api/confirm-reservation", verifyToken, async (req, res) => {
             unitFullName = (inserted && inserted.nome_unidade) || unitFullName;
           }
 
-          // ATUALIZAÇÃO DE PIX (SALDO): Transfere o histórico de PIX para a nova unidade
-          // Isso garante que o saldo acompanhe o cliente mesmo se ele trocar de unidade ou cancelar/reservar
-          if (payload.cliente && unitFullName) {
-            let clientNameForPix = payload.cliente;
-
-            // Se o nome do cliente parece ser um ID (número), tenta resolver o nome real na tabela de clientes
-            if (/^\d+$/.test(clientNameForPix)) {
-              const { data: clientData } = await supabase
-                .from('clientes')
-                .select('nome')
-                .eq('id_pre_cadastro', clientNameForPix)
-                .maybeSingle();
-              
-              if (clientData && clientData.nome) {
-                clientNameForPix = clientData.nome;
-              }
-            }
-
-            // Atualiza a unidade nos registros de PIX deste cliente
-            const { error: pixUpdateError } = await supabase
-              .from('historico_pix')
-              .update({ unidade: unitFullName })
-              .eq('implantacao_id', implantacao_id)
-              .eq('cliente', clientNameForPix)
-              .neq('unidade', unitFullName); // Move apenas o que não está na unidade atual
-
-            if (pixUpdateError) {
-              console.error("[SUPABASE] Erro ao transferir PIX na reserva:", pixUpdateError);
-            }
-          }
+          // NOTA: Não transfere PIX automaticamente na reserva.
+          // Um cliente pode ter várias unidades com PIX independentes.
+          // A transferência de PIX só ocorre na troca de unidade via /api/pix/transfer.
 
           // Update cliente status and try to store imobiliaria/documento there as well (best-effort)
           if (clientName) {
@@ -3189,32 +3162,9 @@ app.post("/api/spontaneous-update", verifyToken, async (req, res) => {
             unitFullName = (inserted && inserted.nome_unidade) || unitFullName;
           }
 
-          // ATUALIZAÇÃO DE PIX (SALDO) - Reserva Espontânea
-          if (payload.cliente && unitFullName) {
-            let clientNameForPix = payload.cliente;
-
-            // Resolve ID -> Nome
-            if (/^\d+$/.test(clientNameForPix)) {
-              const { data: clientData } = await supabase
-                .from('clientes')
-                .select('nome')
-                .eq('id_pre_cadastro', clientNameForPix)
-                .maybeSingle();
-              
-              if (clientData && clientData.nome) {
-                clientNameForPix = clientData.nome;
-              }
-            }
-
-            const { error: pixUpdateError } = await supabase
-              .from('historico_pix')
-              .update({ unidade: unitFullName })
-              .eq('implantacao_id', implantacao_id)
-              .eq('cliente', clientNameForPix)
-              .neq('unidade', unitFullName);
-
-            if (pixUpdateError) console.error("[SUPABASE] Erro ao transferir PIX (Espontânea):", pixUpdateError);
-          }
+          // NOTA: Não transfere PIX automaticamente na reserva espontânea.
+          // Um cliente pode ter várias unidades com PIX independentes.
+          // A transferência de PIX só ocorre na troca de unidade via /api/pix/transfer.
 
           if (manualData.cliente) {
             try {
