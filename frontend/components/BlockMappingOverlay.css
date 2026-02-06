@@ -75,9 +75,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   background: rgba(255, 255, 255, 0.98);
-  padding: 12px 24px;
+  padding: 8px 16px;
   border-radius: 50px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   position: relative;
@@ -85,10 +85,11 @@
 }
 
 .block-sold-icon {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   color: #dc2626;
   animation: checkmark 0.6s ease-out 0.2s both;
+  flex-shrink: 0;
 }
 
 @keyframes checkmark {
@@ -106,23 +107,28 @@
 }
 
 .block-sold-text {
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 900;
   color: #7f1d1d;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .block-sold-name {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   color: #ffffff;
   text-align: center;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   position: relative;
   z-index: 20;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 
@@ -130,20 +136,22 @@
 /* Responsivo */
 @media (max-width: 768px) {
   .block-sold-text {
-    font-size: 18px;
+    font-size: 14px;
+    letter-spacing: 1px;
   }
   
   .block-sold-name {
-    font-size: 14px;
+    font-size: 11px;
   }
   
   .block-sold-badge {
-    padding: 10px 20px;
+    padding: 6px 14px;
+    gap: 6px;
   }
   
   .block-sold-icon {
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
   }
 }
 
