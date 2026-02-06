@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { supabase } from "../supabaseClient";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
+import { PasswordModal } from "../../components/PasswordModal";
 import "./Diretoria.css";
 
 interface DiretoriaData {
@@ -24,29 +25,26 @@ const AWS_API_URL =
 const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
 export function Diretoria() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DiretoriaData>({});
   const [searchImobiliaria, setSearchImobiliaria] = useState("");
   const [searchCorretor, setSearchCorretor] = useState("");
 
-  // Função para buscar dados
+  // Verificar autenticação ao montar
+  useEffect(() => {
+    const auth = localStorage.getItem("diretoriaAuth");
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // Função para buscar dados (acesso público, sem autenticação)
   const fetchData = async () => {
     try {
       setLoading(true);
-      let token = null;
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        token = session?.access_token || null;
-      } catch {
-        token = null;
-      }
-
-      const resp = await axios.get(`${apiUrl}/api/diretoria`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const resp = await axios.get(`${apiUrl}/api/diretoria`);
       setData((resp.data as DiretoriaData) || {});
       setError(null);
     } catch (err: unknown) {
@@ -112,6 +110,10 @@ export function Diretoria() {
       supabase.removeChannel(pagamentosChannel);
     };
   }, []);
+
+  if (!isAuthenticated) {
+    return <PasswordModal onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   if (loading) return <div className="diretoria-loading">Carregando dashboard...</div>;
   if (error) return <div className="diretoria-error">Erro: {error}</div>;
@@ -216,18 +218,17 @@ export function Diretoria() {
 
           <div className="panel small">
             <h3 className="panel-title">Reservas por Tipologia</h3>
-            <div className="panel-body bars" style={{ height: '350px', overflowY: 'auto' }}>
+            <div className="panel-body bars">
               {Object.keys(data.unidadesReservadasPorTipologia || {}).length === 0 && <div className="empty">Nenhuma tipologia reservada</div>}
               {(
                 Object.entries(data.unidadesReservadasPorTipologia || {}) as [string, number][]
               ).map(([k, v], i) => {
-                const values = (Object.values(data.unidadesReservadasPorTipologia || {}) as number[]).map(Number);
-                const total = values.reduce((s, n) => s + n, 0) || 1;
-                const pct = Math.round((Number(v) / total) * 100);
                 return (
                   <div className="bar-row" key={i}>
-                    <div className="bar-meta"><span className="bar-key">{k}</span><span className="bar-num">{v}</span></div>
-                    <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
+                    <div className="bar-meta">
+                      <span className="bar-key">{k}</span>
+                      <span className="bar-num">{v}</span>
+                    </div>
                   </div>
                 );
               })}

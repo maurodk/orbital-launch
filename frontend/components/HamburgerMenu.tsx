@@ -1,7 +1,7 @@
 // frontend/components/HamburgerMenu.tsx
 
 import { useState } from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, DollarSign, Target } from "lucide-react";
 
 interface HamburgerMenuProps {
   onNewImplantationClick: () => void;
@@ -9,6 +9,7 @@ interface HamburgerMenuProps {
   onListViewClick: () => void;
   onHistoryClick: () => void;
   onBlockMappingClick?: () => void;
+  onPaymentHistoryClick?: () => void;
   onLogout?: () => void;
 }
 
@@ -18,6 +19,7 @@ export function HamburgerMenu({
   onListViewClick,
   onHistoryClick,
   onBlockMappingClick,
+  onPaymentHistoryClick,
   onLogout,
 }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -240,6 +242,9 @@ export function HamburgerMenu({
                   fontSize: "14px",
                   color: "#eaeaea",
                   transition: "background-color 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = "#2a2a2a";
@@ -248,7 +253,46 @@ export function HamburgerMenu({
                   e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
-                🎯 Mapear Blocos
+                <Target size={16} />
+                Mapear Blocos
+              </button>
+            </>
+          )}
+
+          {onPaymentHistoryClick && (
+            <>
+              <div
+                style={{
+                  height: "1px",
+                  backgroundColor: "#2a2a2a",
+                  margin: "5px 0",
+                }}
+              />
+              <button
+                onClick={() => handleItemClick(onPaymentHistoryClick)}
+                style={{
+                  width: "100%",
+                  padding: "12px 20px",
+                  border: "none",
+                  backgroundColor: "transparent",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  color: "#eaeaea",
+                  transition: "background-color 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#2a2a2a";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                <DollarSign size={16} />
+                Histórico de Pagamentos
               </button>
             </>
           )}

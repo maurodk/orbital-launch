@@ -5,6 +5,7 @@ import axios from "axios";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { useReactToPrint } from "react-to-print";
 import { Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { FloorPlan } from "../../components/FloorPlan";
 import { ReservationModal } from "../../components/ReservationModal";
@@ -118,6 +119,7 @@ const formatCPF = (cpf: string | null | undefined): string => {
 };
 
 export function MainPage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
@@ -317,6 +319,10 @@ export function MainPage() {
     await auth.signOut();
   };
 
+  const handleNavigateToPayments = () => {
+    navigate("/pagamentos");
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: printComponentRef,
     onAfterPrint: () => setTermoParaImprimir(null),
@@ -344,12 +350,13 @@ export function MainPage() {
         return;
       }
 
-      // Buscar histórico do Supabase
+      // Buscar histórico do Supabase (limitado aos 100 mais recentes para performance)
       const { data: historicoData, error: historicoError } = await supabase
         .from("historico")
         .select("*")
         .eq("implantacao_id", implantacaoData.id)
-        .order("timestamp_iso", { ascending: false });
+        .order("timestamp_iso", { ascending: false })
+        .limit(100);
 
       if (historicoError) {
         console.error(`Erro ao carregar histórico para ${implantacaoName}:`, historicoError);
@@ -2495,6 +2502,7 @@ export function MainPage() {
             setIsMappingMode(false);
           }}
           onBlockMappingClick={() => setIsBlockMappingMode(!isBlockMappingMode)}
+          onPaymentHistoryClick={handleNavigateToPayments}
           onLogout={handleLogout}
         />
 
