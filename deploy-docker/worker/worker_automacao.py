@@ -960,7 +960,7 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
 
 def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
     """
-    Adiciona séries para o Plano 3 (10% + 36x + 03 Intermediárias + 64x)
+    Adiciona séries para o Plano 3 (10% + 100x + 04 Intermediárias de 8,5%)
     """
     try:
         import calendar
@@ -973,15 +973,13 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
         valor_dez_porcento = round(saldo_restante * 0.10, 2)
         valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
         
-        valor_p1_total = round(saldo_restante * 0.24, 2)
-        valor_parcela_p1 = round(valor_p1_total / 36, 2)
+        # Parcelamento único de 100x - 81,5% (100% - 10% - 8,5%)
+        valor_p1_total = round(saldo_restante * 0.815, 2)
+        valor_parcela_p1 = round(valor_p1_total / 100, 2)
         
-        valor_inter_total = round(saldo_restante * 0.08, 2)
-        valor_parcela_inter = round(valor_inter_total / 3, 2)
-        
-        # O último parcelamento deve ser o saldo restante para fechar a conta
-        valor_p2_total = saldo_restante - (valor_sinal_234 * 3) - valor_p1_total - valor_inter_total
-        valor_parcela_p2 = round(valor_p2_total / 64, 2)
+        # 4 intermediárias totalizando 8,5% do saldo
+        valor_inter_total = round(saldo_restante * 0.085, 2)
+        valor_parcela_inter = round(valor_inter_total / 4, 2)
 
         hoje = datetime.now()
 
@@ -1012,25 +1010,24 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
         if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4_obj.strftime("%d/%m/%Y")):
             return False
 
-        # 2. Parcelamento Incorporadora 1 (36x) - 24%
+        # 2. Parcelamento Incorporadora (100x) - 81,5%
         data_p1_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
-        if not adicionar_serie(driver, "PARCELAMENTO INCORPORADORA", 36, valor_parcela_p1, data_p1_obj.strftime("%d/%m/%Y"), "TRANSFERÊNCIA BANCÁRIA"):
+        if not adicionar_serie(driver, "PARCELAMENTO INCORPORADORA", 100, valor_parcela_p1, data_p1_obj.strftime("%d/%m/%Y"), "TRANSFERÊNCIA BANCÁRIA"):
             return False
 
-        # 3. Intermediária (3x) - 8%
-        # Regra: Data de vencimento definida no seletor + 1 ano após o vencimento do Sinal 4
-        # data_sinal4_obj já respeita o dia_vencimento
-        data_inter_obj = data_sinal4_obj.replace(year=data_sinal4_obj.year + 1)
-        if not adicionar_serie(driver, "Intermediária", 3, valor_parcela_inter, data_inter_obj.strftime("%d/%m/%Y")):
-            return False
-
-        # 4. Parcelamento Incorporadora 2 (64x) - 58% - Começa após o fim do P1 (36 meses depois)
-        data_p2_obj = data_p1_obj
-        for _ in range(36):
-            data_p2_obj = proximo_mes_no_dia(data_p2_obj, dia_vencimento)
-            
-        if not adicionar_serie(driver, "PARCELAMENTO INCORPORADORA", 64, valor_parcela_p2, data_p2_obj.strftime("%d/%m/%Y"), "TRANSFERÊNCIA BANCÁRIA"):
-            return False
+        # 3. Intermediárias (4x) - 8,5% total
+        # Datas fixas: 12/2026, 12/2027, 12/2028, 12/2029
+        datas_intermediarias = [
+            f"{dia_vencimento:02d}/12/2026",
+            f"{dia_vencimento:02d}/12/2027",
+            f"{dia_vencimento:02d}/12/2028",
+            f"{dia_vencimento:02d}/12/2029"
+        ]
+        
+        for idx, data_inter in enumerate(datas_intermediarias, start=1):
+            logger.info(f"[Plano3] Intermediária {idx}: qtd=1, valor={valor_parcela_inter:.2f}, venc={data_inter}")
+            if not adicionar_serie(driver, "Intermediária", 1, valor_parcela_inter, data_inter):
+                return False
 
         return True
     except Exception as e:
