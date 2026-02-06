@@ -33,7 +33,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   animation: pulse-reduced 2s ease-in-out infinite;
   backdrop-filter: blur(10px);
   overflow: hidden;

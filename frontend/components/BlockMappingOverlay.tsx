@@ -111,7 +111,6 @@ export function BlockMappingOverlay({
                   </svg>
                   <span className="block-sold-text">VENDIDO</span>
                 </div>
-                <br />
                 <div className="block-sold-name">{mapping.nome_bloco}</div>
               </div>
             </div>
