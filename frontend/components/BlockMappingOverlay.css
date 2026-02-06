@@ -14,7 +14,7 @@
 }
 
 .block-sold-overlay.visible {
-  opacity: 0.8;
+  opacity: 0.95;
   transform: scale(1) rotateY(0deg);
 }
 
