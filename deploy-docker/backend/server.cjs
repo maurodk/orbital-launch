@@ -5648,12 +5648,13 @@ app.post("/api/add-payment", verifyToken, async (req, res) => {
         // 4.1 NOVO: Vincular PIX pagos a este pagamento
         if (pagamento.valorPix && pagamento.valorPix > 0 && clientName && finalImplantacaoId) {
             try {
-                // Busca PIX pagos do cliente que ainda não foram utilizados
+                // Busca PIX pagos do cliente nesta unidade que ainda não foram utilizados
                 const { data: pixPagos, error: pixError } = await supabase
                     .from("historico_pix")
                     .select("id, valor")
                     .eq("implantacao_id", finalImplantacaoId)
                     .eq("cliente", clientName)
+                    .eq("unidade", unitName)
                     .eq("status_pagamento", "PAGO")
                     .is("pagamento_id", null)
                     .order("data_pagamento", { ascending: true }); // Usa PIX mais antigos primeiro

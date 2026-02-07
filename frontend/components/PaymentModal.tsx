@@ -214,14 +214,16 @@ export function PaymentModal({
         }
 
         // Só busca PIX se houver um cliente válido
-        if (clienteNome) {
+        const unidadeNome = unitData[2] || ""; // Coluna C - nome_unidade
+        if (clienteNome && unidadeNome) {
           const { data: pixData, error: pixError } = await supabase
             .from("historico_pix")
             .select("id, valor, data_pagamento, updated_at")
             .eq("implantacao_id", implantacaoId)
-            .eq("cliente", clienteNome) // Filtro por cliente (independente da unidade)
+            .eq("cliente", clienteNome)
+            .eq("unidade", unidadeNome) // Filtro por cliente + unidade
             .eq("status_pagamento", "PAGO")
-            .is("pagamento_id", null); // NOVO: Apenas PIX ainda não utilizados em nenhum pagamento
+            .is("pagamento_id", null); // Apenas PIX ainda não utilizados em nenhum pagamento
 
           if (!cancelled && !pixError && pixData) {
             setPixPagos(pixData);
