@@ -142,6 +142,19 @@ export function PixModal({
     }
   }, [show, unitData]);
 
+  // Extrai o nome do cliente após o "-", removendo espaços extras
+  const extrairNomeCliente = (nome: string): string => {
+    if (!nome) return "";
+    
+    // Se contiver "-", pega a parte após o "-"
+    if (nome.includes("-")) {
+      const partes = nome.split("-");
+      return partes.slice(1).join("-").trim();
+    }
+    
+    return nome.trim();
+  };
+
   // Monitora mudanças no status do PIX no Supabase em tempo real
   useEffect(() => {
     if (!show || !currentPixId) return;
@@ -265,7 +278,7 @@ export function PixModal({
         }
         return cpfLimpo;
       })(),
-      nome: (clienteNome || unitData?.[7] || "CLIENTE").slice(0, 25),
+      nome: extrairNomeCliente(clienteNome || unitData?.[7] || "CLIENTE").slice(0, 25),
       cidade: (implantacaoCidade || "Vitoria da Conquista").slice(0, 15),
       chave: "58571081000160",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
@@ -297,7 +310,7 @@ export function PixModal({
           await axios.post(
             `${apiUrl}/api/botmaker/trigger-intent`,
             {
-              nomeCliente: clienteNome || unitData?.[7] || "N/A",
+              nomeCliente: extrairNomeCliente(clienteNome || unitData?.[7] || "N/A"),
               nomeEmpreendimento: implantacaoNome,
               unidade: unitData?.[2] || "N/A",
               contatoCliente: contatoCliente,

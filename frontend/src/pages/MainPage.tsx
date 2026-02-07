@@ -83,6 +83,19 @@ const gerarSigla = (nome: string): string => {
     .toUpperCase();
 };
 
+// Função para extrair o nome do cliente após o "-", removendo espaços extras
+const extrairNomeCliente = (nome: string): string => {
+  if (!nome) return "";
+  
+  // Se contiver "-", pega a parte após o "-"
+  if (nome.includes("-")) {
+    const partes = nome.split("-");
+    return partes.slice(1).join("-").trim();
+  }
+  
+  return nome.trim();
+};
+
 interface ManualData {
   id: string;
   cliente: string;
@@ -1800,7 +1813,7 @@ export function MainPage() {
       // Simular etapas do processamento (pode ser substituído por SSE ou polling real)
       setProcessingPaymentState((prev) => ({ ...prev, currentStep: 'Salvando dados de pagamento...', progress: 30 }));
 
-      const clientName = unitData[7] || ""; // Coluna H - cliente
+      const clientName = extrairNomeCliente(unitData[7]) || ""; // Coluna H - cliente (extrai após "-")
       const unitName = unitData[2] || ""; // Coluna C - nome_unidade
       const idPreCadastro = unitData[6] || ""; // Coluna G - id_pre_cadastro
 
@@ -1997,7 +2010,7 @@ export function MainPage() {
     try {
       const oldUnitData = unidades[changeUnitModalState.unitIndex];
       const newUnitData = unidades[newUnitIndex];
-      const cliente = oldUnitData[7]; // Nome do cliente
+      const cliente = extrairNomeCliente(oldUnitData[7]); // Nome do cliente (extrai após "-")
       const unidadeAntiga = oldUnitData[2]; // Nome da unidade antiga
       const unidadeNova = newUnitData[2]; // Nome da unidade nova
 
@@ -2369,13 +2382,16 @@ export function MainPage() {
         }
       }
 
+      // Extrai o nome correto do cliente (remove número + hifen antes do nome)
+      const clienteNomeExtraido = extrairNomeCliente(clienteNome);
+
       // Salva o PIX diretamente no Supabase na tabela historico_pix
       const { error: pixError } = await supabase
         .from('historico_pix')
         .insert({
           implantacao_id: currentImplantation?.id || null,
           implantacao_nome: selectedImplantationName,
-          cliente: clienteNome,
+          cliente: clienteNomeExtraido,
           unidade: unidade,
           identificador: identificador,
           payload_emv: payloadEmv,
@@ -2434,7 +2450,7 @@ export function MainPage() {
       axios.post(`${apiUrl}/api/log-print`, {
         implantacao: selectedImplantationName,
         unitName: unitFullName,
-        clientName: unitData[7] || "N/D", // Coluna H - cliente
+        clientName: extrairNomeCliente(unitData[7]) || "N/D", // Coluna H - cliente (extrai após "-")
         brokerName: brokerName,
       });
       await fetchHistory(selectedImplantationName);
@@ -2453,7 +2469,7 @@ export function MainPage() {
     const paymentDate = today.toLocaleDateString("pt-BR");
 
     const termoData: TermoData = {
-      clienteNome: unitData[7] || "N/D", // Coluna H - cliente
+      clienteNome: extrairNomeCliente(unitData[7]) || "N/D", // Coluna H - cliente (extrai após "-")
       clienteCpf: formatCPF(unitData[8]) || "N/D", // Coluna I - documento
       unidadeDesc: `${unitData[2]}`, // Coluna C - nome_unidade
       tipologia: unitData[4] || "N/D", // Coluna E - tipologia

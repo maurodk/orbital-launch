@@ -4,6 +4,19 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../src/supabaseClient";
 import "./ReservationModal.css";
 
+// Função para extrair o nome do cliente após o "-", removendo espaços extras
+const extrairNomeCliente = (nome: string): string => {
+  if (!nome) return "";
+  
+  // Se contiver "-", pega a parte após o "-"
+  if (nome.includes("-")) {
+    const partes = nome.split("-");
+    return partes.slice(1).join("-").trim();
+  }
+  
+  return nome.trim();
+};
+
 export interface PaymentData {
   pagamentoPresencial: boolean;
   valorTotal: number;
@@ -213,14 +226,17 @@ export function PaymentModal({
           }
         }
 
+        // Extrai o nome correto do cliente (remove número + hifen)
+        const clienteNomeExtraido = extrairNomeCliente(clienteNome);
+
         // Só busca PIX se houver um cliente válido
         const unidadeNome = unitData[2] || ""; // Coluna C - nome_unidade
-        if (clienteNome && unidadeNome) {
+        if (clienteNomeExtraido && unidadeNome) {
           const { data: pixData, error: pixError } = await supabase
             .from("historico_pix")
             .select("id, valor, data_pagamento, updated_at")
             .eq("implantacao_id", implantacaoId)
-            .eq("cliente", clienteNome)
+            .eq("cliente", clienteNomeExtraido)
             .eq("unidade", unidadeNome) // Filtro por cliente + unidade
             .eq("status_pagamento", "PAGO")
             .is("pagamento_id", null); // Apenas PIX ainda não utilizados em nenhum pagamento
