@@ -872,33 +872,18 @@ export function MainPage() {
                 identificador: newRecord.identificador,
               });
 
-              // Verifica se já existe algum PIX pago para este cliente + unidade
-              const { data: pixPago } = await supabase
+              // Verifica se existe algum PIX PAGO ou PENDENTE para este cliente + unidade
+              const { data: pixAtivos } = await supabase
                 .from('historico_pix')
-                .select('id')
+                .select('id, status_pagamento')
                 .eq('cliente', newRecord.cliente)
                 .eq('unidade', newRecord.unidade)
                 .eq('implantacao_nome', newRecord.implantacao_nome)
-                .eq('status_pagamento', 'PAGO')
+                .in('status_pagamento', ['PAGO', 'PENDENTE'])
                 .limit(1);
 
-              if (pixPago && pixPago.length > 0) {
-                console.log('[PixExpiredMonitor] Ignorado - cliente já tem PIX pago nesta unidade.');
-                return;
-              }
-
-              // Verifica se ainda existe outro PIX PENDENTE para este cliente + unidade
-              const { data: pixPendente } = await supabase
-                .from('historico_pix')
-                .select('id')
-                .eq('cliente', newRecord.cliente)
-                .eq('unidade', newRecord.unidade)
-                .eq('implantacao_nome', newRecord.implantacao_nome)
-                .eq('status_pagamento', 'PENDENTE')
-                .limit(1);
-
-              if (pixPendente && pixPendente.length > 0) {
-                console.log('[PixExpiredMonitor] Ignorado - cliente ainda tem outro PIX pendente nesta unidade.');
+              if (pixAtivos && pixAtivos.length > 0) {
+                console.log('[PixExpiredMonitor] Ignorado - cliente ainda tem PIX ativo (PAGO ou PENDENTE) nesta unidade.');
                 return;
               }
 
