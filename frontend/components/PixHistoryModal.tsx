@@ -101,9 +101,15 @@ export function PixHistoryModal({
         return;
       }
 
+      // Filtro por unidade (obrigatório) - mostra apenas PIX daquela unidade
+      if (unidade) {
+        query = query.eq("unidade", unidade);
+      }
+
       console.log("[PixHistoryModal] Filtros aplicados:", { 
         implantacao, 
-        cliente: resolvedClientName
+        cliente: resolvedClientName,
+        unidade
       });
 
       const { data, error } = await query;

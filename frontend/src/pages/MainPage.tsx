@@ -754,11 +754,16 @@ export function MainPage() {
 
     checkUser();
 
-    const unsubscribe = auth.onAuthStateChange((user) => {
-      if (user && !axios.defaults.headers.common["Authorization"]) {
-        // Se o usuário acabou de fazer login, recarrega os dados
-        checkUser();
-      } else if (!user) {
+    const unsubscribe = auth.onAuthStateChange((callbackUser) => {
+      if (callbackUser) {
+        // Atualiza o usuário imediatamente a partir do evento de auth
+        // para garantir que a tela de Login seja substituída pela MainPage
+        setUser(callbackUser);
+        if (!axios.defaults.headers.common["Authorization"]) {
+          // Se o usuário acabou de fazer login, carrega os dados
+          checkUser();
+        }
+      } else {
         setUser(null);
         localStorage.removeItem("token");
         delete axios.defaults.headers.common["Authorization"];
@@ -861,13 +866,13 @@ export function MainPage() {
 
             // Verifica se o status mudou para EXPIRADO
             if (newRecord.status_pagamento?.toUpperCase() === 'EXPIRADO') {
-              console.log('[PixExpiredMonitor] PIX EXPIRADO detectado! Verificando se há PIX pago antes de cancelar...', {
+              console.log('[PixExpiredMonitor] PIX EXPIRADO detectado!', {
                 cliente: newRecord.cliente,
                 unidade: newRecord.unidade,
                 identificador: newRecord.identificador,
               });
 
-              // Verifica se já existe algum PIX pago para este cliente/unidade
+              // Verifica se já existe algum PIX pago para este cliente + unidade
               const { data: pixPago } = await supabase
                 .from('historico_pix')
                 .select('id')
@@ -878,41 +883,65 @@ export function MainPage() {
                 .limit(1);
 
               if (pixPago && pixPago.length > 0) {
-                console.log('[PixExpiredMonitor] PIX expirado ignorado - cliente já tem PIX pago para esta unidade:', {
-                  cliente: newRecord.cliente,
-                  unidade: newRecord.unidade,
-                });
+                console.log('[PixExpiredMonitor] Ignorado - cliente já tem PIX pago nesta unidade.');
                 return;
               }
 
-              console.log('[PixExpiredMonitor] Nenhum PIX pago encontrado. Cancelando reserva automaticamente...');
+              // Verifica se ainda existe outro PIX PENDENTE para este cliente + unidade
+              const { data: pixPendente } = await supabase
+                .from('historico_pix')
+                .select('id')
+                .eq('cliente', newRecord.cliente)
+                .eq('unidade', newRecord.unidade)
+                .eq('implantacao_nome', newRecord.implantacao_nome)
+                .eq('status_pagamento', 'PENDENTE')
+                .limit(1);
 
-              // Busca a unidade correspondente no estado atual usando setUnidades callback
+              if (pixPendente && pixPendente.length > 0) {
+                console.log('[PixExpiredMonitor] Ignorado - cliente ainda tem outro PIX pendente nesta unidade.');
+                return;
+              }
+
+              console.log('[PixExpiredMonitor] Nenhum PIX ativo restante. Liberando unidade...');
+
+              // 1. Atualiza a tabela unidades direto no Supabase
+              const { error: updateError } = await supabase
+                .from('unidades')
+                .update({
+                  id_pre_cadastro: null,
+                  cliente: null,
+                  documento: null,
+                  corretor: null,
+                  imobiliaria: null,
+                  situacao: 'Disponível',
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('implantacao_id', currentImplantation.id)
+                .eq('nome_unidade', newRecord.unidade);
+
+              if (updateError) {
+                console.error('[PixExpiredMonitor] Erro ao liberar unidade no Supabase:', updateError);
+              } else {
+                console.log('[PixExpiredMonitor] Unidade liberada no Supabase:', newRecord.unidade);
+              }
+
+              // 2. Atualiza estado local + chama backend para Sheets/histórico/SSE
               setUnidades((currentUnidades) => {
                 const unitIndex = currentUnidades.findIndex(
-                  (u) => u[2] === newRecord.unidade && u[7] === newRecord.cliente
+                  (u) => u[2] === newRecord.unidade
                 );
 
                 if (unitIndex === -1) {
-                  console.warn('[PixExpiredMonitor] Unidade não encontrada para cancelamento automático:', {
-                    unidade: newRecord.unidade,
-                    cliente: newRecord.cliente,
-                  });
-                  return currentUnidades; // Retorna sem mudanças
+                  console.warn('[PixExpiredMonitor] Unidade não encontrada no estado local:', newRecord.unidade);
+                  return currentUnidades;
                 }
 
                 const unidadeAlvo = currentUnidades[unitIndex];
-                const clientNameToRelease = unidadeAlvo[7]; // Coluna H - cliente
-                const idPreCadastro = unidadeAlvo[6]; // Coluna G - id_pre_cadastro
-                const brokerNameToLog = unidadeAlvo[9] || "N/A"; // Coluna J - corretor
+                const clientNameToRelease = unidadeAlvo[7];
+                const idPreCadastro = unidadeAlvo[6];
+                const brokerNameToLog = unidadeAlvo[9] || "N/A";
 
-                console.log('[PixExpiredMonitor] Unidade encontrada no índice:', unitIndex, {
-                  unidade: unidadeAlvo[2],
-                  cliente: clientNameToRelease,
-                  idPreCadastro: idPreCadastro,
-                });
-
-                // Chama o backend para cancelar a reserva oficialmente (async sem await)
+                // Chama o backend para cancelar no Sheets + histórico + SSE
                 (async () => {
                   try {
                     const sheetRowIndex = unitIndex + 2;
@@ -924,7 +953,7 @@ export function MainPage() {
                         implantacao: selectedImplantationName,
                         idPreCadastro: idPreCadastro,
                         brokerName: brokerNameToLog,
-                        reason: 'PIX_EXPIRADO', // Adiciona motivo do cancelamento
+                        reason: 'PIX_EXPIRADO',
                       },
                       {
                         headers: {
@@ -932,37 +961,33 @@ export function MainPage() {
                         },
                       }
                     );
-
-                    console.log('[PixExpiredMonitor] Reserva cancelada com sucesso no backend');
-
-                    // Atualiza o histórico
+                    console.log('[PixExpiredMonitor] Backend notificado (Sheets/histórico/SSE)');
                     await fetchHistory(selectedImplantationName);
                   } catch (err) {
-                    console.error('[PixExpiredMonitor] Erro ao cancelar reserva no backend:', err);
+                    console.error('[PixExpiredMonitor] Erro ao notificar backend:', err);
                   }
                 })();
 
-                // Libera o cliente para fazer nova reserva
+                // Libera o cliente para nova reserva
                 if (clientNameToRelease) {
-                  setClientes((currentClientes) => {
-                    return currentClientes.map((c) =>
+                  setClientes((currentClientes) =>
+                    currentClientes.map((c) =>
                       c[1] === clientNameToRelease
                         ? [...c.slice(0, 5), "PODE RESERVAR"]
                         : c
-                    );
-                  });
+                    )
+                  );
                 }
 
-                // Retorna as unidades atualizadas
                 return currentUnidades.map((unidade, index) => {
                   if (index === unitIndex) {
                     const newUnit = [...unidade];
-                    newUnit[6] = ""; // Coluna G - id_pre_cadastro
-                    newUnit[7] = ""; // Coluna H - cliente
-                    newUnit[8] = ""; // Coluna I - documento
-                    newUnit[9] = ""; // Coluna J - corretor
-                    newUnit[10] = ""; // Coluna K - imobiliaria
-                    newUnit[11] = "Disponível"; // Coluna L - situacao
+                    newUnit[6] = "";  // id_pre_cadastro
+                    newUnit[7] = "";  // cliente
+                    newUnit[8] = "";  // documento
+                    newUnit[9] = "";  // corretor
+                    newUnit[10] = ""; // imobiliaria
+                    newUnit[11] = "Disponível"; // situacao
                     return newUnit;
                   }
                   return unidade;
