@@ -2,6 +2,7 @@
 
 import { Routes, Route } from "react-router-dom";
 import { MainPage } from "./pages/MainPage"; // Importa a página principal refatorada
+import { MobilePage } from "./pages/MobilePage"; // Layout mobile-first dedicado
 import { CVCrmMappingPage } from "./pages/CVCrmMappingPage"; // Importa a nova página
 import { Diretoria } from "./pages/Diretoria";
 import { FullscreenPage } from "./pages/FullscreenPage"; // Nova página fullscreen React
@@ -20,6 +21,7 @@ function App() {
       <Route path="/diretoria" element={<Diretoria />} />
       <Route path="/fullscreen" element={<FullscreenPage />} />
       <Route path="/pagamentos" element={<PaymentHistoryPage />} />
+      <Route path="/mobile" element={<MobilePage />} />
     </Routes>
   );
 }

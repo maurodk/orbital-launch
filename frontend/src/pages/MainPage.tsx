@@ -133,6 +133,16 @@ const formatCPF = (cpf: string | null | undefined): string => {
 
 export function MainPage() {
   const navigate = useNavigate();
+
+  // Auto-redirect para layout mobile em smartphones e tablets
+  useEffect(() => {
+    const isMobileDevice =
+      window.innerWidth <= 1024 || navigator.maxTouchPoints > 0;
+    if (isMobileDevice) {
+      navigate("/mobile", { replace: true });
+    }
+  }, [navigate]);
+
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
