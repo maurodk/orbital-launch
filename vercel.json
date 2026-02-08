@@ -7,6 +7,10 @@
       "destination": "/backend/server.js"
     },
     {
+      "source": "/mobile",
+      "destination": "/frontend/index.html"
+    },
+    {
       "source": "/fullscreen",
       "destination": "/frontend/index.html"
     },
