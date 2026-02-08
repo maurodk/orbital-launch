@@ -1312,6 +1312,136 @@
   outline-offset: 3px;
 }
 
+/* ============================================
+   LANDSCAPE MOBILE / TABLET ADJUSTMENTS
+   ============================================ */
+
+/* Smartphones em paisagem */
+@media (max-width: 900px) and (orientation: landscape) {
+  .reservation-modal-overlay {
+    padding: 8px;
+  }
+
+  .reservation-modal-content {
+    max-height: 95vh;
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .step-indicator {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+  }
+
+  .step-number {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .step-label {
+    font-size: 10px;
+  }
+
+  .unit-info-header {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .unit-icon {
+    font-size: 28px;
+  }
+
+  .unit-name {
+    font-size: 18px;
+  }
+
+  .form-group {
+    margin-top: 6px;
+    margin-bottom: 8px;
+  }
+
+  .form-group label {
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+  }
+
+  .client-mode-tabs {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .mode-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .payment-options {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .option-pill {
+    padding: 8px 6px;
+  }
+
+  .option-icon {
+    font-size: 20px;
+  }
+
+  .option-label {
+    font-size: 10px;
+  }
+
+  .action-buttons {
+    gap: 8px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .modal-close-button {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+    top: 8px;
+    right: 8px;
+  }
+}
+
+/* Tablets em retrato */
+@media (min-width: 601px) and (max-width: 1024px) and (orientation: portrait) {
+  .reservation-modal-overlay {
+    padding: 20px;
+  }
+
+  .reservation-modal-content {
+    max-width: 90%;
+    max-height: 88vh;
+    padding: 24px;
+  }
+
+  .payment-options {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .payment-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Prevenir zoom no iOS ao focar inputs */
+@media (max-width: 768px) {
+  .reservation-modal-content input,
+  .reservation-modal-content select,
+  .reservation-modal-content textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Loading state */
 .preview-loading::after {
   content: "...";

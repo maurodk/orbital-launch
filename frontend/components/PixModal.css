@@ -293,3 +293,83 @@
 .pix-modal-content .modal-reserve-button {
   flex: 1;
 }
+
+/* ============================================
+   PIX MODAL - RESPONSIVIDADE MOBILE
+   ============================================ */
+
+/* Smartphones em paisagem */
+@media (max-width: 900px) and (orientation: landscape) {
+  .pix-modal-content {
+    max-width: 60% !important;
+    max-height: 92vh;
+    padding: 14px;
+  }
+
+  .pix-modal-content .action-buttons {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .pix-modal-content .btn-primary,
+  .pix-modal-content .btn-secondary {
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+
+  .qr-code-wrapper {
+    padding: 10px;
+  }
+
+  .qr-code-wrapper canvas,
+  .qr-code-wrapper img {
+    max-width: 180px !important;
+    max-height: 180px !important;
+  }
+
+  .info-cliente {
+    padding: 8px;
+  }
+
+  .info-cliente p {
+    font-size: 0.8rem;
+    margin: 3px 0;
+  }
+
+  .waiting-payment-text {
+    font-size: 0.9rem;
+  }
+
+  .form-group {
+    margin-top: 6px;
+    margin-bottom: 8px;
+  }
+
+  .pix-modal-content .valor-input {
+    font-size: 1rem;
+    padding: 8px;
+  }
+}
+
+/* Tablets em retrato */
+@media (min-width: 601px) and (max-width: 1024px) and (orientation: portrait) {
+  .pix-modal-content {
+    max-width: 85% !important;
+  }
+}
+
+/* Smartphones em retrato */
+@media (max-width: 480px) and (orientation: portrait) {
+  .pix-modal-content {
+    max-width: 98% !important;
+    padding: 12px;
+  }
+
+  .pix-modal-content .valor-input {
+    font-size: 16px !important; /* Previne zoom iOS */
+  }
+
+  .pix-modal-content .contato-input {
+    font-size: 16px !important; /* Previne zoom iOS */
+  }
+}

@@ -36,10 +36,12 @@ export function BlockMappingOverlay({
 
   useEffect(() => {
     // Anima entrada dos blocos vendidos um por um
+    // Considera BLOQUEADA como venda - bloco é "vendido" quando todas as unidades
+    // estão reservadas e/ou bloqueadas (nenhuma disponível)
     const soldBlocks = Object.entries(blockStats)
       .filter(([_, stats]) => {
-        const percentReserved = stats.total > 0 ? (stats.reservadas / stats.total) * 100 : 0;
-        return percentReserved === 100;
+        const percentSold = stats.total > 0 ? ((stats.reservadas + stats.bloqueadas) / stats.total) * 100 : 0;
+        return percentSold === 100;
       })
       .map(([blockName]) => blockName);
 
@@ -77,8 +79,9 @@ export function BlockMappingOverlay({
           const stats = blockStats[mapping.nome_bloco];
           if (!stats || stats.total === 0) return null;
 
-          const percentReserved = (stats.reservadas / stats.total) * 100;
-          const isSold = percentReserved === 100;
+          // Considera reservadas + bloqueadas como "vendidas"
+          const percentSold = ((stats.reservadas + stats.bloqueadas) / stats.total) * 100;
+          const isSold = percentSold === 100;
           const isVisible = visibleBlocks.has(mapping.nome_bloco);
 
           if (!isSold) return null;
