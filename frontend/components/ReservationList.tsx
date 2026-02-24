@@ -170,6 +170,8 @@ export function ReservationList({
   }, [showManageModal, selectedUnitIndex, unidades]);
 
   // ReservationList: no debug logs — presentation only (history drives status visibility)
+  const selectedUnitData = selectedUnitIndex !== null ? unidades.find(([, idx]) => idx === selectedUnitIndex)?.[0] : null;
+  const isSpontaneous = selectedUnitData ? !selectedUnitData[6] : false;
 
   return (
     <div className="reservation-list-container">
@@ -463,9 +465,9 @@ export function ReservationList({
             <div className="manage-actions-grid">
               <button
                 className="manage-action-card payment"
-                disabled={isPaymentProcessed || isProcessing}
+                disabled={isPaymentProcessed || isProcessing || isSpontaneous}
                 onClick={() => {
-                  if (isPaymentProcessed || isProcessing) return;
+                  if (isPaymentProcessed || isProcessing || isSpontaneous) return;
                   onPaymentClick(selectedUnitIndex);
                   setShowManageModal(false);
                   setSelectedUnitIndex(null);
@@ -473,12 +475,14 @@ export function ReservationList({
               >
                 <div className="action-icon-wrapper"><FiDollarSign size={24} /></div>
                 <div className="action-details">
-                  <span className="action-title">Pagamento</span>
+                  <span className="action-title">Pagamento / Montagem de Plano</span>
                   <span className="action-desc">
                     {isProcessing 
                       ? "Aguarde o processamento..." 
                       : isPaymentProcessed 
                       ? "Plano já foi processado" 
+                      : isSpontaneous
+                      ? "Indisponível para reserva espontânea"
                       : "Registrar ou visualizar pagamentos"
                     }
                   </span>
