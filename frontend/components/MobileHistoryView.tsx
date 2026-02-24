@@ -13,6 +13,8 @@ export function MobileHistoryView({ history }: MobileHistoryViewProps) {
   const filteredHistory = useMemo(() => {
     if (!searchTerm.trim()) return history;
     const term = searchTerm.toLowerCase();
+    // A unidade no histórico pode vir como "Unidade X -> Unidade Y" (em caso de troca)
+    // Então verificamos se a string contém o nome da unidade para exibir em ambas
     return history.filter((entry) =>
       [entry[2], entry[3], entry[4], entry[5], entry[6]].some((field) =>
         field?.toLowerCase().includes(term)

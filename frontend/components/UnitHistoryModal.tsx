@@ -21,9 +21,11 @@ export function UnitHistoryModal({
   // Filtra o histórico para mostrar apenas as entradas da unidade selecionada
   const historyForUnit = useMemo(() => {
     if (!unitName) return [];
-
-    const unitHistory = fullHistory.filter((entry) => entry[2] === unitName);
-
+    // A unidade no histórico pode vir como "Unidade X -> Unidade Y" (em caso de troca)
+    // Então verificamos se a string contém o nome da unidade para exibir em ambas
+    const unitHistory = fullHistory.filter((entry) => 
+      entry[2] === unitName || (entry[2] && entry[2].includes(unitName))
+    );
     if (!searchTerm.trim()) {
       return unitHistory;
     }
