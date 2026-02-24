@@ -48,6 +48,7 @@ export function PixModal({
   const [contatoDDI, setContatoDDI] = useState("55");
   const [contatoDDD, setContatoDDD] = useState("");
   const [contatoNumero, setContatoNumero] = useState("");
+  const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [resendSuccess, setResendSuccess] = useState(false);
@@ -78,6 +79,7 @@ export function PixModal({
       setContatoDDI("55");
       setContatoDDD("");
       setContatoNumero("");
+      setIsResendModalOpen(false);
       setIsResending(false);
       setResendMessage("");
       setCurrentPixId(null);
@@ -263,6 +265,7 @@ export function PixModal({
     setValor(0);
     setDisplayValor("");
     setError("");
+    setIsResendModalOpen(false);
     // O contato do cliente não é resetado para permitir a geração de um novo PIX para o mesmo número
   };
 
@@ -540,54 +543,18 @@ export function PixModal({
                   O PIX será registrado assim que o pagamento for confirmado.
                 </small>
                 
-                <div style={{ marginTop: "20px", padding: "15px", border: "1px solid #ddd", borderRadius: "8px", background: "#f9f9f9" }}>
-                  <h4 style={{ margin: "0 0 10px 0", fontSize: "16px", color: "#333", textAlign: "left" }}>Reenviar PIX</h4>
-                  <div className="form-group" style={{ textAlign: "left", marginBottom: "10px" }}>
-                    <label style={{ fontSize: "14px", marginBottom: "5px", display: "block" }}>Alterar Contato (WhatsApp)</label>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <select 
-                        value={contatoDDI}
-                        onChange={(e) => setContatoDDI(e.target.value)}
-                        className="contato-input"
-                        style={{ width: "80px", padding: "8px" }}
-                      >
-                        <option value="55">+55</option>
-                        <option value="1">+1</option>
-                        <option value="351">+351</option>
-                        <option value="33">+33</option>
-                        <option value="34">+34</option>
-                        <option value="39">+39</option>
-                        <option value="44">+44</option>
-                        <option value="49">+49</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={contatoDDD}
-                        onChange={(e) => setContatoDDD(e.target.value.replace(/\D/g, "").slice(0, 2))}
-                        placeholder="DDD"
-                        className="contato-input"
-                        style={{ width: "70px", padding: "8px" }}
-                      />
-                      <input
-                        type="text"
-                        value={contatoNumero}
-                        onChange={(e) => setContatoNumero(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                        placeholder="Número"
-                        className="contato-input"
-                        style={{ flex: 1, padding: "8px" }}
-                      />
-                    </div>
-                  </div>
-                  <button 
-                    className="modal-reserve-button" 
-                    onClick={() => handleSendNotification()}
-                    disabled={isResending}
-                    style={{ marginTop: "10px" }}
-                  >
-                    {isResending ? "Reenviando..." : "Reenviar Notificação"}
-                  </button>
-                  {resendMessage && <p style={{ marginTop: "10px", fontSize: "14px", color: resendSuccess ? "green" : "red", textAlign: "center", fontWeight: "bold" }}>{resendMessage}</p>}
-                </div>
+                <button
+                  className="modal-block-button"
+                  onClick={() => {
+                    setIsResendModalOpen(true);
+                    setResendMessage("");
+                  }}
+                  style={{ marginTop: "20px", width: "100%", padding: "12px", background: "none", border: "1px solid #3b82f6", color: "#3b82f6", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", transition: "all 0.2s" }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "none"; }}
+                >
+                  <span style={{ marginRight: "8px" }}>📤</span> Reenviar Notificação
+                </button>
 
                 <button
                   className="modal-block-button"
@@ -603,6 +570,129 @@ export function PixModal({
           </>
         )}
       </div>
+
+      {/* Modal de Reenvio de PIX */}
+      {isResendModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 1001 }} onClick={() => !isResending && setIsResendModalOpen(false)}>
+          <div 
+            className="modal-content" 
+            style={{ 
+              maxWidth: "400px", 
+              width: "90%", 
+              background: "#1e1e1e", 
+              border: "1px solid #333",
+              borderTop: "4px solid #3b82f6",
+              padding: "24px" 
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h3 style={{ margin: 0, color: "#eaeaea", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ color: "#3b82f6" }}>📤</span> Reenviar PIX
+              </h3>
+              <button 
+                onClick={() => setIsResendModalOpen(false)} 
+                disabled={isResending}
+                style={{ background: "none", border: "none", color: "#888", fontSize: "1.5rem", cursor: "pointer" }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <p style={{ color: "#aaa", fontSize: "0.9rem", marginBottom: "20px", lineHeight: "1.4" }}>
+              Confirme ou altere o número do WhatsApp que receberá a nova notificação do PIX com o código copia e cola.
+            </p>
+
+            <div className="form-group" style={{ textAlign: "left", marginBottom: "24px" }}>
+              <label style={{ fontSize: "14px", color: "#ccc", marginBottom: "8px", display: "block" }}>Contato (WhatsApp)</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select 
+                  value={contatoDDI}
+                  onChange={(e) => setContatoDDI(e.target.value)}
+                  className="contato-input"
+                  style={{ width: "80px", padding: "10px", background: "#2a2a2a", color: "#fff", border: "1px solid #444", borderRadius: "6px" }}
+                >
+                  <option value="55">+55</option>
+                  <option value="1">+1</option>
+                  <option value="351">+351</option>
+                  <option value="33">+33</option>
+                  <option value="34">+34</option>
+                  <option value="39">+39</option>
+                  <option value="44">+44</option>
+                  <option value="49">+49</option>
+                </select>
+                <input
+                  type="text"
+                  value={contatoDDD}
+                  onChange={(e) => setContatoDDD(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                  placeholder="DDD"
+                  className="contato-input"
+                  style={{ width: "70px", padding: "10px", background: "#2a2a2a", color: "#fff", border: "1px solid #444", borderRadius: "6px" }}
+                />
+                <input
+                  type="text"
+                  value={contatoNumero}
+                  onChange={(e) => setContatoNumero(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  placeholder="Número"
+                  className="contato-input"
+                  style={{ flex: 1, padding: "10px", background: "#2a2a2a", color: "#fff", border: "1px solid #444", borderRadius: "6px" }}
+                />
+              </div>
+            </div>
+            
+            <button 
+              className="modal-reserve-button" 
+              onClick={() => handleSendNotification()}
+              disabled={isResending}
+              style={{ 
+                width: "100%", 
+                padding: "12px", 
+                background: isResending ? "#444" : "#3b82f6", 
+                color: "#fff", 
+                border: "none", 
+                borderRadius: "6px", 
+                fontWeight: "bold", 
+                cursor: isResending ? "not-allowed" : "pointer",
+                transition: "background 0.2s"
+              }}
+            >
+              {isResending ? "Enviando..." : "Confirmar Reenvio"}
+            </button>
+            
+            {resendMessage && (
+              <div style={{ 
+                marginTop: "16px", 
+                padding: "10px", 
+                borderRadius: "6px", 
+                background: resendSuccess ? "rgba(106, 215, 0, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                border: `1px solid ${resendSuccess ? "rgba(106, 215, 0, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                color: resendSuccess ? "#6ad700" : "#ef4444", 
+                textAlign: "center", 
+                fontSize: "14px"
+              }}>
+                {resendMessage}
+              </div>
+            )}
+            
+            <button 
+              onClick={() => setIsResendModalOpen(false)}
+              disabled={isResending}
+              style={{ 
+                width: "100%", 
+                padding: "12px", 
+                marginTop: "10px",
+                background: "transparent", 
+                color: "#888", 
+                border: "none", 
+                cursor: isResending ? "not-allowed" : "pointer",
+                fontSize: "14px"
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
