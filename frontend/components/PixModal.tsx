@@ -542,28 +542,30 @@ export function PixModal({
                 <small>
                   O PIX será registrado assim que o pagamento for confirmado.
                 </small>
-                
-                <button
-                  className="modal-block-button"
-                  onClick={() => {
-                    setIsResendModalOpen(true);
-                    setResendMessage("");
-                  }}
-                  style={{ marginTop: "20px", width: "100%", padding: "12px", background: "none", border: "1px solid #3b82f6", color: "#3b82f6", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", transition: "all 0.2s" }}
-                  onMouseOver={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)"; }}
-                  onMouseOut={(e) => { e.currentTarget.style.background = "none"; }}
-                >
-                  <span style={{ marginRight: "8px" }}>📤</span> Reenviar Notificação
-                </button>
-
-                <button
-                  className="modal-block-button"
-                  onClick={handleShowFormAgain}
-                  style={{ marginTop: "15px" }}
-                >
-                  Gerar Novo PIX
-                </button>
               </>
+            )}
+
+            <button
+              className="modal-block-button"
+              onClick={() => {
+                setIsResendModalOpen(true);
+                setResendMessage("");
+              }}
+              style={{ marginTop: "20px", width: "100%", padding: "12px", background: "none", border: "1px solid #3b82f6", color: "#3b82f6", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", transition: "all 0.2s" }}
+              onMouseOver={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)"; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = "none"; }}
+            >
+              <span style={{ marginRight: "8px" }}>📤</span> Reenviar Notificação
+            </button>
+
+            {!showPending && (
+              <button
+                className="modal-block-button"
+                onClick={handleShowFormAgain}
+                style={{ marginTop: "15px" }}
+              >
+                Gerar Novo PIX
+              </button>
             )}
           </div>
         )}
