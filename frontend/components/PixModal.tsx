@@ -45,7 +45,12 @@ export function PixModal({
   const [showQr, setShowQr] = useState(false);
   const [payload, setPayload] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [contatoCliente, setContatoCliente] = useState("");
+  const [contatoDDI, setContatoDDI] = useState("55");
+  const [contatoDDD, setContatoDDD] = useState("");
+  const [contatoNumero, setContatoNumero] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendSuccess, setResendSuccess] = useState(false);
   const [clienteNome, setClienteNome] = useState("");
   const [clienteDocumento, setClienteDocumento] = useState("");
   const [loadingCliente, setLoadingCliente] = useState(false);
@@ -70,7 +75,11 @@ export function PixModal({
       setShowQr(false);
       setPayload(null);
       setError("");
-      setContatoCliente("");
+      setContatoDDI("55");
+      setContatoDDD("");
+      setContatoNumero("");
+      setIsResending(false);
+      setResendMessage("");
       setCurrentPixId(null);
       setShowPaymentSuccess(false);
       setClienteNome("");
@@ -130,14 +139,22 @@ export function PixModal({
   // Preenche o contato do cliente automaticamente
   useEffect(() => {
     if (show && unitData) {
-      const telefoneCliente = (unitData?.[9] || "").replace(/\D/g, "");
+      let telefoneCliente = (unitData?.[9] || "").replace(/\D/g, "");
 
       if (telefoneCliente) {
-        setContatoCliente(
-          telefoneCliente.startsWith("55")
-            ? telefoneCliente
-            : `55${telefoneCliente}`
-        );
+        if (!telefoneCliente.startsWith("55") && telefoneCliente.length <= 11) {
+           telefoneCliente = `55${telefoneCliente}`;
+        }
+        
+        if (telefoneCliente.startsWith("55")) {
+          setContatoDDI("55");
+          setContatoDDD(telefoneCliente.substring(2, 4));
+          setContatoNumero(telefoneCliente.substring(4));
+        } else {
+          setContatoDDI("55");
+          setContatoDDD(telefoneCliente.substring(0, 2));
+          setContatoNumero(telefoneCliente.substring(2));
+        }
       }
     }
   }, [show, unitData]);
@@ -249,6 +266,66 @@ export function PixModal({
     // O contato do cliente não é resetado para permitir a geração de um novo PIX para o mesmo número
   };
 
+  const handleSendNotification = async (identificador?: string) => {
+    const targetIdentificador = identificador || currentPixId;
+    const targetContato = `${contatoDDI}${contatoDDD}${contatoNumero}`;
+    
+    if (!targetContato || targetContato.length < 10 || !targetIdentificador) {
+      if (!identificador) {
+        setResendSuccess(false);
+        setResendMessage("Dados de contato ou PIX inválidos.");
+      }
+      return;
+    }
+
+    if (!identificador) {
+      setIsResending(true);
+      setResendMessage("");
+    }
+
+    try {
+      if (BOTMAKER_TOKEN) {
+        const appToken = localStorage.getItem("token");
+        
+        await axios.post(
+          `${apiUrl}/api/botmaker/trigger-intent`,
+          {
+            nomeCliente: extrairNomeCliente(clienteNome || unitData?.[7] || "N/A")
+              .replace(/[^\p{L} ]/gu, "")
+              .trimStart()
+              .replace(/ +/g, " ")
+              .slice(0, 25),
+            nomeEmpreendimento: implantacaoNome,
+            unidade: unitData?.[2] || "N/A",
+            contatoCliente: targetContato,
+            identificadorPix: targetIdentificador,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${appToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        if (!identificador) {
+          setResendSuccess(true);
+          setResendMessage("Notificação reenviada com sucesso!");
+        }
+      } else if (!identificador) {
+         setResendSuccess(false);
+         setResendMessage("Token de notificação não configurado.");
+      }
+    } catch (botmakerError) {
+      console.error("Erro ao disparar webhook Botmaker:", botmakerError);
+      if (!identificador) {
+        setResendSuccess(false);
+        setResendMessage("Erro ao reenviar notificação.");
+      }
+    } finally {
+      if (!identificador) setIsResending(false);
+    }
+  };
+
   const handleGenerateQr = async () => {
     if (valor <= 0) {
       setError("O valor deve ser maior que zero.");
@@ -278,7 +355,11 @@ export function PixModal({
         }
         return cpfLimpo;
       })(),
-      nome: extrairNomeCliente(clienteNome || unitData?.[7] || "CLIENTE").slice(0, 25),
+      nome: extrairNomeCliente(clienteNome || unitData?.[7] || "CLIENTE")
+        .replace(/[^\p{L} ]/gu, "") // Remove tudo que não for letra ou espaço
+        .trimStart() // Remove espaços iniciais
+        .replace(/ +/g, " ") // Deixa apenas um espaço entre os nomes
+        .slice(0, 25),
       cidade: (implantacaoCidade || "Vitoria da Conquista").slice(0, 15),
       chave: "58571081000160",
       solicitacaoPagador: "SINAL 01 - RESERVA DE IMÓVEL",
@@ -303,30 +384,7 @@ export function PixModal({
       await onConfirm(valor, identificador, payloadEmv);
 
       // NOVO: Dispara o webhook da Botmaker (API externa)
-      try {
-        if (contatoCliente && BOTMAKER_TOKEN) {
-          const appToken = localStorage.getItem("token");
-          
-          await axios.post(
-            `${apiUrl}/api/botmaker/trigger-intent`,
-            {
-              nomeCliente: extrairNomeCliente(clienteNome || unitData?.[7] || "N/A"),
-              nomeEmpreendimento: implantacaoNome,
-              unidade: unitData?.[2] || "N/A",
-              contatoCliente: contatoCliente,
-              identificadorPix: identificador,
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${appToken}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-        }
-      } catch (botmakerError) {
-        console.error("Erro ao disparar webhook Botmaker:", botmakerError);
-      }
+      await handleSendNotification(identificador);
 
       setPayload(payloadEmv);
       setShowQr(true);
@@ -390,15 +448,40 @@ export function PixModal({
               <input type="text" value={txid} readOnly />
             </div>
             <div className="form-group">
-              <label htmlFor="pix-contato">Contato (WhatsApp)</label>
-              <input
-                id="pix-contato"
-                type="text"
-                value={contatoCliente}
-                onChange={(e) => setContatoCliente(e.target.value)}
-                placeholder="5577912345678"
-                className="contato-input"
-              />
+              <label>Contato (WhatsApp)</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select 
+                  value={contatoDDI}
+                  onChange={(e) => setContatoDDI(e.target.value)}
+                  className="contato-input"
+                  style={{ width: "80px", padding: "8px" }}
+                >
+                  <option value="55">+55</option>
+                  <option value="1">+1</option>
+                  <option value="351">+351</option>
+                  <option value="33">+33</option>
+                  <option value="34">+34</option>
+                  <option value="39">+39</option>
+                  <option value="44">+44</option>
+                  <option value="49">+49</option>
+                </select>
+                <input
+                  type="text"
+                  value={contatoDDD}
+                  onChange={(e) => setContatoDDD(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                  placeholder="DDD"
+                  className="contato-input"
+                  style={{ width: "70px", padding: "8px" }}
+                />
+                <input
+                  type="text"
+                  value={contatoNumero}
+                  onChange={(e) => setContatoNumero(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  placeholder="Número"
+                  className="contato-input"
+                  style={{ flex: 1, padding: "8px" }}
+                />
+              </div>
               <small>Número que receberá a notificação do PIX gerado.</small>
             </div>
             <div className="form-group">
@@ -456,9 +539,60 @@ export function PixModal({
                 <small>
                   O PIX será registrado assim que o pagamento for confirmado.
                 </small>
+                
+                <div style={{ marginTop: "20px", padding: "15px", border: "1px solid #ddd", borderRadius: "8px", background: "#f9f9f9" }}>
+                  <h4 style={{ margin: "0 0 10px 0", fontSize: "16px", color: "#333", textAlign: "left" }}>Reenviar PIX</h4>
+                  <div className="form-group" style={{ textAlign: "left", marginBottom: "10px" }}>
+                    <label style={{ fontSize: "14px", marginBottom: "5px", display: "block" }}>Alterar Contato (WhatsApp)</label>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <select 
+                        value={contatoDDI}
+                        onChange={(e) => setContatoDDI(e.target.value)}
+                        className="contato-input"
+                        style={{ width: "80px", padding: "8px" }}
+                      >
+                        <option value="55">+55</option>
+                        <option value="1">+1</option>
+                        <option value="351">+351</option>
+                        <option value="33">+33</option>
+                        <option value="34">+34</option>
+                        <option value="39">+39</option>
+                        <option value="44">+44</option>
+                        <option value="49">+49</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={contatoDDD}
+                        onChange={(e) => setContatoDDD(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                        placeholder="DDD"
+                        className="contato-input"
+                        style={{ width: "70px", padding: "8px" }}
+                      />
+                      <input
+                        type="text"
+                        value={contatoNumero}
+                        onChange={(e) => setContatoNumero(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        placeholder="Número"
+                        className="contato-input"
+                        style={{ flex: 1, padding: "8px" }}
+                      />
+                    </div>
+                  </div>
+                  <button 
+                    className="modal-reserve-button" 
+                    onClick={() => handleSendNotification()}
+                    disabled={isResending}
+                    style={{ marginTop: "10px" }}
+                  >
+                    {isResending ? "Reenviando..." : "Reenviar Notificação"}
+                  </button>
+                  {resendMessage && <p style={{ marginTop: "10px", fontSize: "14px", color: resendSuccess ? "green" : "red", textAlign: "center", fontWeight: "bold" }}>{resendMessage}</p>}
+                </div>
+
                 <button
                   className="modal-block-button"
                   onClick={handleShowFormAgain}
+                  style={{ marginTop: "15px" }}
                 >
                   Gerar Novo PIX
                 </button>
