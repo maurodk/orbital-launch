@@ -6132,7 +6132,7 @@ app.put(
       // Buscar implantação atual
       const { data: currentData, error: fetchError } = await supabase
         .from("implantacoes")
-        .select("imagem_url, logo_url")
+        .select("imagem_url, logo_url, imagem_url_adicional, planos_config")
         .eq("id", id)
         .single();
 
@@ -6140,6 +6140,15 @@ app.put(
 
       let imageUrl = currentData?.imagem_url || "";
       let logoUrl = currentData?.logo_url || "";
+      let imageAdicionalUrl = currentData?.imagem_url_adicional || "";
+
+      // Resolver planos_config: usar o valor enviado ou manter o existente
+      let finalPlanosConfig;
+      if (planos_config) {
+        finalPlanosConfig = typeof planos_config === 'string' ? JSON.parse(planos_config) : planos_config;
+      } else {
+        finalPlanosConfig = currentData?.planos_config || null;
+      }
 
       // Upload de nova imagem da implantação (se fornecida) - usando helper robusto
       if (req.files && req.files.imagem && req.files.imagem[0]) {
@@ -6202,7 +6211,7 @@ app.put(
           cidade: cidade.trim(),
           estado: estado.trim(),
           cvcrm_id: cvcrm_id?.trim() || null,
-          planos_config: planos_config ? (typeof planos_config === 'string' ? JSON.parse(planos_config) : planos_config) : null,
+          planos_config: finalPlanosConfig,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)

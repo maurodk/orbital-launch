@@ -677,11 +677,12 @@ export function PaymentModal({
         {/* PAGAMENTO */}
         <div className="step-content step-pagamento fade-in">
           <div className="payment-toggle-card">
-            <label className="toggle-switch">
+            <label className="toggle-switch" style={planosConfig !== null && planosConfig !== undefined && (!planosConfig.habilitado || !planosConfig.planos?.length) ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
               <input
                 type="checkbox"
                 checked={pagamentoPresencial}
                 onChange={(e) => setPagamentoPresencial(e.target.checked)}
+                disabled={planosConfig !== null && planosConfig !== undefined && (!planosConfig.habilitado || !planosConfig.planos?.length)}
               />
               <span className="toggle-slider"></span>
               <span className="toggle-label">
@@ -689,6 +690,11 @@ export function PaymentModal({
                 Pagamento Presencial
               </span>
             </label>
+            {planosConfig !== null && planosConfig !== undefined && (!planosConfig.habilitado || !planosConfig.planos?.length) && (
+              <p style={{ fontSize: '12px', color: '#d9534f', margin: '8px 0 0', padding: '0 4px' }}>
+                ⚠️ Nenhum plano de pagamento configurado para este empreendimento.
+              </p>
+            )}
           </div>
           {/* TIPO DE VENDA - sempre visível (não depende de pagamento presencial) */}
           <div className="payment-card">
@@ -826,8 +832,8 @@ export function PaymentModal({
                 </span>
               </div>
 
-              {/* PLANO PADRÃO (apenas para Facilita e apenas quando há pagamento presencial e planos habilitados) */}
-              {pagamentoPresencial && tipoVenda === "facilita" && (planosConfig === null || planosConfig === undefined || planosConfig.habilitado) && (
+              {/* PLANO PADRÃO (apenas para Facilita e apenas quando há pagamento presencial) */}
+              {pagamentoPresencial && tipoVenda === "facilita" && (
                 <div className="payment-card slide-down">
                   <div className="card-header">
                     <span className="card-icon">📋</span>
