@@ -278,6 +278,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
             valor_unidade_total = None
             valor_pix = 0.0
             dia_vencimento = 15
+            valor_extra = 0.0
 
             if "valor_unidade" in dados_pagamento and dados_pagamento.get("valor_unidade") is not None:
                 valor_unidade_total = float(dados_pagamento.get("valor_unidade"))
@@ -297,6 +298,12 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                 except Exception:
                     dia_vencimento = 15
 
+            if dados_pagamento.get("valor_extra") is not None:
+                try:
+                    valor_extra = float(dados_pagamento.get("valor_extra"))
+                except Exception:
+                    valor_extra = 0.0
+
             logger.info(f"Configurando pagamento - Tipo: {tipo_venda}, Plano: {plano_selecionado}, valor_unidade_total={valor_unidade_total}, valor_pix={valor_pix}")
 
             # Se não for pagamento presencial (flag explícita ou ausência de tipo_pagamento), não adicionar séries
@@ -312,7 +319,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
                     else:
                         setattr(adicionar_series_plano1, "plano2", False)
-                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                             logger.error("Falha CRÍTICA ao adicionar séries do plano 1 - Abortando processamento")
                             raise Exception("Falha ao configurar séries de pagamento do Plano 1")
                 elif plano_selecionado == "plano2":
@@ -320,13 +327,13 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 2 corretamente")
                     else:
                         setattr(adicionar_series_plano1, "plano2", True)
-                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                             logger.error("Falha CRÍTICA ao adicionar séries do plano 2 - Abortando processamento")
                             raise Exception("Falha ao configurar séries de pagamento do Plano 2")
                 elif plano_selecionado == "plano3":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 3")
-                    elif not adicionar_series_plano3(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                    elif not adicionar_series_plano3(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                         logger.error("Falha CRÍTICA ao adicionar séries do plano 3 - Abortando processamento")
                         raise Exception("Falha ao configurar séries de pagamento do Plano 3")
                 elif plano_selecionado == "plano4":
@@ -340,7 +347,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 5")
                     else:
-                        if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento):
+                        if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                             logger.error("Falha CRÍTICA ao adicionar séries do plano 5 - Abortando processamento")
                             raise Exception("Falha ao configurar séries de pagamento do Plano 5")
             # Outros planos serão implementados depois
@@ -859,7 +866,7 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
     return False
 
 
-def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15, valor_extra: float = 0.0) -> bool:
     """
     Adiciona séries para o plano 1 (ou 2) seguindo a regra do negócio:
     - Sinal 1: 1 parcela com valor do PIX (hoje)
@@ -886,9 +893,26 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
 
         logger.info(f"Iniciando adição de séries para {'Plano 2' if plano2 else 'Plano 1'}...")
 
-        saldo_restante = valor_unidade_total - valor_pix
-        valor_dez_porcento = round(saldo_restante * 0.10, 2)
-        valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
+        # Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
+        valor_pix_only = max(0.0, round(valor_pix - valor_extra, 2))
+        saldo_base = round(valor_unidade_total - valor_pix_only, 2)
+        valor_dez_porcento = round(saldo_base * 0.10, 2)
+        sinal_234_base = round(valor_dez_porcento / 3.0, 2)
+        mensal_base_total = round(saldo_base - valor_dez_porcento, 2)
+
+        # Cascata: extras abate sinais 2→3→4, excedente reduz parcelamento
+        excedente = valor_extra
+        usado2 = min(excedente, sinal_234_base)
+        valor_sinal2 = round(sinal_234_base - usado2, 2)
+        excedente = round(excedente - usado2, 2)
+        usado3 = min(excedente, sinal_234_base)
+        valor_sinal3 = round(sinal_234_base - usado3, 2)
+        excedente = round(excedente - usado3, 2)
+        usado4 = min(excedente, sinal_234_base)
+        valor_sinal4 = round(sinal_234_base - usado4, 2)
+        excedente = round(excedente - usado4, 2)
+        mensal_efetivo = max(0.0, round(mensal_base_total - excedente, 2))
+
         hoje = datetime.now()
 
         if dia_vencimento not in (5, 15, 25):
@@ -915,35 +939,44 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         # Sinal 2 - vence exatamente 7 dias após Sinal 1 - SEM forma de pagamento
         data_sinal2_obj = hoje + timedelta(days=7)
         data_sinal2 = data_sinal2_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano] Sinal 2: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal2}")
-        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2):
-            return False
+        if valor_sinal2 > 0:
+            logger.info(f"[Plano] Sinal 2: qtd=1, valor={valor_sinal2:.2f}, venc={data_sinal2}")
+            if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal2, data_sinal2):
+                return False
+        else:
+            logger.info("[Plano] Sinal 2 zerado pelo excedente — pulando")
 
         # Sinal 3 - no mês seguinte ao Sinal 2, no dia escolhido - SEM forma de pagamento
         data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
         data_sinal3 = data_sinal3_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano] Sinal 3: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal3}")
-        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3):
-            return False
+        if valor_sinal3 > 0:
+            logger.info(f"[Plano] Sinal 3: qtd=1, valor={valor_sinal3:.2f}, venc={data_sinal3}")
+            if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal3, data_sinal3):
+                return False
+        else:
+            logger.info("[Plano] Sinal 3 zerado pelo excedente — pulando")
 
         # Sinal 4 - no mês seguinte ao Sinal 3, no mesmo dia escolhido - SEM forma de pagamento
         data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
         data_sinal4 = data_sinal4_obj.strftime("%d/%m/%Y")
-        logger.info(f"[Plano] Sinal 4: qtd=1, valor={valor_sinal_234:.2f}, venc={data_sinal4}")
-        if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4):
-            return False
+        if valor_sinal4 > 0:
+            logger.info(f"[Plano] Sinal 4: qtd=1, valor={valor_sinal4:.2f}, venc={data_sinal4}")
+            if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal4, data_sinal4):
+                return False
+        else:
+            logger.info("[Plano] Sinal 4 zerado pelo excedente — pulando")
 
         # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido
         data_parcelamento_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
         data_parcelamento = data_parcelamento_obj.strftime("%d/%m/%Y")
         
         # Calcular valor exato do parcelamento (compensando arredondamentos)
-        valor_parcelamento_total = saldo_restante - (valor_sinal_234 * 3)
+        valor_parcelamento_total = mensal_efetivo
         valor_parcela = round(valor_parcelamento_total / n_parcelas_parcelamento, 2)
         
         # IMPORTANTE: Ajustar para garantir que o total seja exato
-        # Somar tudo: PIX + 3 sinais + (n_parcelas * valor_parcela)
-        total_calculado = valor_pix + (valor_sinal_234 * 3) + (valor_parcela * n_parcelas_parcelamento)
+        # Somar tudo: PIX + sinais 2/3/4 + (n_parcelas * valor_parcela)
+        total_calculado = valor_pix + valor_sinal2 + valor_sinal3 + valor_sinal4 + (valor_parcela * n_parcelas_parcelamento)
         diferenca = round(valor_unidade_total - total_calculado, 2)
         
         # Se houver diferença (arredondamento), ajustar a última parcela
@@ -972,7 +1005,7 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         return False
 
 
-def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15, valor_extra: float = 0.0) -> bool:
     """
     Adiciona séries para o Plano 3 (10% + 100x + 04 Intermediárias de 8,5%)
     """
@@ -982,24 +1015,36 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
 
         logger.info("Iniciando adição de séries para Plano 3...")
 
-        # Cálculos de valores baseados nas porcentagens do SALDO RESTANTE (Total - Sinal 1)
-        saldo_restante = valor_unidade_total - valor_pix
-        valor_dez_porcento = round(saldo_restante * 0.10, 2)
-        valor_sinal_234 = round(valor_dez_porcento / 3.0, 2)
-        
-        # 4 intermediárias totalizando 8,5% do saldo
-        valor_inter_total = round(saldo_restante * 0.085, 2)
+        # Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
+        valor_pix_only = max(0.0, round(valor_pix - valor_extra, 2))
+        saldo_base = round(valor_unidade_total - valor_pix_only, 2)
+        valor_dez_porcento = round(saldo_base * 0.10, 2)
+        sinal_234_base = round(valor_dez_porcento / 3.0, 2)
+
+        # 4 intermediárias (8,5%) — permanecem fixas
+        valor_inter_total = round(saldo_base * 0.085, 2)
         valor_parcela_inter = round(valor_inter_total / 4, 2)
-        
-        # Parcelamento único de 100x - calcular como resto para garantir valor exato
-        # Total = PIX + Sinal234*3 + Intermediárias*4 + Parcelamento*100
-        valor_p1_total = saldo_restante - (valor_sinal_234 * 3) - (valor_parcela_inter * 4)
-        valor_parcela_p1 = round(valor_p1_total / 100, 2)
-        
+        mensal_base_total = round(saldo_base - valor_dez_porcento - (valor_parcela_inter * 4), 2)
+
+        # Cascata: extras abate sinais 2→3→4, excedente reduz parcelamento
+        excedente = valor_extra
+        usado2 = min(excedente, sinal_234_base)
+        valor_sinal2 = round(sinal_234_base - usado2, 2)
+        excedente = round(excedente - usado2, 2)
+        usado3 = min(excedente, sinal_234_base)
+        valor_sinal3 = round(sinal_234_base - usado3, 2)
+        excedente = round(excedente - usado3, 2)
+        usado4 = min(excedente, sinal_234_base)
+        valor_sinal4 = round(sinal_234_base - usado4, 2)
+        excedente = round(excedente - usado4, 2)
+        mensal_efetivo = max(0.0, round(mensal_base_total - excedente, 2))
+
+        valor_parcela_p1 = round(mensal_efetivo / 100, 2)
+
         # IMPORTANTE: Verificar se o total fecha exatamente
-        total_calculado = valor_pix + (valor_sinal_234 * 3) + (valor_parcela_inter * 4) + (valor_parcela_p1 * 100)
+        total_calculado = valor_pix + valor_sinal2 + valor_sinal3 + valor_sinal4 + (valor_parcela_inter * 4) + (valor_parcela_p1 * 100)
         diferenca = round(valor_unidade_total - total_calculado, 2)
-        
+
         # Se houver diferença, ajustar o parcelamento (100x)
         if diferenca != 0:
             valor_parcela_p1_ajustado = round(valor_parcela_p1 + (diferenca / 100), 2)
@@ -1018,22 +1063,31 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
             dia_ok = min(dia, ultimo_dia)
             return datetime(ano, mes, dia_ok)
 
-        # 1. Sinais 1, 2, 3, 4 (Padrão)
+        # 1. Sinais 1, 2, 3, 4 (com cascata)
         data_sinal1 = hoje.strftime("%d/%m/%Y")
         if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
             return False
 
         data_sinal2_obj = hoje + timedelta(days=7)
-        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_234, data_sinal2_obj.strftime("%d/%m/%Y")):
-            return False
+        if valor_sinal2 > 0:
+            if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal2, data_sinal2_obj.strftime("%d/%m/%Y")):
+                return False
+        else:
+            logger.info("[Plano3] Sinal 2 zerado pelo excedente — pulando")
 
         data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
-        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_234, data_sinal3_obj.strftime("%d/%m/%Y")):
-            return False
+        if valor_sinal3 > 0:
+            if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal3, data_sinal3_obj.strftime("%d/%m/%Y")):
+                return False
+        else:
+            logger.info("[Plano3] Sinal 3 zerado pelo excedente — pulando")
 
         data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
-        if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal_234, data_sinal4_obj.strftime("%d/%m/%Y")):
-            return False
+        if valor_sinal4 > 0:
+            if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal4, data_sinal4_obj.strftime("%d/%m/%Y")):
+                return False
+        else:
+            logger.info("[Plano3] Sinal 4 zerado pelo excedente — pulando")
 
         # 2. Parcelamento Incorporadora (100x) - 81,5%
         data_p1_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
@@ -1117,7 +1171,7 @@ def adicionar_series_plano4(driver: webdriver.Chrome, valor_unidade_total: float
         return False
 
 
-def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15) -> bool:
+def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15, valor_extra: float = 0.0) -> bool:
     """
     Plano 5 - Pagamento à vista em 3x
     - Sinal 1: valor do pix/dinheiro/cartão/cheque (hoje)
@@ -1128,15 +1182,28 @@ def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float
 
         logger.info("Iniciando adição de séries para Plano 5 (À vista em 3x)...")
 
-        saldo_restante = round(valor_unidade_total - valor_pix, 2)
-        parcela = round((saldo_restante / 3.0), 2)
-        
+        # Base: parcelas calculadas a partir apenas do PIX (sinal mínimo)
+        valor_pix_only = max(0.0, round(valor_pix - valor_extra, 2))
+        saldo_base = round(valor_unidade_total - valor_pix_only, 2)
+        parcela_base = round(saldo_base / 3.0, 2)
+
+        # Cascata: extras abate parcelas 2→3→4
+        excedente = valor_extra
+        usado2 = min(excedente, parcela_base)
+        valor_sinal2 = round(parcela_base - usado2, 2)
+        excedente = round(excedente - usado2, 2)
+        usado3 = min(excedente, parcela_base)
+        valor_sinal3 = round(parcela_base - usado3, 2)
+        excedente = round(excedente - usado3, 2)
+        usado4 = min(excedente, parcela_base)
+        valor_sinal4 = round(parcela_base - usado4, 2)
+
         # Verificar se o total fecha exatamente
-        total_calculado = valor_pix + (parcela * 3)
+        total_calculado = valor_pix + valor_sinal2 + valor_sinal3 + valor_sinal4
         diferenca = round(valor_unidade_total - total_calculado, 2)
-        if diferenca != 0:
-            parcela = round(parcela + (diferenca / 3), 2)
-            logger.info(f"[Plano5] Ajuste de arredondamento: diferença={diferenca:.2f}, nova parcela={parcela:.2f}")
+        if diferenca != 0 and valor_sinal4 > 0:
+            valor_sinal4 = round(valor_sinal4 + diferenca, 2)
+            logger.info(f"[Plano5] Ajuste de arredondamento: diferença={diferenca:.2f}, novo Sinal 4={valor_sinal4:.2f}")
         
         hoje = datetime.now()
 
@@ -1158,18 +1225,27 @@ def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float
 
         # Sinal 2 - mês seguinte
         data_sinal2_obj = proximo_mes_no_dia(hoje, dia_vencimento)
-        if not adicionar_serie(driver, "Sinal 2", 1, parcela, data_sinal2_obj.strftime("%d/%m/%Y")):
-            return False
+        if valor_sinal2 > 0:
+            if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal2, data_sinal2_obj.strftime("%d/%m/%Y")):
+                return False
+        else:
+            logger.info("[Plano5] Sinal 2 zerado pelo excedente — pulando")
 
         # Sinal 3 - mês seguinte ao Sinal 2
         data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
-        if not adicionar_serie(driver, "Sinal 3", 1, parcela, data_sinal3_obj.strftime("%d/%m/%Y")):
-            return False
+        if valor_sinal3 > 0:
+            if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal3, data_sinal3_obj.strftime("%d/%m/%Y")):
+                return False
+        else:
+            logger.info("[Plano5] Sinal 3 zerado pelo excedente — pulando")
 
         # Sinal 4 - mês seguinte ao Sinal 3
         data_sinal4_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
-        if not adicionar_serie(driver, "Sinal 4", 1, parcela, data_sinal4_obj.strftime("%d/%m/%Y")):
-            return False
+        if valor_sinal4 > 0:
+            if not adicionar_serie(driver, "Sinal 4", 1, valor_sinal4, data_sinal4_obj.strftime("%d/%m/%Y")):
+                return False
+        else:
+            logger.info("[Plano5] Sinal 4 zerado pelo excedente — pulando")
 
         logger.info("Plano 5 aplicado com sucesso")
         return True
@@ -1343,6 +1419,8 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
             "tipo_pagamento": dados_reserva.get("tipo_pagamento"),
             # Valor do PIX/Sinal 1 explícito quando a reserva veio com pagamento presencial
             "valor_pix": dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None,
+            # Extras (dinheiro/cartão/cheque) para cascata de sinais
+            "valor_extra": dados_reserva.get("valor_extra", 0.0),
         }
         
         logger.info(f"Dados de pagamento: plano={dados_pagamento['plano_selecionado']}, tipo_venda={dados_pagamento['tipo_venda']}, valor_unidade={dados_pagamento['valor_unidade']}, dia_vencimento={dados_pagamento.get('dia_vencimento')}, valor_pix={dados_pagamento['valor_pix']}, valor_bruto={dados_pagamento['valor']}")
@@ -1402,7 +1480,7 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
         
         # Busca pagamentos pendentes com informações do cliente
         response = supabase.table("pagamentos").select(
-            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, tipo_pagamento, tipo_venda, "
+            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, valor_pix, valor_dinheiro, valor_cartao, valor_cheque, tipo_pagamento, tipo_venda, "
             "clientes(id, id_pre_cadastro, nome, documento, corretor)"
         ).eq("status", "pendente").execute()
         
@@ -1424,6 +1502,8 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
                 "valor": pag.get("valor_total"),
                 "tipo_pagamento": pag.get("tipo_pagamento"),
                 "tipo_venda": pag.get("tipo_venda"),
+                "valor_pix_only": float(pag.get("valor_pix") or 0),
+                "valor_extra": float(pag.get("valor_dinheiro") or 0) + float(pag.get("valor_cartao") or 0) + float(pag.get("valor_cheque") or 0),
             }
 
             # Fallback: buscar valor da unidade na tabela unidades (prioriza cliente + nome_unidade)

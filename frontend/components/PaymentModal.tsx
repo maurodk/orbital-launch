@@ -356,14 +356,23 @@ export function PaymentModal({
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
     const vencParcel = mesSeguinteNoDia(vencSinal4, diaBase);
 
-    const saldoRestante = valorUnidade - valorTotalPagamento;
-    const valorDez = Math.round(saldoRestante * 0.1 * 100) / 100;
-    const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
-    const valorParcelTotal = saldoRestante - (valorSinal234 * 3);
-    let valorParcela100 = Math.round((valorParcelTotal / 100) * 100) / 100;
-    
+    // Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
+    const saldoBase = valorUnidade - totalPix;
+    const valorDez = Math.round(saldoBase * 0.1 * 100) / 100;
+    const sinal234Base = Math.round((valorDez / 3) * 100) / 100;
+    const mensalBaseTotal = saldoBase - (sinal234Base * 3);
+
+    // Cascata: totalExtra abate sinais 2→3→4, excedente reduz mensal
+    let exc = totalExtra;
+    let vs2 = sinal234Base, vs3 = sinal234Base, vs4 = sinal234Base;
+    if (exc > 0) { const u = Math.min(exc, vs2); vs2 = Math.round((vs2 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs3); vs3 = Math.round((vs3 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+
+    let valorParcela100 = Math.round((Math.max(0, mensalBaseTotal - exc) / 100) * 100) / 100;
+
     // Ajuste para garantir valor exato
-    const totalCalculado = valorTotalPagamento + (valorSinal234 * 3) + (valorParcela100 * 100);
+    const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4 + (valorParcela100 * 100);
     const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
     if (diferenca !== 0) {
       valorParcela100 = Math.round((valorParcela100 + (diferenca / 100)) * 100) / 100;
@@ -376,8 +385,9 @@ export function PaymentModal({
       vencSinal4: formatarData(vencSinal4),
       vencParcel: formatarData(vencParcel),
       valorDez,
-      valorSinal234,
-      valorParcelTotal,
+      valorSinal2: vs2,
+      valorSinal3: vs3,
+      valorSinal4: vs4,
       valorParcela100,
     };
   })();
@@ -394,15 +404,23 @@ export function PaymentModal({
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
     const vencParcel = mesSeguinteNoDia(vencSinal4, diaBase);
 
-    const saldoRestante = valorUnidade - valorTotalPagamento;
-    const valorDez = Math.round(saldoRestante * 0.1 * 100) / 100;
-    const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
-    // O valor restante para parcelar é: Total - PIX (Sinal 1) - (Sinal 2 + Sinal 3 + Sinal 4)
-    const valorParcelTotal = saldoRestante - (valorSinal234 * 3);
-    let valorParcela48 = Math.round((valorParcelTotal / 48) * 100) / 100;
-    
+    // Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
+    const saldoBase = valorUnidade - totalPix;
+    const valorDez = Math.round(saldoBase * 0.1 * 100) / 100;
+    const sinal234Base = Math.round((valorDez / 3) * 100) / 100;
+    const mensalBaseTotal = saldoBase - (sinal234Base * 3);
+
+    // Cascata: totalExtra abate sinais 2→3→4, excedente reduz mensal
+    let exc = totalExtra;
+    let vs2 = sinal234Base, vs3 = sinal234Base, vs4 = sinal234Base;
+    if (exc > 0) { const u = Math.min(exc, vs2); vs2 = Math.round((vs2 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs3); vs3 = Math.round((vs3 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+
+    let valorParcela48 = Math.round((Math.max(0, mensalBaseTotal - exc) / 48) * 100) / 100;
+
     // Ajuste para garantir valor exato
-    const totalCalculado = valorTotalPagamento + (valorSinal234 * 3) + (valorParcela48 * 48);
+    const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4 + (valorParcela48 * 48);
     const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
     if (diferenca !== 0) {
       valorParcela48 = Math.round((valorParcela48 + (diferenca / 48)) * 100) / 100;
@@ -415,8 +433,9 @@ export function PaymentModal({
       vencSinal4: formatarData(vencSinal4),
       vencParcel: formatarData(vencParcel),
       valorDez,
-      valorSinal234,
-      valorParcelTotal,
+      valorSinal2: vs2,
+      valorSinal3: vs3,
+      valorSinal4: vs4,
       valorParcela48,
     };
   })();
@@ -439,20 +458,27 @@ export function PaymentModal({
     const vencInter3 = `${String(diaBase).padStart(2, '0')}/12/2028`;
     const vencInter4 = `${String(diaBase).padStart(2, '0')}/12/2029`;
 
-    const saldoRestante = valorUnidade - valorTotalPagamento;
-    const valorDez = Math.round(saldoRestante * 0.1 * 100) / 100;
-    const valorSinal234 = Math.round((valorDez / 3) * 100) / 100;
-    
-    // 4 intermediárias totalizando 8,5%
-    const valorInterTotal = Math.round(saldoRestante * 0.085 * 100) / 100;
+    // Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
+    const saldoBase = valorUnidade - totalPix;
+    const valorDez = Math.round(saldoBase * 0.1 * 100) / 100;
+    const sinal234Base = Math.round((valorDez / 3) * 100) / 100;
+
+    // 4 intermediárias (8,5%) — permanecem fixas
+    const valorInterTotal = Math.round(saldoBase * 0.085 * 100) / 100;
     const valorParcelaInter = Math.round((valorInterTotal / 4) * 100) / 100;
-    
-    // Parcelamento único de 100x - calcular como resto para garantir valor exato
-    const valorP1Total = saldoRestante - (valorSinal234 * 3) - (valorParcelaInter * 4);
-    let valorParcela100 = Math.round((valorP1Total / 100) * 100) / 100;
-    
+    const mensalBaseTotal = saldoBase - (sinal234Base * 3) - (valorParcelaInter * 4);
+
+    // Cascata: totalExtra abate sinais 2→3→4, excedente reduz parcelamento
+    let exc = totalExtra;
+    let vs2 = sinal234Base, vs3 = sinal234Base, vs4 = sinal234Base;
+    if (exc > 0) { const u = Math.min(exc, vs2); vs2 = Math.round((vs2 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs3); vs3 = Math.round((vs3 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+
+    let valorParcela100 = Math.round((Math.max(0, mensalBaseTotal - exc) / 100) * 100) / 100;
+
     // Ajuste para garantir valor exato
-    const totalCalculado = valorTotalPagamento + (valorSinal234 * 3) + (valorParcelaInter * 4) + (valorParcela100 * 100);
+    const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4 + (valorParcelaInter * 4) + (valorParcela100 * 100);
     const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
     if (diferenca !== 0) {
       valorParcela100 = Math.round((valorParcela100 + (diferenca / 100)) * 100) / 100;
@@ -468,7 +494,9 @@ export function PaymentModal({
       vencInter2,
       vencInter3,
       vencInter4,
-      valorSinal234,
+      valorSinal2: vs2,
+      valorSinal3: vs3,
+      valorSinal4: vs4,
       valorParcela100,
       valorParcelaInter
     };
@@ -508,14 +536,22 @@ export function PaymentModal({
     const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
 
-    const saldoRestante = valorUnidade - valorTotalPagamento;
-    let parcela = Math.round((saldoRestante / 3) * 100) / 100;
-    
+    // Base: parcelas calculadas a partir apenas do PIX (sinal mínimo)
+    const saldoBase = valorUnidade - totalPix;
+    const parcelaBase = Math.round((saldoBase / 3) * 100) / 100;
+
+    // Cascata: totalExtra abate parcelas 2→3→4
+    let exc = totalExtra;
+    let vs2 = parcelaBase, vs3 = parcelaBase, vs4 = parcelaBase;
+    if (exc > 0) { const u = Math.min(exc, vs2); vs2 = Math.round((vs2 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs3); vs3 = Math.round((vs3 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
+    if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; }
+
     // Ajuste para garantir valor exato
-    const totalCalculado = valorTotalPagamento + (parcela * 3);
+    const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4;
     const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
-    if (diferenca !== 0) {
-      parcela = Math.round((parcela + (diferenca / 3)) * 100) / 100;
+    if (diferenca !== 0 && vs4 > 0) {
+      vs4 = Math.round((vs4 + diferenca) * 100) / 100;
     }
 
     return {
@@ -523,7 +559,9 @@ export function PaymentModal({
       vencSinal2: formatarData(vencSinal2),
       vencSinal3: formatarData(vencSinal3),
       vencSinal4: formatarData(vencSinal4),
-      parcela,
+      valorSinal2: vs2,
+      valorSinal3: vs3,
+      valorSinal4: vs4,
     };
   })();
 
@@ -930,7 +968,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 2</span>
                                     <span className="preview-item-date">{plano1Preview.vencSinal2}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal2)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">3️⃣</span>
@@ -938,7 +976,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 3</span>
                                     <span className="preview-item-date">{plano1Preview.vencSinal3}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal3)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">4️⃣</span>
@@ -946,7 +984,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 4</span>
                                     <span className="preview-item-date">{plano1Preview.vencSinal4}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal4)}</span>
                                 </div>
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
@@ -975,7 +1013,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 2</span>
                                     <span className="preview-item-date">{plano2Preview.vencSinal2}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal2)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">3️⃣</span>
@@ -983,7 +1021,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 3</span>
                                     <span className="preview-item-date">{plano2Preview.vencSinal3}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal3)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">4️⃣</span>
@@ -991,7 +1029,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 4</span>
                                     <span className="preview-item-date">{plano2Preview.vencSinal4}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal4)}</span>
                                 </div>
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
@@ -1020,7 +1058,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 2</span>
                                     <span className="preview-item-date">{plano3Preview.vencSinal2}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal2)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">3️⃣</span>
@@ -1028,7 +1066,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 3</span>
                                     <span className="preview-item-date">{plano3Preview.vencSinal3}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal3)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">4️⃣</span>
@@ -1036,7 +1074,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 4</span>
                                     <span className="preview-item-date">{plano3Preview.vencSinal4}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal234)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal4)}</span>
                                 </div>
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
@@ -1144,7 +1182,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 2</span>
                                     <span className="preview-item-date">{plano5Preview.vencSinal2}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano5Preview.parcela)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal2)}</span>
                                 </div>
 
                                 <div className="preview-row">
@@ -1153,7 +1191,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 3</span>
                                     <span className="preview-item-date">{plano5Preview.vencSinal3}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano5Preview.parcela)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal3)}</span>
                                 </div>
 
                                 <div className="preview-row highlight">
@@ -1162,7 +1200,7 @@ export function PaymentModal({
                                     <span className="preview-item-label">Sinal 4</span>
                                     <span className="preview-item-date">{plano5Preview.vencSinal4}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano5Preview.parcela)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal4)}</span>
                                 </div>
                               </div>
                             )}
