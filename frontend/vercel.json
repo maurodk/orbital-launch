@@ -1,24 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/fullscreen",
+      "source": "/(.*)",
       "destination": "/index.html"
-    },
-    {
-      "source": "/fullscreen-cvcrm",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/diretoria",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/diretoria/(.*)",
-      "destination": "/index.html"
-    },
-    {
-      "source":"/pagamentos",
-      "destination":"/index.html"
     }
   ]
 }
