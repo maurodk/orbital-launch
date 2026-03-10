@@ -2247,7 +2247,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
     const { data: implantacoes, error } = await supabase
       .from("implantacoes")
       .select(
-        "id, nome, imagem_url, imagem_url_adicional, dot_size, endereco, logo_url, cvcrm_id, sigla, cidade, estado"
+        "id, nome, imagem_url, imagem_url_adicional, dot_size, endereco, logo_url, cvcrm_id, sigla, cidade, estado, planos_config"
       )
       .order("nome", { ascending: true });
 
@@ -2272,6 +2272,7 @@ app.get("/api/implantacoes", verifyToken, async (req, res) => {
       sigla: impl.sigla || null,
       cidade: impl.cidade || null,
       estado: impl.estado || null,
+      planosConfig: impl.planos_config || null,
     }));
 
     console.log("[/api/implantacoes] Busca concluída. Total:", result.length);
@@ -6101,7 +6102,7 @@ app.put(
       }
 
       const { id } = req.params;
-      const { nome, endereco, cidade, estado, cvcrm_id } = req.body;
+      const { nome, endereco, cidade, estado, cvcrm_id, planos_config } = req.body;
 
       // Logs para diagnosticar upload via UI
       try {
@@ -6201,6 +6202,7 @@ app.put(
           cidade: cidade.trim(),
           estado: estado.trim(),
           cvcrm_id: cvcrm_id?.trim() || null,
+          planos_config: planos_config ? (typeof planos_config === 'string' ? JSON.parse(planos_config) : planos_config) : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)

@@ -70,6 +70,7 @@ interface Implantation {
   sigla?: string;
   cidade?: string;
   estado?: string;
+  planosConfig?: { habilitado: boolean; planos: string[] } | null;
 }
 
 // Função para gerar sigla a partir do nome
@@ -3158,6 +3159,7 @@ export function MainPage() {
                     : null
                 }
                 implantacaoId={currentImplantation?.id ? Number(currentImplantation.id) : null}
+                planosConfig={currentImplantation?.planosConfig ?? null}
                 sheetRowIndex={
                   paymentModalState.unitIndex !== null
                     ? paymentModalState.unitIndex + 2

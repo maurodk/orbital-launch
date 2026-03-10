@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import type { AxiosResponse } from "axios";
 
+interface PlanosConfig {
+  habilitado: boolean;
+  planos: string[];
+}
+
 interface Implantation {
   id: string;
   nome: string;
@@ -15,6 +20,7 @@ interface Implantation {
   logo_url?: string;
   imagem_url_adicional?: string;
   imagemUrlAdicional?: string;
+  planosConfig?: PlanosConfig | null;
 }
 
 interface EditImplantationModalProps {
@@ -55,7 +61,15 @@ const ESTADOS_BRASILEIROS = [
   "TO",
 ];
 
-type TabType = "edit" | "import";
+const PLANOS_PADRAO_OPTIONS = [
+  { id: "plano1", label: "10% + 100x" },
+  { id: "plano2", label: "10% + 48x" },
+  { id: "plano3", label: "10% + 100x + 04 Intermediárias (8,5%)" },
+  { id: "plano4", label: "À vista" },
+  { id: "plano5", label: "À vista em 3x" },
+];
+
+type TabType = "edit" | "import" | "planos";
 
 export function EditImplantationModal({
   isOpen,
@@ -90,6 +104,13 @@ export function EditImplantationModal({
   const [isImportingClientes, setIsImportingClientes] = useState(false);
   const [importError, setImportError] = useState("");
 
+  // Estados da aba de Plano de Pagamento
+  const [planosHabilitado, setPlanosHabilitado] = useState(false);
+  const [planosSelecionados, setPlanosSelecionados] = useState<string[]>([]);
+  const [isSavingPlanos, setIsSavingPlanos] = useState(false);
+  const [planosError, setPlanosError] = useState("");
+  const [planosSaved, setPlanosSaved] = useState(false);
+
   useEffect(() => {
     if (implantation) {
       setNome(implantation.nome || "");
@@ -106,6 +127,12 @@ export function EditImplantationModal({
       setLogoFile(null);
       setUnidadesFile(null);
       setClientesFile(null);
+      // Carregar config de planos
+      const pc = implantation.planosConfig;
+      setPlanosHabilitado(pc?.habilitado ?? false);
+      setPlanosSelecionados(pc?.planos ?? []);
+      setPlanosSaved(false);
+      setPlanosError("");
     }
   }, [implantation]);
 
@@ -303,6 +330,64 @@ export function EditImplantationModal({
     }
   };
 
+  const handleSavePlanos = async () => {
+    if (!implantation) return;
+    setIsSavingPlanos(true);
+    setPlanosError("");
+    setPlanosSaved(false);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setPlanosError("Token de autenticação não encontrado");
+        setIsSavingPlanos(false);
+        return;
+      }
+
+      const planosConfig: PlanosConfig = {
+        habilitado: planosHabilitado,
+        planos: planosHabilitado ? planosSelecionados : [],
+      };
+
+      const formData = new FormData();
+      formData.append("nome", implantation.nome);
+      formData.append("endereco", implantation.endereco || "");
+      formData.append("cidade", implantation.cidade || "");
+      formData.append("estado", implantation.estado || "");
+      if (implantation.cvcrm_id) {
+        formData.append("cvcrm_id", implantation.cvcrm_id);
+      }
+      formData.append("planos_config", JSON.stringify(planosConfig));
+
+      await axios.put(`${apiUrl}/api/implantacoes/${implantation.id}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 15000,
+      });
+
+      setPlanosSaved(true);
+      onSuccess();
+    } catch (err) {
+      console.error("Erro ao salvar planos:", err);
+      const error = err as { response?: { data?: { error?: string } } };
+      setPlanosError(
+        error.response?.data?.error || "Erro ao salvar configuração de planos."
+      );
+    } finally {
+      setIsSavingPlanos(false);
+    }
+  };
+
+  const handleTogglePlano = (planoId: string) => {
+    setPlanosSelecionados((prev) =>
+      prev.includes(planoId)
+        ? prev.filter((p) => p !== planoId)
+        : [...prev, planoId]
+    );
+    setPlanosSaved(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -345,6 +430,12 @@ export function EditImplantationModal({
       if (logoFile) {
         formData.append("logo", logoFile);
       }
+      // Preservar config de planos na edição geral
+      const planosConfig: PlanosConfig = {
+        habilitado: planosHabilitado,
+        planos: planosHabilitado ? planosSelecionados : [],
+      };
+      formData.append("planos_config", JSON.stringify(planosConfig));
 
       const token = localStorage.getItem("token");
       if (!token) {
@@ -461,6 +552,24 @@ export function EditImplantationModal({
             }}
           >
             Importação
+          </button>
+          <button
+            onClick={() => setActiveTab("planos")}
+            style={{
+              padding: "12px 24px",
+              border: "none",
+              borderBottom:
+                activeTab === "planos"
+                  ? "3px solid #6ad700"
+                  : "3px solid transparent",
+              backgroundColor: "transparent",
+              color: activeTab === "planos" ? "#6ad700" : "#b0b0b0",
+              cursor: "pointer",
+              fontWeight: "bold",
+              transition: "all 0.2s",
+            }}
+          >
+            Plano de Pagamento
           </button>
         </div>
 
@@ -1126,6 +1235,260 @@ export function EditImplantationModal({
                 {importError}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "planos" && (
+          <div>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "#b0b0b0",
+                marginBottom: "20px",
+                lineHeight: "1.5",
+              }}
+            >
+              Configure quais planos de pagamento estarão disponíveis após a
+              reserva de unidades neste empreendimento. Quando desabilitado, o
+              fluxo do Worker (automação de séries de pagamento) não será
+              executado.
+            </p>
+
+            {/* Toggle habilitar/desabilitar */}
+            <div
+              style={{
+                padding: "20px",
+                backgroundColor: "#1a1a1a",
+                borderRadius: "8px",
+                border: "1px solid #2a2a2a",
+                marginBottom: "20px",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  cursor: "pointer",
+                  color: "#eaeaea",
+                  fontWeight: "bold",
+                  fontSize: "15px",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={planosHabilitado}
+                  onChange={(e) => {
+                    setPlanosHabilitado(e.target.checked);
+                    setPlanosSaved(false);
+                  }}
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    accentColor: "#6ad700",
+                    cursor: "pointer",
+                  }}
+                />
+                Habilitar Plano de Pagamento (Worker)
+              </label>
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#888",
+                  marginTop: "8px",
+                  marginBottom: 0,
+                  marginLeft: "32px",
+                }}
+              >
+                {planosHabilitado
+                  ? "O Worker irá processar as séries de pagamento após a reserva."
+                  : "O Worker NÃO será acionado para este empreendimento."}
+              </p>
+            </div>
+
+            {/* Lista de planos */}
+            {planosHabilitado && (
+              <div
+                style={{
+                  padding: "20px",
+                  backgroundColor: "#1a1a1a",
+                  borderRadius: "8px",
+                  border: "1px solid #2a2a2a",
+                  marginBottom: "20px",
+                }}
+              >
+                <h3
+                  style={{
+                    marginTop: 0,
+                    marginBottom: "15px",
+                    color: "#6ad700",
+                    fontSize: "15px",
+                  }}
+                >
+                  Planos Disponíveis
+                </h3>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#888",
+                    marginBottom: "15px",
+                  }}
+                >
+                  Selecione os planos que estarão disponíveis para os corretores
+                  no momento da reserva:
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  {PLANOS_PADRAO_OPTIONS.map((plano) => (
+                    <label
+                      key={plano.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "12px 16px",
+                        backgroundColor: planosSelecionados.includes(plano.id)
+                          ? "rgba(106, 215, 0, 0.1)"
+                          : "#2a2a2a",
+                        borderRadius: "6px",
+                        border: planosSelecionados.includes(plano.id)
+                          ? "1px solid #6ad700"
+                          : "1px solid #333",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={planosSelecionados.includes(plano.id)}
+                        onChange={() => handleTogglePlano(plano.id)}
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          accentColor: "#6ad700",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <span
+                        style={{
+                          color: planosSelecionados.includes(plano.id)
+                            ? "#eaeaea"
+                            : "#b0b0b0",
+                          fontWeight: planosSelecionados.includes(plano.id)
+                            ? "bold"
+                            : "normal",
+                        }}
+                      >
+                        {plano.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {planosHabilitado && planosSelecionados.length === 0 && (
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#d9534f",
+                      marginTop: "10px",
+                      marginBottom: 0,
+                    }}
+                  >
+                    ⚠️ Selecione pelo menos um plano de pagamento.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {planosError && (
+              <div
+                style={{
+                  backgroundColor: "#2a2a2a",
+                  color: "#d9534f",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid #d9534f",
+                  marginBottom: "15px",
+                }}
+              >
+                {planosError}
+              </div>
+            )}
+
+            {planosSaved && (
+              <div
+                style={{
+                  backgroundColor: "rgba(106, 215, 0, 0.1)",
+                  color: "#6ad700",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid #6ad700",
+                  marginBottom: "15px",
+                }}
+              >
+                ✅ Configuração de planos salva com sucesso!
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSavingPlanos}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  border: "1px solid #2a2a2a",
+                  backgroundColor: "#2a2a2a",
+                  color: "#eaeaea",
+                  cursor: isSavingPlanos ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePlanos}
+                disabled={
+                  isSavingPlanos ||
+                  (planosHabilitado && planosSelecionados.length === 0)
+                }
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  border: "none",
+                  backgroundColor:
+                    isSavingPlanos ||
+                    (planosHabilitado && planosSelecionados.length === 0)
+                      ? "#444"
+                      : "#6ad700",
+                  color:
+                    isSavingPlanos ||
+                    (planosHabilitado && planosSelecionados.length === 0)
+                      ? "#888"
+                      : "#121212",
+                  cursor:
+                    isSavingPlanos ||
+                    (planosHabilitado && planosSelecionados.length === 0)
+                      ? "not-allowed"
+                      : "pointer",
+                  fontWeight: "bold",
+                  opacity: isSavingPlanos ? 0.6 : 1,
+                }}
+              >
+                {isSavingPlanos ? "Salvando..." : "Salvar Planos"}
+              </button>
+            </div>
           </div>
         )}
 

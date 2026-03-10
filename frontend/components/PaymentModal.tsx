@@ -36,6 +36,7 @@ interface PaymentModalProps {
   onClose: () => void;
   unitData: string[] | null;
   implantacaoId: string | number | null;
+  planosConfig?: { habilitado: boolean; planos: string[] } | null;
   sheetRowIndex: number | null;
   onConfirm: (paymentData: PaymentData) => void;
 }
@@ -58,6 +59,7 @@ export function PaymentModal({
   onClose,
   unitData,
   implantacaoId,
+  planosConfig,
   sheetRowIndex,
   onConfirm,
 }: PaymentModalProps) {
@@ -77,13 +79,19 @@ export function PaymentModal({
   const [valorUnidadeLoading, setValorUnidadeLoading] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const planosPadraoOptions = [
+  const allPlanosPadraoOptions = [
     { id: "plano1", label: "10% + 100x" },
     { id: "plano2", label: "10% + 48x" },
     { id: "plano3", label: "10% + 100x + 04 Intermediárias (8,5%)" },
     { id: "plano4", label: "À vista" },
     { id: "plano5", label: "À vista em 3x" },
   ];
+
+  // Filtrar planos com base na configuração do empreendimento
+  const planosHabilitados = planosConfig?.habilitado && planosConfig.planos?.length > 0;
+  const planosPadraoOptions = planosHabilitados
+    ? allPlanosPadraoOptions.filter((p) => planosConfig!.planos.includes(p.id))
+    : allPlanosPadraoOptions;
 
   // Cálculos de totais
   const totalPix = useMemo(() => pixPagos.reduce((acc, curr) => acc + Number(curr.valor), 0), [pixPagos]);
@@ -818,8 +826,8 @@ export function PaymentModal({
                 </span>
               </div>
 
-              {/* PLANO PADRÃO (apenas para Facilita e apenas quando há pagamento presencial) */}
-              {pagamentoPresencial && tipoVenda === "facilita" && (
+              {/* PLANO PADRÃO (apenas para Facilita e apenas quando há pagamento presencial e planos habilitados) */}
+              {pagamentoPresencial && tipoVenda === "facilita" && (planosConfig === null || planosConfig === undefined || planosConfig.habilitado) && (
                 <div className="payment-card slide-down">
                   <div className="card-header">
                     <span className="card-icon">📋</span>

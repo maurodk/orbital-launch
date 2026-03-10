@@ -57,6 +57,7 @@ interface Implantation {
   sigla?: string;
   cidade?: string;
   estado?: string;
+  planosConfig?: { habilitado: boolean; planos: string[] } | null;
 }
 
 const gerarSigla = (nome: string): string => {
@@ -1871,6 +1872,7 @@ export function MobilePage() {
               ? Number(currentImplantation.id)
               : null
           }
+          planosConfig={currentImplantation?.planosConfig ?? null}
           sheetRowIndex={
             paymentModalState.unitIndex !== null
               ? paymentModalState.unitIndex + 2
