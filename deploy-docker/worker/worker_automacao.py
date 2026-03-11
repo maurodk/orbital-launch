@@ -327,10 +327,10 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                         logger.error("Falha CRÍTICA ao adicionar séries do pagamento remoto - Abortando processamento")
                         raise Exception("Falha ao configurar séries de pagamento remoto")
                 # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
-                elif plano_selecionado == "plano1":
+                elif plano_selecionado == "plano6":
                     if valor_unidade_total is None:
-                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
-                    else:
+                        logger.info("Plano 6 remoto usara o mesmo fluxo mensal sem entrada")
+                    elif not adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
                         setattr(adicionar_series_plano1, "plano2", False)
                         if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                             logger.error("Falha CRÍTICA ao adicionar séries do plano 1 - Abortando processamento")
@@ -1014,7 +1014,7 @@ def adicionar_series_pagamento_remoto(driver: webdriver.Chrome, plano_selecionad
             return True
 
         if plano_selecionado == "plano6":
-            return adicionar_series_plano6(driver, valor_unidade_total)
+            return adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento)
 
         logger.error(f"Plano remoto nao suportado: {plano_selecionado}")
         return False
@@ -1023,10 +1023,14 @@ def adicionar_series_pagamento_remoto(driver: webdriver.Chrome, plano_selecionad
         return False
 
 
-def adicionar_series_plano6(driver: webdriver.Chrome, valor_unidade_total: float) -> bool:
+def adicionar_series_plano6(driver: webdriver.Chrome, valor_unidade_total: float, dia_vencimento: int = 15) -> bool:
     try:
+        if dia_vencimento not in (5, 15, 25):
+            logger.warning(f"dia_vencimento inválido ({dia_vencimento}); usando 15")
+            dia_vencimento = 15
+
         hoje = datetime.now()
-        data_primeira_mensal = proximo_mes_no_dia(hoje, hoje.day)
+        data_primeira_mensal = proximo_mes_no_dia(hoje, dia_vencimento)
         valor_parcela = round(valor_unidade_total / 36.0, 2)
         diferenca = round(valor_unidade_total - (valor_parcela * 36), 2)
         if diferenca != 0:

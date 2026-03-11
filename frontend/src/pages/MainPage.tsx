@@ -73,6 +73,16 @@ interface Implantation {
   planosConfig?: { habilitado: boolean; planos: string[] } | null;
 }
 
+type ImplantationUpdatePayload = {
+  id?: string;
+  nome: string;
+  endereco?: string;
+  cidade?: string;
+  estado?: string;
+  cvcrm_id?: string;
+  planosConfig?: { habilitado: boolean; planos: string[] } | null;
+};
+
 // Função para gerar sigla a partir do nome
 const gerarSigla = (nome: string): string => {
   if (!nome) return "";
@@ -334,7 +344,29 @@ export function MainPage() {
       .catch((err) => console.error("Erro ao buscar implantação:", err));
   };
 
-  const handleImplantationSuccess = async () => {
+  const handleImplantationSuccess = async (updatedImplantation?: ImplantationUpdatePayload) => {
+    if (updatedImplantation?.nome) {
+      setImplantacoes((current) =>
+        current.map((imp) =>
+          imp.id === updatedImplantation.id || imp.nome === updatedImplantation.nome
+            ? { ...imp, ...updatedImplantation }
+            : imp
+        )
+      );
+
+      setCurrentImplantation((current) =>
+        current && (current.id === updatedImplantation.id || current.nome === updatedImplantation.nome)
+          ? { ...current, ...updatedImplantation }
+          : current
+      );
+
+      setImplantationToEdit((current) =>
+        current && (current.id === updatedImplantation.id || current.nome === updatedImplantation.nome)
+          ? { ...current, ...updatedImplantation }
+          : current
+      );
+    }
+
     await fetchImplantations();
   };
 
@@ -3090,6 +3122,7 @@ export function MainPage() {
                 onClose={() => setShowHistoryModal(false)}
                 unitName={selectedUnitForHistory}
                 fullHistory={history}
+                implantacaoId={currentImplantation?.id ?? null}
               />
               <PixModal
                 show={pixModalState.isOpen}

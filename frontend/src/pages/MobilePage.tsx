@@ -1801,6 +1801,7 @@ export function MobilePage() {
           onClose={() => setShowHistoryModal(false)}
           unitName={selectedUnitForHistory}
           fullHistory={history}
+          implantacaoId={currentImplantation?.id ?? null}
         />
         <PixModal
           show={pixModalState.isOpen}

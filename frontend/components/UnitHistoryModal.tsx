@@ -1,13 +1,15 @@
 // frontend/src/components/UnitHistoryModal.tsx
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiSearch } from "react-icons/fi";
+import { supabase } from "../src/supabaseClient";
 
 interface UnitHistoryModalProps {
   show: boolean;
   onClose: () => void;
   unitName: string | null; // <-- MUDANÇA: Recebe o nome da unidade para filtrar
   fullHistory: string[][]; // <-- MUDANÇA: Recebe o histórico completo
+  implantacaoId?: string | number | null;
 }
 
 export function UnitHistoryModal({
@@ -15,15 +17,69 @@ export function UnitHistoryModal({
   onClose,
   unitName,
   fullHistory,
+  implantacaoId,
 }: UnitHistoryModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [fetchedHistory, setFetchedHistory] = useState<string[][]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUnitHistory() {
+      if (!show || !unitName || !implantacaoId) {
+        setFetchedHistory([]);
+        return;
+      }
+
+      setIsLoadingHistory(true);
+      try {
+        const { data, error } = await supabase
+          .from("historico")
+          .select("id, data_formatada, timestamp_iso, unidade_nome, acao, cliente, corretor, usuario, reserva_url")
+          .eq("implantacao_id", implantacaoId)
+          .or(`unidade_nome.eq.${unitName},unidade_nome.like.%${unitName}%`)
+          .order("timestamp_iso", { ascending: false })
+          .limit(300);
+
+        if (error) {
+          console.error("Erro ao carregar histórico da unidade:", error);
+          if (!cancelled) setFetchedHistory([]);
+          return;
+        }
+
+        if (!cancelled) {
+          setFetchedHistory(
+            (data || []).map((item) => [
+              String(item.id),
+              item.data_formatada || new Date(item.timestamp_iso).toLocaleString("pt-BR"),
+              item.unidade_nome || "",
+              item.acao || "",
+              item.cliente || "",
+              item.corretor || "",
+              item.usuario || "",
+              item.reserva_url || "",
+            ])
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    }
+
+    loadUnitHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [show, unitName, implantacaoId]);
 
   // Filtra o histórico para mostrar apenas as entradas da unidade selecionada
   const historyForUnit = useMemo(() => {
     if (!unitName) return [];
+    const sourceHistory = fetchedHistory.length > 0 ? fetchedHistory : fullHistory;
     // A unidade no histórico pode vir como "Unidade X -> Unidade Y" (em caso de troca)
     // Então verificamos se a string contém o nome da unidade para exibir em ambas
-    const unitHistory = fullHistory.filter((entry) => 
+    const unitHistory = sourceHistory.filter((entry) => 
       entry[2] === unitName || (entry[2] && entry[2].includes(unitName))
     );
     if (!searchTerm.trim()) {
@@ -37,7 +93,7 @@ export function UnitHistoryModal({
         field?.toLowerCase().includes(lowercasedTerm)
       )
     );
-  }, [fullHistory, unitName, searchTerm]);
+  }, [fetchedHistory, fullHistory, unitName, searchTerm]);
 
   if (!show || !unitName) return null;
 
@@ -66,7 +122,9 @@ export function UnitHistoryModal({
         </div>
 
         <div className="history-modal-body">
-          {historyForUnit.length > 0 ? (
+          {isLoadingHistory ? (
+            <p className="no-history-message">Carregando histórico da unidade...</p>
+          ) : historyForUnit.length > 0 ? (
             <table className="history-table">
               <thead>
                 <tr>

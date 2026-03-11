@@ -9,6 +9,16 @@ interface PlanosConfig {
   planos: string[];
 }
 
+type ImplantationUpdatePayload = {
+  id?: string;
+  nome: string;
+  endereco?: string;
+  cidade?: string;
+  estado?: string;
+  cvcrm_id?: string;
+  planosConfig?: PlanosConfig | null;
+};
+
 interface Implantation {
   id: string;
   nome: string;
@@ -26,7 +36,7 @@ interface Implantation {
 interface EditImplantationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (updatedImplantation?: ImplantationUpdatePayload) => void | Promise<void>;
   apiUrl: string;
   implantation: Implantation | null;
 }
@@ -368,7 +378,10 @@ export function EditImplantationModal({
       });
 
       setPlanosSaved(true);
-      onSuccess();
+      onSuccess({
+        ...implantation,
+        planosConfig,
+      });
     } catch (err) {
       console.error("Erro ao salvar planos:", err);
       const error = err as { response?: { data?: { error?: string } } };

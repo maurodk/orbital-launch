@@ -363,11 +363,6 @@ export function PaymentModal({
     return new Date(ano, mes, Math.min(dia, ultimoDia));
   };
 
-  const ajustarDiaGenericoNoMes = (ano: number, mes: number, dia: number) => {
-    const ultimoDia = new Date(ano, mes + 1, 0).getDate();
-    return new Date(ano, mes, Math.min(dia, ultimoDia));
-  };
-
   const proximoVencimentoNoDia = (d: Date, dia: 5 | 15 | 25) => {
     const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     let candidato = ajustarDiaNoMes(base.getFullYear(), base.getMonth(), dia);
@@ -711,7 +706,7 @@ export function PaymentModal({
     if (!valorUnidade) return null;
 
     const hoje = new Date();
-    const vencPrimeiraMensal = ajustarDiaGenericoNoMes(hoje.getFullYear(), hoje.getMonth() + 1, hoje.getDate());
+    const vencPrimeiraMensal = mesSeguinteNoDia(hoje, diaVencimento);
     let valorParcela36 = Math.round((valorUnidade / 36) * 100) / 100;
 
     const diferenca = Math.round((valorUnidade - (valorParcela36 * 36)) * 100) / 100;
@@ -1120,28 +1115,26 @@ export function PaymentModal({
 
                       {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3" || planoSelecionado === "plano4" || planoSelecionado === "plano5" || planoSelecionado === "plano6") && (
                         <div className="plano-config fade-in">
-                          {planoSelecionado !== "plano6" && (
-                            <div className="config-row">
-                              <span className="config-label">Dia de Vencimento:</span>
-                              <div className="day-options">
-                                {[5, 15, 25].map((dia) => (
-                                  <label 
-                                    key={dia} 
-                                    className={`day-pill ${diaVencimento === dia ? "selected" : ""}`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name="diaVencimento"
-                                      value={dia}
-                                      checked={diaVencimento === dia}
-                                      onChange={() => setDiaVencimento(dia as 5 | 15 | 25)}
-                                    />
-                                    <span>Dia {dia}</span>
-                                  </label>
-                                ))}
-                              </div>
+                          <div className="config-row">
+                            <span className="config-label">Dia de Vencimento:</span>
+                            <div className="day-options">
+                              {[5, 15, 25].map((dia) => (
+                                <label 
+                                  key={dia} 
+                                  className={`day-pill ${diaVencimento === dia ? "selected" : ""}`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="diaVencimento"
+                                    value={dia}
+                                    checked={diaVencimento === dia}
+                                    onChange={() => setDiaVencimento(dia as 5 | 15 | 25)}
+                                  />
+                                  <span>Dia {dia}</span>
+                                </label>
+                              ))}
                             </div>
-                          )}
+                          </div>
 
                           <div className="plan-preview">
                             <div className="preview-header">
