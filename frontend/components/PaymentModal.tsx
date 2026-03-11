@@ -1118,28 +1118,30 @@ export function PaymentModal({
                         ))}
                       </div>
 
-                      {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3" || planoSelecionado === "plano4" || planoSelecionado === "plano5") && (
+                      {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3" || planoSelecionado === "plano4" || planoSelecionado === "plano5" || planoSelecionado === "plano6") && (
                         <div className="plano-config fade-in">
-                          <div className="config-row">
-                            <span className="config-label">Dia de Vencimento:</span>
-                            <div className="day-options">
-                              {[5, 15, 25].map((dia) => (
-                                <label 
-                                  key={dia} 
-                                  className={`day-pill ${diaVencimento === dia ? "selected" : ""}`}
-                                >
-                                  <input
-                                    type="radio"
-                                    name="diaVencimento"
-                                    value={dia}
-                                    checked={diaVencimento === dia}
-                                    onChange={() => setDiaVencimento(dia as 5 | 15 | 25)}
-                                  />
-                                  <span>Dia {dia}</span>
-                                </label>
-                              ))}
+                          {planoSelecionado !== "plano6" && (
+                            <div className="config-row">
+                              <span className="config-label">Dia de Vencimento:</span>
+                              <div className="day-options">
+                                {[5, 15, 25].map((dia) => (
+                                  <label 
+                                    key={dia} 
+                                    className={`day-pill ${diaVencimento === dia ? "selected" : ""}`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="diaVencimento"
+                                      value={dia}
+                                      checked={diaVencimento === dia}
+                                      onChange={() => setDiaVencimento(dia as 5 | 15 | 25)}
+                                    />
+                                    <span>Dia {dia}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           <div className="plan-preview">
                             <div className="preview-header">
