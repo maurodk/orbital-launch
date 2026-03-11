@@ -460,7 +460,7 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       }
     }
 
-    const { unidade, pagamento_id, status, rowIndex, implantacao, reserva_id, reserva_url, worker_id } = req.body || {};
+    let { unidade, pagamento_id, status, rowIndex, implantacao, reserva_id, reserva_url, worker_id } = req.body || {};
     if (!unidade && !pagamento_id) {
       return res.status(400).json({ error: "unidade or pagamento_id required" });
     }
@@ -518,13 +518,22 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
             if (clienteId) {
               const { data: clienteRow } = await supabase
                 .from('clientes')
-                .select('nome, corretor')
+                .select('nome, corretor, implantacao_id')
                 .eq('id', clienteId)
                 .limit(1)
                 .single();
               if (clienteRow) {
                 clienteName = clienteRow.nome || null;
                 corretorName = clienteRow.corretor || null;
+                if (!implantacaoName && clienteRow.implantacao_id) {
+                  const { data: implByCliente } = await supabase
+                    .from('implantacoes')
+                    .select('nome')
+                    .eq('id', clienteRow.implantacao_id)
+                    .limit(1)
+                    .maybeSingle();
+                  if (implByCliente?.nome) implantacaoName = implByCliente.nome;
+                }
               }
             }
           }
@@ -536,12 +545,40 @@ app.post("/internal/notify-payment-processed", async (req, res) => {
       // If implantacao not provided, attempt to infer by matching unidade in 'unidades'
       if (!implantacaoName && unidade) {
         try {
-          const { data: unidadeRow } = await supabase
+          let unidadeQuery = supabase
             .from('unidades')
             .select('implantacao_id, nome_unidade')
-            .ilike('nome_unidade', `%${unidade}%`)
-            .limit(1)
-            .single();
+            .eq('nome_unidade', unidade)
+            .limit(1);
+
+          if (pagamento_id) {
+            try {
+              const { data: pagamentoRow } = await supabase
+                .from('pagamentos')
+                .select('cliente_id')
+                .eq('id', pagamento_id)
+                .maybeSingle();
+              if (pagamentoRow?.cliente_id) {
+                const { data: clienteImpl } = await supabase
+                  .from('clientes')
+                  .select('implantacao_id')
+                  .eq('id', pagamentoRow.cliente_id)
+                  .maybeSingle();
+                if (clienteImpl?.implantacao_id) {
+                  unidadeQuery = supabase
+                    .from('unidades')
+                    .select('implantacao_id, nome_unidade')
+                    .eq('nome_unidade', unidade)
+                    .eq('implantacao_id', clienteImpl.implantacao_id)
+                    .limit(1);
+                }
+              }
+            } catch (e) {
+              // fallback para query sem filtro adicional
+            }
+          }
+
+          const { data: unidadeRow } = await unidadeQuery.maybeSingle();
           if (unidadeRow && unidadeRow.implantacao_id) {
             const { data: impl } = await supabase
               .from('implantacoes')
@@ -5596,6 +5633,7 @@ app.post("/api/add-payment", verifyToken, async (req, res) => {
         .from("clientes")
         .select("id")
         .eq("id_pre_cadastro", idPreCadastro)
+        .eq("implantacao_id", finalImplantacaoId)
         .maybeSingle();
       clienteId = clientData?.id;
     }

@@ -89,6 +89,7 @@ export function PaymentModal({
     { id: "plano3", label: "10% + 100x + 04 Intermediárias (8,5%)" },
     { id: "plano4", label: "À vista" },
     { id: "plano5", label: "À vista em 3x" },
+    { id: "plano6", label: "36x mensais" },
   ];
 
   // Filtrar planos com base na configuração do empreendimento
@@ -99,7 +100,7 @@ export function PaymentModal({
     ? allPlanosPadraoOptions.filter((p) => planosConfig!.planos.includes(p.id))
     : allPlanosPadraoOptions;
   const planosPadraoOptions = pagamentoRemoto
-    ? planosBase.filter((p) => ["plano1", "plano2", "plano3"].includes(p.id))
+    ? planosBase.filter((p) => ["plano1", "plano2", "plano3", "plano6"].includes(p.id))
     : planosBase;
 
   // Cálculos de totais
@@ -305,8 +306,9 @@ export function PaymentModal({
   };
 
   const pagamentoRemotoInvalido = pagamentoRemoto && tipoVenda !== "facilita";
+  const planoSemEntrada = tipoVenda === "facilita" && planosPadrao && planoSelecionado === "plano6";
   const paymentConfirmDisabled = pagamentoPresencial
-    ? (valorTotalPagamento <= 0 || !tipoVenda || (tipoVenda === "facilita" && planosPadrao && !planoSelecionado))
+    ? ((!planoSemEntrada && valorTotalPagamento <= 0) || !tipoVenda || (tipoVenda === "facilita" && planosPadrao && !planoSelecionado))
     : pagamentoRemoto
       ? (!tipoVenda || pagamentoRemotoInvalido || !planosPadrao || !planoSelecionado)
       : (!tipoVenda);
@@ -338,6 +340,11 @@ export function PaymentModal({
     planosPadrao &&
     planoSelecionado === "plano5";
 
+  const exibirVencimentosPlano6 =
+    tipoVenda === "facilita" &&
+    planosPadrao &&
+    planoSelecionado === "plano6";
+
   const formatarData = (d: Date) => {
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -356,6 +363,11 @@ export function PaymentModal({
     return new Date(ano, mes, Math.min(dia, ultimoDia));
   };
 
+  const ajustarDiaGenericoNoMes = (ano: number, mes: number, dia: number) => {
+    const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+    return new Date(ano, mes, Math.min(dia, ultimoDia));
+  };
+
   const proximoVencimentoNoDia = (d: Date, dia: 5 | 15 | 25) => {
     const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     let candidato = ajustarDiaNoMes(base.getFullYear(), base.getMonth(), dia);
@@ -368,6 +380,8 @@ export function PaymentModal({
   const mesSeguinteNoDia = (d: Date, dia: 5 | 15 | 25) => {
     return ajustarDiaNoMes(d.getFullYear(), d.getMonth() + 1, dia);
   };
+
+  const temValorPreview = (valor: number) => Math.abs(valor) > 0.009;
 
   const plano1Preview = (() => {
     if (!exibirVencimentosPlano1) return null;
@@ -689,6 +703,25 @@ export function PaymentModal({
       valorSinal2: vs2,
       valorSinal3: vs3,
       valorSinal4: vs4,
+    };
+  })();
+
+  const plano6Preview = (() => {
+    if (!exibirVencimentosPlano6) return null;
+    if (!valorUnidade) return null;
+
+    const hoje = new Date();
+    const vencPrimeiraMensal = ajustarDiaGenericoNoMes(hoje.getFullYear(), hoje.getMonth() + 1, hoje.getDate());
+    let valorParcela36 = Math.round((valorUnidade / 36) * 100) / 100;
+
+    const diferenca = Math.round((valorUnidade - (valorParcela36 * 36)) * 100) / 100;
+    if (diferenca !== 0) {
+      valorParcela36 = Math.round((valorParcela36 + (diferenca / 36)) * 100) / 100;
+    }
+
+    return {
+      vencPrimeiraMensal: formatarData(vencPrimeiraMensal),
+      valorParcela36,
     };
   })();
 
@@ -1120,7 +1153,7 @@ export function PaymentModal({
                               )}
                             </div>
 
-                            {valorTotalPagamento <= 0 && (
+                            {valorTotalPagamento <= 0 && !plano6Preview && (
                               <div className="preview-warning">
                                 ⚠️ {pagamentoRemoto ? 'Selecione o plano para gerar a previa do remoto' : 'Adicione pagamentos para gerar a previa'}
                               </div>
@@ -1136,23 +1169,27 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(pagamentoRemoto ? plano1Preview.valorSinal1 : valorTotalPagamento)}</span>
                                 </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">2️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 2</span>
-                                    <span className="preview-item-date">{plano1Preview.vencSinal2}</span>
+                                {temValorPreview(plano1Preview.valorSinal2) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">2️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 2</span>
+                                      <span className="preview-item-date">{plano1Preview.vencSinal2}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal2)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal2)}</span>
-                                </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">3️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 3</span>
-                                    <span className="preview-item-date">{plano1Preview.vencSinal3}</span>
+                                )}
+                                {temValorPreview(plano1Preview.valorSinal3) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">3️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 3</span>
+                                      <span className="preview-item-date">{plano1Preview.vencSinal3}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal3)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal3)}</span>
-                                </div>
-                                {!pagamentoRemoto && (
+                                )}
+                                {!pagamentoRemoto && temValorPreview(plano1Preview.valorSinal4) && (
                                   <div className="preview-row">
                                     <span className="preview-item-icon">4️⃣</span>
                                     <div className="preview-item-info">
@@ -1183,23 +1220,27 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(pagamentoRemoto ? plano2Preview.valorSinal1 : valorTotalPagamento)}</span>
                                 </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">2️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 2</span>
-                                    <span className="preview-item-date">{plano2Preview.vencSinal2}</span>
+                                {temValorPreview(plano2Preview.valorSinal2) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">2️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 2</span>
+                                      <span className="preview-item-date">{plano2Preview.vencSinal2}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal2)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal2)}</span>
-                                </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">3️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 3</span>
-                                    <span className="preview-item-date">{plano2Preview.vencSinal3}</span>
+                                )}
+                                {temValorPreview(plano2Preview.valorSinal3) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">3️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 3</span>
+                                      <span className="preview-item-date">{plano2Preview.vencSinal3}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal3)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal3)}</span>
-                                </div>
-                                {!pagamentoRemoto && (
+                                )}
+                                {!pagamentoRemoto && temValorPreview(plano2Preview.valorSinal4) && (
                                   <div className="preview-row">
                                     <span className="preview-item-icon">4️⃣</span>
                                     <div className="preview-item-info">
@@ -1230,23 +1271,27 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(pagamentoRemoto ? plano3Preview.valorSinal1 : valorTotalPagamento)}</span>
                                 </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">2️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 2</span>
-                                    <span className="preview-item-date">{plano3Preview.vencSinal2}</span>
+                                {temValorPreview(plano3Preview.valorSinal2) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">2️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 2</span>
+                                      <span className="preview-item-date">{plano3Preview.vencSinal2}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal2)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal2)}</span>
-                                </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">3️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 3</span>
-                                    <span className="preview-item-date">{plano3Preview.vencSinal3}</span>
+                                )}
+                                {temValorPreview(plano3Preview.valorSinal3) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">3️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 3</span>
+                                      <span className="preview-item-date">{plano3Preview.vencSinal3}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal3)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal3)}</span>
-                                </div>
-                                {!pagamentoRemoto && (
+                                )}
+                                {!pagamentoRemoto && temValorPreview(plano3Preview.valorSinal4) && (
                                   <div className="preview-row">
                                     <span className="preview-item-icon">4️⃣</span>
                                     <div className="preview-item-info">
@@ -1356,31 +1401,50 @@ export function PaymentModal({
                                   <span className="preview-item-value">{formatCurrency(valorTotalPagamento)}</span>
                                 </div>
 
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">2️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 2</span>
-                                    <span className="preview-item-date">{plano5Preview.vencSinal2}</span>
+                                {temValorPreview(plano5Preview.valorSinal2) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">2️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 2</span>
+                                      <span className="preview-item-date">{plano5Preview.vencSinal2}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal2)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal2)}</span>
-                                </div>
+                                )}
 
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">3️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 3</span>
-                                    <span className="preview-item-date">{plano5Preview.vencSinal3}</span>
+                                {temValorPreview(plano5Preview.valorSinal3) && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">3️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 3</span>
+                                      <span className="preview-item-date">{plano5Preview.vencSinal3}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal3)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal3)}</span>
-                                </div>
+                                )}
 
+                                {temValorPreview(plano5Preview.valorSinal4) && (
+                                  <div className="preview-row highlight">
+                                    <span className="preview-item-icon">4️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 4</span>
+                                      <span className="preview-item-date">{plano5Preview.vencSinal4}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal4)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {plano6Preview && (
+                              <div className="preview-grid">
                                 <div className="preview-row highlight">
-                                  <span className="preview-item-icon">4️⃣</span>
+                                  <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 4</span>
-                                    <span className="preview-item-date">{plano5Preview.vencSinal4}</span>
+                                    <span className="preview-item-label">36 Parcelas Mensais</span>
+                                    <span className="preview-item-date">A partir de {plano6Preview.vencPrimeiraMensal}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano5Preview.valorSinal4)}</span>
+                                  <span className="preview-item-value">{formatCurrency(plano6Preview.valorParcela36)}</span>
                                 </div>
                               </div>
                             )}

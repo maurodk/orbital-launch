@@ -363,6 +363,12 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                         if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                             logger.error("Falha CRÍTICA ao adicionar séries do plano 5 - Abortando processamento")
                             raise Exception("Falha ao configurar séries de pagamento do Plano 5")
+                elif plano_selecionado == "plano6":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 6")
+                    elif not adicionar_series_plano6(driver, valor_unidade_total):
+                        logger.error("Falha CRÍTICA ao adicionar séries do plano 6 - Abortando processamento")
+                        raise Exception("Falha ao configurar séries de pagamento do Plano 6")
             # Outros planos serão implementados depois
             
         except Exception as e:
@@ -744,13 +750,15 @@ def obter_proximo_vencimento_valido(data_base, dias_apos=0):
     return data_result.strftime("%d/%m/%Y")
 
 
-def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float, data_vencimento: str) -> bool:
+def editar_primeira_serie(driver: webdriver.Chrome, nome_serie: str, quantidade_parcelas: int, valor_parcela: float, data_vencimento: str) -> bool:
     """
-    Edita a primeira série existente para transformá-la em Sinal 1 com PIX
+    Edita a primeira série existente para a série desejada.
     
     Args:
         driver: WebDriver
-        valor_pix: Valor do PIX (Sinal 1)
+        nome_serie: Nome da série a selecionar no dropdown
+        quantidade_parcelas: Quantidade de parcelas da série
+        valor_parcela: Valor da parcela
         data_vencimento: Data de vencimento (formato DD/MM/YYYY)
         
     Returns:
@@ -759,7 +767,7 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
     max_tentativas = 2
     for tentativa in range(1, max_tentativas + 1):
         try:
-            logger.info(f"Editando primeira série existente para Sinal 1 (tentativa {tentativa}/{max_tentativas})...")
+            logger.info(f"Editando primeira série existente para {nome_serie} (tentativa {tentativa}/{max_tentativas})...")
             
             # Clicar no botão de editar primeira série (editarserie0)
             botao_editar = WebDriverWait(driver, 10).until(
@@ -777,23 +785,25 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
             logger.info("Entrou no iframe do facebox")
             time.sleep(1)
             
-            # Selecionar "Sinal 1" no dropdown de série
+            # Selecionar a série desejada no dropdown de série
             dropdown_serie = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.ID, "idserie"))
             )
             select_serie = Select(dropdown_serie)
             
-            # Procurar opção que contém "Sinal 1" (ignorando espaços)
+            # Procurar opção que contém o nome informado (ignorando espaços)
             opcao_encontrada = False
             for opcao in select_serie.options:
-                if "sinal" in opcao.text.lower().replace(" ", "") and "1" in opcao.text:
+                texto_opcao = opcao.text.lower().replace(" ", "")
+                texto_busca = nome_serie.lower().replace(" ", "")
+                if texto_busca in texto_opcao:
                     select_serie.select_by_visible_text(opcao.text)
                     logger.info(f"Selecionado série: {opcao.text}")
                     opcao_encontrada = True
                     break
             
             if not opcao_encontrada:
-                logger.error("Opção 'Sinal 1' não encontrada no dropdown")
+                logger.error(f"Opção '{nome_serie}' não encontrada no dropdown")
                 driver.switch_to.default_content()
                 continue
             
@@ -801,13 +811,13 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
             
             # Não selecionar forma de pagamento explicitamente
             
-            # Preencher quantidade de parcelas com "1"
+            # Preencher quantidade de parcelas
             input_qtd = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.ID, "qtd_parcelas"))
             )
             input_qtd.clear()
-            input_qtd.send_keys("1")
-            logger.info("Preenchido quantidade de parcelas: 1")
+            input_qtd.send_keys(str(quantidade_parcelas))
+            logger.info(f"Preenchido quantidade de parcelas: {quantidade_parcelas}")
             time.sleep(0.5)
             
             # Preencher valor
@@ -815,8 +825,8 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
                 EC.presence_of_element_located((By.ID, "valor_condicoes"))
             )
             input_valor.clear()
-            input_valor.send_keys(f"{valor_pix:.2f}")
-            logger.info(f"Preenchido valor: {valor_pix:.2f}")
+            input_valor.send_keys(f"{valor_parcela:.2f}")
+            logger.info(f"Preenchido valor: {valor_parcela:.2f}")
             time.sleep(0.5)
             
             # Preencher data de vencimento
@@ -877,6 +887,14 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
     # Se chegou aqui, todas as tentativas falharam
     logger.error("Todas as tentativas de editar primeira série falharam")
     return False
+
+
+def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float, data_vencimento: str) -> bool:
+    return editar_primeira_serie(driver, "Sinal 1", 1, valor_pix, data_vencimento)
+
+
+def editar_primeira_serie_para_mensal(driver: webdriver.Chrome, quantidade_parcelas: int, valor_parcela: float, data_vencimento: str) -> bool:
+    return editar_primeira_serie(driver, "Mensal", quantidade_parcelas, valor_parcela, data_vencimento)
 
 
 def proximo_vencimento_no_dia(ref: datetime, dia: int) -> datetime:
@@ -995,10 +1013,29 @@ def adicionar_series_pagamento_remoto(driver: webdriver.Chrome, plano_selecionad
                     return False
             return True
 
+        if plano_selecionado == "plano6":
+            return adicionar_series_plano6(driver, valor_unidade_total)
+
         logger.error(f"Plano remoto nao suportado: {plano_selecionado}")
         return False
     except Exception as e:
         logger.error(f"Erro ao adicionar series do pagamento remoto: {e}")
+        return False
+
+
+def adicionar_series_plano6(driver: webdriver.Chrome, valor_unidade_total: float) -> bool:
+    try:
+        hoje = datetime.now()
+        data_primeira_mensal = proximo_mes_no_dia(hoje, hoje.day)
+        valor_parcela = round(valor_unidade_total / 36.0, 2)
+        diferenca = round(valor_unidade_total - (valor_parcela * 36), 2)
+        if diferenca != 0:
+            valor_parcela = round(valor_parcela + (diferenca / 36.0), 2)
+
+        logger.info(f"[Plano6] Editando série mensal: 36x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
+        return editar_primeira_serie_para_mensal(driver, 36, valor_parcela, data_primeira_mensal.strftime("%d/%m/%Y"))
+    except Exception as e:
+        logger.error(f"Erro ao adicionar séries do Plano 6: {e}")
         return False
 
 
@@ -1742,7 +1779,7 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         # Buscar dados atualizados no Supabase
         response = supabase.table("pagamentos").select(
             "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, tipo_pagamento, tipo_venda, observacao, "
-            "clientes(id, id_pre_cadastro, nome, documento, corretor)"
+            "clientes(id, id_pre_cadastro, nome, documento, corretor, implantacao_id)"
         ).eq("id", pagamento_id).single().execute()
         
         pag = response.data
@@ -1756,8 +1793,21 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
         # NOVO: Buscar nome da implantação para log inicial
         implantacao_name = None
         try:
-            if supabase and unidade:
-                resp = supabase.table("unidades").select("implantacao_id").ilike("nome_unidade", f"%{unidade}%").limit(1).execute()
+            cliente_implantacao_id = cliente_info.get("implantacao_id")
+
+            if supabase and cliente_implantacao_id:
+                impl_resp = supabase.table("implantacoes").select("nome").eq("id", cliente_implantacao_id).limit(1).execute()
+                if impl_resp and getattr(impl_resp, 'data', None):
+                    if isinstance(impl_resp.data, list) and len(impl_resp.data) > 0:
+                        implantacao_name = impl_resp.data[0].get("nome")
+                    elif isinstance(impl_resp.data, dict):
+                        implantacao_name = impl_resp.data.get("nome")
+
+            if supabase and unidade and not implantacao_name:
+                unidade_query = supabase.table("unidades").select("implantacao_id")
+                if cliente_implantacao_id:
+                    unidade_query = unidade_query.eq("implantacao_id", cliente_implantacao_id)
+                resp = unidade_query.eq("nome_unidade", unidade).limit(1).execute()
                 unidade_row = None
                 if resp and getattr(resp, 'data', None):
                     if isinstance(resp.data, list) and len(resp.data) > 0:
@@ -1827,8 +1877,22 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
             row_index_val = None
             try:
                 if supabase:
-                    # Try to find unidade row (use ilike for permissive match)
-                    resp = supabase.table("unidades").select("implantacao_id, nome_unidade").ilike("nome_unidade", f"%{unidade_notify}%").limit(1).execute()
+                    cliente_implantacao_id = cliente_info.get("implantacao_id")
+                    if cliente_implantacao_id:
+                        try:
+                            impl_resp = supabase.table("implantacoes").select("nome").eq("id", cliente_implantacao_id).limit(1).execute()
+                            if impl_resp and getattr(impl_resp, 'data', None):
+                                if isinstance(impl_resp.data, list) and len(impl_resp.data) > 0:
+                                    implantacao_name = impl_resp.data[0].get("nome")
+                                elif isinstance(impl_resp.data, dict):
+                                    implantacao_name = impl_resp.data.get("nome")
+                        except Exception:
+                            implantacao_name = None
+
+                    unidade_query = supabase.table("unidades").select("implantacao_id, nome_unidade")
+                    if cliente_implantacao_id:
+                        unidade_query = unidade_query.eq("implantacao_id", cliente_implantacao_id)
+                    resp = unidade_query.eq("nome_unidade", unidade_notify).limit(1).execute()
                     unidade_row = None
                     if resp and getattr(resp, 'data', None):
                         # resp.data may be a list
