@@ -260,15 +260,20 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
     
     # Preparar dados de pagamento (sem selecionar tipo de venda ainda)
     tipo_venda = None
+    tipo_pagamento = None
     # Determina se devemos adicionar séries: preferir flag explícita, senão inferir pela presença de tipo_pagamento
     adicionar_series = True
     if dados_pagamento and isinstance(dados_pagamento, dict):
-        if dados_pagamento.get("pagamentoPresencial") is False:
+        tipo_pagamento = dados_pagamento.get("tipo_pagamento")
+        if tipo_pagamento == "remoto":
+            adicionar_series = True
+        elif dados_pagamento.get("pagamentoPresencial") is False:
             adicionar_series = False
 
     if dados_pagamento and "tipo_venda" in dados_pagamento:
         try:
             tipo_venda = dados_pagamento.get("tipo_venda")
+            tipo_pagamento = dados_pagamento.get("tipo_pagamento")
             plano_selecionado = dados_pagamento.get("plano_selecionado")
             # Interpretar valores de forma flexível:
             # - Se houver 'valor_unidade' usar como total do imóvel
@@ -288,6 +293,8 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
 
             if "valor_pix" in dados_pagamento and dados_pagamento.get("valor_pix") is not None:
                 valor_pix = float(dados_pagamento.get("valor_pix"))
+            elif tipo_pagamento == "remoto":
+                valor_pix = 3000.0
             elif dados_pagamento.get("tipo_pagamento") and dados_pagamento.get("valor") is not None:
                 # 'valor' com tipo_pagamento → provavelmente PIX/Sinal 1
                 valor_pix = float(dados_pagamento.get("valor"))
@@ -304,7 +311,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                 except Exception:
                     valor_extra = 0.0
 
-            logger.info(f"Configurando pagamento - Tipo: {tipo_venda}, Plano: {plano_selecionado}, valor_unidade_total={valor_unidade_total}, valor_pix={valor_pix}")
+            logger.info(f"Configurando pagamento - tipo_pagamento={tipo_pagamento}, tipo_venda={tipo_venda}, Plano={plano_selecionado}, valor_unidade_total={valor_unidade_total}, valor_pix={valor_pix}")
 
             # Se não for pagamento presencial (flag explícita ou ausência de tipo_pagamento), não adicionar séries
             if dados_pagamento.get("pagamentoPresencial") is None and not dados_pagamento.get("tipo_pagamento"):
@@ -313,8 +320,14 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
             if not adicionar_series:
                 logger.info("Pagamento não presencial detectado — pulando adição de séries")
             else:
+                if tipo_pagamento == "remoto":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular pagamento remoto")
+                    elif not adicionar_series_pagamento_remoto(driver, plano_selecionado, valor_unidade_total, dia_vencimento=dia_vencimento):
+                        logger.error("Falha CRÍTICA ao adicionar séries do pagamento remoto - Abortando processamento")
+                        raise Exception("Falha ao configurar séries de pagamento remoto")
                 # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
-                if plano_selecionado == "plano1":
+                elif plano_selecionado == "plano1":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 1 corretamente")
                     else:
@@ -866,6 +879,129 @@ def editar_primeira_serie_para_sinal1(driver: webdriver.Chrome, valor_pix: float
     return False
 
 
+def proximo_vencimento_no_dia(ref: datetime, dia: int) -> datetime:
+    import calendar
+
+    base = datetime(ref.year, ref.month, ref.day)
+    ultimo_dia_mes = calendar.monthrange(base.year, base.month)[1]
+    candidato = datetime(base.year, base.month, min(dia, ultimo_dia_mes))
+    if candidato < base:
+        mes = base.month + 1
+        ano = base.year
+        if mes > 12:
+            mes = 1
+            ano += 1
+        ultimo_dia_proximo_mes = calendar.monthrange(ano, mes)[1]
+        candidato = datetime(ano, mes, min(dia, ultimo_dia_proximo_mes))
+    return candidato
+
+
+def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
+    import calendar
+
+    mes = ref.month + 1
+    ano = ref.year
+    if mes > 12:
+        mes = 1
+        ano += 1
+    ultimo_dia = calendar.monthrange(ano, mes)[1]
+    return datetime(ano, mes, min(dia, ultimo_dia))
+
+
+def adicionar_series_pagamento_remoto(driver: webdriver.Chrome, plano_selecionado: str, valor_unidade_total: float, dia_vencimento: int = 15) -> bool:
+    try:
+        hoje = datetime.now()
+        valor_sinal_total = 3000.0
+        valor_sinal_parcela = round(valor_sinal_total / 3.0, 2)
+
+        if dia_vencimento not in (5, 15, 25):
+            logger.warning(f"dia_vencimento invalido ({dia_vencimento}); usando 15")
+            dia_vencimento = 15
+
+        data_sinal1_obj = proximo_vencimento_no_dia(hoje, dia_vencimento)
+        data_sinal2_obj = proximo_mes_no_dia(data_sinal1_obj, dia_vencimento)
+        data_sinal3_obj = proximo_mes_no_dia(data_sinal2_obj, dia_vencimento)
+
+        if not editar_primeira_serie_para_sinal1(driver, valor_sinal_parcela, data_sinal1_obj.strftime("%d/%m/%Y")):
+            logger.error("Falha ao editar primeira serie para pagamento remoto")
+            return False
+
+        if not adicionar_serie(driver, "Sinal 2", 1, valor_sinal_parcela, data_sinal2_obj.strftime("%d/%m/%Y")):
+            return False
+
+        if not adicionar_serie(driver, "Sinal 3", 1, valor_sinal_parcela, data_sinal3_obj.strftime("%d/%m/%Y")):
+            return False
+
+        saldo_base = max(0.0, round(valor_unidade_total - valor_sinal_total, 2))
+
+        if plano_selecionado == "plano1":
+            data_parcelamento_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
+            valor_parcela = round(saldo_base / 100.0, 2)
+            diferenca = round(valor_unidade_total - valor_sinal_total - (valor_parcela * 100), 2)
+            if diferenca != 0:
+                valor_parcela = round(valor_parcela + (diferenca / 100.0), 2)
+            return adicionar_serie(
+                driver,
+                "PARCELAMENTO INCORPORADORA",
+                100,
+                valor_parcela,
+                data_parcelamento_obj.strftime("%d/%m/%Y"),
+                "TRANSFERENCIA BANCARIA"
+            )
+
+        if plano_selecionado == "plano2":
+            data_parcelamento_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
+            valor_parcela = round(saldo_base / 48.0, 2)
+            diferenca = round(valor_unidade_total - valor_sinal_total - (valor_parcela * 48), 2)
+            if diferenca != 0:
+                valor_parcela = round(valor_parcela + (diferenca / 48.0), 2)
+            return adicionar_serie(
+                driver,
+                "PARCELAMENTO INCORPORADORA",
+                48,
+                valor_parcela,
+                data_parcelamento_obj.strftime("%d/%m/%Y"),
+                "TRANSFERENCIA BANCARIA"
+            )
+
+        if plano_selecionado == "plano3":
+            data_parcelamento_obj = proximo_mes_no_dia(data_sinal3_obj, dia_vencimento)
+            valor_inter_total = round(saldo_base * 0.085, 2)
+            valor_parcela_inter = round(valor_inter_total / 4.0, 2)
+            mensal_total = max(0.0, round(saldo_base - (valor_parcela_inter * 4), 2))
+            valor_parcela = round(mensal_total / 100.0, 2)
+            diferenca = round(valor_unidade_total - valor_sinal_total - (valor_parcela_inter * 4) - (valor_parcela * 100), 2)
+            if diferenca != 0:
+                valor_parcela = round(valor_parcela + (diferenca / 100.0), 2)
+
+            if not adicionar_serie(
+                driver,
+                "PARCELAMENTO INCORPORADORA",
+                100,
+                valor_parcela,
+                data_parcelamento_obj.strftime("%d/%m/%Y"),
+                "TRANSFERENCIA BANCARIA"
+            ):
+                return False
+
+            datas_intermediarias = [
+                f"{dia_vencimento:02d}/12/2026",
+                f"{dia_vencimento:02d}/12/2027",
+                f"{dia_vencimento:02d}/12/2028",
+                f"{dia_vencimento:02d}/12/2029",
+            ]
+            for data_inter in datas_intermediarias:
+                if not adicionar_serie(driver, "Intermediaria", 1, valor_parcela_inter, data_inter):
+                    return False
+            return True
+
+        logger.error(f"Plano remoto nao suportado: {plano_selecionado}")
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao adicionar series do pagamento remoto: {e}")
+        return False
+
+
 def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float, valor_pix: float, dia_vencimento: int = 15, valor_extra: float = 0.0) -> bool:
     """
     Adiciona séries para o plano 1 (ou 2) seguindo a regra do negócio:
@@ -884,7 +1020,6 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         True se todas as séries foram adicionadas, False caso contrário
     """
     try:
-        import calendar
         from datetime import datetime, timedelta
 
         # Detectar plano: padrão = 1 (100x), se global 'plano2' = True, então 48x
@@ -918,16 +1053,6 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
         if dia_vencimento not in (5, 15, 25):
             logger.warning(f"dia_vencimento inválido ({dia_vencimento}); usando 15")
             dia_vencimento = 15
-
-        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
-            mes = ref.month + 1
-            ano = ref.year
-            if mes > 12:
-                mes = 1
-                ano += 1
-            ultimo_dia = calendar.monthrange(ano, mes)[1]
-            dia_ok = min(dia, ultimo_dia)
-            return datetime(ano, mes, dia_ok)
 
         # PASSO 1: Editar a primeira série existente para transformá-la em Sinal 1 com PIX
         data_sinal1 = hoje.strftime("%d/%m/%Y")
@@ -967,7 +1092,7 @@ def adicionar_series_plano1(driver: webdriver.Chrome, valor_unidade_total: float
             logger.info("[Plano] Sinal 4 zerado pelo excedente — pulando")
 
         # PARCELAMENTO INCORPORADORA - no mês seguinte ao Sinal 4, no mesmo dia escolhido
-        data_parcelamento_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
+        data_parcelamento_obj = proximo_mes_no_dia(hoje, dia_vencimento) if valor_sinal2 <= 0 and valor_sinal3 <= 0 and valor_sinal4 <= 0 else proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
         data_parcelamento = data_parcelamento_obj.strftime("%d/%m/%Y")
         
         # Calcular valor exato do parcelamento (compensando arredondamentos)
@@ -1010,7 +1135,6 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
     Adiciona séries para o Plano 3 (10% + 100x + 04 Intermediárias de 8,5%)
     """
     try:
-        import calendar
         from datetime import datetime, timedelta
 
         logger.info("Iniciando adição de séries para Plano 3...")
@@ -1053,16 +1177,6 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
 
         hoje = datetime.now()
 
-        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
-            mes = ref.month + 1
-            ano = ref.year
-            if mes > 12:
-                mes = 1
-                ano += 1
-            ultimo_dia = calendar.monthrange(ano, mes)[1]
-            dia_ok = min(dia, ultimo_dia)
-            return datetime(ano, mes, dia_ok)
-
         # 1. Sinais 1, 2, 3, 4 (com cascata)
         data_sinal1 = hoje.strftime("%d/%m/%Y")
         if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
@@ -1090,7 +1204,7 @@ def adicionar_series_plano3(driver: webdriver.Chrome, valor_unidade_total: float
             logger.info("[Plano3] Sinal 4 zerado pelo excedente — pulando")
 
         # 2. Parcelamento Incorporadora (100x) - 81,5%
-        data_p1_obj = proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
+        data_p1_obj = proximo_mes_no_dia(hoje, dia_vencimento) if valor_sinal2 <= 0 and valor_sinal3 <= 0 and valor_sinal4 <= 0 else proximo_mes_no_dia(data_sinal4_obj, dia_vencimento)
         if not adicionar_serie(driver, "PARCELAMENTO INCORPORADORA", 100, valor_parcela_p1, data_p1_obj.strftime("%d/%m/%Y"), "TRANSFERÊNCIA BANCÁRIA"):
             return False
 
@@ -1141,16 +1255,6 @@ def adicionar_series_plano4(driver: webdriver.Chrome, valor_unidade_total: float
 
         logger.info(f"[Plano4] Valor original={valor_unidade_total:.2f}, desconto={desconto:.2f}, total_com_desconto={valor_total_descontado:.2f}")
 
-        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
-            mes = ref.month + 1
-            ano = ref.year
-            if mes > 12:
-                mes = 1
-                ano += 1
-            ultimo_dia = calendar.monthrange(ano, mes)[1]
-            dia_ok = min(dia, ultimo_dia)
-            return datetime(ano, mes, dia_ok)
-
         # Editar primeira série para Sinal 1
         data_sinal1 = hoje.strftime("%d/%m/%Y")
         if not editar_primeira_serie_para_sinal1(driver, valor_pix, data_sinal1):
@@ -1178,7 +1282,7 @@ def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float
     - Sinal 2/3/4: saldo dividido por 3, vencimentos mês a mês
     """
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         logger.info("Iniciando adição de séries para Plano 5 (À vista em 3x)...")
 
@@ -1206,16 +1310,6 @@ def adicionar_series_plano5(driver: webdriver.Chrome, valor_unidade_total: float
             logger.info(f"[Plano5] Ajuste de arredondamento: diferença={diferenca:.2f}, novo Sinal 4={valor_sinal4:.2f}")
         
         hoje = datetime.now()
-
-        def proximo_mes_no_dia(ref: datetime, dia: int) -> datetime:
-            mes = ref.month + 1
-            ano = ref.year
-            if mes > 12:
-                mes = 1
-                ano += 1
-            ultimo_dia = calendar.monthrange(ano, mes)[1]
-            dia_ok = min(dia, ultimo_dia)
-            return datetime(ano, mes, dia_ok)
 
         # Editar primeira série para Sinal 1
         data_sinal1 = hoje.strftime("%d/%m/%Y")
@@ -1418,9 +1512,10 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
             "valor": dados_reserva.get("valor"),
             "tipo_pagamento": dados_reserva.get("tipo_pagamento"),
             # Valor do PIX/Sinal 1 explícito quando a reserva veio com pagamento presencial
-            "valor_pix": dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None,
+            "valor_pix": 3000.0 if dados_reserva.get("tipo_pagamento") == "remoto" else (dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None),
             # Extras (dinheiro/cartão/cheque) para cascata de sinais
             "valor_extra": dados_reserva.get("valor_extra", 0.0),
+            "observacao": dados_reserva.get("observacao"),
         }
         
         logger.info(f"Dados de pagamento: plano={dados_pagamento['plano_selecionado']}, tipo_venda={dados_pagamento['tipo_venda']}, valor_unidade={dados_pagamento['valor_unidade']}, dia_vencimento={dados_pagamento.get('dia_vencimento')}, valor_pix={dados_pagamento['valor_pix']}, valor_bruto={dados_pagamento['valor']}")
@@ -1480,7 +1575,7 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
         
         # Busca pagamentos pendentes com informações do cliente
         response = supabase.table("pagamentos").select(
-            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, valor_pix, valor_dinheiro, valor_cartao, valor_cheque, tipo_pagamento, tipo_venda, "
+            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, valor_pix, valor_dinheiro, valor_cartao, valor_cheque, tipo_pagamento, tipo_venda, observacao, "
             "clientes(id, id_pre_cadastro, nome, documento, corretor)"
         ).eq("status", "pendente").execute()
         
@@ -1502,6 +1597,7 @@ def buscar_reservas_pendentes(supabase: Client) -> List[Dict]:
                 "valor": pag.get("valor_total"),
                 "tipo_pagamento": pag.get("tipo_pagamento"),
                 "tipo_venda": pag.get("tipo_venda"),
+                "observacao": pag.get("observacao"),
                 "valor_pix_only": float(pag.get("valor_pix") or 0),
                 "valor_extra": float(pag.get("valor_dinheiro") or 0) + float(pag.get("valor_cartao") or 0) + float(pag.get("valor_cheque") or 0),
             }
@@ -1645,7 +1741,7 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
     try:
         # Buscar dados atualizados no Supabase
         response = supabase.table("pagamentos").select(
-            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, tipo_pagamento, tipo_venda, "
+            "id, cliente_id, unidade, valor_unidade, dia_vencimento, plano_padrao, valor_total, tipo_pagamento, tipo_venda, observacao, "
             "clientes(id, id_pre_cadastro, nome, documento, corretor)"
         ).eq("id", pagamento_id).single().execute()
         
@@ -1707,6 +1803,7 @@ def processar_reserva_job(driver: webdriver.Chrome, supabase: Client, job_data: 
             "valor": pag.get("valor_total"),
             "tipo_pagamento": pag.get("tipo_pagamento"),
             "tipo_venda": pag.get("tipo_venda"),
+            "observacao": pag.get("observacao"),
         }
 
         # Garantir estado limpo (voltar para home) antes de começar

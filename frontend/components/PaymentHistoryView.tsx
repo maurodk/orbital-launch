@@ -26,6 +26,8 @@ interface Payment {
   data_criacao: string;
   data_processamento: string | null;
   plano_padrao: string | null;
+  tipo_pagamento: string | null;
+  observacao: string | null;
 }
 
 interface PixHistory {
@@ -90,6 +92,8 @@ export function PaymentHistoryView() {
           data_criacao,
           data_processamento,
           plano_padrao,
+          tipo_pagamento,
+          observacao,
           clientes:cliente_id (
             nome
           )
@@ -113,6 +117,8 @@ export function PaymentHistoryView() {
           data_criacao: p.data_criacao,
           data_processamento: p.data_processamento,
           plano_padrao: p.plano_padrao,
+          tipo_pagamento: p.tipo_pagamento || null,
+          observacao: p.observacao || null,
         }));
         setPayments(formattedPayments);
       }
@@ -282,10 +288,12 @@ export function PaymentHistoryView() {
 
   const getPaymentMethods = (payment: Payment) => {
     const methods = [];
+    if (payment.tipo_pagamento === "remoto") methods.push(`Remoto: ${formatCurrency(payment.valor_total)}`);
     if (payment.valor_pix > 0) methods.push(`PIX: ${formatCurrency(payment.valor_pix)}`);
     if (payment.valor_dinheiro > 0) methods.push(`Dinheiro: ${formatCurrency(payment.valor_dinheiro)}`);
     if (payment.valor_cartao > 0) methods.push(`Cartão: ${formatCurrency(payment.valor_cartao)}`);
     if (payment.valor_cheque > 0) methods.push(`Cheque: ${formatCurrency(payment.valor_cheque)}`);
+    if (payment.observacao) methods.push(`Obs: ${payment.observacao}`);
     return methods.length > 0 ? methods.join(" | ") : "Nenhum pagamento registrado";
   };
 

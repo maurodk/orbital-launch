@@ -19,6 +19,8 @@ const extrairNomeCliente = (nome: string): string => {
 
 export interface PaymentData {
   pagamentoPresencial: boolean;
+  pagamentoRemoto: boolean;
+  tipoPagamento: "presencial" | "remoto" | null;
   valorTotal: number;
   valorPix: number;
   valorDinheiro: number;
@@ -29,6 +31,7 @@ export interface PaymentData {
   planoSelecionado: string | null;
   diaVencimento: 5 | 15 | 25;
   valorUnidade: number | null;
+  observacao: string;
 }
 
 interface PaymentModalProps {
@@ -63,11 +66,12 @@ export function PaymentModal({
   sheetRowIndex,
   onConfirm,
 }: PaymentModalProps) {
-  const [pagamentoPresencial, setPagamentoPresencial] = useState(false);
+  const [tipoPagamentoSelecionado, setTipoPagamentoSelecionado] = useState<"presencial" | "remoto" | null>(null);
   const [tipoVenda, setTipoVenda] = useState<"cef" | "facilita" | null>(null);
   const [planosPadrao, setPlanosPadrao] = useState(false);
   const [planoSelecionado, setPlanoSelecionado] = useState<string | null>(null);
   const [diaVencimento, setDiaVencimento] = useState<5 | 15 | 25>(15);
+  const [observacao, setObservacao] = useState("");
 
   // Novos estados para pagamentos múltiplos
   const [pixPagos, setPixPagos] = useState<PixRecord[]>([]);
@@ -89,14 +93,21 @@ export function PaymentModal({
 
   // Filtrar planos com base na configuração do empreendimento
   const planosHabilitados = planosConfig?.habilitado && planosConfig.planos?.length > 0;
-  const planosPadraoOptions = planosHabilitados
+  const pagamentoPresencial = tipoPagamentoSelecionado === "presencial";
+  const pagamentoRemoto = tipoPagamentoSelecionado === "remoto";
+  const planosBase = planosHabilitados
     ? allPlanosPadraoOptions.filter((p) => planosConfig!.planos.includes(p.id))
     : allPlanosPadraoOptions;
+  const planosPadraoOptions = pagamentoRemoto
+    ? planosBase.filter((p) => ["plano1", "plano2", "plano3"].includes(p.id))
+    : planosBase;
 
   // Cálculos de totais
   const totalPix = useMemo(() => pixPagos.reduce((acc, curr) => acc + Number(curr.valor), 0), [pixPagos]);
   const totalExtra = useMemo(() => extraPayments.reduce((acc, curr) => acc + curr.valor, 0), [extraPayments]);
-  const valorTotalPagamento = totalPix + totalExtra;
+  const valorSinalRemotoTotal = 3000;
+  const valorParcelaRemota = 1000;
+  const valorTotalPagamento = pagamentoRemoto ? valorSinalRemotoTotal : totalPix + totalExtra;
 
   // Totais individuais para envio
   const totalDinheiro = useMemo(() => extraPayments.filter(p => p.tipo === 'dinheiro').reduce((acc, curr) => acc + curr.valor, 0), [extraPayments]);
@@ -144,16 +155,19 @@ export function PaymentModal({
       // Se passou pela verificação, prossegue com o pagamento
       const paymentData: PaymentData = {
         pagamentoPresencial,
+        pagamentoRemoto,
+        tipoPagamento: tipoPagamentoSelecionado,
         valorTotal: valorTotalPagamento,
-        valorPix: totalPix,
-        valorDinheiro: totalDinheiro,
-        valorCartao: totalCartao,
-        valorCheque: totalCheque,
+        valorPix: pagamentoPresencial ? totalPix : 0,
+        valorDinheiro: pagamentoPresencial ? totalDinheiro : 0,
+        valorCartao: pagamentoPresencial ? totalCartao : 0,
+        valorCheque: pagamentoPresencial ? totalCheque : 0,
         tipoVenda,
         planosPadrao,
         planoSelecionado,
         diaVencimento,
-        valorUnidade
+        valorUnidade,
+        observacao: observacao.trim(),
       };
 
       onConfirm(paymentData);
@@ -186,11 +200,12 @@ export function PaymentModal({
   useEffect(() => {
     if (show) {
       // Reset states
-      setPagamentoPresencial(false);
+      setTipoPagamentoSelecionado(null);
       setTipoVenda(null);
       setPlanosPadrao(false);
       setPlanoSelecionado(null);
       setDiaVencimento(15);
+      setObservacao("");
       setExtraPayments([]);
       setNewPaymentValue("");
       setPixPagos([]);
@@ -289,24 +304,24 @@ export function PaymentModal({
     setNewPaymentValue(val.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
   };
 
+  const pagamentoRemotoInvalido = pagamentoRemoto && tipoVenda !== "facilita";
   const paymentConfirmDisabled = pagamentoPresencial
     ? (valorTotalPagamento <= 0 || !tipoVenda || (tipoVenda === "facilita" && planosPadrao && !planoSelecionado))
-    : (!tipoVenda);
+    : pagamentoRemoto
+      ? (!tipoVenda || pagamentoRemotoInvalido || !planosPadrao || !planoSelecionado)
+      : (!tipoVenda);
 
   const exibirVencimentosPlano1 =
-    pagamentoPresencial &&
     tipoVenda === "facilita" &&
     planosPadrao &&
     planoSelecionado === "plano1";
 
   const exibirVencimentosPlano2 =
-    pagamentoPresencial &&
     tipoVenda === "facilita" &&
     planosPadrao &&
     planoSelecionado === "plano2";
 
   const exibirVencimentosPlano3 =
-    pagamentoPresencial &&
     tipoVenda === "facilita" &&
     planosPadrao &&
     planoSelecionado === "plano3";
@@ -336,11 +351,22 @@ export function PaymentModal({
     return r;
   };
 
+  const ajustarDiaNoMes = (ano: number, mes: number, dia: 5 | 15 | 25) => {
+    const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+    return new Date(ano, mes, Math.min(dia, ultimoDia));
+  };
+
+  const proximoVencimentoNoDia = (d: Date, dia: 5 | 15 | 25) => {
+    const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    let candidato = ajustarDiaNoMes(base.getFullYear(), base.getMonth(), dia);
+    if (candidato < base) {
+      candidato = ajustarDiaNoMes(base.getFullYear(), base.getMonth() + 1, dia);
+    }
+    return candidato;
+  };
+
   const mesSeguinteNoDia = (d: Date, dia: 5 | 15 | 25) => {
-    const r = new Date(d);
-    r.setMonth(r.getMonth() + 1);
-    r.setDate(dia);
-    return r;
+    return ajustarDiaNoMes(d.getFullYear(), d.getMonth() + 1, dia);
   };
 
   const plano1Preview = (() => {
@@ -350,11 +376,38 @@ export function PaymentModal({
     const diaBase = diaVencimento;
 
     const hoje = new Date();
-    const vencSinal1 = hoje;
+    const vencSinal1 = pagamentoRemoto ? proximoVencimentoNoDia(hoje, diaBase) : hoje;
+
+    if (pagamentoRemoto) {
+      const vencSinal2 = mesSeguinteNoDia(vencSinal1, diaBase);
+      const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
+      const vencParcel = mesSeguinteNoDia(vencSinal3, diaBase);
+      let valorParcela100 = Math.round((Math.max(0, valorUnidade - valorSinalRemotoTotal) / 100) * 100) / 100;
+
+      const totalCalculado = valorSinalRemotoTotal + (valorParcela100 * 100);
+      const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+      if (diferenca !== 0) {
+        valorParcela100 = Math.round((valorParcela100 + (diferenca / 100)) * 100) / 100;
+      }
+
+      return {
+        remoto: true,
+        vencSinal1: formatarData(vencSinal1),
+        vencSinal2: formatarData(vencSinal2),
+        vencSinal3: formatarData(vencSinal3),
+        vencSinal4: null,
+        vencParcel: formatarData(vencParcel),
+        valorSinal1: valorParcelaRemota,
+        valorSinal2: valorParcelaRemota,
+        valorSinal3: valorParcelaRemota,
+        valorSinal4: 0,
+        valorParcela100,
+      };
+    }
+
     const vencSinal2 = addDias(hoje, 7);
     const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
-    const vencParcel = mesSeguinteNoDia(vencSinal4, diaBase);
 
     // Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
     const saldoBase = valorUnidade - totalPix;
@@ -370,6 +423,9 @@ export function PaymentModal({
     if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
 
     let valorParcela100 = Math.round((Math.max(0, mensalBaseTotal - exc) / 100) * 100) / 100;
+    const vencParcel = vs2 === 0 && vs3 === 0 && vs4 === 0
+      ? mesSeguinteNoDia(vencSinal1, diaBase)
+      : mesSeguinteNoDia(vencSinal4, diaBase);
 
     // Ajuste para garantir valor exato
     const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4 + (valorParcela100 * 100);
@@ -384,6 +440,7 @@ export function PaymentModal({
       vencSinal3: formatarData(vencSinal3),
       vencSinal4: formatarData(vencSinal4),
       vencParcel: formatarData(vencParcel),
+      valorSinal1: valorTotalPagamento,
       valorDez,
       valorSinal2: vs2,
       valorSinal3: vs3,
@@ -398,11 +455,38 @@ export function PaymentModal({
 
     const diaBase = diaVencimento;
     const hoje = new Date();
-    const vencSinal1 = hoje;
+    const vencSinal1 = pagamentoRemoto ? proximoVencimentoNoDia(hoje, diaBase) : hoje;
+
+    if (pagamentoRemoto) {
+      const vencSinal2 = mesSeguinteNoDia(vencSinal1, diaBase);
+      const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
+      const vencParcel = mesSeguinteNoDia(vencSinal3, diaBase);
+      let valorParcela48 = Math.round((Math.max(0, valorUnidade - valorSinalRemotoTotal) / 48) * 100) / 100;
+
+      const totalCalculado = valorSinalRemotoTotal + (valorParcela48 * 48);
+      const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+      if (diferenca !== 0) {
+        valorParcela48 = Math.round((valorParcela48 + (diferenca / 48)) * 100) / 100;
+      }
+
+      return {
+        remoto: true,
+        vencSinal1: formatarData(vencSinal1),
+        vencSinal2: formatarData(vencSinal2),
+        vencSinal3: formatarData(vencSinal3),
+        vencSinal4: null,
+        vencParcel: formatarData(vencParcel),
+        valorSinal1: valorParcelaRemota,
+        valorSinal2: valorParcelaRemota,
+        valorSinal3: valorParcelaRemota,
+        valorSinal4: 0,
+        valorParcela48,
+      };
+    }
+
     const vencSinal2 = addDias(hoje, 7);
     const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
-    const vencParcel = mesSeguinteNoDia(vencSinal4, diaBase);
 
     // Base: sinais 2-4 calculados a partir apenas do PIX (sinal mínimo)
     const saldoBase = valorUnidade - totalPix;
@@ -418,6 +502,9 @@ export function PaymentModal({
     if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
 
     let valorParcela48 = Math.round((Math.max(0, mensalBaseTotal - exc) / 48) * 100) / 100;
+    const vencParcel = vs2 === 0 && vs3 === 0 && vs4 === 0
+      ? mesSeguinteNoDia(vencSinal1, diaBase)
+      : mesSeguinteNoDia(vencSinal4, diaBase);
 
     // Ajuste para garantir valor exato
     const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4 + (valorParcela48 * 48);
@@ -432,6 +519,7 @@ export function PaymentModal({
       vencSinal3: formatarData(vencSinal3),
       vencSinal4: formatarData(vencSinal4),
       vencParcel: formatarData(vencParcel),
+      valorSinal1: valorTotalPagamento,
       valorDez,
       valorSinal2: vs2,
       valorSinal3: vs3,
@@ -446,11 +534,46 @@ export function PaymentModal({
 
     const diaBase = diaVencimento;
     const hoje = new Date();
-    const vencSinal1 = hoje;
+    const vencSinal1 = pagamentoRemoto ? proximoVencimentoNoDia(hoje, diaBase) : hoje;
+
+    if (pagamentoRemoto) {
+      const vencSinal2 = mesSeguinteNoDia(vencSinal1, diaBase);
+      const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
+      const vencParcel1 = mesSeguinteNoDia(vencSinal3, diaBase);
+      const saldoBase = Math.max(0, valorUnidade - valorSinalRemotoTotal);
+      const valorInterTotal = Math.round(saldoBase * 0.085 * 100) / 100;
+      const valorParcelaInter = Math.round((valorInterTotal / 4) * 100) / 100;
+      let valorParcela100 = Math.round((Math.max(0, saldoBase - (valorParcelaInter * 4)) / 100) * 100) / 100;
+
+      const totalCalculado = valorSinalRemotoTotal + (valorParcelaInter * 4) + (valorParcela100 * 100);
+      const diferenca = Math.round((valorUnidade - totalCalculado) * 100) / 100;
+      if (diferenca !== 0) {
+        valorParcela100 = Math.round((valorParcela100 + (diferenca / 100)) * 100) / 100;
+      }
+
+      return {
+        remoto: true,
+        vencSinal1: formatarData(vencSinal1),
+        vencSinal2: formatarData(vencSinal2),
+        vencSinal3: formatarData(vencSinal3),
+        vencSinal4: null,
+        vencParcel1: formatarData(vencParcel1),
+        vencInter1: `${String(diaBase).padStart(2, '0')}/12/2026`,
+        vencInter2: `${String(diaBase).padStart(2, '0')}/12/2027`,
+        vencInter3: `${String(diaBase).padStart(2, '0')}/12/2028`,
+        vencInter4: `${String(diaBase).padStart(2, '0')}/12/2029`,
+        valorSinal1: valorParcelaRemota,
+        valorSinal2: valorParcelaRemota,
+        valorSinal3: valorParcelaRemota,
+        valorSinal4: 0,
+        valorParcela100,
+        valorParcelaInter,
+      };
+    }
+
     const vencSinal2 = addDias(hoje, 7);
     const vencSinal3 = mesSeguinteNoDia(vencSinal2, diaBase);
     const vencSinal4 = mesSeguinteNoDia(vencSinal3, diaBase);
-    const vencParcel1 = mesSeguinteNoDia(vencSinal4, diaBase);
     
     // Intermediárias: datas fixas 12/2026, 12/2027, 12/2028, 12/2029
     const vencInter1 = `${String(diaBase).padStart(2, '0')}/12/2026`;
@@ -476,6 +599,9 @@ export function PaymentModal({
     if (exc > 0) { const u = Math.min(exc, vs4); vs4 = Math.round((vs4 - u) * 100) / 100; exc = Math.round((exc - u) * 100) / 100; }
 
     let valorParcela100 = Math.round((Math.max(0, mensalBaseTotal - exc) / 100) * 100) / 100;
+    const vencParcel1 = vs2 === 0 && vs3 === 0 && vs4 === 0
+      ? mesSeguinteNoDia(vencSinal1, diaBase)
+      : mesSeguinteNoDia(vencSinal4, diaBase);
 
     // Ajuste para garantir valor exato
     const totalCalculado = valorTotalPagamento + vs2 + vs3 + vs4 + (valorParcelaInter * 4) + (valorParcela100 * 100);
@@ -494,6 +620,7 @@ export function PaymentModal({
       vencInter2,
       vencInter3,
       vencInter4,
+      valorSinal1: valorTotalPagamento,
       valorSinal2: vs2,
       valorSinal3: vs3,
       valorSinal4: vs4,
@@ -715,19 +842,32 @@ export function PaymentModal({
         {/* PAGAMENTO */}
         <div className="step-content step-pagamento fade-in">
           <div className="payment-toggle-card">
-            <label className="toggle-switch" style={planosConfig !== null && planosConfig !== undefined && (!planosConfig.habilitado || !planosConfig.planos?.length) ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
-              <input
-                type="checkbox"
-                checked={pagamentoPresencial}
-                onChange={(e) => setPagamentoPresencial(e.target.checked)}
-                disabled={planosConfig !== null && planosConfig !== undefined && (!planosConfig.habilitado || !planosConfig.planos?.length)}
-              />
-              <span className="toggle-slider"></span>
-              <span className="toggle-label">
-                <span className="toggle-icon">💳</span>
-                Pagamento Presencial
-              </span>
-            </label>
+            <div className="payment-options">
+              {[
+                { value: null, label: "Sem Pagamento", icon: "-" },
+                { value: "presencial", label: "Pagamento Presencial", icon: "💳" },
+                { value: "remoto", label: "Pagamento Remoto", icon: "🌐" },
+              ].map((option) => (
+                <label
+                  key={String(option.value)}
+                  className={`option-pill ${tipoPagamentoSelecionado === option.value ? "selected" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="tipoPagamentoSelecionado"
+                    value={option.value ?? "nenhum"}
+                    checked={tipoPagamentoSelecionado === option.value}
+                    onChange={() => {
+                      setTipoPagamentoSelecionado(option.value as "presencial" | "remoto" | null);
+                      setPlanosPadrao(false);
+                      setPlanoSelecionado(null);
+                    }}
+                  />
+                  <span className="option-icon">{option.icon}</span>
+                  <span className="option-label">{option.label}</span>
+                </label>
+              ))}
+            </div>
             {planosConfig !== null && planosConfig !== undefined && (!planosConfig.habilitado || !planosConfig.planos?.length) && (
               <p style={{ fontSize: '12px', color: '#d9534f', margin: '8px 0 0', padding: '0 4px' }}>
                 ⚠️ Nenhum plano de pagamento configurado para este empreendimento.
@@ -769,109 +909,137 @@ export function PaymentModal({
 
           <br />
 
-          {pagamentoPresencial && (
+          {(pagamentoPresencial || pagamentoRemoto) && (
             <div className="payment-details-container slide-down">
-              
-              {/* SEÇÃO DE PIX PAGOS */}
-              <div className="payment-card">
-                <div className="card-header">
-                  <span className="card-icon">📱</span>
-                  <span className="card-title">PIX Confirmados</span>
-                </div>
-                {pixPagos.length > 0 ? (
-                  <div className="pix-list-container">
-                    {pixPagos.map((pix) => (
-                      <div key={pix.id} className="payment-item-row">
-                        <span className="payment-item-date">
-                          📅 {new Date(pix.updated_at || pix.data_pagamento).toLocaleDateString('pt-BR')}
-                        </span>
-                        <span className="payment-item-value">
-                          {formatCurrency(Number(pix.valor))}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="payment-total-row">
-                      <span>Total PIX:</span>
-                      <strong>{formatCurrency(totalPix)}</strong>
+              {pagamentoPresencial && (
+                <>
+                  <div className="payment-card">
+                    <div className="card-header">
+                      <span className="card-icon">📱</span>
+                      <span className="card-title">PIX Confirmados</span>
                     </div>
+                    {pixPagos.length > 0 ? (
+                      <div className="pix-list-container">
+                        {pixPagos.map((pix) => (
+                          <div key={pix.id} className="payment-item-row">
+                            <span className="payment-item-date">
+                              📅 {new Date(pix.updated_at || pix.data_pagamento).toLocaleDateString('pt-BR')}
+                            </span>
+                            <span className="payment-item-value">
+                              {formatCurrency(Number(pix.valor))}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="payment-total-row">
+                          <span>Total PIX:</span>
+                          <strong>{formatCurrency(totalPix)}</strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="empty-state-small">Nenhum PIX confirmado para esta unidade.</div>
+                    )}
                   </div>
-                ) : (
-                  <div className="empty-state-small">Nenhum PIX confirmado para esta unidade.</div>
-                )}
-              </div>
 
-              {/* SEÇÃO DE OUTROS PAGAMENTOS */}
-              <div className="payment-card">
-                <div className="card-header">
-                  <span className="card-icon">💵</span>
-                  <span className="card-title">Outros Pagamentos</span>
-                </div>
-                
-                {extraPayments.length > 0 && (
-                  <div className="extra-payments-list">
-                    {extraPayments.map((payment) => (
-                      <div key={payment.id} className="payment-item-row">
-                        <span className="payment-item-type">
-                          {payment.tipo === 'dinheiro' ? '💵 Dinheiro' : 
-                           payment.tipo === 'cartao' ? '💳 Cartão' : '📝 Cheque'}
-                        </span>
-                        <span className="payment-item-value">
-                          {formatCurrency(payment.valor)}
-                        </span>
-                        <button 
-                          className="remove-payment-btn"
-                          onClick={() => handleRemoveExtraPayment(payment.id)}
+                  <div className="payment-card">
+                    <div className="card-header">
+                      <span className="card-icon">💵</span>
+                      <span className="card-title">Outros Pagamentos</span>
+                    </div>
+
+                    {extraPayments.length > 0 && (
+                      <div className="extra-payments-list">
+                        {extraPayments.map((payment) => (
+                          <div key={payment.id} className="payment-item-row">
+                            <span className="payment-item-type">
+                              {payment.tipo === 'dinheiro' ? '💵 Dinheiro' :
+                               payment.tipo === 'cartao' ? '💳 Cartão' : '📝 Cheque'}
+                            </span>
+                            <span className="payment-item-value">
+                              {formatCurrency(payment.valor)}
+                            </span>
+                            <button
+                              className="remove-payment-btn"
+                              onClick={() => handleRemoveExtraPayment(payment.id)}
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="add-payment-form">
+                      <select
+                        className="modal-input"
+                        value={newPaymentType}
+                        onChange={(e) => setNewPaymentType(e.target.value as "dinheiro" | "cartao" | "cheque")}
+                      >
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="cartao">Cartão</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                      <div className="payment-input-group">
+                        <input
+                          type="text"
+                          className="modal-input"
+                          placeholder="R$ 0,00"
+                          value={newPaymentValue}
+                          onChange={handleNewValueChange}
+                        />
+                        <button
+                          className="add-payment-btn"
+                          onClick={handleAddExtraPayment}
+                          disabled={!newPaymentValue}
+                          title="Adicionar"
                         >
-                          &times;
+                          +
                         </button>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                )}
+                </>
+              )}
 
-                <div className="add-payment-form">
-                  <select 
-                    className="modal-input"
-                    value={newPaymentType}
-                    onChange={(e) => setNewPaymentType(e.target.value as any)}
-                  >
-                    <option value="dinheiro">Dinheiro</option>
-                    <option value="cartao">Cartão</option>
-                    <option value="cheque">Cheque</option>
-                  </select>
-                  <div className="payment-input-group">
-                    <input
-                      type="text"
-                      className="modal-input"
-                      placeholder="R$ 0,00"
-                      value={newPaymentValue}
-                      onChange={handleNewValueChange}
-                    />
-                    <button 
-                      className="add-payment-btn"
-                      onClick={handleAddExtraPayment}
-                      disabled={!newPaymentValue}
-                      title="Adicionar"
-                    >
-                      +
-                    </button>
+              {pagamentoRemoto && (
+                <div className="payment-card">
+                  <div className="card-header">
+                    <span className="card-icon">🌐</span>
+                    <span className="card-title">Pagamento Remoto</span>
+                  </div>
+                  <div className="payment-item-row">
+                    <span className="payment-item-type">Sinal fixo do remoto</span>
+                    <span className="payment-item-value">{formatCurrency(valorSinalRemotoTotal)}</span>
+                  </div>
+                  <div className="payment-item-row">
+                    <span className="payment-item-type">Parcelamento do sinal</span>
+                    <span className="payment-item-value">3x de {formatCurrency(valorParcelaRemota)}</span>
+                  </div>
+                  <div className="payment-total-row">
+                    <span>Sem Sinal 4</span>
+                    <strong>Dia de vencimento define todas as datas</strong>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* VALOR TOTAL */}
               <div className="payment-total-highlight">
                 <span className="payment-total-label">
                   <span style={{ fontSize: '1.4rem' }}>💰</span>
-                  Valor Total:
+                  {pagamentoRemoto ? 'Sinal Total:' : 'Valor Total:'}
                 </span>
                 <span className="payment-total-value">
                   {formatCurrency(valorTotalPagamento)}
                 </span>
               </div>
 
-              {/* PLANO PADRÃO (apenas para Facilita e apenas quando há pagamento presencial) */}
-              {pagamentoPresencial && tipoVenda === "facilita" && (
+              {pagamentoRemotoInvalido && (
+                <div className="preview-warning">
+                  ⚠️ O pagamento remoto funciona apenas com o tipo de venda Facilita.
+                </div>
+              )}
+
+              {/* PLANO PADRÃO */}
+              {tipoVenda === "facilita" && (
                 <div className="payment-card slide-down">
                   <div className="card-header">
                     <span className="card-icon">📋</span>
@@ -892,6 +1060,12 @@ export function PaymentModal({
 
                   {planosPadrao && (
                     <div className="plano-selection fade-in">
+                      {pagamentoRemoto && planosPadraoOptions.length === 0 && (
+                        <div className="preview-warning">
+                          ⚠️ Nenhum plano compativel com pagamento remoto foi configurado para este empreendimento.
+                        </div>
+                      )}
+
                       <div className="plano-options">
                         {planosPadraoOptions.map((plano) => (
                           <label 
@@ -948,7 +1122,7 @@ export function PaymentModal({
 
                             {valorTotalPagamento <= 0 && (
                               <div className="preview-warning">
-                                ⚠️ Adicione pagamentos para gerar a prévia
+                                ⚠️ {pagamentoRemoto ? 'Selecione o plano para gerar a previa do remoto' : 'Adicione pagamentos para gerar a previa'}
                               </div>
                             )}
 
@@ -957,10 +1131,10 @@ export function PaymentModal({
                                 <div className="preview-row">
                                   <span className="preview-item-icon">1️⃣</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 1 (PIX)</span>
+                                    <span className="preview-item-label">{pagamentoRemoto ? 'Sinal 1' : 'Sinal 1 (PIX)'}</span>
                                     <span className="preview-item-date">{plano1Preview.vencSinal1}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(valorTotalPagamento)}</span>
+                                  <span className="preview-item-value">{formatCurrency(pagamentoRemoto ? plano1Preview.valorSinal1 : valorTotalPagamento)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">2️⃣</span>
@@ -978,14 +1152,16 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal3)}</span>
                                 </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">4️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 4</span>
-                                    <span className="preview-item-date">{plano1Preview.vencSinal4}</span>
+                                {!pagamentoRemoto && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">4️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 4</span>
+                                      <span className="preview-item-date">{plano1Preview.vencSinal4}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal4)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano1Preview.valorSinal4)}</span>
-                                </div>
+                                )}
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
@@ -1002,10 +1178,10 @@ export function PaymentModal({
                                 <div className="preview-row">
                                   <span className="preview-item-icon">1️⃣</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 1 (PIX)</span>
+                                    <span className="preview-item-label">{pagamentoRemoto ? 'Sinal 1' : 'Sinal 1 (PIX)'}</span>
                                     <span className="preview-item-date">{plano2Preview.vencSinal1}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(valorTotalPagamento)}</span>
+                                  <span className="preview-item-value">{formatCurrency(pagamentoRemoto ? plano2Preview.valorSinal1 : valorTotalPagamento)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">2️⃣</span>
@@ -1023,14 +1199,16 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal3)}</span>
                                 </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">4️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 4</span>
-                                    <span className="preview-item-date">{plano2Preview.vencSinal4}</span>
+                                {!pagamentoRemoto && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">4️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 4</span>
+                                      <span className="preview-item-date">{plano2Preview.vencSinal4}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal4)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano2Preview.valorSinal4)}</span>
-                                </div>
+                                )}
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
@@ -1047,10 +1225,10 @@ export function PaymentModal({
                                 <div className="preview-row">
                                   <span className="preview-item-icon">1️⃣</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 1 (PIX)</span>
+                                    <span className="preview-item-label">{pagamentoRemoto ? 'Sinal 1' : 'Sinal 1 (PIX)'}</span>
                                     <span className="preview-item-date">{plano3Preview.vencSinal1}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(valorTotalPagamento)}</span>
+                                  <span className="preview-item-value">{formatCurrency(pagamentoRemoto ? plano3Preview.valorSinal1 : valorTotalPagamento)}</span>
                                 </div>
                                 <div className="preview-row">
                                   <span className="preview-item-icon">2️⃣</span>
@@ -1068,14 +1246,16 @@ export function PaymentModal({
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal3)}</span>
                                 </div>
-                                <div className="preview-row">
-                                  <span className="preview-item-icon">4️⃣</span>
-                                  <div className="preview-item-info">
-                                    <span className="preview-item-label">Sinal 4</span>
-                                    <span className="preview-item-date">{plano3Preview.vencSinal4}</span>
+                                {!pagamentoRemoto && (
+                                  <div className="preview-row">
+                                    <span className="preview-item-icon">4️⃣</span>
+                                    <div className="preview-item-info">
+                                      <span className="preview-item-label">Sinal 4</span>
+                                      <span className="preview-item-date">{plano3Preview.vencSinal4}</span>
+                                    </div>
+                                    <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal4)}</span>
                                   </div>
-                                  <span className="preview-item-value">{formatCurrency(plano3Preview.valorSinal4)}</span>
-                                </div>
+                                )}
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
@@ -1211,10 +1391,25 @@ export function PaymentModal({
                   )}
                 </div>
               )}
+
+              <div className="payment-card slide-down">
+                <div className="card-header">
+                  <span className="card-icon">📝</span>
+                  <span className="card-title">Observacao</span>
+                </div>
+                <textarea
+                  className="modal-input"
+                  rows={3}
+                  placeholder="Observacao opcional sobre este pagamento"
+                  value={observacao}
+                  onChange={(e) => setObservacao(e.target.value)}
+                  style={{ resize: 'vertical', minHeight: '88px' }}
+                />
+              </div>
             </div>
           )}
 
-          {!pagamentoPresencial && (
+          {!pagamentoPresencial && !pagamentoRemoto && (
             <div className="no-payment-card fade-in">
               <div className="no-payment-icon">✓</div>
               <p className="no-payment-text">Sem pagamento presencial necessário</p>

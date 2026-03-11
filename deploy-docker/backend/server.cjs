@@ -4084,6 +4084,7 @@ app.post("/api/change-unit", verifyToken, async (req, res) => {
                     tipo_venda: oldPag.tipo_venda || oldPag.tipoVenda || null,
                     plano_padrao: oldPag.plano_padrao || oldPag.planoPadrao || null,
                     dia_vencimento: oldPag.dia_vencimento || oldPag.diaVencimento || null,
+                    observacao: oldPag.observacao || null,
                     status: 'pendente',
                     created_at: new Date().toISOString()
                   }).select().single();
@@ -5619,10 +5620,11 @@ app.post("/api/add-payment", verifyToken, async (req, res) => {
       valor_dinheiro: pagamento.valorDinheiro,
       valor_cartao: pagamento.valorCartao,
       valor_cheque: pagamento.valorCheque,
-      tipo_pagamento: "presencial",
+      tipo_pagamento: pagamento.tipoPagamento || (pagamento.pagamentoPresencial ? "presencial" : null),
       tipo_venda: pagamento.tipoVenda,
       plano_padrao: pagamento.planoSelecionado,
       dia_vencimento: pagamento.diaVencimento,
+      observacao: pagamento.observacao || null,
       status: "pendente",
       created_at: new Date().toISOString()
     }).select().single();

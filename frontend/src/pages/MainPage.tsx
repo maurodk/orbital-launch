@@ -1837,6 +1837,8 @@ export function MainPage() {
         idPreCadastro: idPreCadastro,
         pagamento: {
           pagamentoPresencial: paymentData.pagamentoPresencial,
+          pagamentoRemoto: paymentData.pagamentoRemoto,
+          tipoPagamento: paymentData.tipoPagamento,
           valorTotal: paymentData.valorTotal,
           valorPix: paymentData.valorPix,
           valorDinheiro: paymentData.valorDinheiro,
@@ -1846,6 +1848,7 @@ export function MainPage() {
           planoSelecionado: paymentData.planoSelecionado,
           diaVencimento: paymentData.diaVencimento,
           valorUnidade: paymentData.valorUnidade,
+          observacao: paymentData.observacao,
         },
       };
 
