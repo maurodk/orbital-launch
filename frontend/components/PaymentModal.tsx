@@ -89,7 +89,8 @@ export function PaymentModal({
     { id: "plano3", label: "10% + 100x + 04 Intermediárias (8,5%)" },
     { id: "plano4", label: "À vista" },
     { id: "plano5", label: "À vista em 3x" },
-    { id: "plano6", label: "36x mensais" },
+    { id: "plano6", label: "36x parcelamento incorporadora" },
+    { id: "plano7", label: "24x mensais" },
   ];
 
   // Filtrar planos com base na configuração do empreendimento
@@ -100,9 +101,9 @@ export function PaymentModal({
     ? allPlanosPadraoOptions.filter((p) => planosConfig!.planos.includes(p.id))
     : allPlanosPadraoOptions;
   const planosPadraoOptions = pagamentoRemoto
-    ? planosBase.filter((p) => ["plano1", "plano2", "plano3", "plano6"].includes(p.id))
+    ? planosBase.filter((p) => ["plano1", "plano2", "plano3", "plano6", "plano7"].includes(p.id))
     : planosBase;
-  const planoSemEntrada = tipoVenda === "facilita" && planosPadrao && planoSelecionado === "plano6";
+  const planoSemEntrada = tipoVenda === "facilita" && planosPadrao && ["plano6", "plano7"].includes(planoSelecionado || "");
 
   // Cálculos de totais
   const totalPix = useMemo(() => pixPagos.reduce((acc, curr) => acc + Number(curr.valor), 0), [pixPagos]);
@@ -344,6 +345,11 @@ export function PaymentModal({
     tipoVenda === "facilita" &&
     planosPadrao &&
     planoSelecionado === "plano6";
+
+  const exibirVencimentosPlano7 =
+    tipoVenda === "facilita" &&
+    planosPadrao &&
+    planoSelecionado === "plano7";
 
   const formatarData = (d: Date) => {
     const dd = String(d.getDate()).padStart(2, "0");
@@ -720,6 +726,25 @@ export function PaymentModal({
     };
   })();
 
+  const plano7Preview = (() => {
+    if (!exibirVencimentosPlano7) return null;
+    if (!valorUnidade) return null;
+
+    const hoje = new Date();
+    const vencPrimeiraMensal = mesSeguinteNoDia(hoje, diaVencimento);
+    let valorParcela24 = Math.round((valorUnidade / 24) * 100) / 100;
+
+    const diferenca = Math.round((valorUnidade - (valorParcela24 * 24)) * 100) / 100;
+    if (diferenca !== 0) {
+      valorParcela24 = Math.round((valorParcela24 + (diferenca / 24)) * 100) / 100;
+    }
+
+    return {
+      vencPrimeiraMensal: formatarData(vencPrimeiraMensal),
+      valorParcela24,
+    };
+  })();
+
   return (
     <div className="modal-overlay reservation-modal-overlay" onClick={onClose}>
       <style>{`
@@ -1053,7 +1078,7 @@ export function PaymentModal({
                 <div className="payment-card">
                   <div className="card-header">
                     <span className="card-icon">🗓️</span>
-                    <span className="card-title">Plano 36x Mensais</span>
+                    <span className="card-title">{planoSelecionado === "plano6" ? "Plano 36x Incorporadora" : "Plano 24x Mensais"}</span>
                   </div>
                   <div className="payment-item-row">
                     <span className="payment-item-type">Entrada / sinal</span>
@@ -1061,7 +1086,7 @@ export function PaymentModal({
                   </div>
                   <div className="payment-total-row">
                     <span>Parcelamento integral</span>
-                    <strong>36 mensais a partir do dia escolhido</strong>
+                    <strong>{planoSelecionado === "plano6" ? "36 parcelas incorporadora" : "24 parcelas mensais"} a partir do dia escolhido</strong>
                   </div>
                 </div>
               )}
@@ -1130,7 +1155,7 @@ export function PaymentModal({
                         ))}
                       </div>
 
-                      {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3" || planoSelecionado === "plano4" || planoSelecionado === "plano5" || planoSelecionado === "plano6") && (
+                      {(planoSelecionado === "plano1" || planoSelecionado === "plano2" || planoSelecionado === "plano3" || planoSelecionado === "plano4" || planoSelecionado === "plano5" || planoSelecionado === "plano6" || planoSelecionado === "plano7") && (
                         <div className="plano-config fade-in">
                           <div className="config-row">
                             <span className="config-label">Dia de Vencimento:</span>
@@ -1165,7 +1190,7 @@ export function PaymentModal({
                               )}
                             </div>
 
-                            {valorTotalPagamento <= 0 && !plano6Preview && (
+                            {valorTotalPagamento <= 0 && !plano6Preview && !plano7Preview && (
                               <div className="preview-warning">
                                 ⚠️ {pagamentoRemoto ? 'Selecione o plano para gerar a previa do remoto' : 'Adicione pagamentos para gerar a previa'}
                               </div>
@@ -1453,10 +1478,23 @@ export function PaymentModal({
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">36 Parcelas Mensais</span>
+                                    <span className="preview-item-label">36 Parcelas Incorporadora</span>
                                     <span className="preview-item-date">A partir de {plano6Preview.vencPrimeiraMensal}</span>
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano6Preview.valorParcela36)}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {plano7Preview && (
+                              <div className="preview-grid">
+                                <div className="preview-row highlight">
+                                  <span className="preview-item-icon">📅</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">24 Parcelas Mensais</span>
+                                    <span className="preview-item-date">A partir de {plano7Preview.vencPrimeiraMensal}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano7Preview.valorParcela24)}</span>
                                 </div>
                               </div>
                             )}

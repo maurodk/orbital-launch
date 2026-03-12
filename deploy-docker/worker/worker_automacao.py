@@ -326,6 +326,12 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                     elif not adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
                         logger.error("Falha CRÍTICA ao adicionar séries do plano 6 - Abortando processamento")
                         raise Exception("Falha ao configurar séries de pagamento do Plano 6")
+                elif plano_selecionado == "plano7":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 7")
+                    elif not adicionar_series_plano7(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
+                        logger.error("Falha CRÍTICA ao adicionar séries do plano 7 - Abortando processamento")
+                        raise Exception("Falha ao configurar séries de pagamento do Plano 7")
                 elif tipo_pagamento == "remoto":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular pagamento remoto")
@@ -888,6 +894,10 @@ def editar_primeira_serie_para_mensal(driver: webdriver.Chrome, quantidade_parce
     return editar_primeira_serie(driver, "Mensal", quantidade_parcelas, valor_parcela, data_vencimento)
 
 
+def editar_primeira_serie_para_parcelamento_incorporadora(driver: webdriver.Chrome, quantidade_parcelas: int, valor_parcela: float, data_vencimento: str) -> bool:
+    return editar_primeira_serie(driver, "PARCELAMENTO INCORPORADORA", quantidade_parcelas, valor_parcela, data_vencimento)
+
+
 def proximo_vencimento_no_dia(ref: datetime, dia: int) -> datetime:
     import calendar
 
@@ -1007,6 +1017,9 @@ def adicionar_series_pagamento_remoto(driver: webdriver.Chrome, plano_selecionad
         if plano_selecionado == "plano6":
             return adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento)
 
+        if plano_selecionado == "plano7":
+            return adicionar_series_plano7(driver, valor_unidade_total, dia_vencimento=dia_vencimento)
+
         logger.error(f"Plano remoto nao suportado: {plano_selecionado}")
         return False
     except Exception as e:
@@ -1027,10 +1040,30 @@ def adicionar_series_plano6(driver: webdriver.Chrome, valor_unidade_total: float
         if diferenca != 0:
             valor_parcela = round(valor_parcela + (diferenca / 36.0), 2)
 
-        logger.info(f"[Plano6] Editando série mensal: 36x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
-        return editar_primeira_serie_para_mensal(driver, 36, valor_parcela, data_primeira_mensal.strftime("%d/%m/%Y"))
+        logger.info(f"[Plano6] Editando série PARCELAMENTO INCORPORADORA: 36x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
+        return editar_primeira_serie_para_parcelamento_incorporadora(driver, 36, valor_parcela, data_primeira_mensal.strftime("%d/%m/%Y"))
     except Exception as e:
         logger.error(f"Erro ao adicionar séries do Plano 6: {e}")
+        return False
+
+
+def adicionar_series_plano7(driver: webdriver.Chrome, valor_unidade_total: float, dia_vencimento: int = 15) -> bool:
+    try:
+        if dia_vencimento not in (5, 15, 25):
+            logger.warning(f"dia_vencimento inválido ({dia_vencimento}); usando 15")
+            dia_vencimento = 15
+
+        hoje = datetime.now()
+        data_primeira_mensal = proximo_mes_no_dia(hoje, dia_vencimento)
+        valor_parcela = round(valor_unidade_total / 24.0, 2)
+        diferenca = round(valor_unidade_total - (valor_parcela * 24), 2)
+        if diferenca != 0:
+            valor_parcela = round(valor_parcela + (diferenca / 24.0), 2)
+
+        logger.info(f"[Plano7] Editando série Mensal: 24x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
+        return editar_primeira_serie_para_mensal(driver, 24, valor_parcela, data_primeira_mensal.strftime("%d/%m/%Y"))
+    except Exception as e:
+        logger.error(f"Erro ao adicionar séries do Plano 7: {e}")
         return False
 
 
@@ -1544,7 +1577,7 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
             "valor": dados_reserva.get("valor"),
             "tipo_pagamento": dados_reserva.get("tipo_pagamento"),
             # Valor do PIX/Sinal 1 explícito quando a reserva veio com pagamento presencial
-            "valor_pix": 0.0 if dados_reserva.get("plano_padrao") == "plano6" else (3000.0 if dados_reserva.get("tipo_pagamento") == "remoto" else (dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None)),
+            "valor_pix": 0.0 if dados_reserva.get("plano_padrao") in ("plano6", "plano7") else (3000.0 if dados_reserva.get("tipo_pagamento") == "remoto" else (dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None)),
             # Extras (dinheiro/cartão/cheque) para cascata de sinais
             "valor_extra": dados_reserva.get("valor_extra", 0.0),
             "observacao": dados_reserva.get("observacao"),

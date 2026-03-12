@@ -77,7 +77,8 @@ const PLANOS_PADRAO_OPTIONS = [
   { id: "plano3", label: "10% + 100x + 04 Intermediárias (8,5%)" },
   { id: "plano4", label: "À vista" },
   { id: "plano5", label: "À vista em 3x" },
-  { id: "plano6", label: "36x mensais" },
+  { id: "plano6", label: "36x parcelamento incorporadora" },
+  { id: "plano7", label: "24x mensais" },
 ];
 
 type TabType = "edit" | "import" | "planos";
