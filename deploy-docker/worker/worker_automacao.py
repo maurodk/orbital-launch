@@ -320,19 +320,18 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
             if not adicionar_series:
                 logger.info("Pagamento não presencial detectado — pulando adição de séries")
             else:
-                if tipo_pagamento == "remoto":
-                    if valor_unidade_total is None:
-                        logger.warning("Valor total da unidade não disponível; não é possível calcular pagamento remoto")
-                    elif not adicionar_series_pagamento_remoto(driver, plano_selecionado, valor_unidade_total, dia_vencimento=dia_vencimento):
-                        logger.error("Falha CRÍTICA ao adicionar séries do pagamento remoto - Abortando processamento")
-                        raise Exception("Falha ao configurar séries de pagamento remoto")
-                # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
-                elif plano_selecionado == "plano6":
+                if plano_selecionado == "plano6":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 6")
                     elif not adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
                         logger.error("Falha CRÍTICA ao adicionar séries do plano 6 - Abortando processamento")
                         raise Exception("Falha ao configurar séries de pagamento do Plano 6")
+                elif tipo_pagamento == "remoto":
+                    if valor_unidade_total is None:
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular pagamento remoto")
+                    elif not adicionar_series_pagamento_remoto(driver, plano_selecionado, valor_unidade_total, dia_vencimento=dia_vencimento):
+                        logger.error("Falha CRÍTICA ao adicionar séries do pagamento remoto - Abortando processamento")
+                        raise Exception("Falha ao configurar séries de pagamento remoto")
                 elif plano_selecionado == "plano2":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 2 corretamente")
@@ -361,12 +360,6 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                         if not adicionar_series_plano5(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
                             logger.error("Falha CRÍTICA ao adicionar séries do plano 5 - Abortando processamento")
                             raise Exception("Falha ao configurar séries de pagamento do Plano 5")
-                elif plano_selecionado == "plano6":
-                    if valor_unidade_total is None:
-                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 6")
-                    elif not adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
-                        logger.error("Falha CRÍTICA ao adicionar séries do plano 6 - Abortando processamento")
-                        raise Exception("Falha ao configurar séries de pagamento do Plano 6")
             # Outros planos serão implementados depois
             
         except Exception as e:
