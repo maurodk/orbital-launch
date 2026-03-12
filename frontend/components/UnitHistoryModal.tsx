@@ -23,24 +23,35 @@ export function UnitHistoryModal({
   const [fetchedHistory, setFetchedHistory] = useState<string[][]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  const normalizeValue = (value: string | null | undefined) =>
+    (value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadUnitHistory() {
-      if (!show || !unitName || !implantacaoId) {
+      if (!show || !unitName) {
         setFetchedHistory([]);
         return;
       }
 
       setIsLoadingHistory(true);
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from("historico")
-          .select("id, data_formatada, timestamp_iso, unidade_nome, acao, cliente, corretor, usuario, reserva_url")
-          .eq("implantacao_id", implantacaoId)
-          .or(`unidade_nome.eq.${unitName},unidade_nome.like.%${unitName}%`)
+          .select("id, data_formatada, timestamp_iso, unidade_nome, acao, cliente, corretor, usuario, reserva_url, implantacao_id")
           .order("timestamp_iso", { ascending: false })
-          .limit(300);
+          .limit(500);
+
+        if (implantacaoId !== null && implantacaoId !== undefined) {
+          query = query.or(`implantacao_id.eq.${implantacaoId},implantacao_id.is.null`);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           console.error("Erro ao carregar histórico da unidade:", error);
@@ -49,17 +60,26 @@ export function UnitHistoryModal({
         }
 
         if (!cancelled) {
+          const normalizedUnitName = normalizeValue(unitName);
           setFetchedHistory(
-            (data || []).map((item) => [
-              String(item.id),
-              item.data_formatada || new Date(item.timestamp_iso).toLocaleString("pt-BR"),
-              item.unidade_nome || "",
-              item.acao || "",
-              item.cliente || "",
-              item.corretor || "",
-              item.usuario || "",
-              item.reserva_url || "",
-            ])
+            (data || [])
+              .filter((item) => {
+                const normalizedHistoryUnit = normalizeValue(item.unidade_nome);
+                return (
+                  normalizedHistoryUnit === normalizedUnitName ||
+                  normalizedHistoryUnit.includes(normalizedUnitName)
+                );
+              })
+              .map((item) => [
+                String(item.id),
+                item.data_formatada || new Date(item.timestamp_iso).toLocaleString("pt-BR"),
+                item.unidade_nome || "",
+                item.acao || "",
+                item.cliente || "",
+                item.corretor || "",
+                item.usuario || "",
+                item.reserva_url || "",
+              ])
           );
         }
       } finally {
@@ -76,11 +96,15 @@ export function UnitHistoryModal({
   // Filtra o histórico para mostrar apenas as entradas da unidade selecionada
   const historyForUnit = useMemo(() => {
     if (!unitName) return [];
-    const sourceHistory = fetchedHistory.length > 0 ? fetchedHistory : fullHistory;
+    const sourceHistory = [...fetchedHistory, ...fullHistory].filter(
+      (entry, index, entries) => entries.findIndex((item) => item[0] === entry[0]) === index
+    );
+    const normalizedUnitName = normalizeValue(unitName);
     // A unidade no histórico pode vir como "Unidade X -> Unidade Y" (em caso de troca)
     // Então verificamos se a string contém o nome da unidade para exibir em ambas
     const unitHistory = sourceHistory.filter((entry) => 
-      entry[2] === unitName || (entry[2] && entry[2].includes(unitName))
+      normalizeValue(entry[2]) === normalizedUnitName ||
+      normalizeValue(entry[2]).includes(normalizedUnitName)
     );
     if (!searchTerm.trim()) {
       return unitHistory;
