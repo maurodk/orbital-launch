@@ -293,7 +293,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
 
             if "valor_pix" in dados_pagamento and dados_pagamento.get("valor_pix") is not None:
                 valor_pix = float(dados_pagamento.get("valor_pix"))
-            elif tipo_pagamento == "remoto":
+            elif tipo_pagamento == "remoto" and plano_selecionado != "plano6":
                 valor_pix = 3000.0
             elif dados_pagamento.get("tipo_pagamento") and dados_pagamento.get("valor") is not None:
                 # 'valor' com tipo_pagamento → provavelmente PIX/Sinal 1
@@ -329,12 +329,10 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                 # Adicionar séries baseado no plano (tipo de venda será selecionado depois)
                 elif plano_selecionado == "plano6":
                     if valor_unidade_total is None:
-                        logger.info("Plano 6 remoto usara o mesmo fluxo mensal sem entrada")
+                        logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 6")
                     elif not adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
-                        setattr(adicionar_series_plano1, "plano2", False)
-                        if not adicionar_series_plano1(driver, valor_unidade_total, valor_pix, dia_vencimento=dia_vencimento, valor_extra=valor_extra):
-                            logger.error("Falha CRÍTICA ao adicionar séries do plano 1 - Abortando processamento")
-                            raise Exception("Falha ao configurar séries de pagamento do Plano 1")
+                        logger.error("Falha CRÍTICA ao adicionar séries do plano 6 - Abortando processamento")
+                        raise Exception("Falha ao configurar séries de pagamento do Plano 6")
                 elif plano_selecionado == "plano2":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 2 corretamente")
@@ -366,7 +364,7 @@ def preencher_formulario_final(driver: webdriver.Chrome, dados_pagamento: Dict =
                 elif plano_selecionado == "plano6":
                     if valor_unidade_total is None:
                         logger.warning("Valor total da unidade não disponível; não é possível calcular Plano 6")
-                    elif not adicionar_series_plano6(driver, valor_unidade_total):
+                    elif not adicionar_series_plano6(driver, valor_unidade_total, dia_vencimento=dia_vencimento):
                         logger.error("Falha CRÍTICA ao adicionar séries do plano 6 - Abortando processamento")
                         raise Exception("Falha ao configurar séries de pagamento do Plano 6")
             # Outros planos serão implementados depois
@@ -1553,7 +1551,7 @@ def processar_precadastro(driver: webdriver.Chrome, dados_reserva: Dict) -> Dict
             "valor": dados_reserva.get("valor"),
             "tipo_pagamento": dados_reserva.get("tipo_pagamento"),
             # Valor do PIX/Sinal 1 explícito quando a reserva veio com pagamento presencial
-            "valor_pix": 3000.0 if dados_reserva.get("tipo_pagamento") == "remoto" else (dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None),
+            "valor_pix": 0.0 if dados_reserva.get("plano_padrao") == "plano6" else (3000.0 if dados_reserva.get("tipo_pagamento") == "remoto" else (dados_reserva.get("valor") if dados_reserva.get("tipo_pagamento") else None)),
             # Extras (dinheiro/cartão/cheque) para cascata de sinais
             "valor_extra": dados_reserva.get("valor_extra", 0.0),
             "observacao": dados_reserva.get("observacao"),

@@ -102,13 +102,14 @@ export function PaymentModal({
   const planosPadraoOptions = pagamentoRemoto
     ? planosBase.filter((p) => ["plano1", "plano2", "plano3", "plano6"].includes(p.id))
     : planosBase;
+  const planoSemEntrada = tipoVenda === "facilita" && planosPadrao && planoSelecionado === "plano6";
 
   // Cálculos de totais
   const totalPix = useMemo(() => pixPagos.reduce((acc, curr) => acc + Number(curr.valor), 0), [pixPagos]);
   const totalExtra = useMemo(() => extraPayments.reduce((acc, curr) => acc + curr.valor, 0), [extraPayments]);
   const valorSinalRemotoTotal = 3000;
   const valorParcelaRemota = 1000;
-  const valorTotalPagamento = pagamentoRemoto ? valorSinalRemotoTotal : totalPix + totalExtra;
+  const valorTotalPagamento = planoSemEntrada ? 0 : (pagamentoRemoto ? valorSinalRemotoTotal : totalPix + totalExtra);
 
   // Totais individuais para envio
   const totalDinheiro = useMemo(() => extraPayments.filter(p => p.tipo === 'dinheiro').reduce((acc, curr) => acc + curr.valor, 0), [extraPayments]);
@@ -159,10 +160,10 @@ export function PaymentModal({
         pagamentoRemoto,
         tipoPagamento: tipoPagamentoSelecionado,
         valorTotal: valorTotalPagamento,
-        valorPix: pagamentoPresencial ? totalPix : 0,
-        valorDinheiro: pagamentoPresencial ? totalDinheiro : 0,
-        valorCartao: pagamentoPresencial ? totalCartao : 0,
-        valorCheque: pagamentoPresencial ? totalCheque : 0,
+        valorPix: pagamentoPresencial && !planoSemEntrada ? totalPix : 0,
+        valorDinheiro: pagamentoPresencial && !planoSemEntrada ? totalDinheiro : 0,
+        valorCartao: pagamentoPresencial && !planoSemEntrada ? totalCartao : 0,
+        valorCheque: pagamentoPresencial && !planoSemEntrada ? totalCheque : 0,
         tipoVenda,
         planosPadrao,
         planoSelecionado,
@@ -306,7 +307,6 @@ export function PaymentModal({
   };
 
   const pagamentoRemotoInvalido = pagamentoRemoto && tipoVenda !== "facilita";
-  const planoSemEntrada = tipoVenda === "facilita" && planosPadrao && planoSelecionado === "plano6";
   const paymentConfirmDisabled = pagamentoPresencial
     ? ((!planoSemEntrada && valorTotalPagamento <= 0) || !tipoVenda || (tipoVenda === "facilita" && planosPadrao && !planoSelecionado))
     : pagamentoRemoto
@@ -1028,7 +1028,7 @@ export function PaymentModal({
                 </>
               )}
 
-              {pagamentoRemoto && (
+              {pagamentoRemoto && !planoSemEntrada && (
                 <div className="payment-card">
                   <div className="card-header">
                     <span className="card-icon">🌐</span>
@@ -1049,11 +1049,28 @@ export function PaymentModal({
                 </div>
               )}
 
+              {planoSemEntrada && (
+                <div className="payment-card">
+                  <div className="card-header">
+                    <span className="card-icon">🗓️</span>
+                    <span className="card-title">Plano 36x Mensais</span>
+                  </div>
+                  <div className="payment-item-row">
+                    <span className="payment-item-type">Entrada / sinal</span>
+                    <span className="payment-item-value">Sem sinal</span>
+                  </div>
+                  <div className="payment-total-row">
+                    <span>Parcelamento integral</span>
+                    <strong>36 mensais a partir do dia escolhido</strong>
+                  </div>
+                </div>
+              )}
+
               {/* VALOR TOTAL */}
               <div className="payment-total-highlight">
                 <span className="payment-total-label">
                   <span style={{ fontSize: '1.4rem' }}>💰</span>
-                  {pagamentoRemoto ? 'Sinal Total:' : 'Valor Total:'}
+                  {planoSemEntrada ? 'Entrada:' : (pagamentoRemoto ? 'Sinal Total:' : 'Valor Total:')}
                 </span>
                 <span className="payment-total-value">
                   {formatCurrency(valorTotalPagamento)}
