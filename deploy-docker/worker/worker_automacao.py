@@ -9,7 +9,7 @@ import logging
 import os
 import json
 import redis
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback
 from typing import Dict, List, Optional
 import calendar
@@ -1034,7 +1034,7 @@ def adicionar_series_plano6(driver: webdriver.Chrome, valor_unidade_total: float
             dia_vencimento = 15
 
         hoje = datetime.now()
-        data_sinal = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_sinal = hoje + timedelta(days=7)
         data_primeira_mensal = proximo_mes_no_dia(data_sinal, dia_vencimento)
         valor_parcela = round(valor_unidade_total / 36.0, 2)
         diferenca = round(valor_unidade_total - (valor_parcela * 36), 2)
@@ -1066,7 +1066,7 @@ def adicionar_series_plano7(driver: webdriver.Chrome, valor_unidade_total: float
             dia_vencimento = 15
 
         hoje = datetime.now()
-        data_sinal = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_sinal = hoje + timedelta(days=7)
         data_primeira_mensal = proximo_mes_no_dia(data_sinal, dia_vencimento)
         valor_parcela = round(valor_unidade_total / 24.0, 2)
         diferenca = round(valor_unidade_total - (valor_parcela * 24), 2)

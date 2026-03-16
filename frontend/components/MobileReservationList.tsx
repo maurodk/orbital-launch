@@ -6,7 +6,6 @@ import {
   FiSearch,
   FiLock,
   FiUnlock,
-  FiPrinter,
   FiClock,
   FiUserPlus,
   FiChevronDown,
@@ -43,7 +42,6 @@ export function MobileReservationList({
   onChangeUnitClick,
   onBlockClick,
   onHistoryClick,
-  onPrintClick,
   onPixClick,
   onPaymentClick,
   searchTerm,
@@ -391,16 +389,6 @@ export function MobileReservationList({
                           >
                             <FiRefreshCw size={14} />
                             Gerenciar
-                          </button>
-                          <button
-                            className="mobile-action-btn print"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onPrintClick(rowIndex);
-                            }}
-                            title="Imprimir"
-                          >
-                            <FiPrinter />
                           </button>
                           <button
                             className="mobile-action-btn pix"

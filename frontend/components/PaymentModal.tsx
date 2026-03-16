@@ -712,7 +712,8 @@ export function PaymentModal({
     if (!valorUnidade) return null;
 
     const hoje = new Date();
-    const vencPrimeiraMensal = mesSeguinteNoDia(hoje, diaVencimento);
+    const vencSinal1 = adicionarDias(hoje, 7);
+    const vencPrimeiraMensal = mesSeguinteNoDia(vencSinal1, diaVencimento);
     let valorParcela36 = Math.round((valorUnidade / 36) * 100) / 100;
 
     const diferenca = Math.round((valorUnidade - (valorParcela36 * 36)) * 100) / 100;
@@ -721,6 +722,7 @@ export function PaymentModal({
     }
 
     return {
+      vencSinal1: formatarData(vencSinal1),
       vencPrimeiraMensal: formatarData(vencPrimeiraMensal),
       valorParcela36,
     };
@@ -731,7 +733,8 @@ export function PaymentModal({
     if (!valorUnidade) return null;
 
     const hoje = new Date();
-    const vencPrimeiraMensal = mesSeguinteNoDia(hoje, diaVencimento);
+    const vencSinal1 = adicionarDias(hoje, 7);
+    const vencPrimeiraMensal = mesSeguinteNoDia(vencSinal1, diaVencimento);
     let valorParcela24 = Math.round((valorUnidade / 24) * 100) / 100;
 
     const diferenca = Math.round((valorUnidade - (valorParcela24 * 24)) * 100) / 100;
@@ -740,6 +743,7 @@ export function PaymentModal({
     }
 
     return {
+      vencSinal1: formatarData(vencSinal1),
       vencPrimeiraMensal: formatarData(vencPrimeiraMensal),
       valorParcela24,
     };
@@ -1081,12 +1085,12 @@ export function PaymentModal({
                     <span className="card-title">{planoSelecionado === "plano6" ? "Plano 36x Incorporadora" : "Plano 24x Mensais"}</span>
                   </div>
                   <div className="payment-item-row">
-                    <span className="payment-item-type">Entrada / sinal</span>
-                    <span className="payment-item-value">Sem sinal</span>
+                    <span className="payment-item-type">Sinal 1</span>
+                    <span className="payment-item-value">1x no valor da parcela em 7 dias</span>
                   </div>
                   <div className="payment-total-row">
                     <span>Parcelamento integral</span>
-                    <strong>{planoSelecionado === "plano6" ? "36 parcelas incorporadora" : "24 parcelas mensais"} a partir do dia escolhido</strong>
+                    <strong>{planoSelecionado === "plano6" ? "35 parcelas incorporadora" : "23 parcelas mensais"} no mês seguinte ao sinal</strong>
                   </div>
                 </div>
               )}
@@ -1475,10 +1479,18 @@ export function PaymentModal({
 
                             {plano6Preview && (
                               <div className="preview-grid">
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">1️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 1</span>
+                                    <span className="preview-item-date">{plano6Preview.vencSinal1}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano6Preview.valorParcela36)}</span>
+                                </div>
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">36 Parcelas Incorporadora</span>
+                                    <span className="preview-item-label">35 Parcelas Incorporadora</span>
                                     <span className="preview-item-date">A partir de {plano6Preview.vencPrimeiraMensal}</span>
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano6Preview.valorParcela36)}</span>
@@ -1488,10 +1500,18 @@ export function PaymentModal({
 
                             {plano7Preview && (
                               <div className="preview-grid">
+                                <div className="preview-row">
+                                  <span className="preview-item-icon">1️⃣</span>
+                                  <div className="preview-item-info">
+                                    <span className="preview-item-label">Sinal 1</span>
+                                    <span className="preview-item-date">{plano7Preview.vencSinal1}</span>
+                                  </div>
+                                  <span className="preview-item-value">{formatCurrency(plano7Preview.valorParcela24)}</span>
+                                </div>
                                 <div className="preview-row highlight">
                                   <span className="preview-item-icon">📅</span>
                                   <div className="preview-item-info">
-                                    <span className="preview-item-label">24 Parcelas Mensais</span>
+                                    <span className="preview-item-label">23 Parcelas Mensais</span>
                                     <span className="preview-item-date">A partir de {plano7Preview.vencPrimeiraMensal}</span>
                                   </div>
                                   <span className="preview-item-value">{formatCurrency(plano7Preview.valorParcela24)}</span>

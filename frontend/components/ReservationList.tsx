@@ -6,7 +6,6 @@ import {
   FiSearch,
   FiLock,
   FiUnlock,
-  FiPrinter,
   FiClock,
   FiUserPlus,
   FiEdit,
@@ -45,7 +44,6 @@ export function ReservationList({
   onChangeUnitClick, // <-- NOVO
   onBlockClick,
   onHistoryClick,
-  onPrintClick,
   onPixClick,
   onPaymentClick,
   searchTerm,
@@ -367,13 +365,6 @@ export function ReservationList({
                               >
                                 <FiEdit size={16} className="button-icon" />
                                 <span className="button-text">Gerenciar</span>
-                              </button>
-                              <button
-                                className="print-button-in-table"
-                                title="Imprimir Termo de Reserva"
-                                onClick={() => onPrintClick(originalIndex)}
-                              >
-                                <FiPrinter size={16} />
                               </button>
                               {paymentStatus !== "PAGO" && (
                                 <button
