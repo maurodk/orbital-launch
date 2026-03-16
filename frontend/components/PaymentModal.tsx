@@ -712,7 +712,7 @@ export function PaymentModal({
     if (!valorUnidade) return null;
 
     const hoje = new Date();
-    const vencSinal1 = adicionarDias(hoje, 7);
+    const vencSinal1 = addDias(hoje, 7);
     const vencPrimeiraMensal = mesSeguinteNoDia(vencSinal1, diaVencimento);
     let valorParcela36 = Math.round((valorUnidade / 36) * 100) / 100;
 
@@ -733,7 +733,7 @@ export function PaymentModal({
     if (!valorUnidade) return null;
 
     const hoje = new Date();
-    const vencSinal1 = adicionarDias(hoje, 7);
+    const vencSinal1 = addDias(hoje, 7);
     const vencPrimeiraMensal = mesSeguinteNoDia(vencSinal1, diaVencimento);
     let valorParcela24 = Math.round((valorUnidade / 24) * 100) / 100;
 

@@ -1,10 +1,11 @@
 /* frontend/src/App.css - VERSÃO COM AJUSTES DE UX NO MAPEAMENTO */
 
+/* --- IMPORTAÇÃO DA FONTE --- */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700;800;900&display=swap");
+
 html {
   font-size: 75%; /* Base para rem */
 }
-/* --- IMPORTAÇÃO DA FONTE --- */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700;800;900&display=swap");
 
 /* --- VARIÁVEIS DO TEMA --- */
 :root {
