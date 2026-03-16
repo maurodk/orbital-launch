@@ -115,6 +115,8 @@ export function EditImplantationModal({
   const [isImportingUnidades, setIsImportingUnidades] = useState(false);
   const [isImportingClientes, setIsImportingClientes] = useState(false);
   const [importError, setImportError] = useState("");
+  const [showUnidadesImportConfirm, setShowUnidadesImportConfirm] = useState(false);
+  const [preserveUnitMapping, setPreserveUnitMapping] = useState(true);
 
   // Estados da aba de Plano de Pagamento
   const [planosHabilitado, setPlanosHabilitado] = useState(false);
@@ -145,6 +147,8 @@ export function EditImplantationModal({
       setPlanosSelecionados(pc?.planos ?? []);
       setPlanosSaved(false);
       setPlanosError("");
+      setShowUnidadesImportConfirm(false);
+      setPreserveUnitMapping(true);
     }
   }, [implantation]);
 
@@ -201,6 +205,7 @@ export function EditImplantationModal({
       }
       setUnidadesFile(file);
       setImportError("");
+      setShowUnidadesImportConfirm(false);
     }
   };
 
@@ -216,6 +221,20 @@ export function EditImplantationModal({
       setClientesFile(file);
       setImportError("");
     }
+  };
+
+  const handleOpenImportUnidadesConfirm = () => {
+    if (!unidadesFile) {
+      setImportError("Selecione um arquivo XLSX primeiro");
+      return;
+    }
+    if (!implantation) {
+      setImportError("Implantação não encontrada");
+      return;
+    }
+
+    setImportError("");
+    setShowUnidadesImportConfirm(true);
   };
 
   const handleImportUnidades = async () => {
@@ -242,6 +261,7 @@ export function EditImplantationModal({
       const formData = new FormData();
       formData.append("csv", unidadesFile);
       formData.append("implantacao", implantation.nome);
+      formData.append("preserve_mapping", preserveUnitMapping ? "true" : "false");
 
       let response: AxiosResponse<{ message?: string }> | undefined;
       try {
@@ -262,6 +282,7 @@ export function EditImplantationModal({
 
       alert(`✅ ${response?.data?.message}`);
       setUnidadesFile(null);
+      setShowUnidadesImportConfirm(false);
       const fileInput = document.getElementById(
         "unidades-import-input"
       ) as HTMLInputElement;
@@ -1113,7 +1134,7 @@ export function EditImplantationModal({
                 />
                 <button
                   type="button"
-                  onClick={handleImportUnidades}
+                  onClick={handleOpenImportUnidadesConfirm}
                   disabled={!unidadesFile || isImportingUnidades}
                   style={{
                     padding: "8px 16px",
@@ -1146,6 +1167,102 @@ export function EditImplantationModal({
                 </small>
               )}
             </div>
+
+            {showUnidadesImportConfirm && (
+              <div
+                style={{
+                  marginTop: "16px",
+                  padding: "16px",
+                  borderRadius: "8px",
+                  border: "1px solid #6ad700",
+                  backgroundColor: "#111111",
+                }}
+              >
+                <h4
+                  style={{
+                    marginTop: 0,
+                    marginBottom: "10px",
+                    color: "#eaeaea",
+                  }}
+                >
+                  Confirmar importação de unidades
+                </h4>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#b0b0b0",
+                    marginTop: 0,
+                    marginBottom: "14px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Você pode manter o mapeamento atual das unidades ao sobrescrever a planilha.
+                </p>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    color: "#eaeaea",
+                    marginBottom: "14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={preserveUnitMapping}
+                    onChange={(e) => setPreserveUnitMapping(e.target.checked)}
+                    disabled={isImportingUnidades}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      accentColor: "#6ad700",
+                      cursor: isImportingUnidades ? "not-allowed" : "pointer",
+                    }}
+                  />
+                  Conservar mapeamento atual (coord_x, coord_y e implantacao_ref)
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowUnidadesImportConfirm(false)}
+                    disabled={isImportingUnidades}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "4px",
+                      border: "1px solid #2a2a2a",
+                      backgroundColor: "#2a2a2a",
+                      color: "#eaeaea",
+                      cursor: isImportingUnidades ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImportUnidades}
+                    disabled={isImportingUnidades}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "4px",
+                      border: "none",
+                      backgroundColor: isImportingUnidades ? "#444" : "#6ad700",
+                      color: isImportingUnidades ? "#888" : "#121212",
+                      cursor: isImportingUnidades ? "not-allowed" : "pointer",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {isImportingUnidades ? "Importando..." : "Prosseguir"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Importação de Clientes */}
             <div

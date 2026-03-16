@@ -6301,6 +6301,9 @@ app.post(
     try {
       console.log("📥 [IMPORT UNIDADES] Iniciando importação...");
       const { implantacao } = req.body;
+      const preserveMapping = String(
+        req.body.preserve_mapping || req.body.preserveMapping || "false"
+      ).toLowerCase() === "true";
 
       if (!implantacao) {
         return res
@@ -6314,6 +6317,7 @@ app.post(
 
       console.log("📥 [IMPORT UNIDADES] Implantação:", implantacao);
       console.log("📥 [IMPORT UNIDADES] Tipo de arquivo:", req.file.mimetype);
+      console.log("📥 [IMPORT UNIDADES] Preservar mapeamento:", preserveMapping);
 
       const sheets = await getSheetsClient();
 
@@ -6443,6 +6447,21 @@ app.post(
         }
       }
 
+      function normalizeUnitKeyPart(value) {
+        if (value === null || value === undefined) return "";
+        return String(value)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function buildUnitKeyFromRow(row) {
+        if (!Array.isArray(row)) return "";
+        return [row[0], row[1], row[2]].map(normalizeUnitKeyPart).join("||");
+      }
+
       // Função que monta uma linha no formato da planilha A:O a partir de um objeto {header: value}
       function buildSheetRowFromObj(obj) {
         // obj keys are normalized headers
@@ -6569,14 +6588,48 @@ app.post(
 
       const unidadesToInsert = dataLines.filter((cols) => Array.isArray(cols) && cols.length >= 3 && cols[0] && cols[1] && cols[2]);
 
-      // Garantir exatamente 15 colunas (A..O) por linha antes de gravar
-      const EXPECTED_COLS = 15;
+      // Lê os dados atuais antes de limpar para conseguir preservar mapeamentos quando solicitado.
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${implantacao}'!A:Q`,
+      });
+
+      const existingRows = existingData.data.values || [];
+      const existingMappingByKey = new Map();
+
+      if (preserveMapping && existingRows.length > 1) {
+        existingRows.slice(1).forEach((row) => {
+          const unitKey = buildUnitKeyFromRow(row);
+          if (!unitKey) return;
+
+          existingMappingByKey.set(unitKey, {
+            coord_x: row[12] || "",
+            coord_y: row[13] || "",
+            implantacao_ref: row[16] || "",
+          });
+        });
+      }
+
+      // Garantir exatamente 17 colunas (A..Q) por linha antes de gravar
+      const EXPECTED_COLS = 17;
       const sanitizedUnidades = unidadesToInsert.map((row, idx) => {
         const r = Array.isArray(row) ? row.slice(0, EXPECTED_COLS) : [];
         if (r.length > EXPECTED_COLS) {
           console.warn(`⚠️ [IMPORT UNIDADES] Linha ${idx + 1} foi truncada de ${r.length} para ${EXPECTED_COLS} colunas.`);
         }
         while (r.length < EXPECTED_COLS) r.push("");
+
+        if (preserveMapping) {
+          const unitKey = buildUnitKeyFromRow(r);
+          const preservedValues = existingMappingByKey.get(unitKey);
+
+          if (preservedValues) {
+            r[12] = preservedValues.coord_x || "";
+            r[13] = preservedValues.coord_y || "";
+            r[16] = preservedValues.implantacao_ref || "";
+          }
+        }
+
         return r;
       });
 
@@ -6595,18 +6648,13 @@ app.post(
       console.log("🗑️ [IMPORT UNIDADES] Limpando dados existentes...");
 
       // Busca quantas linhas existem
-      const existingData = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A:O`,
-      });
-
-      const existingRowCount = existingData.data.values?.length || 0;
+      const existingRowCount = existingRows.length || 0;
 
       if (existingRowCount > 1) {
         // Limpa da linha 2 em diante (preserva cabeçalho)
         await sheets.spreadsheets.values.clear({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A2:O${existingRowCount}`,
+          range: `'${implantacao}'!A2:Q${existingRowCount}`,
         });
         console.log(
           `✅ [IMPORT UNIDADES] ${
@@ -6618,7 +6666,7 @@ app.post(
       // 2. Insere novos dados no Google Sheets (fonte primária)
       const appendResult = await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A2:O${sanitizedUnidades.length + 1}`,
+        range: `'${implantacao}'!A2:Q${sanitizedUnidades.length + 1}`,
         valueInputOption: "USER_ENTERED",
         resource: {
           values: sanitizedUnidades,
@@ -6698,6 +6746,7 @@ app.post(
                 coord_x: row[12] || null, // M
                 coord_y: row[13] || null, // N
                 simbolo: row[14] || null, // O
+                implantacao_ref: row[16] || null, // Q
                 // Colunas antigas para compatibilidade
                 area_privativa: row[3] || null,
                 tipologia: row[4] || null,
