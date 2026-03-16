@@ -6301,9 +6301,6 @@ app.post(
     try {
       console.log("📥 [IMPORT UNIDADES] Iniciando importação...");
       const { implantacao } = req.body;
-      const preserveMapping = String(
-        req.body.preserve_mapping || req.body.preserveMapping || "false"
-      ).toLowerCase() === "true";
 
       if (!implantacao) {
         return res
@@ -6317,7 +6314,6 @@ app.post(
 
       console.log("📥 [IMPORT UNIDADES] Implantação:", implantacao);
       console.log("📥 [IMPORT UNIDADES] Tipo de arquivo:", req.file.mimetype);
-      console.log("📥 [IMPORT UNIDADES] Preservar mapeamento:", preserveMapping);
 
       const sheets = await getSheetsClient();
 
@@ -6447,21 +6443,6 @@ app.post(
         }
       }
 
-      function normalizeUnitKeyPart(value) {
-        if (value === null || value === undefined) return "";
-        return String(value)
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
-      }
-
-      function buildUnitKeyFromRow(row) {
-        if (!Array.isArray(row)) return "";
-        return [row[0], row[1], row[2]].map(normalizeUnitKeyPart).join("||");
-      }
-
       // Função que monta uma linha no formato da planilha A:O a partir de um objeto {header: value}
       function buildSheetRowFromObj(obj) {
         // obj keys are normalized headers
@@ -6588,48 +6569,14 @@ app.post(
 
       const unidadesToInsert = dataLines.filter((cols) => Array.isArray(cols) && cols.length >= 3 && cols[0] && cols[1] && cols[2]);
 
-      // Lê os dados atuais antes de limpar para conseguir preservar mapeamentos quando solicitado.
-      const existingData = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A:Q`,
-      });
-
-      const existingRows = existingData.data.values || [];
-      const existingMappingByKey = new Map();
-
-      if (preserveMapping && existingRows.length > 1) {
-        existingRows.slice(1).forEach((row) => {
-          const unitKey = buildUnitKeyFromRow(row);
-          if (!unitKey) return;
-
-          existingMappingByKey.set(unitKey, {
-            coord_x: row[12] || "",
-            coord_y: row[13] || "",
-            implantacao_ref: row[16] || "",
-          });
-        });
-      }
-
-      // Garantir exatamente 17 colunas (A..Q) por linha antes de gravar
-      const EXPECTED_COLS = 17;
+      // Garantir exatamente 15 colunas (A..O) por linha antes de gravar
+      const EXPECTED_COLS = 15;
       const sanitizedUnidades = unidadesToInsert.map((row, idx) => {
         const r = Array.isArray(row) ? row.slice(0, EXPECTED_COLS) : [];
         if (r.length > EXPECTED_COLS) {
           console.warn(`⚠️ [IMPORT UNIDADES] Linha ${idx + 1} foi truncada de ${r.length} para ${EXPECTED_COLS} colunas.`);
         }
         while (r.length < EXPECTED_COLS) r.push("");
-
-        if (preserveMapping) {
-          const unitKey = buildUnitKeyFromRow(r);
-          const preservedValues = existingMappingByKey.get(unitKey);
-
-          if (preservedValues) {
-            r[12] = preservedValues.coord_x || "";
-            r[13] = preservedValues.coord_y || "";
-            r[16] = preservedValues.implantacao_ref || "";
-          }
-        }
-
         return r;
       });
 
@@ -6648,13 +6595,18 @@ app.post(
       console.log("🗑️ [IMPORT UNIDADES] Limpando dados existentes...");
 
       // Busca quantas linhas existem
-      const existingRowCount = existingRows.length || 0;
+      const existingData = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${implantacao}'!A:O`,
+      });
+
+      const existingRowCount = existingData.data.values?.length || 0;
 
       if (existingRowCount > 1) {
         // Limpa da linha 2 em diante (preserva cabeçalho)
         await sheets.spreadsheets.values.clear({
           spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-          range: `'${implantacao}'!A2:Q${existingRowCount}`,
+          range: `'${implantacao}'!A2:O${existingRowCount}`,
         });
         console.log(
           `✅ [IMPORT UNIDADES] ${
@@ -6666,7 +6618,7 @@ app.post(
       // 2. Insere novos dados no Google Sheets (fonte primária)
       const appendResult = await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${implantacao}'!A2:Q${sanitizedUnidades.length + 1}`,
+        range: `'${implantacao}'!A2:O${sanitizedUnidades.length + 1}`,
         valueInputOption: "USER_ENTERED",
         resource: {
           values: sanitizedUnidades,
@@ -6746,7 +6698,6 @@ app.post(
                 coord_x: row[12] || null, // M
                 coord_y: row[13] || null, // N
                 simbolo: row[14] || null, // O
-                implantacao_ref: row[16] || null, // Q
                 // Colunas antigas para compatibilidade
                 area_privativa: row[3] || null,
                 tipologia: row[4] || null,
@@ -6797,6 +6748,236 @@ app.post(
       console.error("❌ [IMPORT UNIDADES] Erro:", error);
       res.status(500).json({
         error: "Falha ao importar unidades.",
+        details: error.message,
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/update-unidades-disponibilidade",
+  verifyToken,
+  upload.single("xlsx"),
+  async (req, res) => {
+    try {
+      console.log("📥 [UPDATE DISPONIBILIDADE] Iniciando atualização...");
+      const { implantacao } = req.body;
+
+      if (!implantacao) {
+        return res
+          .status(400)
+          .json({ error: "Nome da implantação é obrigatório." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Arquivo não fornecido." });
+      }
+
+      if (!req.file.originalname.toLowerCase().endsWith(".xlsx")) {
+        return res.status(400).json({ error: "Apenas arquivos XLSX são permitidos." });
+      }
+
+      const sheets = await getSheetsClient();
+      const resolved = await resolveSheetName(
+        sheets,
+        SPREADSHEET_ID_IMPLANTACAO,
+        implantacao
+      );
+
+      if (!resolved || !resolved.found) {
+        return res.status(404).json({
+          error: `Planilha '${implantacao}' não encontrada.`,
+        });
+      }
+
+      const sheetTitle = resolved.found;
+
+      function normalizeHeader(h) {
+        if (!h && h !== 0) return "";
+        return String(h)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+      }
+
+      function normalizeKeyPart(value) {
+        if (value === null || value === undefined) return "";
+        return String(value)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function buildUnitKey(etapa, bloco, nomeUnidade) {
+        return [etapa, bloco, nomeUnidade].map(normalizeKeyPart).join("||");
+      }
+
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const importedSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[importedSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const headerRow = jsonData[0] || [];
+      const normalizedHeaders = headerRow.map(normalizeHeader);
+      const rows = jsonData.slice(1).filter((row) => {
+        return (
+          row &&
+          row.length > 0 &&
+          row.some((cell) => cell !== null && cell !== undefined && cell !== "")
+        );
+      });
+
+      const importedUnits = rows
+        .map((row) => {
+          const obj = {};
+          for (let i = 0; i < normalizedHeaders.length; i++) {
+            if (normalizedHeaders[i]) {
+              obj[normalizedHeaders[i]] = row[i] !== undefined ? row[i] : "";
+            }
+          }
+
+          return {
+            etapa: obj["etapa"] || "",
+            bloco: obj["bloco"] || "",
+            nome_unidade:
+              obj["unidade"] || obj["nome_unidade"] || obj["unidade_nome"] || obj["nome"] || "",
+            situacao: obj["situacao"] || obj["situação"] || "Disponível",
+          };
+        })
+        .filter((unit) => unit.etapa && unit.bloco && unit.nome_unidade);
+
+      if (importedUnits.length === 0) {
+        return res.status(400).json({
+          error: "Nenhuma unidade válida encontrada no arquivo para atualização de disponibilidade.",
+        });
+      }
+
+      const currentSheetData = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        range: `'${sheetTitle}'!A:Q`,
+      });
+
+      const currentRows = currentSheetData.data.values || [];
+      const currentUnitsByKey = new Map();
+
+      currentRows.slice(1).forEach((row, index) => {
+        const unitKey = buildUnitKey(row[0], row[1], row[2]);
+        if (!unitKey) return;
+
+        currentUnitsByKey.set(unitKey, {
+          rowIndex: index + 2,
+          situacao: row[11] || "Disponível",
+          nome_unidade: row[2] || "",
+          etapa: row[0] || "",
+          bloco: row[1] || "",
+        });
+      });
+
+      const unitsToUpdate = [];
+      let unchangedCount = 0;
+      let notFoundCount = 0;
+
+      importedUnits.forEach((unit) => {
+        const unitKey = buildUnitKey(unit.etapa, unit.bloco, unit.nome_unidade);
+        const currentUnit = currentUnitsByKey.get(unitKey);
+
+        if (!currentUnit) {
+          notFoundCount++;
+          return;
+        }
+
+        if (normalizeStatus(currentUnit.situacao) === normalizeStatus(unit.situacao)) {
+          unchangedCount++;
+          return;
+        }
+
+        unitsToUpdate.push({
+          ...currentUnit,
+          novaSituacao: unit.situacao,
+        });
+      });
+
+      if (unitsToUpdate.length === 0) {
+        return res.json({
+          success: true,
+          message: `Nenhuma disponibilidade precisou ser atualizada. ${unchangedCount} unidades já estavam iguais${notFoundCount ? ` e ${notFoundCount} não foram encontradas na implantação atual` : ""}.`,
+          updated: 0,
+          unchanged: unchangedCount,
+          notFound: notFoundCount,
+        });
+      }
+
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
+        resource: {
+          valueInputOption: "USER_ENTERED",
+          data: unitsToUpdate.map((unit) => ({
+            range: `'${sheetTitle}'!L${unit.rowIndex}`,
+            values: [[unit.novaSituacao]],
+          })),
+        },
+      });
+
+      if (supabase) {
+        try {
+          const { data: implData, error: implError } = await supabase
+            .from("implantacoes")
+            .select("id")
+            .eq("nome", sheetTitle)
+            .limit(1)
+            .single();
+
+          if (!implError && implData?.id) {
+            await Promise.all(
+              unitsToUpdate.map(async (unit) => {
+                const { error: updateError } = await supabase
+                  .from("unidades")
+                  .update({ situacao: unit.novaSituacao })
+                  .eq("implantacao_id", implData.id)
+                  .eq("etapa", unit.etapa || null)
+                  .eq("bloco", unit.bloco || null)
+                  .eq("nome_unidade", unit.nome_unidade || null);
+
+                if (updateError) {
+                  console.error(
+                    `❌ [UPDATE DISPONIBILIDADE] Falha ao atualizar Supabase para ${unit.nome_unidade}:`,
+                    updateError.message
+                  );
+                }
+              })
+            );
+          }
+        } catch (supabaseError) {
+          console.error(
+            "❌ [UPDATE DISPONIBILIDADE] Erro ao sincronizar Supabase:",
+            supabaseError.message
+          );
+        }
+      }
+
+      for (const unit of unitsToUpdate) {
+        await broadcastEvent(sheetTitle, "unitUpdated", {
+          rowIndex: unit.rowIndex,
+          unitName: unit.nome_unidade,
+          changeType: "availability-update",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `${unitsToUpdate.length} unidades tiveram a disponibilidade atualizada.${unchangedCount ? ` ${unchangedCount} já estavam com a mesma situação.` : ""}${notFoundCount ? ` ${notFoundCount} não foram encontradas na implantação atual.` : ""}`,
+        updated: unitsToUpdate.length,
+        unchanged: unchangedCount,
+        notFound: notFoundCount,
+      });
+    } catch (error) {
+      console.error("❌ [UPDATE DISPONIBILIDADE] Erro:", error);
+      res.status(500).json({
+        error: "Falha ao atualizar disponibilidade das unidades.",
         details: error.message,
       });
     }

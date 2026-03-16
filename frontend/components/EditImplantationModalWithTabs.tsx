@@ -111,12 +111,12 @@ export function EditImplantationModal({
 
   // Estados da aba de Importação
   const [unidadesFile, setUnidadesFile] = useState<File | null>(null);
+  const [disponibilidadeFile, setDisponibilidadeFile] = useState<File | null>(null);
   const [clientesFile, setClientesFile] = useState<File | null>(null);
   const [isImportingUnidades, setIsImportingUnidades] = useState(false);
+  const [isUpdatingDisponibilidade, setIsUpdatingDisponibilidade] = useState(false);
   const [isImportingClientes, setIsImportingClientes] = useState(false);
   const [importError, setImportError] = useState("");
-  const [showUnidadesImportConfirm, setShowUnidadesImportConfirm] = useState(false);
-  const [preserveUnitMapping, setPreserveUnitMapping] = useState(true);
 
   // Estados da aba de Plano de Pagamento
   const [planosHabilitado, setPlanosHabilitado] = useState(false);
@@ -140,6 +140,7 @@ export function EditImplantationModal({
       setImagemFile(null);
       setLogoFile(null);
       setUnidadesFile(null);
+      setDisponibilidadeFile(null);
       setClientesFile(null);
       // Carregar config de planos
       const pc = implantation.planosConfig;
@@ -147,8 +148,6 @@ export function EditImplantationModal({
       setPlanosSelecionados(pc?.planos ?? []);
       setPlanosSaved(false);
       setPlanosError("");
-      setShowUnidadesImportConfirm(false);
-      setPreserveUnitMapping(true);
     }
   }, [implantation]);
 
@@ -205,7 +204,19 @@ export function EditImplantationModal({
       }
       setUnidadesFile(file);
       setImportError("");
-      setShowUnidadesImportConfirm(false);
+    }
+  };
+
+  const handleDisponibilidadeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (!/\.xlsx?$/i.test(file.name)) {
+        setImportError("Apenas arquivos XLSX são permitidos");
+        e.target.value = "";
+        return;
+      }
+      setDisponibilidadeFile(file);
+      setImportError("");
     }
   };
 
@@ -221,20 +232,6 @@ export function EditImplantationModal({
       setClientesFile(file);
       setImportError("");
     }
-  };
-
-  const handleOpenImportUnidadesConfirm = () => {
-    if (!unidadesFile) {
-      setImportError("Selecione um arquivo XLSX primeiro");
-      return;
-    }
-    if (!implantation) {
-      setImportError("Implantação não encontrada");
-      return;
-    }
-
-    setImportError("");
-    setShowUnidadesImportConfirm(true);
   };
 
   const handleImportUnidades = async () => {
@@ -261,7 +258,6 @@ export function EditImplantationModal({
       const formData = new FormData();
       formData.append("csv", unidadesFile);
       formData.append("implantacao", implantation.nome);
-      formData.append("preserve_mapping", preserveUnitMapping ? "true" : "false");
 
       let response: AxiosResponse<{ message?: string }> | undefined;
       try {
@@ -282,7 +278,6 @@ export function EditImplantationModal({
 
       alert(`✅ ${response?.data?.message}`);
       setUnidadesFile(null);
-      setShowUnidadesImportConfirm(false);
       const fileInput = document.getElementById(
         "unidades-import-input"
       ) as HTMLInputElement;
@@ -295,6 +290,60 @@ export function EditImplantationModal({
       );
     } finally {
       setIsImportingUnidades(false);
+    }
+  };
+
+  const handleAtualizarDisponibilidade = async () => {
+    if (!disponibilidadeFile) {
+      setImportError("Selecione um arquivo XLSX primeiro");
+      return;
+    }
+    if (!implantation) {
+      setImportError("Implantação não encontrada");
+      return;
+    }
+
+    setIsUpdatingDisponibilidade(true);
+    setImportError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setImportError("Token de autenticação não encontrado");
+        setIsUpdatingDisponibilidade(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("xlsx", disponibilidadeFile);
+      formData.append("implantacao", implantation.nome);
+
+      const response = await axios.post(
+        `${apiUrl}/api/update-unidades-disponibilidade`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 30000,
+        }
+      );
+
+      alert(`✅ ${response?.data?.message}`);
+      setDisponibilidadeFile(null);
+      const fileInput = document.getElementById(
+        "disponibilidade-import-input"
+      ) as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+    } catch (err) {
+      console.error("Erro ao atualizar disponibilidade das unidades:", err);
+      const error = err as { response?: { data?: { error?: string } } };
+      setImportError(
+        error.response?.data?.error ||
+          "Erro ao atualizar disponibilidade das unidades"
+      );
+    } finally {
+      setIsUpdatingDisponibilidade(false);
     }
   };
 
@@ -1078,7 +1127,6 @@ export function EditImplantationModal({
 
         {activeTab === "import" && (
           <div>
-            {/* Importação de Unidades */}
             <div
               style={{
                 marginBottom: "30px",
@@ -1088,9 +1136,7 @@ export function EditImplantationModal({
                 border: "1px solid #2a2a2a",
               }}
             >
-              <h3
-                style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}
-              >
+              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}>
                 📊 Importar Unidades (XLSX)
               </h3>
               <p
@@ -1100,8 +1146,7 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                Formato esperado: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA,
-                TIPOLOGIA, SITUAÇÃO e VALOR DO IMÓVEL
+                Formato esperado: ETAPA, BLOCO, UNIDADE, ÁREA PRIVATIVA, TIPOLOGIA, SITUAÇÃO e VALOR DO IMÓVEL
               </p>
               <p
                 style={{
@@ -1110,12 +1155,9 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                ⚠️ A importação irá <strong>sobrescrever</strong> todas as
-                unidades atuais desta implantação.
+                ⚠️ A importação irá <strong>sobrescrever</strong> todas as unidades atuais desta implantação.
               </p>
-              <div
-                style={{ display: "flex", gap: "10px", alignItems: "center" }}
-              >
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
                   id="unidades-import-input"
                   type="file"
@@ -1134,20 +1176,15 @@ export function EditImplantationModal({
                 />
                 <button
                   type="button"
-                  onClick={handleOpenImportUnidadesConfirm}
+                  onClick={handleImportUnidades}
                   disabled={!unidadesFile || isImportingUnidades}
                   style={{
                     padding: "8px 16px",
                     borderRadius: "4px",
                     border: "none",
-                    backgroundColor:
-                      !unidadesFile || isImportingUnidades ? "#444" : "#6ad700",
-                    color:
-                      !unidadesFile || isImportingUnidades ? "#888" : "#121212",
-                    cursor:
-                      !unidadesFile || isImportingUnidades
-                        ? "not-allowed"
-                        : "pointer",
+                    backgroundColor: !unidadesFile || isImportingUnidades ? "#444" : "#6ad700",
+                    color: !unidadesFile || isImportingUnidades ? "#888" : "#121212",
+                    cursor: !unidadesFile || isImportingUnidades ? "not-allowed" : "pointer",
                     fontWeight: "bold",
                     whiteSpace: "nowrap",
                   }}
@@ -1156,115 +1193,84 @@ export function EditImplantationModal({
                 </button>
               </div>
               {unidadesFile && !isImportingUnidades && (
-                <small
-                  style={{
-                    color: "#6ad700",
-                    marginTop: "8px",
-                    display: "block",
-                  }}
-                >
+                <small style={{ color: "#6ad700", marginTop: "8px", display: "block" }}>
                   ✓ {unidadesFile.name}
                 </small>
               )}
             </div>
 
-            {showUnidadesImportConfirm && (
-              <div
+            <div
+              style={{
+                marginBottom: "30px",
+                padding: "20px",
+                backgroundColor: "#1a1a1a",
+                borderRadius: "8px",
+                border: "1px solid #2a2a2a",
+              }}
+            >
+              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}>
+                🔄 Atualizar Disponibilidade das Unidades (XLSX)
+              </h3>
+              <p
                 style={{
-                  marginTop: "16px",
-                  padding: "16px",
-                  borderRadius: "8px",
-                  border: "1px solid #6ad700",
-                  backgroundColor: "#111111",
+                  fontSize: "13px",
+                  color: "#888",
+                  marginBottom: "15px",
                 }}
               >
-                <h4
+                Formato esperado: mesmo modelo da importação de unidades. Apenas a coluna SITUAÇÃO será comparada e atualizada.
+              </p>
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#d9b44a",
+                  marginBottom: "15px",
+                }}
+              >
+                Serão alteradas somente as unidades cuja SITUAÇÃO estiver diferente do arquivo importado.
+              </p>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <input
+                  id="disponibilidade-import-input"
+                  type="file"
+                  accept=".xlsx"
+                  onChange={handleDisponibilidadeFileChange}
+                  disabled={isUpdatingDisponibilidade}
                   style={{
-                    marginTop: 0,
-                    marginBottom: "10px",
+                    flex: 1,
+                    padding: "8px",
+                    borderRadius: "4px",
+                    border: "1px solid #2a2a2a",
+                    backgroundColor: "#2a2a2a",
                     color: "#eaeaea",
+                    cursor: isUpdatingDisponibilidade ? "not-allowed" : "pointer",
                   }}
-                >
-                  Confirmar importação de unidades
-                </h4>
-                <p
+                />
+                <button
+                  type="button"
+                  onClick={handleAtualizarDisponibilidade}
+                  disabled={!disponibilidadeFile || isUpdatingDisponibilidade}
                   style={{
-                    fontSize: "13px",
-                    color: "#b0b0b0",
-                    marginTop: 0,
-                    marginBottom: "14px",
-                    lineHeight: 1.5,
+                    padding: "8px 16px",
+                    borderRadius: "4px",
+                    border: "none",
+                    backgroundColor: !disponibilidadeFile || isUpdatingDisponibilidade ? "#444" : "#6ad700",
+                    color: !disponibilidadeFile || isUpdatingDisponibilidade ? "#888" : "#121212",
+                    cursor: !disponibilidadeFile || isUpdatingDisponibilidade ? "not-allowed" : "pointer",
+                    fontWeight: "bold",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  Você pode manter o mapeamento atual das unidades ao sobrescrever a planilha.
-                </p>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    color: "#eaeaea",
-                    marginBottom: "14px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={preserveUnitMapping}
-                    onChange={(e) => setPreserveUnitMapping(e.target.checked)}
-                    disabled={isImportingUnidades}
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      accentColor: "#6ad700",
-                      cursor: isImportingUnidades ? "not-allowed" : "pointer",
-                    }}
-                  />
-                  Conservar mapeamento atual (coord_x, coord_y e implantacao_ref)
-                </label>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: "10px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setShowUnidadesImportConfirm(false)}
-                    disabled={isImportingUnidades}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: "4px",
-                      border: "1px solid #2a2a2a",
-                      backgroundColor: "#2a2a2a",
-                      color: "#eaeaea",
-                      cursor: isImportingUnidades ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleImportUnidades}
-                    disabled={isImportingUnidades}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: "4px",
-                      border: "none",
-                      backgroundColor: isImportingUnidades ? "#444" : "#6ad700",
-                      color: isImportingUnidades ? "#888" : "#121212",
-                      cursor: isImportingUnidades ? "not-allowed" : "pointer",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {isImportingUnidades ? "Importando..." : "Prosseguir"}
-                  </button>
-                </div>
+                  {isUpdatingDisponibilidade ? "Atualizando..." : "Atualizar Disponibilidade"}
+                </button>
               </div>
-            )}
+              {disponibilidadeFile && !isUpdatingDisponibilidade && (
+                <small style={{ color: "#6ad700", marginTop: "8px", display: "block" }}>
+                  ✓ {disponibilidadeFile.name}
+                </small>
+              )}
+            </div>
 
-            {/* Importação de Clientes */}
             <div
               style={{
                 padding: "20px",
@@ -1273,9 +1279,7 @@ export function EditImplantationModal({
                 border: "1px solid #2a2a2a",
               }}
             >
-              <h3
-                style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}
-              >
+              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}>
                 👥 Importar Clientes Aptos (XLSX)
               </h3>
               <p
@@ -1285,8 +1289,7 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                Formato esperado: ID do Pré-cadastro, Cliente, CPF/CNPJ,
-                Corretor e Imobiliária
+                Formato esperado: ID do Pré-cadastro, Cliente, CPF/CNPJ, Corretor e Imobiliária
               </p>
               <p
                 style={{
@@ -1295,12 +1298,9 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                ⚠️ A importação irá <strong>sobrescrever</strong> todos os
-                clientes aptos atuais.
+                ⚠️ A importação irá <strong>sobrescrever</strong> todos os clientes aptos atuais.
               </p>
-              <div
-                style={{ display: "flex", gap: "10px", alignItems: "center" }}
-              >
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
                   id="clientes-import-input"
                   type="file"
@@ -1325,14 +1325,9 @@ export function EditImplantationModal({
                     padding: "8px 16px",
                     borderRadius: "4px",
                     border: "none",
-                    backgroundColor:
-                      !clientesFile || isImportingClientes ? "#444" : "#6ad700",
-                    color:
-                      !clientesFile || isImportingClientes ? "#888" : "#121212",
-                    cursor:
-                      !clientesFile || isImportingClientes
-                        ? "not-allowed"
-                        : "pointer",
+                    backgroundColor: !clientesFile || isImportingClientes ? "#444" : "#6ad700",
+                    color: !clientesFile || isImportingClientes ? "#888" : "#121212",
+                    cursor: !clientesFile || isImportingClientes ? "not-allowed" : "pointer",
                     fontWeight: "bold",
                     whiteSpace: "nowrap",
                   }}
@@ -1341,13 +1336,7 @@ export function EditImplantationModal({
                 </button>
               </div>
               {clientesFile && !isImportingClientes && (
-                <small
-                  style={{
-                    color: "#6ad700",
-                    marginTop: "8px",
-                    display: "block",
-                  }}
-                >
+                <small style={{ color: "#6ad700", marginTop: "8px", display: "block" }}>
                   ✓ {clientesFile.name}
                 </small>
               )}
