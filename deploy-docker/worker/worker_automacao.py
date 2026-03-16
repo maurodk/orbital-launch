@@ -1034,14 +1034,26 @@ def adicionar_series_plano6(driver: webdriver.Chrome, valor_unidade_total: float
             dia_vencimento = 15
 
         hoje = datetime.now()
-        data_primeira_mensal = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_sinal = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_primeira_mensal = proximo_mes_no_dia(data_sinal, dia_vencimento)
         valor_parcela = round(valor_unidade_total / 36.0, 2)
         diferenca = round(valor_unidade_total - (valor_parcela * 36), 2)
         if diferenca != 0:
             valor_parcela = round(valor_parcela + (diferenca / 36.0), 2)
 
-        logger.info(f"[Plano6] Editando série PARCELAMENTO INCORPORADORA: 36x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
-        return editar_primeira_serie_para_parcelamento_incorporadora(driver, 36, valor_parcela, data_primeira_mensal.strftime("%d/%m/%Y"))
+        logger.info(f"[Plano6] Editando primeira série para Sinal 1: 1x de {valor_parcela:.2f}, vencimento {data_sinal.strftime('%d/%m/%Y')}")
+        if not editar_primeira_serie_para_sinal1(driver, valor_parcela, data_sinal.strftime("%d/%m/%Y")):
+            return False
+
+        logger.info(f"[Plano6] Adicionando PARCELAMENTO INCORPORADORA: 35x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
+        return adicionar_serie(
+            driver,
+            "PARCELAMENTO INCORPORADORA",
+            35,
+            valor_parcela,
+            data_primeira_mensal.strftime("%d/%m/%Y"),
+            "TRANSFERENCIA BANCARIA"
+        )
     except Exception as e:
         logger.error(f"Erro ao adicionar séries do Plano 6: {e}")
         return False
@@ -1054,14 +1066,25 @@ def adicionar_series_plano7(driver: webdriver.Chrome, valor_unidade_total: float
             dia_vencimento = 15
 
         hoje = datetime.now()
-        data_primeira_mensal = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_sinal = proximo_mes_no_dia(hoje, dia_vencimento)
+        data_primeira_mensal = proximo_mes_no_dia(data_sinal, dia_vencimento)
         valor_parcela = round(valor_unidade_total / 24.0, 2)
         diferenca = round(valor_unidade_total - (valor_parcela * 24), 2)
         if diferenca != 0:
             valor_parcela = round(valor_parcela + (diferenca / 24.0), 2)
 
-        logger.info(f"[Plano7] Editando série Mensal: 24x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
-        return editar_primeira_serie_para_mensal(driver, 24, valor_parcela, data_primeira_mensal.strftime("%d/%m/%Y"))
+        logger.info(f"[Plano7] Editando primeira série para Sinal 1: 1x de {valor_parcela:.2f}, vencimento {data_sinal.strftime('%d/%m/%Y')}")
+        if not editar_primeira_serie_para_sinal1(driver, valor_parcela, data_sinal.strftime("%d/%m/%Y")):
+            return False
+
+        logger.info(f"[Plano7] Adicionando Mensal: 23x de {valor_parcela:.2f}, vencimento inicial {data_primeira_mensal.strftime('%d/%m/%Y')}")
+        return adicionar_serie(
+            driver,
+            "Mensal",
+            23,
+            valor_parcela,
+            data_primeira_mensal.strftime("%d/%m/%Y")
+        )
     except Exception as e:
         logger.error(f"Erro ao adicionar séries do Plano 7: {e}")
         return False
