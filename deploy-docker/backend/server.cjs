@@ -6812,8 +6812,40 @@ app.post(
           .trim();
       }
 
-      function buildUnitKey(etapa, bloco, nomeUnidade) {
-        return [etapa, bloco, nomeUnidade].map(normalizeKeyPart).join("||");
+      function buildUnitLookupCandidates(etapa, bloco, nomeUnidade) {
+        const etapaNorm = normalizeKeyPart(etapa);
+        const blocoNorm = normalizeKeyPart(bloco);
+        const nomeNorm = normalizeKeyPart(nomeUnidade);
+        const candidates = [];
+
+        if (etapaNorm || blocoNorm || nomeNorm) {
+          candidates.push(`full||${etapaNorm}||${blocoNorm}||${nomeNorm}`);
+        }
+        if (blocoNorm || nomeNorm) {
+          candidates.push(`block-name||${blocoNorm}||${nomeNorm}`);
+        }
+        if (nomeNorm) {
+          candidates.push(`name||${nomeNorm}`);
+        }
+
+        return candidates.filter(Boolean);
+      }
+
+      function registerLookup(map, key, value) {
+        if (!key) return;
+        const existing = map.get(key) || [];
+        existing.push(value);
+        map.set(key, existing);
+      }
+
+      function findUniqueMatch(map, candidates) {
+        for (const candidate of candidates) {
+          const matches = map.get(candidate);
+          if (matches && matches.length === 1) {
+            return matches[0];
+          }
+        }
+        return null;
       }
 
       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
@@ -6848,7 +6880,7 @@ app.post(
             situacao: obj["situacao"] || obj["situação"] || "Disponível",
           };
         })
-        .filter((unit) => unit.etapa && unit.bloco && unit.nome_unidade);
+        .filter((unit) => unit.nome_unidade);
 
       if (importedUnits.length === 0) {
         return res.status(400).json({
@@ -6862,30 +6894,54 @@ app.post(
       });
 
       const currentRows = currentSheetData.data.values || [];
-      const currentUnitsByKey = new Map();
+      const currentUnitsLookup = new Map();
 
       currentRows.slice(1).forEach((row, index) => {
-        const unitKey = buildUnitKey(row[0], row[1], row[2]);
-        if (!unitKey) return;
-
-        currentUnitsByKey.set(unitKey, {
+        const currentUnit = {
           rowIndex: index + 2,
           situacao: row[11] || "Disponível",
           nome_unidade: row[2] || "",
           etapa: row[0] || "",
           bloco: row[1] || "",
+        };
+
+        const lookupCandidates = buildUnitLookupCandidates(
+          currentUnit.etapa,
+          currentUnit.bloco,
+          currentUnit.nome_unidade
+        );
+
+        lookupCandidates.forEach((candidate) => {
+          registerLookup(currentUnitsLookup, candidate, currentUnit);
         });
       });
 
       const unitsToUpdate = [];
       let unchangedCount = 0;
       let notFoundCount = 0;
+      let ambiguousCount = 0;
 
       importedUnits.forEach((unit) => {
-        const unitKey = buildUnitKey(unit.etapa, unit.bloco, unit.nome_unidade);
-        const currentUnit = currentUnitsByKey.get(unitKey);
+        const currentUnit = findUniqueMatch(
+          currentUnitsLookup,
+          buildUnitLookupCandidates(unit.etapa, unit.bloco, unit.nome_unidade)
+        );
 
         if (!currentUnit) {
+          const hasAnyMatch = buildUnitLookupCandidates(
+            unit.etapa,
+            unit.bloco,
+            unit.nome_unidade
+          ).some((candidate) => {
+            const matches = currentUnitsLookup.get(candidate);
+            return Array.isArray(matches) && matches.length > 1;
+          });
+
+          if (hasAnyMatch) {
+            ambiguousCount++;
+            return;
+          }
+
           notFoundCount++;
           return;
         }
@@ -6904,10 +6960,11 @@ app.post(
       if (unitsToUpdate.length === 0) {
         return res.json({
           success: true,
-          message: `Nenhuma disponibilidade precisou ser atualizada. ${unchangedCount} unidades já estavam iguais${notFoundCount ? ` e ${notFoundCount} não foram encontradas na implantação atual` : ""}.`,
+          message: `Nenhuma disponibilidade precisou ser atualizada. ${unchangedCount} unidades já estavam iguais${notFoundCount ? ` e ${notFoundCount} não foram encontradas na implantação atual` : ""}${ambiguousCount ? ` e ${ambiguousCount} ficaram ambíguas` : ""}.`,
           updated: 0,
           unchanged: unchangedCount,
           notFound: notFoundCount,
+          ambiguous: ambiguousCount,
         });
       }
 
@@ -6938,13 +6995,11 @@ app.post(
                   .from("unidades")
                   .update({ situacao: unit.novaSituacao })
                   .eq("implantacao_id", implData.id)
-                  .eq("etapa", unit.etapa || null)
-                  .eq("bloco", unit.bloco || null)
-                  .eq("nome_unidade", unit.nome_unidade || null);
+                  .eq("row_index", unit.rowIndex);
 
                 if (updateError) {
                   console.error(
-                    `❌ [UPDATE DISPONIBILIDADE] Falha ao atualizar Supabase para ${unit.nome_unidade}:`,
+                    `❌ [UPDATE DISPONIBILIDADE] Falha ao atualizar Supabase para ${unit.nome_unidade} (row ${unit.rowIndex}):`,
                     updateError.message
                   );
                 }
@@ -6969,10 +7024,11 @@ app.post(
 
       res.json({
         success: true,
-        message: `${unitsToUpdate.length} unidades tiveram a disponibilidade atualizada.${unchangedCount ? ` ${unchangedCount} já estavam com a mesma situação.` : ""}${notFoundCount ? ` ${notFoundCount} não foram encontradas na implantação atual.` : ""}`,
+        message: `${unitsToUpdate.length} unidades tiveram a disponibilidade atualizada.${unchangedCount ? ` ${unchangedCount} já estavam com a mesma situação.` : ""}${notFoundCount ? ` ${notFoundCount} não foram encontradas na implantação atual.` : ""}${ambiguousCount ? ` ${ambiguousCount} ficaram ambíguas e não foram alteradas.` : ""}`,
         updated: unitsToUpdate.length,
         unchanged: unchangedCount,
         notFound: notFoundCount,
+        ambiguous: ambiguousCount,
       });
     } catch (error) {
       console.error("❌ [UPDATE DISPONIBILIDADE] Erro:", error);
