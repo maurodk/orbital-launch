@@ -6812,17 +6812,13 @@ app.post(
           .trim();
       }
 
-      function buildUnitLookupCandidates(etapa, bloco, nomeUnidade) {
-        const etapaNorm = normalizeKeyPart(etapa);
-        const blocoNorm = normalizeKeyPart(bloco);
+      function buildUnitLookupCandidates(nomeUnidade, implantacaoRef) {
         const nomeNorm = normalizeKeyPart(nomeUnidade);
+        const refNorm = normalizeKeyPart(implantacaoRef || implantacao || sheetTitle);
         const candidates = [];
 
-        if (etapaNorm || blocoNorm || nomeNorm) {
-          candidates.push(`full||${etapaNorm}||${blocoNorm}||${nomeNorm}`);
-        }
-        if (blocoNorm || nomeNorm) {
-          candidates.push(`block-name||${blocoNorm}||${nomeNorm}`);
+        if (nomeNorm && refNorm) {
+          candidates.push(`name-ref||${nomeNorm}||${refNorm}`);
         }
         if (nomeNorm) {
           candidates.push(`name||${nomeNorm}`);
@@ -6877,6 +6873,8 @@ app.post(
             bloco: obj["bloco"] || "",
             nome_unidade:
               obj["unidade"] || obj["nome_unidade"] || obj["unidade_nome"] || obj["nome"] || "",
+            implantacao_ref:
+              obj["implantacao_ref"] || obj["implantacao_ref_"] || obj["implantacao"] || implantacao,
             situacao: obj["situacao"] || obj["situação"] || "Disponível",
           };
         })
@@ -6903,12 +6901,12 @@ app.post(
           nome_unidade: row[2] || "",
           etapa: row[0] || "",
           bloco: row[1] || "",
+          implantacao_ref: row[16] || implantacao || sheetTitle,
         };
 
         const lookupCandidates = buildUnitLookupCandidates(
-          currentUnit.etapa,
-          currentUnit.bloco,
-          currentUnit.nome_unidade
+          currentUnit.nome_unidade,
+          currentUnit.implantacao_ref
         );
 
         lookupCandidates.forEach((candidate) => {
@@ -6924,14 +6922,13 @@ app.post(
       importedUnits.forEach((unit) => {
         const currentUnit = findUniqueMatch(
           currentUnitsLookup,
-          buildUnitLookupCandidates(unit.etapa, unit.bloco, unit.nome_unidade)
+          buildUnitLookupCandidates(unit.nome_unidade, unit.implantacao_ref)
         );
 
         if (!currentUnit) {
           const hasAnyMatch = buildUnitLookupCandidates(
-            unit.etapa,
-            unit.bloco,
-            unit.nome_unidade
+            unit.nome_unidade,
+            unit.implantacao_ref
           ).some((candidate) => {
             const matches = currentUnitsLookup.get(candidate);
             return Array.isArray(matches) && matches.length > 1;
