@@ -2050,8 +2050,7 @@ app.get("/api/public-data", async (req, res) => {
   }
 });
 
-// NOVO: Endpoint de polling rápido para verificação dupla (Sheets + Supabase)
-// Retorna o status da unidade do banco que responder PRIMEIRO
+// NOVO: Endpoint de polling rápido usando apenas Supabase
 app.get("/api/fast-poll-unit", async (req, res) => {
   const { implantacao, rowIndex } = req.query;
 
@@ -2085,31 +2084,33 @@ app.get("/api/fast-poll-unit", async (req, res) => {
   // Usa pooling para evitar requisições duplicadas
   return pooledRequest(pollKey, async () => {
     try {
-      // Cria duas promises que competem entre si
-        const supabasePromise = (async () => {
-        if (!supabase) return null;
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não está configurado." });
+      }
 
-        try {
-          let implData = null;
-          try {
-            implData = await findImplantacaoByName(implantacao);
-          } catch (e) {
-            console.error("[FIND_IMPLANT] erro ao localizar implantação (fast-poll):", e && e.message ? e.message : e);
-          }
+      let implData = null;
+      try {
+        implData = await findImplantacaoByName(implantacao);
+      } catch (e) {
+        console.error("[FIND_IMPLANT] erro ao localizar implantação (fast-poll):", e && e.message ? e.message : e);
+      }
 
-          if (!implData?.id) return null;
+      if (!implData?.id) {
+        return res.status(404).json({ error: "Implantação não encontrada no Supabase." });
+      }
 
-          const { data: unitData } = await supabase
-            .from("unidades")
-            .select("situacao, nome_unidade, coord_x, coord_y, simbolo")
-            .eq("implantacao_id", implData.id)
-            .eq("row_index", parseInt(rowIndex, 10))
-            .limit(1)
-            .single();
+      let fastestResult = null;
+      try {
+        const { data: unitData } = await supabase
+          .from("unidades")
+          .select("situacao, nome_unidade, coord_x, coord_y, simbolo")
+          .eq("implantacao_id", implData.id)
+          .eq("row_index", parseInt(rowIndex, 10))
+          .limit(1)
+          .single();
 
-          if (!unitData) return null;
-
-          return {
+        if (unitData) {
+          fastestResult = {
             source: "supabase",
             status: unitData.situacao || "Disponível",
             unitName: unitData.nome_unidade,
@@ -2118,81 +2119,15 @@ app.get("/api/fast-poll-unit", async (req, res) => {
             simbolo: unitData.simbolo || null,
             timestamp: Date.now(),
           };
-        } catch (e) {
-          console.error("[FAST-POLL] Erro Supabase:", e.message);
-          return null;
         }
-      })();
-
-      const sheetsPromise = (async () => {
-        try {
-          const sheets = await getSheetsClient();
-          const resolved = await resolveSheetName(
-            sheets,
-            SPREADSHEET_ID_IMPLANTACAO,
-            implantacao
-          );
-
-          if (!resolved?.found) return null;
-
-          const sheetTitle = resolved.found;
-          const range = `'${sheetTitle}'!C${rowIndex}:N${rowIndex}`;
-
-          const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-            range,
-          });
-
-          const row = response.data.values?.[0];
-          if (!row) return null;
-
-          return {
-            source: "sheets",
-            status: row[9] || "Disponível", // Coluna L (índice 9 no range C:N)
-            unitName: row[0] || "", // Coluna C
-            coordX: row[10] || "", // Coluna M
-            coordY: row[11] || "", // Coluna N
-            timestamp: Date.now(),
-          };
-        } catch (e) {
-          console.error("[FAST-POLL] Erro Sheets:", e.message);
-          return null;
-        }
-      })();
-
-      // Promise.race retorna o primeiro que resolver (mais rápido)
-      const fastestResult = await Promise.race([
-        supabasePromise,
-        sheetsPromise,
-      ]);
-
-      // Aguarda ambos para comparação (mas não bloqueia resposta)
-      Promise.allSettled([supabasePromise, sheetsPromise]).then((results) => {
-        const [supabaseResult, sheetsResult] = results;
-
-        if (
-          supabaseResult.status === "fulfilled" &&
-          sheetsResult.status === "fulfilled"
-        ) {
-          const supabaseData = supabaseResult.value;
-          const sheetsData = sheetsResult.value;
-
-          if (supabaseData && sheetsData) {
-            const statusMatch = supabaseData.status === sheetsData.status;
-            if (!statusMatch) {
-              console.warn(
-                `[FAST-POLL] DIVERGÊNCIA detectada na linha ${rowIndex}:`,
-                `Supabase="${supabaseData.status}" vs Sheets="${sheetsData.status}"`
-              );
-            }
-          }
-        }
-      });
+      } catch (e) {
+        console.error("[FAST-POLL] Erro Supabase:", e.message);
+      }
 
       if (!fastestResult) {
         return res
           .status(404)
-          .json({ error: "Unidade não encontrada em nenhum banco." });
+          .json({ error: "Unidade não encontrada no Supabase." });
       }
 
       // Armazena no cache
@@ -6755,20 +6690,18 @@ app.post(
         return res.status(400).json({ error: "Apenas arquivos XLSX são permitidos." });
       }
 
-      const sheets = await getSheetsClient();
-      const resolved = await resolveSheetName(
-        sheets,
-        SPREADSHEET_ID_IMPLANTACAO,
-        implantacao
-      );
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não está configurado." });
+      }
 
-      if (!resolved || !resolved.found) {
+      const implData = await findImplantacaoByName(implantacao);
+      if (!implData || !implData.id) {
         return res.status(404).json({
-          error: `Planilha '${implantacao}' não encontrada.`,
+          error: `Implantação '${implantacao}' não encontrada no Supabase.`,
         });
       }
 
-      const sheetTitle = resolved.found;
+      const sheetTitle = implData.nome;
 
       function normalizeHeader(h) {
         if (!h && h !== 0) return "";
@@ -6864,22 +6797,27 @@ app.post(
         });
       }
 
-      const currentSheetData = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:Q`,
-      });
+      const { data: currentUnitsData, error: currentUnitsError } = await supabase
+        .from("unidades")
+        .select("row_index, situacao, nome_unidade, etapa, bloco, implantacao_ref")
+        .eq("implantacao_id", implData.id)
+        .order("row_index", { ascending: true });
 
-      const currentRows = currentSheetData.data.values || [];
+      if (currentUnitsError) {
+        throw currentUnitsError;
+      }
+
+      const currentUnits = currentUnitsData || [];
       const currentUnitsLookup = new Map();
 
-      currentRows.slice(1).forEach((row, index) => {
+      currentUnits.forEach((unit) => {
         const currentUnit = {
-          rowIndex: index + 2,
-          situacao: row[11] || "Disponível",
-          nome_unidade: row[2] || "",
-          etapa: row[0] || "",
-          bloco: row[1] || "",
-          implantacao_ref: row[16] || implantacao || sheetTitle,
+          rowIndex: unit.row_index,
+          situacao: unit.situacao || "Disponível",
+          nome_unidade: unit.nome_unidade || "",
+          etapa: unit.etapa || "",
+          bloco: unit.bloco || "",
+          implantacao_ref: unit.implantacao_ref || implantacao || sheetTitle,
         };
 
         const lookupCandidates = buildUnitLookupCandidates(
@@ -6943,6 +6881,7 @@ app.post(
         });
       }
 
+      const sheets = await getSheetsClient();
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
         resource: {
@@ -6954,39 +6893,28 @@ app.post(
         },
       });
 
-      if (supabase) {
-        try {
-          const { data: implData, error: implError } = await supabase
-            .from("implantacoes")
-            .select("id")
-            .eq("nome", sheetTitle)
-            .limit(1)
-            .single();
+      try {
+        await Promise.all(
+          unitsToUpdate.map(async (unit) => {
+            const { error: updateError } = await supabase
+              .from("unidades")
+              .update({ situacao: unit.novaSituacao })
+              .eq("implantacao_id", implData.id)
+              .eq("row_index", unit.rowIndex);
 
-          if (!implError && implData?.id) {
-            await Promise.all(
-              unitsToUpdate.map(async (unit) => {
-                const { error: updateError } = await supabase
-                  .from("unidades")
-                  .update({ situacao: unit.novaSituacao })
-                  .eq("implantacao_id", implData.id)
-                  .eq("row_index", unit.rowIndex);
-
-                if (updateError) {
-                  console.error(
-                    `❌ [UPDATE DISPONIBILIDADE] Falha ao atualizar Supabase para ${unit.nome_unidade} (row ${unit.rowIndex}):`,
-                    updateError.message
-                  );
-                }
-              })
-            );
-          }
-        } catch (supabaseError) {
-          console.error(
-            "❌ [UPDATE DISPONIBILIDADE] Erro ao sincronizar Supabase:",
-            supabaseError.message
-          );
-        }
+            if (updateError) {
+              console.error(
+                `❌ [UPDATE DISPONIBILIDADE] Falha ao atualizar Supabase para ${unit.nome_unidade} (row ${unit.rowIndex}):`,
+                updateError.message
+              );
+            }
+          })
+        );
+      } catch (supabaseError) {
+        console.error(
+          "❌ [UPDATE DISPONIBILIDADE] Erro ao sincronizar Supabase:",
+          supabaseError.message
+        );
       }
 
       for (const unit of unitsToUpdate) {
