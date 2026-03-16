@@ -1908,69 +1908,52 @@ app.get("/api/data", verifyToken, async (req, res) => {
   // Usa pooling para evitar requisições duplicadas simultâneas
   return pooledRequest(cacheKey, async () => {
     try {
-      const sheets = await getSheetsClient();
-      const resolved = await resolveSheetName(
-        sheets,
-        SPREADSHEET_ID_IMPLANTACAO,
-        implantacao
-      );
+      if (!supabase) {
+        return res.status(500).json({
+          error: "Supabase não está configurado para leitura de dados.",
+        });
+      }
 
-      if (!resolved || !resolved.found) {
-        // Se a planilha não existe, retorna dados vazios ao invés de erro 404
-        console.log(
-          `⚠️ [/api/data] Planilha '${implantacao}' ainda não existe (sem unidades importadas)`
-        );
+      const implData = await findImplantacaoByName(implantacao);
+      if (!implData || !implData.id) {
+        console.log(`⚠️ [/api/data] Implantação '${implantacao}' não encontrada no Supabase`);
         return res.json({
           unidades: [],
           clientes: [],
-          sheetNotFound: true,
           message: "Nenhuma unidade importada ainda para esta implantação",
         });
       }
-      const sheetTitle = resolved.found;
 
-      // Busca unidades da planilha (Google Sheets) — inclui coluna Q (implantacao_ref)
-      const implantacaoRes = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${sheetTitle}'!A:Q`,
-      });
+      const { data: unidadesData, error: unidadesError } = await supabase
+        .from("unidades")
+        .select("*")
+        .eq("implantacao_id", implData.id)
+        .order("row_index", { ascending: true });
 
-      // Busca clientes do Supabase
-      let clientes = [];
-      if (supabase) {
-        try {
-          // Primeiro encontra o ID da implantação
-          let implData = null;
-          try {
-            implData = await findImplantacaoByName(sheetTitle);
-          } catch (e) {
-            console.error("[FIND_IMPLANT] erro ao localizar implantação:", e && e.message ? e.message : e);
-          }
-
-          if (implData && implData.id) {
-            // Busca os clientes associados a esta implantação
-            const { data: clientesData } = await supabase
-              .from("clientes")
-              .select("*")
-              .eq("implantacao_id", implData.id);
-
-            clientes = (clientesData || []).map((c) => [
-              c.id_pre_cadastro || "",
-              c.nome || "",
-              c.documento || "",
-              c.corretor || "",
-              c.imobiliaria || "",
-              c.status || "",
-            ]);
-          }
-        } catch (e) {
-          console.error("Erro ao buscar clientes do Supabase:", e);
-          // Em caso de erro, retorna array vazio
-        }
+      if (unidadesError) {
+        throw unidadesError;
       }
 
+      const { data: clientesData, error: clientesError } = await supabase
+        .from("clientes")
+        .select("*")
+        .eq("implantacao_id", implData.id);
+
+      if (clientesError) {
+        throw clientesError;
+      }
+
+      const clientes = (clientesData || []).map((c) => [
+        c.id_pre_cadastro || "",
+        c.nome || "",
+        c.documento || "",
+        c.corretor || "",
+        c.imobiliaria || "",
+        c.status || "",
+      ]);
+
       const responseData = {
-        unidades: implantacaoRes.data.values || [],
+        unidades: (unidadesData || []).map((unit) => supabaseUnitToArray(unit)),
         clientes: clientes,
       };
 
@@ -1996,34 +1979,29 @@ app.get("/api/public-data", async (req, res) => {
       .json({ error: "O nome da implantação é obrigatório." });
   }
   try {
-    const sheets = await getSheetsClient();
-    const resolved = await resolveSheetName(
-      sheets,
-      SPREADSHEET_ID_IMPLANTACAO,
-      implantacao
-    );
-    if (!resolved || !resolved.found) {
-      const available = Array.isArray(resolved && resolved.available)
-        ? resolved.available
-        : [];
-      const suggestions = Array.isArray(resolved && resolved.suggestions)
-        ? resolved.suggestions
-        : [];
-      const resolverError = resolved && resolved.error ? resolved.error : null;
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase não está configurado." });
+    }
+
+    const implData = await findImplantacaoByName(implantacao);
+    if (!implData || !implData.id) {
       return res.status(404).json({
-        error: `Planilha '${implantacao}' não encontrada no spreadsheet de implantação.`,
-        available,
-        suggestions,
-        resolverError,
+        error: `Implantação '${implantacao}' não encontrada no Supabase.`,
       });
     }
-    const sheetTitle = resolved.found;
-    const implantacaoRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      range: `'${sheetTitle}'!A:Q`,
-      valueRenderOption: "FORMATTED_VALUE",
-    });
-    let unidades = implantacaoRes.data.values || [];
+
+    const sheetTitle = implData.nome;
+    const { data: unidadesData, error: unidadesError } = await supabase
+      .from("unidades")
+      .select("*")
+      .eq("implantacao_id", implData.id)
+      .order("row_index", { ascending: true });
+
+    if (unidadesError) {
+      throw unidadesError;
+    }
+
+    let unidades = (unidadesData || []).map((unit) => supabaseUnitToArray(unit));
 
     if (hideAvailable === "true") {
       unidades = unidades.filter(
@@ -2039,18 +2017,18 @@ app.get("/api/public-data", async (req, res) => {
 
     if (supabase) {
       try {
-        const { data: implData } = await supabase
+        const { data: implMeta } = await supabase
           .from("implantacoes")
           .select("imagem_url, imagem_url_adicional, dot_size, sigla")
           .eq("nome", sheetTitle)
           .limit(1)
           .single();
 
-        if (implData) {
-          imageUrl = implData.imagem_url || "";
-          imageUrlAdicional = implData.imagem_url_adicional || "";
-          dotSize = implData.dot_size || 16;
-          sigla = implData.sigla || "";
+        if (implMeta) {
+          imageUrl = implMeta.imagem_url || "";
+          imageUrlAdicional = implMeta.imagem_url_adicional || "";
+          dotSize = implMeta.dot_size || 16;
+          sigla = implMeta.sigla || "";
         }
       } catch (e) {
         console.error("Erro ao buscar dados da implantação no Supabase:", e);
@@ -7168,33 +7146,27 @@ app.get(
       const { nome } = req.params;
       console.log("📊 [COUNT UNIDADES] Contando unidades para:", nome);
 
-      const sheets = await getSheetsClient();
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não está configurado." });
+      }
 
-      // Verifica se a aba existe
-      const spreadsheet = await sheets.spreadsheets.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-      });
-
-      const existingSheet = spreadsheet.data.sheets.find(
-        (s) => s.properties.title === nome
-      );
-
-      if (!existingSheet) {
+      const implData = await findImplantacaoByName(nome);
+      if (!implData || !implData.id) {
         return res.json({ count: 0, configured: false });
       }
 
-      // Busca dados da aba (ignora cabeçalho na linha 1)
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID_IMPLANTACAO,
-        range: `'${nome}'!A2:O`,
-      });
+      const { count, error: countError } = await supabase
+        .from("unidades")
+        .select("id", { count: "exact", head: true })
+        .eq("implantacao_id", implData.id);
 
-      const rows = response.data.values || [];
-      const count = rows.filter((row) => row[0] || row[2]).length; // Conta linhas com etapa ou nome_unidade
+      if (countError) {
+        throw countError;
+      }
 
       console.log("📊 [COUNT UNIDADES] Total:", count);
 
-      res.json({ count, configured: count > 0 });
+      res.json({ count: count || 0, configured: (count || 0) > 0 });
     } catch (error) {
       console.error("❌ [COUNT UNIDADES] Erro:", error);
       res.status(500).json({
