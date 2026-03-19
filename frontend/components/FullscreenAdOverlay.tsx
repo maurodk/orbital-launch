@@ -14,6 +14,7 @@ interface FullscreenAdOverlayProps {
 
 const INTRO_DURATION_MS = 1200;
 const OUTRO_DURATION_MS = 1100;
+const MIN_CONTENT_DURATION_MS = 400;
 
 function renderMediaAsset(
   mediaType: PropagandaMediaType | null,
@@ -21,7 +22,7 @@ function renderMediaAsset(
   className: string,
   onEnded?: () => void,
   alt = "Propaganda",
-  loop = true
+  loop = false
 ) {
   if (!mediaType || !mediaUrl) {
     return null;
@@ -59,19 +60,22 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
     timeoutsRef.current = [];
   }, []);
 
+  const finishPlayback = useCallback(() => {
+    clearTimers();
+    setPhase("hidden");
+    setDisplayRuntime(null);
+    outroRequestedRef.current = false;
+  }, [clearTimers]);
+
+  const advanceToContent = useCallback(() => {
+    setPhase("content");
+  }, []);
+
   const startOutro = useCallback(() => {
     if (outroRequestedRef.current || !displayRuntime) return;
 
     outroRequestedRef.current = true;
     setPhase("outro");
-
-    const hideTimeout = window.setTimeout(() => {
-      setPhase("hidden");
-      setDisplayRuntime(null);
-      outroRequestedRef.current = false;
-    }, OUTRO_DURATION_MS);
-
-    timeoutsRef.current.push(hideTimeout);
   }, [displayRuntime]);
 
   useEffect(() => {
@@ -96,24 +100,84 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
     outroRequestedRef.current = false;
     clearTimers();
     setDisplayRuntime(runtime);
-    setPhase("intro");
-
-    const introTimeout = window.setTimeout(() => {
-      setPhase("content");
-    }, INTRO_DURATION_MS);
-
-    timeoutsRef.current.push(introTimeout);
-
-    const endsAtMs = runtime.endsAt
-      ? new Date(runtime.endsAt).getTime()
-      : Date.now() + runtime.activeDurationSeconds * 1000;
-    const outroDelay = Math.max(endsAtMs - Date.now() - OUTRO_DURATION_MS, 0);
-    const outroTimeout = window.setTimeout(() => {
-      startOutro();
-    }, outroDelay);
-
-    timeoutsRef.current.push(outroTimeout);
+    setPhase(
+      runtime.activeTransitionEntryMediaType && runtime.activeTransitionEntryMediaUrl
+        ? "intro"
+        : "content"
+    );
   }, [clearTimers, displayRuntime, phase, runtime, startOutro]);
+
+  useEffect(() => {
+    if (!displayRuntime || phase === "hidden") {
+      return;
+    }
+
+    clearTimers();
+
+    if (phase === "intro") {
+      if (
+        !displayRuntime.activeTransitionEntryMediaType ||
+        !displayRuntime.activeTransitionEntryMediaUrl
+      ) {
+        setPhase("content");
+        return;
+      }
+
+      if (displayRuntime.activeTransitionEntryMediaType !== "mp4") {
+        const introTimeout = window.setTimeout(() => {
+          setPhase("content");
+        }, INTRO_DURATION_MS);
+        timeoutsRef.current.push(introTimeout);
+      }
+
+      return;
+    }
+
+    if (phase === "content") {
+      if (!displayRuntime.activeMediaType || !displayRuntime.activeMediaUrl) {
+        startOutro();
+        return;
+      }
+
+      if (displayRuntime.activeMediaType !== "mp4") {
+        const endsAtMs = displayRuntime.endsAt
+          ? new Date(displayRuntime.endsAt).getTime()
+          : Date.now() + displayRuntime.activeDurationSeconds * 1000;
+        const exitWindowMs =
+          displayRuntime.activeTransitionExitMediaType &&
+          displayRuntime.activeTransitionExitMediaUrl
+            ? OUTRO_DURATION_MS
+            : 0;
+        const contentDelay = Math.max(
+          endsAtMs - Date.now() - exitWindowMs,
+          MIN_CONTENT_DURATION_MS
+        );
+
+        const contentTimeout = window.setTimeout(() => {
+          startOutro();
+        }, contentDelay);
+        timeoutsRef.current.push(contentTimeout);
+      }
+
+      return;
+    }
+
+    if (
+      phase === "outro" &&
+      (!displayRuntime.activeTransitionExitMediaType ||
+        !displayRuntime.activeTransitionExitMediaUrl)
+    ) {
+      finishPlayback();
+      return;
+    }
+
+    if (phase === "outro" && displayRuntime.activeTransitionExitMediaType !== "mp4") {
+      const hideTimeout = window.setTimeout(() => {
+        finishPlayback();
+      }, OUTRO_DURATION_MS);
+      timeoutsRef.current.push(hideTimeout);
+    }
+  }, [clearTimers, displayRuntime, finishPlayback, phase, startOutro]);
 
   const mediaNode = useMemo(
     () =>
@@ -122,7 +186,8 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         displayRuntime?.activeMediaUrl || null,
         "fs-ad-overlay__media-asset fs-ad-overlay__media-asset--video",
         startOutro,
-        displayRuntime?.activeCampaignName || "Propaganda"
+        displayRuntime?.activeCampaignName || "Propaganda",
+        false
       ),
     [displayRuntime, startOutro]
   );
@@ -133,11 +198,11 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         displayRuntime?.activeTransitionEntryMediaType || null,
         displayRuntime?.activeTransitionEntryMediaUrl || null,
         "fs-ad-overlay__transition-asset",
-        undefined,
+        advanceToContent,
         `${displayRuntime?.activeCampaignName || "Propaganda"} transição de entrada`,
         false
       ),
-    [displayRuntime]
+    [advanceToContent, displayRuntime]
   );
 
   const exitTransitionNode = useMemo(
@@ -146,11 +211,11 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         displayRuntime?.activeTransitionExitMediaType || null,
         displayRuntime?.activeTransitionExitMediaUrl || null,
         "fs-ad-overlay__transition-asset",
-        undefined,
+        finishPlayback,
         `${displayRuntime?.activeCampaignName || "Propaganda"} transição de saída`,
         false
       ),
-    [displayRuntime]
+    [displayRuntime, finishPlayback]
   );
 
   const phaseTransitionNode = phase === "intro" ? transitionNode : phase === "outro" ? exitTransitionNode : null;

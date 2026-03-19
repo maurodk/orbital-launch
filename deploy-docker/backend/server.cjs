@@ -6047,7 +6047,19 @@ app.post("/api/propaganda/trigger", async (req, res) => {
       req.body?.campaignId || req.body?.campaign_id,
       "campaignId"
     );
-    const campaign = await getPropagandaCampaignById(campaignId);
+    const hasDurationOverride =
+      Object.prototype.hasOwnProperty.call(req.body || {}, "durationSeconds") ||
+      Object.prototype.hasOwnProperty.call(req.body || {}, "duration_seconds");
+    const durationOverride = hasDurationOverride
+      ? parsePositiveInteger(
+          Object.prototype.hasOwnProperty.call(req.body || {}, "durationSeconds")
+            ? req.body?.durationSeconds
+            : req.body?.duration_seconds,
+          "durationSeconds"
+        )
+      : null;
+
+    let campaign = await getPropagandaCampaignById(campaignId);
 
     if (!campaign) {
       return res.status(404).json({ error: "Campanha não encontrada." });
@@ -6057,6 +6069,27 @@ app.post("/api/propaganda/trigger", async (req, res) => {
       return res.status(400).json({
         error: "A campanha selecionada está inativa.",
       });
+    }
+
+    if (durationOverride && Number(campaign.duration_seconds || 0) !== durationOverride) {
+      const { data: updatedCampaign, error: updateError } = await supabase
+        .from("propaganda_campaigns")
+        .update({
+          duration_seconds: durationOverride,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", campaign.id)
+        .select("*")
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      campaign = updatedCampaign || {
+        ...campaign,
+        duration_seconds: durationOverride,
+      };
     }
 
     const runtime = await startPropagandaPlayback(campaign, "manual");

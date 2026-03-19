@@ -17,6 +17,8 @@ const AWS_API_URL =
   "https://apitelaodigital.suportevca.com.br";
 const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 const DEFAULT_TRANSITION_STYLE = "architectural-curtain";
+const DEFAULT_MAIN_MEDIA_DURATION_SECONDS = 8;
+const DEFAULT_TRANSITION_DURATION_SECONDS = 1.2;
 
 type CampaignAssetSlot = "main" | "entry" | "exit";
 
@@ -27,7 +29,6 @@ interface SelectedCampaignAsset extends PropagandaMediaAsset {
 interface CampaignDraft {
   nome: string;
   descricao: string;
-  durationSeconds: number;
   isActive: boolean;
   storageFolder: string;
   mainAsset: SelectedCampaignAsset | null;
@@ -38,7 +39,6 @@ interface CampaignDraft {
 const emptyDraft: CampaignDraft = {
   nome: "",
   descricao: "",
-  durationSeconds: 20,
   isActive: true,
   storageFolder: "",
   mainAsset: null,
@@ -120,6 +120,79 @@ function assetToPreview(
     : null;
 }
 
+function getFallbackAssetDurationSeconds(slot: CampaignAssetSlot): number {
+  return slot === "main"
+    ? DEFAULT_MAIN_MEDIA_DURATION_SECONDS
+    : DEFAULT_TRANSITION_DURATION_SECONDS;
+}
+
+function readVideoDurationSeconds(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+
+    const cleanup = () => {
+      video.removeAttribute("src");
+      video.load();
+    };
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration || 0);
+      cleanup();
+
+      if (Number.isFinite(duration) && duration > 0) {
+        resolve(duration);
+        return;
+      }
+
+      reject(new Error("Duracao de video invalida."));
+    };
+
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("Falha ao ler metadata do video."));
+    };
+
+    video.src = url;
+  });
+}
+
+async function resolveAssetDurationSeconds(
+  asset: Pick<PropagandaMediaAsset, "mediaType" | "publicUrl"> | null,
+  slot: CampaignAssetSlot
+): Promise<number> {
+  if (!asset || !asset.publicUrl) {
+    return 0;
+  }
+
+  if (asset.mediaType !== "mp4") {
+    return getFallbackAssetDurationSeconds(slot);
+  }
+
+  try {
+    return await readVideoDurationSeconds(asset.publicUrl);
+  } catch {
+    return getFallbackAssetDurationSeconds(slot);
+  }
+}
+
+async function calculateCampaignDurationSeconds(input: {
+  mainAsset: Pick<PropagandaMediaAsset, "mediaType" | "publicUrl"> | null;
+  entryAsset: Pick<PropagandaMediaAsset, "mediaType" | "publicUrl"> | null;
+  exitAsset: Pick<PropagandaMediaAsset, "mediaType" | "publicUrl"> | null;
+}): Promise<number> {
+  const [entryDuration, mainDuration, exitDuration] = await Promise.all([
+    resolveAssetDurationSeconds(input.entryAsset, "entry"),
+    resolveAssetDurationSeconds(input.mainAsset, "main"),
+    resolveAssetDurationSeconds(input.exitAsset, "exit"),
+  ]);
+
+  return Math.max(1, Math.ceil(entryDuration + mainDuration + exitDuration));
+}
+
 function renderAssetPreview(asset: PropagandaMediaAsset | null, alt: string) {
   if (!asset) {
     return <div className="ads-simple-asset__empty">Nenhum arquivo enviado</div>;
@@ -152,6 +225,7 @@ export function AdvertisingControlPage() {
     null
   );
   const [cleaningDraft, setCleaningDraft] = useState(false);
+  const [estimatedDurationSeconds, setEstimatedDurationSeconds] = useState(0);
 
   useEffect(() => {
     const auth = localStorage.getItem("diretoriaAuth");
@@ -209,6 +283,33 @@ export function AdvertisingControlPage() {
   const selectedAssetsCount = [draft.mainAsset, draft.entryAsset, draft.exitAsset].filter(
     Boolean
   ).length;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncEstimatedDuration = async () => {
+      if (!draft.mainAsset && !draft.entryAsset && !draft.exitAsset) {
+        setEstimatedDurationSeconds(0);
+        return;
+      }
+
+      const duration = await calculateCampaignDurationSeconds({
+        mainAsset: draft.mainAsset,
+        entryAsset: draft.entryAsset,
+        exitAsset: draft.exitAsset,
+      });
+
+      if (!cancelled) {
+        setEstimatedDurationSeconds(duration);
+      }
+    };
+
+    void syncEstimatedDuration();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.entryAsset, draft.exitAsset, draft.mainAsset]);
 
   const resetDraft = useCallback(() => {
     setDraft(emptyDraft);
@@ -389,6 +490,12 @@ export function AdvertisingControlPage() {
       setError(null);
       setFeedback(null);
 
+      const calculatedDurationSeconds = await calculateCampaignDurationSeconds({
+        mainAsset: draft.mainAsset,
+        entryAsset: draft.entryAsset,
+        exitAsset: draft.exitAsset,
+      });
+
       await axios.post(`${apiUrl}/api/propaganda/campaigns`, {
         nome: draft.nome,
         descricao: draft.descricao,
@@ -396,7 +503,7 @@ export function AdvertisingControlPage() {
         mediaType: draft.mainAsset.mediaType,
         mediaUrl: draft.mainAsset.publicUrl,
         mediaPath: draft.mainAsset.path,
-        durationSeconds: draft.durationSeconds,
+        durationSeconds: calculatedDurationSeconds,
         transitionStyle: DEFAULT_TRANSITION_STYLE,
         transitionMediaType: draft.entryAsset.mediaType,
         transitionMediaUrl: draft.entryAsset.publicUrl,
@@ -448,12 +555,35 @@ export function AdvertisingControlPage() {
     }
   };
 
-  const triggerCampaign = async (campaignId: number) => {
+  const triggerCampaign = async (campaign: PropagandaCampaign) => {
     try {
       setSaving(true);
       setError(null);
       setFeedback(null);
-      await axios.post(`${apiUrl}/api/propaganda/trigger`, { campaignId });
+
+      const calculatedDurationSeconds = await calculateCampaignDurationSeconds({
+        mainAsset: {
+          mediaType: campaign.mediaType,
+          publicUrl: campaign.mediaUrl,
+        },
+        entryAsset: campaign.transitionEntryMediaUrl
+          ? {
+              mediaType: campaign.transitionEntryMediaType || "image",
+              publicUrl: campaign.transitionEntryMediaUrl,
+            }
+          : null,
+        exitAsset: campaign.transitionExitMediaUrl
+          ? {
+              mediaType: campaign.transitionExitMediaType || "image",
+              publicUrl: campaign.transitionExitMediaUrl,
+            }
+          : null,
+      });
+
+      await axios.post(`${apiUrl}/api/propaganda/trigger`, {
+        campaignId: campaign.id,
+        durationSeconds: calculatedDurationSeconds,
+      });
       setFeedback("Campanha enviada para a fullscreen.");
       await loadData();
     } catch (requestError: unknown) {
@@ -663,7 +793,7 @@ export function AdvertisingControlPage() {
             <div className="ads-checklist">
               <div>
                 <strong>1. Criar por modal</strong>
-                <p>Nome, duracao e status da campanha.</p>
+                <p>Nome, duracao automatica e status da campanha.</p>
               </div>
               <div>
                 <strong>2. Enviar 3 arquivos</strong>
@@ -776,7 +906,7 @@ export function AdvertisingControlPage() {
                       </div>
 
                       <div className="ads-campaign-card__meta">
-                        <span>{campaign.durationSeconds}s</span>
+                        <span>{campaign.durationSeconds}s calculados</span>
                         <span>{campaign.storageFolder || "Pasta nao definida"}</span>
                       </div>
                     </div>
@@ -808,7 +938,7 @@ export function AdvertisingControlPage() {
                       <button
                         type="button"
                         className="ads-button ads-button--primary"
-                        onClick={() => void triggerCampaign(campaign.id)}
+                        onClick={() => void triggerCampaign(campaign)}
                         disabled={saving || !campaign.isActive}
                       >
                         Exibir agora
@@ -873,22 +1003,6 @@ export function AdvertisingControlPage() {
                       />
                     </label>
 
-                    <label>
-                      <span>Duracao em segundos</span>
-                      <input
-                        type="number"
-                        min="5"
-                        max="300"
-                        value={draft.durationSeconds}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            durationSeconds: Number(event.target.value || 0),
-                          }))
-                        }
-                      />
-                    </label>
-
                     <label className="ads-form__span-2">
                       <span>Descricao</span>
                       <textarea
@@ -917,6 +1031,9 @@ export function AdvertisingControlPage() {
                     <span>Pasta da campanha</span>
                     <strong>{draft.storageFolder || buildDraftFolderKey(draft.nome)}</strong>
                     <p>Depois do primeiro upload, a pasta fica travada para manter a organizacao dos arquivos.</p>
+                    <p>
+                      Duracao calculada automaticamente: <strong>{estimatedDurationSeconds > 0 ? `${estimatedDurationSeconds}s` : "Aguardando arquivos"}</strong>
+                    </p>
                   </div>
                 </section>
 
