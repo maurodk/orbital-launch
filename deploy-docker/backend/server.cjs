@@ -473,6 +473,41 @@ function sanitizeStorageObjectName(filename) {
   return baseName.replace(/\s+/g, "-").replace(/-+/g, "-");
 }
 
+function sanitizePropagandaFolderName(value) {
+  return sanitizeStorageObjectName(value || "campanha")
+    .replace(/[^a-zA-Z0-9/_-]/g, "-")
+    .replace(/\/+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+}
+
+function buildPropagandaUploadPrefix({
+  campaignKey,
+  category,
+  transitionPart,
+}) {
+  const normalizedCampaignKey = sanitizePropagandaFolderName(campaignKey);
+  if (!normalizedCampaignKey) {
+    const error = new Error("Campanha inválida para upload da mídia.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (category === "main") {
+    return `${normalizedCampaignKey}/Midias/`;
+  }
+
+  if (category === "transition") {
+    const normalizedPart = transitionPart === "exit" ? "saida" : "entrada";
+    return `${normalizedCampaignKey}/Transicoes/${normalizedPart}_`;
+  }
+
+  const error = new Error("Categoria de mídia inválida.");
+  error.statusCode = 400;
+  throw error;
+}
+
 function getPropagandaPublicUrl(assetPath) {
   const publicUrlData = supabase.storage
     .from(PROPAGANDA_BUCKET)
@@ -542,9 +577,14 @@ async function renamePropagandaMediaAsset(oldPath, newName) {
   }
 
   const ext = path.extname(sourcePath);
-  const targetPath = sanitizedName.toLowerCase().endsWith(ext.toLowerCase())
+  const baseFilename = sanitizedName.toLowerCase().endsWith(ext.toLowerCase())
     ? sanitizedName
     : `${sanitizedName}${ext}`;
+  const sourceDir = path.posix.dirname(sourcePath);
+  const targetPath =
+    sourceDir && sourceDir !== "."
+      ? `${sourceDir}/${baseFilename}`
+      : baseFilename;
 
   const { error: moveError } = await supabase.storage
     .from(PROPAGANDA_BUCKET)
@@ -572,6 +612,24 @@ async function renamePropagandaMediaAsset(oldPath, newName) {
     .eq("transition_media_path", sourcePath);
 
   await supabase
+    .from("propaganda_campaigns")
+    .update({
+      transition_entry_media_path: targetPath,
+      transition_entry_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("transition_entry_media_path", sourcePath);
+
+  await supabase
+    .from("propaganda_campaigns")
+    .update({
+      transition_exit_media_path: targetPath,
+      transition_exit_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("transition_exit_media_path", sourcePath);
+
+  await supabase
     .from("propaganda_runtime")
     .update({
       active_media_path: targetPath,
@@ -588,6 +646,24 @@ async function renamePropagandaMediaAsset(oldPath, newName) {
       updated_at: new Date().toISOString(),
     })
     .eq("active_transition_media_path", sourcePath);
+
+  await supabase
+    .from("propaganda_runtime")
+    .update({
+      active_transition_entry_media_path: targetPath,
+      active_transition_entry_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("active_transition_entry_media_path", sourcePath);
+
+  await supabase
+    .from("propaganda_runtime")
+    .update({
+      active_transition_exit_media_path: targetPath,
+      active_transition_exit_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("active_transition_exit_media_path", sourcePath);
 
   return {
     oldPath: sourcePath,
@@ -618,7 +694,22 @@ async function deletePropagandaMediaAsset(assetPath) {
     .select("id,nome")
     .eq("transition_media_path", normalizedPath);
 
-  const inUse = [...(campaignsUsingMain || []), ...(campaignsUsingTransition || [])];
+  const { data: campaignsUsingEntryTransition } = await supabase
+    .from("propaganda_campaigns")
+    .select("id,nome")
+    .eq("transition_entry_media_path", normalizedPath);
+
+  const { data: campaignsUsingExitTransition } = await supabase
+    .from("propaganda_campaigns")
+    .select("id,nome")
+    .eq("transition_exit_media_path", normalizedPath);
+
+  const inUse = [
+    ...(campaignsUsingMain || []),
+    ...(campaignsUsingTransition || []),
+    ...(campaignsUsingEntryTransition || []),
+    ...(campaignsUsingExitTransition || []),
+  ];
   if (inUse.length > 0) {
     const error = new Error(
       `A mídia está em uso nas campanhas: ${inUse.map((item) => item.nome).join(", ")}`
@@ -677,6 +768,15 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
     payload.media_path = mediaPath ? String(mediaPath).trim() : null;
   }
 
+  const storageFolder = hasOwn("storageFolder")
+    ? body.storageFolder
+    : body.storage_folder;
+  if (!partial || hasOwn("storageFolder") || hasOwn("storage_folder")) {
+    payload.storage_folder = storageFolder
+      ? sanitizePropagandaFolderName(String(storageFolder))
+      : null;
+  }
+
   const durationValue = hasOwn("durationSeconds")
     ? body.durationSeconds
     : body.duration_seconds;
@@ -732,6 +832,84 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
   ) {
     payload.transition_media_path = transitionMediaPath
       ? String(transitionMediaPath).trim()
+      : null;
+  }
+
+  const rawTransitionEntryMediaType = hasOwn("transitionEntryMediaType")
+    ? body.transitionEntryMediaType
+    : body.transition_entry_media_type;
+  if (
+    !partial ||
+    hasOwn("transitionEntryMediaType") ||
+    hasOwn("transition_entry_media_type")
+  ) {
+    payload.transition_entry_media_type = rawTransitionEntryMediaType
+      ? normalizePropagandaMediaType(rawTransitionEntryMediaType)
+      : null;
+  }
+
+  const transitionEntryMediaUrl = hasOwn("transitionEntryMediaUrl")
+    ? body.transitionEntryMediaUrl
+    : body.transition_entry_media_url;
+  if (
+    !partial ||
+    hasOwn("transitionEntryMediaUrl") ||
+    hasOwn("transition_entry_media_url")
+  ) {
+    payload.transition_entry_media_url = transitionEntryMediaUrl
+      ? String(transitionEntryMediaUrl).trim()
+      : null;
+  }
+
+  const transitionEntryMediaPath = hasOwn("transitionEntryMediaPath")
+    ? body.transitionEntryMediaPath
+    : body.transition_entry_media_path;
+  if (
+    !partial ||
+    hasOwn("transitionEntryMediaPath") ||
+    hasOwn("transition_entry_media_path")
+  ) {
+    payload.transition_entry_media_path = transitionEntryMediaPath
+      ? String(transitionEntryMediaPath).trim()
+      : null;
+  }
+
+  const rawTransitionExitMediaType = hasOwn("transitionExitMediaType")
+    ? body.transitionExitMediaType
+    : body.transition_exit_media_type;
+  if (
+    !partial ||
+    hasOwn("transitionExitMediaType") ||
+    hasOwn("transition_exit_media_type")
+  ) {
+    payload.transition_exit_media_type = rawTransitionExitMediaType
+      ? normalizePropagandaMediaType(rawTransitionExitMediaType)
+      : null;
+  }
+
+  const transitionExitMediaUrl = hasOwn("transitionExitMediaUrl")
+    ? body.transitionExitMediaUrl
+    : body.transition_exit_media_url;
+  if (
+    !partial ||
+    hasOwn("transitionExitMediaUrl") ||
+    hasOwn("transition_exit_media_url")
+  ) {
+    payload.transition_exit_media_url = transitionExitMediaUrl
+      ? String(transitionExitMediaUrl).trim()
+      : null;
+  }
+
+  const transitionExitMediaPath = hasOwn("transitionExitMediaPath")
+    ? body.transitionExitMediaPath
+    : body.transition_exit_media_path;
+  if (
+    !partial ||
+    hasOwn("transitionExitMediaPath") ||
+    hasOwn("transition_exit_media_path")
+  ) {
+    payload.transition_exit_media_path = transitionExitMediaPath
+      ? String(transitionExitMediaPath).trim()
       : null;
   }
 
@@ -842,11 +1020,24 @@ async function startPropagandaPlayback(campaign, triggerSource = "manual") {
     active_media_type: campaign.media_type,
     active_media_url: campaign.media_url,
     active_media_path: campaign.media_path || null,
+    active_storage_folder: campaign.storage_folder || null,
     active_transition_style:
       campaign.transition_style || PROPAGANDA_TRANSITION_STYLE,
     active_transition_media_type: campaign.transition_media_type || null,
     active_transition_media_url: campaign.transition_media_url || null,
     active_transition_media_path: campaign.transition_media_path || null,
+    active_transition_entry_media_type:
+      campaign.transition_entry_media_type || campaign.transition_media_type || null,
+    active_transition_entry_media_url:
+      campaign.transition_entry_media_url || campaign.transition_media_url || null,
+    active_transition_entry_media_path:
+      campaign.transition_entry_media_path || campaign.transition_media_path || null,
+    active_transition_exit_media_type:
+      campaign.transition_exit_media_type || campaign.transition_media_type || null,
+    active_transition_exit_media_url:
+      campaign.transition_exit_media_url || campaign.transition_media_url || null,
+    active_transition_exit_media_path:
+      campaign.transition_exit_media_path || campaign.transition_media_path || null,
     active_duration_seconds: Number(campaign.duration_seconds || 15),
     playback_token: randomUUID(),
     trigger_source: triggerSource,
@@ -865,11 +1056,18 @@ async function stopPropagandaPlayback(triggerSource = "manual-stop") {
     active_media_type: null,
     active_media_url: null,
     active_media_path: null,
+    active_storage_folder: null,
     active_transition_style:
       runtime.active_transition_style || PROPAGANDA_TRANSITION_STYLE,
     active_transition_media_type: null,
     active_transition_media_url: null,
     active_transition_media_path: null,
+    active_transition_entry_media_type: null,
+    active_transition_entry_media_url: null,
+    active_transition_entry_media_path: null,
+    active_transition_exit_media_type: null,
+    active_transition_exit_media_url: null,
+    active_transition_exit_media_path: null,
     playback_token: randomUUID(),
     trigger_source: triggerSource,
     started_at: null,
@@ -895,12 +1093,19 @@ async function syncPropagandaSchedulerTick() {
         status: "idle",
         active_campaign_id: null,
         active_campaign_name: null,
+        active_storage_folder: null,
         active_media_type: null,
         active_media_url: null,
         active_media_path: null,
         active_transition_media_type: null,
         active_transition_media_url: null,
         active_transition_media_path: null,
+        active_transition_entry_media_type: null,
+        active_transition_entry_media_url: null,
+        active_transition_entry_media_path: null,
+        active_transition_exit_media_type: null,
+        active_transition_exit_media_url: null,
+        active_transition_exit_media_path: null,
         trigger_source: "completed",
         started_at: null,
         ends_at: null,
@@ -5612,10 +5817,19 @@ app.post(
         return res.status(400).json({ error: "Nenhum arquivo enviado." });
       }
 
+      const category = String(req.body?.category || "").trim().toLowerCase();
+      const campaignKey = String(req.body?.campaignKey || "").trim();
+      const transitionPart = String(req.body?.transitionPart || "")
+        .trim()
+        .toLowerCase();
+      const uploadPrefix = category && campaignKey
+        ? buildPropagandaUploadPrefix({ campaignKey, category, transitionPart })
+        : "media_";
+
       const result = await uploadFileToSupabaseStorage(
         PROPAGANDA_BUCKET,
         req.file,
-        "media_"
+        uploadPrefix
       );
 
       const media = {

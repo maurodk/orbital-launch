@@ -20,7 +20,8 @@ function renderMediaAsset(
   mediaUrl: string | null,
   className: string,
   onEnded?: () => void,
-  alt = "Propaganda"
+  alt = "Propaganda",
+  loop = true
 ) {
   if (!mediaType || !mediaUrl) {
     return null;
@@ -33,7 +34,7 @@ function renderMediaAsset(
         src={mediaUrl}
         autoPlay
         muted
-        loop
+        loop={loop}
         playsInline
         preload="auto"
         onEnded={onEnded}
@@ -129,14 +130,30 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
   const transitionNode = useMemo(
     () =>
       renderMediaAsset(
-        displayRuntime?.activeTransitionMediaType || null,
-        displayRuntime?.activeTransitionMediaUrl || null,
+        displayRuntime?.activeTransitionEntryMediaType || null,
+        displayRuntime?.activeTransitionEntryMediaUrl || null,
         "fs-ad-overlay__transition-asset",
         undefined,
-        `${displayRuntime?.activeCampaignName || "Propaganda"} transição`
+        `${displayRuntime?.activeCampaignName || "Propaganda"} transição de entrada`,
+        false
       ),
     [displayRuntime]
   );
+
+  const exitTransitionNode = useMemo(
+    () =>
+      renderMediaAsset(
+        displayRuntime?.activeTransitionExitMediaType || null,
+        displayRuntime?.activeTransitionExitMediaUrl || null,
+        "fs-ad-overlay__transition-asset",
+        undefined,
+        `${displayRuntime?.activeCampaignName || "Propaganda"} transição de saída`,
+        false
+      ),
+    [displayRuntime]
+  );
+
+  const phaseTransitionNode = phase === "intro" ? transitionNode : phase === "outro" ? exitTransitionNode : null;
 
   if (!displayRuntime || phase === "hidden") {
     return null;
@@ -145,11 +162,11 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
   return (
     <div className={`fs-ad-overlay fs-ad-overlay--${phase}`}>
       <div className="fs-ad-overlay__veil" />
-      {transitionNode ? (
+      {phaseTransitionNode ? (
         <div className={`fs-ad-overlay__transition-shell fs-ad-overlay__transition-shell--${phase}`}>
-          {transitionNode}
+          {phaseTransitionNode}
         </div>
-      ) : (
+      ) : phase === "intro" || phase === "outro" ? (
         <div className="fs-ad-overlay__panels" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, index) => (
             <span
@@ -159,7 +176,7 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
             />
           ))}
         </div>
-      )}
+      ) : null}
 
       <div className="fs-ad-overlay__hud">
         <span className="fs-ad-overlay__tag">Propaganda Programada</span>
