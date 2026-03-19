@@ -60,6 +60,30 @@ interface ImplantacaoData {
   sheetTitle?: string;
 }
 
+function normalizeSearchValue(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function pickAvailableImageUrl(
+  data: Pick<ImplantacaoData, "imageUrl" | "imageUrlAdicional"> | null,
+  layer: "primary" | "additional"
+): string {
+  if (!data) return "";
+
+  const primary = String(data.imageUrl || "").trim();
+  const additional = String(data.imageUrlAdicional || "").trim();
+
+  if (layer === "additional") {
+    return additional || primary || "";
+  }
+
+  return primary || additional || "";
+}
+
 export function FullscreenPage() {
   const [searchParams] = useSearchParams();
   const implantacao = searchParams.get("implantacao") || "";
@@ -305,10 +329,11 @@ export function FullscreenPage() {
         
         // 1. Buscar implantação pelo nome ou sigla
         // Busca todas as correspondências e pega a primeira (ordenado por nome para pegar TORRE 1 antes de TORRE 2)
+        const normalizedSearch = normalizeSearchValue(implantacao);
         const { data: implList, error: implError } = await supabase
           .from("implantacoes")
           .select("id, nome, imagem_url, imagem_url_adicional, dot_size, sigla")
-          .or(`sigla.ilike.${implantacao},nome.ilike.%${implantacao}%`)
+          .or(`sigla.ilike.%${implantacao}%,nome.ilike.%${implantacao}%`)
           .order("nome", { ascending: true });
 
         if (implError) {
@@ -316,7 +341,15 @@ export function FullscreenPage() {
           throw implError;
         }
 
-        if (!implList || implList.length === 0) {
+        const rankedImplantacoes = (implList || []).sort((left, right) => {
+          const leftName = normalizeSearchValue(left.nome || left.sigla || "");
+          const rightName = normalizeSearchValue(right.nome || right.sigla || "");
+          const leftExact = leftName === normalizedSearch ? 0 : leftName.includes(normalizedSearch) ? 1 : 2;
+          const rightExact = rightName === normalizedSearch ? 0 : rightName.includes(normalizedSearch) ? 1 : 2;
+          return leftExact - rightExact;
+        });
+
+        if (!rankedImplantacoes || rankedImplantacoes.length === 0) {
           console.error(`[Fullscreen] Implantação não encontrada (tentativa ${attempt})`);
           // Se é refresh e já temos dados, não mostrar erro crítico
           if (isRefresh && dataRef.current) {
@@ -325,15 +358,15 @@ export function FullscreenPage() {
             isFetchingRef.current = false;
             return;
           }
-          throw new Error("Implantação não encontrada no banco de dados");
+          throw new Error(`Implantação \"${implantacao}\" não encontrada no banco de dados`);
         }
 
         // Se encontrou múltiplas, logar e pegar a primeira (TORRE 1 vem antes de TORRE 2 em ordem alfabética)
-        if (implList.length > 1) {
-          console.log("[Fullscreen] Múltiplas implantações encontradas:", implList.map(i => i.nome));
+        if (rankedImplantacoes.length > 1) {
+          console.log("[Fullscreen] Múltiplas implantações encontradas:", rankedImplantacoes.map(i => i.nome));
         }
         
-        const implData = implList[0];
+        const implData = rankedImplantacoes[0];
 
         console.log("[Fullscreen] Implantação encontrada:", implData.nome, "ID:", implData.id);
         console.log("[Fullscreen] Imagem URL:", implData.imagem_url);
@@ -460,8 +493,8 @@ export function FullscreenPage() {
           return;
         }
         
-        // Sem cache e sem dados anteriores - mostrar erro
-        setError("Não foi possível carregar os dados. Verifique sua conexão.");
+        const message = err instanceof Error ? err.message : "Não foi possível carregar os dados. Verifique sua conexão.";
+        setError(message);
         setConnectionStatus("Desconectado");
       } finally {
         if (setLoading) setLoading(false);
@@ -782,12 +815,12 @@ export function FullscreenPage() {
 
   // Get image URL based on layer
   const currentImageUrl = useMemo(() => {
-    if (!data) return "";
-    if (activeLayer === "additional" && data.imageUrlAdicional) {
-      return data.imageUrlAdicional;
-    }
-    return data.imageUrl;
+    return pickAvailableImageUrl(data, activeLayer);
   }, [data, activeLayer]);
+
+  const hasAnyPlantImage = useMemo(() => {
+    return Boolean(String(data?.imageUrl || "").trim() || String(data?.imageUrlAdicional || "").trim());
+  }, [data]);
 
   if (error) {
     return (
@@ -981,7 +1014,7 @@ export function FullscreenPage() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {currentImageUrl ? (
+        {hasAnyPlantImage ? (
           <div
             ref={imageContainerRef}
             style={{
@@ -1009,6 +1042,24 @@ export function FullscreenPage() {
                 userSelect: "none",
               }}
               draggable={false}
+              onError={(event) => {
+                const target = event.currentTarget;
+                const fallbackUrl = pickAvailableImageUrl(
+                  {
+                    imageUrl: activeLayer === "primary" ? "" : data?.imageUrl || "",
+                    imageUrlAdicional:
+                      activeLayer === "additional" ? "" : data?.imageUrlAdicional || "",
+                  },
+                  activeLayer
+                );
+
+                if (fallbackUrl && target.src !== fallbackUrl) {
+                  target.src = fallbackUrl;
+                  return;
+                }
+
+                target.style.display = "none";
+              }}
             />
 
             {/* Overlay de blocos vendidos */}
@@ -1072,7 +1123,20 @@ export function FullscreenPage() {
             })}
           </div>
         ) : (
-          <p style={{ padding: 20 }}>Imagem da planta não configurada.</p>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              padding: 20,
+              textAlign: "center",
+            }}
+          >
+            <p>Nenhuma imagem da planta foi configurada para esta implantação.</p>
+          </div>
         )}
       </div>
 
