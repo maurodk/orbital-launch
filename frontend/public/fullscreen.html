@@ -1176,7 +1176,6 @@
 
         // Auto-refresh a cada 30 segundos para sincronizar dados
         let autoRefreshInterval = setInterval(() => {
-          console.log("Auto-refresh executado");
           const hideAvailable = hideDisponivelToggle?.checked
             ? "true"
             : "false";
@@ -1558,6 +1557,10 @@
 
         let es;
         let esSecondary;
+        let sseReconnectTimer = null;
+        let sseReconnectAttempts = 0;
+        let sseConsecutivePollingFailures = 0;
+        let hasBoundOnlineReconnect = false;
         // preferência para usar coords alternativas (O:P) como camada principal
         // quando `adicional=true` e secondary vem da mesma implantação
         let preferAltCoordsForPrimary = false;
@@ -1712,6 +1715,11 @@
         }
 
         function connectSse() {
+          if (sseReconnectTimer) {
+            clearTimeout(sseReconnectTimer);
+            sseReconnectTimer = null;
+          }
+
           if (es) {
             try {
               es.close();
@@ -1742,22 +1750,19 @@
 
           es.onopen = () => {
             statusEl.textContent = "Conectado em tempo real";
-            reconnectAttempts = 0;
-            consecutivePollingFailures = 0;
+            sseReconnectAttempts = 0;
+            sseConsecutivePollingFailures = 0;
           };
 
           es.onerror = async () => {
-            statusEl.textContent = "Erro na conexão. Tentando reconectar...";
+            statusEl.textContent = "Reconectando tempo real...";
 
             // If offline, just wait for 'online' event
             if (typeof navigator !== "undefined" && !navigator.onLine) {
-              console.warn(
-                "[SSE] Cliente offline, aguardando reconexão de rede"
-              );
               return;
             }
 
-            reconnectAttempts++;
+            sseReconnectAttempts++;
 
             // polling fallback to validate data layer
             try {
@@ -1773,37 +1778,46 @@
               if (resUnits.status === 401 || resUnits.status === 404) {
                 // Auth issues (401) or missing sheet (404) are not considered
                 // an instability of SSE; do not increment failure counter.
-                console.warn(
-                  `[SSE] Polling-fallback: status ${resUnits.status} received (skipping reload counter)`
-                );
+                sseConsecutivePollingFailures = 0;
               } else if (!resUnits.ok) {
                 throw new Error("Polling fallback failed");
               } else {
-                consecutivePollingFailures = 0;
+                sseConsecutivePollingFailures = 0;
               }
             } catch (err) {
-              console.error("[SSE] Polling-fallback falhou:", err);
-              consecutivePollingFailures++;
+              sseConsecutivePollingFailures++;
             }
 
             if (
-              reconnectAttempts >= MAX_RECONNECT_ATTEMPTS &&
-              consecutivePollingFailures >= MAX_POLLING_FAILURES
+              sseReconnectAttempts >= MAX_RECONNECT_ATTEMPTS &&
+              sseConsecutivePollingFailures >= MAX_POLLING_FAILURES
             ) {
-              console.error("[SSE] Falha persistente — acionando hard refresh");
+              statusEl.textContent = "Tempo real indisponível. Mantendo atualização automática.";
+              return;
+            }
+
+            if (es) {
               try {
-                window.location.reload();
-              } catch (e) {
-                console.error("Reload failed", e);
-              }
+                es.close();
+              } catch (e) {}
+            }
+
+            if (esSecondary) {
+              try {
+                esSecondary.close();
+              } catch (e) {}
+            }
+
+            if (sseReconnectTimer) {
               return;
             }
 
             const delay = Math.min(
-              2000 * Math.pow(2, reconnectAttempts - 1),
+              2000 * Math.pow(2, sseReconnectAttempts - 1),
               30000
             );
-            setTimeout(() => {
+            sseReconnectTimer = setTimeout(() => {
+              sseReconnectTimer = null;
               connectSse();
             }, delay);
           };
@@ -1811,11 +1825,6 @@
           es.addEventListener("unitUpdated", async (ev) => {
             try {
               const { unitData, rowIndex } = JSON.parse(ev.data);
-              console.log("Evento 'unit-updated' recebido:", {
-                unitData,
-                rowIndex,
-              });
-
               // Decide se devemos respeitar implantacao_ref (owner) para escolher a camada.
               // Usamos a flag de camada atual (`adicionalFlag`) ou a indicação global de secondary mesma implantação.
               const secondarySame = !!window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__;
@@ -1868,17 +1877,16 @@
             );
 
             esSecondary.onopen = () => {
-              console.log("SSE secundário conectado para:", implantacaoAdParam);
+              statusEl.textContent = "Conectado em tempo real";
             };
 
-            esSecondary.onerror = (err) => {
-              console.warn("SSE secundário erro:", err);
+            esSecondary.onerror = () => {
+              statusEl.textContent = "Reconectando camada adicional...";
             };
 
             esSecondary.addEventListener("unitUpdated", (ev) => {
               try {
                 const { unitData, rowIndex } = JSON.parse(ev.data);
-                console.log('[SSE-secondary] unitUpdated received:', { unitData, rowIndex });
                 // Atualiza camada adicional (usar coords primários do outro sheet)
                 updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
               } catch (e) {
@@ -1888,11 +1896,14 @@
           }
 
           // network events
-          window.addEventListener("online", () => {
-            console.info("[SSE] Network online — tentando reconectar");
-            reconnectAttempts = 0;
-            connectSse();
-          });
+          if (!hasBoundOnlineReconnect) {
+            window.addEventListener("online", () => {
+              sseReconnectAttempts = 0;
+              sseConsecutivePollingFailures = 0;
+              connectSse();
+            });
+            hasBoundOnlineReconnect = true;
+          }
         }
 
         function updateSingleUnit(unitData, rowIndex) {
@@ -1960,9 +1971,6 @@
             indicator.appendChild(letraSpan);
           }
 
-          console.log(
-            `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
-          );
         }
 
         function updateAllDotSizes(newSize) {
@@ -2001,10 +2009,14 @@
               body = await res.text();
             }
             if (res.ok) {
-              console.log('Salvar dot size sucesso:', body);
               showToast();
             } else {
+              const message =
+                body && typeof body === "object" && body.error
+                  ? body.error
+                  : `Falha ao salvar o tamanho do ponto (${res.status}).`;
               console.error('Falha ao salvar o tamanho do ponto:', res.status, body);
+              showToast(message);
             }
           } catch (error) {
             console.error("Erro de rede ao salvar o tamanho do ponto:", error);

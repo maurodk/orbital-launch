@@ -3305,16 +3305,27 @@ app.get("/api/events", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders && res.flushHeaders();
 
+  res.write(`retry: 5000\n`);
   // Envia um comentário inicial para manter a conexão
   res.write(`: connected to ${implantacao}\n\n`);
+
+  const heartbeatIntervalId = setInterval(() => {
+    try {
+      res.write(`: heartbeat ${Date.now()}\n\n`);
+    } catch (error) {
+      clearInterval(heartbeatIntervalId);
+    }
+  }, 25000);
 
   res.locals.clientId = clientId;
   addSseClient(implantacao, res);
 
   // Quando o cliente fechar, remova-o
   req.on("close", () => {
+    clearInterval(heartbeatIntervalId);
     removeSseClient(implantacao, res, clientId);
   });
 });
@@ -5432,6 +5443,7 @@ app.post("/api/clear-coords", verifyToken, async (req, res) => {
 // CORREÇÃO: Endpoint público para atualizar tamanho do ponto (dot_size)
 app.post("/api/update-dot-size", async (req, res) => {
   const { implantacaoName, newSize } = req.body;
+  const parsedDotSize = Number.parseInt(newSize, 10);
 
   if (!implantacaoName || newSize === undefined) {
     return res
@@ -5439,15 +5451,28 @@ app.post("/api/update-dot-size", async (req, res) => {
       .json({ error: "Nome da implantação e novo tamanho são obrigatórios." });
   }
 
+  if (!Number.isFinite(parsedDotSize) || parsedDotSize <= 0) {
+    return res.status(400).json({
+      error: "Novo tamanho do ponto inválido.",
+    });
+  }
+
   try {
     if (!supabase) {
       return res.status(500).json({ error: "Supabase não configurado." });
     }
 
+    const implantacao = await findImplantacaoByName(implantacaoName);
+    if (!implantacao?.id) {
+      return res.status(404).json({
+        error: `Implantação '${implantacaoName}' não encontrada.`,
+      });
+    }
+
     const { data, error } = await supabase
       .from("implantacoes")
-      .update({ dot_size: parseInt(newSize, 10) })
-      .eq("nome", implantacaoName)
+      .update({ dot_size: parsedDotSize })
+      .eq("id", implantacao.id)
       .select()
       .single();
 
@@ -5467,7 +5492,7 @@ app.post("/api/update-dot-size", async (req, res) => {
 
     res.json({
       success: true,
-      message: `Tamanho do ponto atualizado para ${newSize}px.`,
+      message: `Tamanho do ponto atualizado para ${parsedDotSize}px.`,
       updated: data,
     });
   } catch (error) {
