@@ -65,7 +65,7 @@ function inferUploadMediaType(file: File): PropagandaMediaType {
   const mime = String(file.type || "").toLowerCase();
   const name = file.name.toLowerCase();
 
-  if (mime === "video/mp4" || name.endsWith(".mp4")) return "mp4";
+  if (mime === "video/mp4" || mime === "video/webm" || name.endsWith(".mp4") || name.endsWith(".webm")) return "mp4";
   if (mime === "image/gif" || name.endsWith(".gif")) return "gif";
   if (mime === "image/svg+xml" || name.endsWith(".svg")) return "svg";
   return "image";
@@ -961,7 +961,7 @@ export function AdvertisingControlPage() {
                           <label className="ads-button ads-button--primary ads-upload-button">
                             <input
                               type="file"
-                              accept="video/mp4,image/gif,image/svg+xml,image/png,image/jpeg,image/webp"
+                              accept="video/mp4,video/webm,image/gif,image/svg+xml,image/png,image/jpeg,image/webp"
                               onChange={(event) => {
                                 void uploadDraftAsset(slot, event.target.files?.[0] || null);
                                 event.target.value = "";

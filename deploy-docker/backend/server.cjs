@@ -462,7 +462,7 @@ function inferPropagandaMediaType(filename, mimeType) {
   const normalizedMime = String(mimeType || "").toLowerCase();
   const ext = path.extname(String(filename || "")).toLowerCase();
 
-  if (normalizedMime === "video/mp4" || ext === ".mp4") return "mp4";
+  if (normalizedMime === "video/mp4" || normalizedMime === "video/webm" || ext === ".mp4" || ext === ".webm") return "mp4";
   if (normalizedMime === "image/gif" || ext === ".gif") return "gif";
   if (normalizedMime === "image/svg+xml" || ext === ".svg") return "svg";
   return "image";
@@ -1574,6 +1574,7 @@ const propagandaUpload = multer({
 
     const isAllowed =
       ext === ".mp4" ||
+      ext === ".webm" ||
       ext === ".gif" ||
       ext === ".svg" ||
       ext === ".png" ||
@@ -1581,6 +1582,7 @@ const propagandaUpload = multer({
       ext === ".jpeg" ||
       ext === ".webp" ||
       mime === "video/mp4" ||
+      mime === "video/webm" ||
       mime === "image/gif" ||
       mime === "image/svg+xml" ||
       mime === "image/png" ||
@@ -1592,7 +1594,7 @@ const propagandaUpload = multer({
     }
 
     return cb(
-      new Error("Tipo de arquivo inválido. Use MP4, GIF, SVG, PNG, JPG ou WEBP.")
+      new Error("Tipo de arquivo inválido. Use MP4, WEBM, GIF, SVG, PNG, JPG ou WEBP.")
     );
   },
 });
