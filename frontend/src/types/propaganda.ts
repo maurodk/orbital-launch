@@ -5,8 +5,8 @@ export interface PropagandaCampaign {
   nome: string;
   descricao: string | null;
   storageFolder: string | null;
-  mediaType: PropagandaMediaType;
-  mediaUrl: string;
+  mediaType: PropagandaMediaType | null;
+  mediaUrl: string | null;
   mediaPath: string | null;
   mediaMuted: boolean;
   mediaVolume: number;
@@ -138,8 +138,10 @@ export function normalizePropagandaCampaign(
     nome: String(value.nome || ""),
     descricao: value.descricao ? String(value.descricao) : null,
     storageFolder: value.storage_folder ? String(value.storage_folder) : null,
-    mediaType: normalizePropagandaMediaType(value.media_type as string),
-    mediaUrl: String(value.media_url || ""),
+    mediaType: value.media_type
+      ? normalizePropagandaMediaType(String(value.media_type))
+      : null,
+    mediaUrl: value.media_url ? String(value.media_url) : null,
     mediaPath: value.media_path ? String(value.media_path) : null,
     mediaMuted: normalizeMuted(value.media_muted, false),
     mediaVolume: normalizeVolume(value.media_volume, 1),

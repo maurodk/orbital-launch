@@ -21,6 +21,14 @@
         background: #221f25;
         color: #fff;
       }
+      body.is-ad-active .topbar,
+      body.is-ad-active .dot-size-control,
+      body.is-ad-active .dot-color-control,
+      body.is-ad-active .toast-notification {
+        opacity: 0;
+        transform: translateY(-18px);
+        pointer-events: none;
+      }
 
       /* Otimizações para evitar piscar no refresh */
       .floor-plan-wrapper.loading {
@@ -145,6 +153,34 @@
       }
       .fullscreen-button:hover {
         background: #444;
+      }
+      .topbar__field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .topbar__select {
+        appearance: none;
+        min-width: 150px;
+        padding: 8px 38px 8px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(106, 215, 0, 0.26);
+        background:
+          linear-gradient(45deg, transparent 50%, rgba(106, 215, 0, 0.9) 50%) calc(100% - 18px) calc(50% - 3px) / 6px 6px no-repeat,
+          linear-gradient(135deg, rgba(106, 215, 0, 0.9) 50%, transparent 50%) calc(100% - 12px) calc(50% - 3px) / 6px 6px no-repeat,
+          linear-gradient(180deg, rgba(19, 22, 18, 0.96), rgba(11, 14, 11, 0.96));
+        color: #f3ffe9;
+        font-weight: 600;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+      .topbar__select:focus {
+        outline: none;
+        border-color: rgba(106, 215, 0, 0.48);
+        box-shadow: 0 0 0 3px rgba(106, 215, 0, 0.16);
+      }
+      .topbar__select option {
+        background: #101310;
+        color: #f3ffe9;
       }
       .dot-size-control {
         position: fixed;
@@ -528,9 +564,9 @@
     <div class="topbar">
       <div class="title" id="empreendimento-title">Espelho de Implantação</div>
       <div id="implantacaoName" class="small"></div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="topbar__field">
         <label for="layer-select" class="small" style="margin-left:8px">Camada</label>
-        <select id="layer-select" style="background:#0b0b0b;color:#fff;border:1px solid #333;padding:6px;border-radius:6px">
+        <select id="layer-select" class="topbar__select">
           <option value="primary">Primária</option>
           <option value="additional">Adicional</option>
         </select>
@@ -667,6 +703,9 @@
         const toast = document.getElementById("toast-notification");
         const fullscreenBtn = document.getElementById("fullscreen-btn");
         const refreshBtn = document.getElementById("refresh-btn");
+        const topbar = document.querySelector(".topbar");
+        const dotSizeControl = document.querySelector(".dot-size-control");
+        const dotColorControl = document.querySelector(".dot-color-control");
 
         const AD_INTRO_DURATION_MS = 1200;
         const AD_OUTRO_DURATION_MS = 1100;
@@ -893,9 +932,22 @@
         function setAdPhase(phase) {
           adState.currentPhase = phase;
           adOverlay.classList.remove("is-intro", "is-content", "is-outro", "is-visible");
+          document.body.classList.toggle("is-ad-active", phase !== "hidden");
+
           if (phase === "hidden") {
+            if (typeof isFullscreenMode !== "undefined" && isFullscreenMode) {
+              hideTopbar();
+            } else {
+              showTopbar();
+            }
             return;
           }
+
+          topbar && topbar.classList.add("hidden");
+          dotSizeControl && dotSizeControl.classList.add("hidden");
+          dotColorControl && dotColorControl.classList.add("hidden");
+          wrapper.classList.add("fullscreen");
+
           adOverlay.classList.add("is-visible", `is-${phase}`);
         }
 
@@ -1236,6 +1288,37 @@
           }
         }
 
+        function normalizeOwnerToken(value) {
+          return String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/[^a-z0-9+]+/g, " ")
+            .trim();
+        }
+
+        function hasRenderableCoords(unitRow) {
+          const coordX = unitRow[12];
+          const coordY = unitRow[13];
+          return (coordX || coordX === 0) && (coordY || coordY === 0);
+        }
+
+        function isAdditionalOwner(ownerValue) {
+          const owner = normalizeOwnerToken(ownerValue);
+          return owner.includes("adicional") || owner.includes("+adicional");
+        }
+
+        function ownerMatchesAny(ownerValue, targets) {
+          const owner = normalizeOwnerToken(ownerValue);
+          if (!owner) return false;
+
+          return targets.some((targetValue) => {
+            const target = normalizeOwnerToken(targetValue);
+            if (!target) return false;
+            return owner === target || owner.includes(target) || target.includes(owner);
+          });
+        }
+
         function render(data) {
           // Suporta objeto combinado { primary, secondary } ou o formato antigo único
             let primary = data.primary || data;
@@ -1336,39 +1419,54 @@
           // - unidade adicional: implantacao + '+adicional'
           const primaryOwner = implantacao;
           const additionalOwner = implantacao + "+adicional";
+          const primaryTargets = [primaryOwner, primary.sigla, primary.sheetTitle].filter(Boolean);
+          const additionalTargets = [additionalOwner, `${primary.sigla || ""}+adicional`].filter(Boolean);
 
-          rows.forEach((u, index) => {
+          const rowsWithMeta = rows
+            .map((u, index) => ({ u, index }))
+            .filter(({ u }) => hasRenderableCoords(u));
+
+          let rowsToRender = rowsWithMeta;
+
+          if (adicionalFlag) {
+            const additionalRows = rowsWithMeta.filter(({ u }) => {
+              const owner = u[16];
+              return isAdditionalOwner(owner) || ownerMatchesAny(owner, additionalTargets);
+            });
+
+            if (additionalRows.length > 0) {
+              rowsToRender = additionalRows;
+            }
+          } else {
+            const primaryRows = rowsWithMeta.filter(({ u }) => {
+              const owner = u[16];
+              if (!normalizeOwnerToken(owner)) {
+                return true;
+              }
+
+              if (isAdditionalOwner(owner)) {
+                return false;
+              }
+
+              return ownerMatchesAny(owner, primaryTargets);
+            });
+
+            if (primaryRows.length > 0) {
+              rowsToRender = primaryRows;
+            } else {
+              rowsToRender = rowsWithMeta.filter(({ u }) => !isAdditionalOwner(u[16]));
+            }
+          }
+
+          rowsToRender.forEach(({ u, index }) => {
             const coordX = u[12];
             const coordY = u[13];
             const letra = u[18];
             const status = (u[11] || "Disponível").toString();
-            const owner = (u[16] || "").toString();
 
             // Se não há coords, pula
             if (!coordX && coordX !== 0) return;
             if (!coordY && coordY !== 0) return;
-
-            // Normaliza owner e owners esperados para comparação mais tolerante
-            const ownerNorm = (owner || "").toString().trim();
-            const primaryOwnerNorm = (primaryOwner || "").toString().trim();
-            const additionalOwnerNorm = (additionalOwner || "").toString().trim();
-
-            // Decide se deve renderizar com base no owner e na camada ativa
-            if (adicionalFlag) {
-              const isAdditional =
-                ownerNorm === additionalOwnerNorm ||
-                ownerNorm.endsWith("+adicional") ||
-                ownerNorm.toLowerCase().includes("adicional");
-              if (!isAdditional) return;
-            } else {
-              if (ownerNorm) {
-                const isAdditional =
-                  ownerNorm.toLowerCase().includes("adicional") ||
-                  ownerNorm.includes("+adicional");
-                if (isAdditional) return;
-                if (!ownerNorm.includes(primaryOwnerNorm)) return;
-              }
-            }
 
             const indicator = document.createElement("div");
             const unitIndex = index;
@@ -1942,9 +2040,6 @@
           showToast("Dados atualizados!");
         });
 
-        const topbar = document.querySelector(".topbar");
-        const dotSizeControl = document.querySelector(".dot-size-control");
-        const dotColorControl = document.querySelector(".dot-color-control");
         const colorDisponivelInput =
           document.getElementById("color-disponivel");
         const colorReservadaInput = document.getElementById("color-Reservada");
@@ -1952,6 +2047,10 @@
         let hideHeaderTimeout = null;
 
         function showTopbar() {
+          if (document.body.classList.contains("is-ad-active")) {
+            return;
+          }
+
           topbar.classList.remove("hidden");
           dotSizeControl.classList.remove("hidden");
           dotColorControl.classList.remove("hidden");
@@ -2000,7 +2099,7 @@
         }
 
         function showHeaderOnInteraction() {
-          if (isFullscreenMode) {
+          if (isFullscreenMode && !document.body.classList.contains("is-ad-active")) {
             showTopbar();
           }
         }

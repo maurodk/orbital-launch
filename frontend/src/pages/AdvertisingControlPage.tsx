@@ -119,28 +119,6 @@ function formatRuntimeStatus(runtime: PropagandaRuntime | null): string {
   return runtime.status === "playing" ? "Em exibicao" : "Aguardando";
 }
 
-function assetToPreview(
-  asset:
-    | Pick<
-        PropagandaMediaAsset,
-        "name" | "path" | "publicUrl" | "mediaType" | "mimeType" | "size" | "createdAt" | "updatedAt"
-      >
-    | null
-): PropagandaMediaAsset | null {
-  return asset
-    ? {
-        name: asset.name,
-        path: asset.path,
-        publicUrl: asset.publicUrl,
-        mediaType: asset.mediaType,
-        mimeType: asset.mimeType,
-        size: asset.size,
-        createdAt: asset.createdAt,
-        updatedAt: asset.updatedAt,
-      }
-    : null;
-}
-
 function getFallbackAssetDurationSeconds(slot: CampaignAssetSlot): number {
   return slot === "main"
     ? DEFAULT_MAIN_MEDIA_DURATION_SECONDS
@@ -275,6 +253,117 @@ function renderAssetPreview(asset: PropagandaMediaAsset | null, alt: string) {
   return <img src={asset.publicUrl} alt={alt} />;
 }
 
+function getCampaignSlotAsset(
+  campaign: PropagandaCampaign,
+  slot: CampaignAssetSlot
+): PropagandaMediaAsset | null {
+  if (slot === "main") {
+    if (!campaign.mediaType || !campaign.mediaUrl) {
+      return null;
+    }
+
+    return {
+      name: getAssetFileName({
+        name: campaign.nome,
+        path: campaign.mediaPath || campaign.mediaUrl,
+        publicUrl: campaign.mediaUrl,
+        mediaType: campaign.mediaType,
+        mimeType: null,
+        size: null,
+        createdAt: null,
+        updatedAt: null,
+      }),
+      path: campaign.mediaPath || campaign.mediaUrl,
+      publicUrl: campaign.mediaUrl,
+      mediaType: campaign.mediaType,
+      mimeType: null,
+      size: null,
+      createdAt: null,
+      updatedAt: null,
+    };
+  }
+
+  if (slot === "entry") {
+    if (!campaign.transitionEntryMediaUrl || !campaign.transitionEntryMediaType) {
+      return null;
+    }
+
+    return {
+      name: getAssetFileName({
+        name: campaign.nome,
+        path: campaign.transitionEntryMediaPath || campaign.transitionEntryMediaUrl,
+        publicUrl: campaign.transitionEntryMediaUrl,
+        mediaType: campaign.transitionEntryMediaType,
+        mimeType: null,
+        size: null,
+        createdAt: null,
+        updatedAt: null,
+      }),
+      path: campaign.transitionEntryMediaPath || campaign.transitionEntryMediaUrl,
+      publicUrl: campaign.transitionEntryMediaUrl,
+      mediaType: campaign.transitionEntryMediaType,
+      mimeType: null,
+      size: null,
+      createdAt: null,
+      updatedAt: null,
+    };
+  }
+
+  if (!campaign.transitionExitMediaUrl || !campaign.transitionExitMediaType) {
+    return null;
+  }
+
+  return {
+    name: getAssetFileName({
+      name: campaign.nome,
+      path: campaign.transitionExitMediaPath || campaign.transitionExitMediaUrl,
+      publicUrl: campaign.transitionExitMediaUrl,
+      mediaType: campaign.transitionExitMediaType,
+      mimeType: null,
+      size: null,
+      createdAt: null,
+      updatedAt: null,
+    }),
+    path: campaign.transitionExitMediaPath || campaign.transitionExitMediaUrl,
+    publicUrl: campaign.transitionExitMediaUrl,
+    mediaType: campaign.transitionExitMediaType,
+    mimeType: null,
+    size: null,
+    createdAt: null,
+    updatedAt: null,
+  };
+}
+
+function buildCampaignAssetPayload(
+  slot: CampaignAssetSlot,
+  asset: PropagandaMediaAsset | null
+): Record<string, unknown> {
+  if (slot === "main") {
+    return {
+      mediaType: asset?.mediaType ?? null,
+      mediaUrl: asset?.publicUrl ?? null,
+      mediaPath: asset?.path ?? null,
+    };
+  }
+
+  if (slot === "entry") {
+    return {
+      transitionMediaType: asset?.mediaType ?? null,
+      transitionMediaUrl: asset?.publicUrl ?? null,
+      transitionMediaPath: asset?.path ?? null,
+      transitionEntryMediaType: asset?.mediaType ?? null,
+      transitionEntryMediaUrl: asset?.publicUrl ?? null,
+      transitionEntryMediaPath: asset?.path ?? null,
+    };
+  }
+
+  return {
+    transitionExitMediaType: asset?.mediaType ?? null,
+    transitionExitMediaUrl: asset?.publicUrl ?? null,
+    transitionExitMediaPath: asset?.path ?? null,
+  };
+}
+
 export function AdvertisingControlPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [campaigns, setCampaigns] = useState<PropagandaCampaign[]>([]);
@@ -297,6 +386,8 @@ export function AdvertisingControlPage() {
   const [cleaningDraft, setCleaningDraft] = useState(false);
   const [estimatedDurationSeconds, setEstimatedDurationSeconds] = useState(0);
   const [campaignAudioDrafts, setCampaignAudioDrafts] = useState<Record<number, CampaignAudioDraft>>({});
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [uploadingExistingAssetKey, setUploadingExistingAssetKey] = useState<string | null>(null);
 
   useEffect(() => {
     const auth = localStorage.getItem("diretoriaAuth");
@@ -356,10 +447,34 @@ export function AdvertisingControlPage() {
     });
   }, [campaigns]);
 
+  useEffect(() => {
+    if (campaigns.length === 0) {
+      setSelectedCampaignId(null);
+      return;
+    }
+
+    setSelectedCampaignId((current) => {
+      if (current && campaigns.some((campaign) => campaign.id === current)) {
+        return current;
+      }
+
+      if (runtime?.activeCampaignId && campaigns.some((campaign) => campaign.id === runtime.activeCampaignId)) {
+        return runtime.activeCampaignId;
+      }
+
+      return campaigns.find((campaign) => campaign.isActive)?.id || campaigns[0]?.id || null;
+    });
+  }, [campaigns, runtime?.activeCampaignId]);
+
   const activeCampaign = useMemo(() => {
     if (!runtime?.activeCampaignId) return null;
     return campaigns.find((campaign) => campaign.id === runtime.activeCampaignId) || null;
   }, [campaigns, runtime?.activeCampaignId]);
+
+  const selectedCampaign = useMemo(() => {
+    if (!selectedCampaignId) return null;
+    return campaigns.find((campaign) => campaign.id === selectedCampaignId) || null;
+  }, [campaigns, selectedCampaignId]);
 
   const selectedAssetsCount = [draft.mainAsset, draft.entryAsset, draft.exitAsset].filter(
     Boolean
@@ -628,8 +743,9 @@ export function AdvertisingControlPage() {
     try {
       setSaving(true);
       setError(null);
-      await axios.put(`${apiUrl}/api/propaganda/campaigns/${campaignId}`, payload);
+      const response = await axios.put(`${apiUrl}/api/propaganda/campaigns/${campaignId}`, payload);
       await loadData();
+      return response.data?.campaign || null;
     } catch (requestError: unknown) {
       console.error("Erro ao atualizar campanha:", requestError);
       if (axios.isAxiosError(requestError)) {
@@ -639,6 +755,7 @@ export function AdvertisingControlPage() {
       } else {
         setError("Falha ao atualizar campanha.");
       }
+      return null;
     } finally {
       setSaving(false);
     }
@@ -708,7 +825,146 @@ export function AdvertisingControlPage() {
     setFeedback(`Audio da campanha ${campaign.nome} atualizado.`);
   };
 
+  const replaceCampaignAsset = useCallback(
+    async (campaign: PropagandaCampaign, slot: CampaignAssetSlot, file: File | null) => {
+      if (!file) return;
+
+      const folderKey = campaign.storageFolder || buildDraftFolderKey(campaign.nome);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("campaignKey", folderKey);
+      if (slot === "main") {
+        formData.append("category", "main");
+      } else {
+        formData.append("category", "transition");
+        formData.append("transitionPart", slot === "entry" ? "entry" : "exit");
+      }
+
+      const currentMainAsset = getCampaignSlotAsset(campaign, "main");
+      const currentEntryAsset = getCampaignSlotAsset(campaign, "entry");
+      const currentExitAsset = getCampaignSlotAsset(campaign, "exit");
+      const previousAsset = getCampaignSlotAsset(campaign, slot);
+
+      try {
+        setUploadingExistingAssetKey(`${campaign.id}:${slot}`);
+        setError(null);
+        setFeedback(null);
+
+        const uploadResponse = await axios.post(`${apiUrl}/api/propaganda/media/upload`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 120000,
+        });
+
+        const media = uploadResponse.data?.media as PropagandaMediaAsset | undefined;
+        if (!media) {
+          throw new Error("Resposta invalida do upload da midia.");
+        }
+
+        const nextAsset: PropagandaMediaAsset = {
+          ...media,
+          mediaType: media.mediaType || inferUploadMediaType(file),
+        };
+
+        const calculatedDurationSeconds = await calculateCampaignDurationSeconds({
+          mainAsset: slot === "main" ? nextAsset : currentMainAsset,
+          entryAsset: slot === "entry" ? nextAsset : currentEntryAsset,
+          exitAsset: slot === "exit" ? nextAsset : currentExitAsset,
+        });
+
+        const updatedCampaign = await updateCampaign(campaign.id, {
+          storageFolder: folderKey,
+          durationSeconds: calculatedDurationSeconds,
+          ...buildCampaignAssetPayload(slot, nextAsset),
+        });
+
+        if (!updatedCampaign) {
+          throw new Error("Falha ao atualizar campanha com a nova midia.");
+        }
+
+        if (previousAsset?.path && previousAsset.path !== nextAsset.path) {
+          await axios.delete(`${apiUrl}/api/propaganda/media`, {
+            data: { path: previousAsset.path },
+          });
+        }
+
+        setFeedback(`${getAssetLabel(slot)} atualizada na campanha ${campaign.nome}.`);
+      } catch (requestError: unknown) {
+        console.error("Erro ao substituir midia da campanha:", requestError);
+        if (axios.isAxiosError(requestError)) {
+          setError(requestError.response?.data?.error || requestError.message);
+        } else if (requestError instanceof Error) {
+          setError(requestError.message);
+        } else {
+          setError("Falha ao substituir midia da campanha.");
+        }
+      } finally {
+        setUploadingExistingAssetKey(null);
+      }
+    },
+    []
+  );
+
+  const removeCampaignAsset = useCallback(
+    async (campaign: PropagandaCampaign, slot: CampaignAssetSlot) => {
+      const existingAsset = getCampaignSlotAsset(campaign, slot);
+      if (!existingAsset) return;
+
+      const confirmed = window.confirm(
+        `Remover ${getAssetLabel(slot).toLowerCase()} da campanha ${campaign.nome}?`
+      );
+
+      if (!confirmed) return;
+
+      const currentMainAsset = getCampaignSlotAsset(campaign, "main");
+      const currentEntryAsset = getCampaignSlotAsset(campaign, "entry");
+      const currentExitAsset = getCampaignSlotAsset(campaign, "exit");
+
+      try {
+        setSaving(true);
+        setError(null);
+        setFeedback(null);
+
+        const calculatedDurationSeconds = await calculateCampaignDurationSeconds({
+          mainAsset: slot === "main" ? null : currentMainAsset,
+          entryAsset: slot === "entry" ? null : currentEntryAsset,
+          exitAsset: slot === "exit" ? null : currentExitAsset,
+        });
+
+        await axios.put(`${apiUrl}/api/propaganda/campaigns/${campaign.id}`, {
+          durationSeconds: calculatedDurationSeconds,
+          ...buildCampaignAssetPayload(slot, null),
+        });
+
+        if (existingAsset.path) {
+          await axios.delete(`${apiUrl}/api/propaganda/media`, {
+            data: { path: existingAsset.path },
+          });
+        }
+
+        setFeedback(`${getAssetLabel(slot)} removida da campanha ${campaign.nome}.`);
+        await loadData();
+      } catch (requestError: unknown) {
+        console.error("Erro ao remover midia da campanha:", requestError);
+        if (axios.isAxiosError(requestError)) {
+          setError(requestError.response?.data?.error || requestError.message);
+        } else if (requestError instanceof Error) {
+          setError(requestError.message);
+        } else {
+          setError("Falha ao remover midia da campanha.");
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadData]
+  );
+
   const triggerCampaign = async (campaign: PropagandaCampaign) => {
+    if (!campaign.mediaType || !campaign.mediaUrl) {
+      setError(`A campanha ${campaign.nome} nao possui midia principal para exibicao.`);
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
@@ -899,6 +1155,7 @@ export function AdvertisingControlPage() {
               <label>
                 <span>Campanha do loop</span>
                 <select
+                  className="ads-select"
                   value={scheduleCampaignId || ""}
                   onChange={(event) =>
                     setScheduleCampaignId(event.target.value ? Number(event.target.value) : null)
@@ -931,6 +1188,64 @@ export function AdvertisingControlPage() {
                 disabled={saving}
               >
                 Salvar loop global
+              </button>
+            </div>
+          </article>
+
+          <article className="ads-panel ads-panel--compact">
+            <div className="ads-panel__head">
+              <div>
+                <p className="ads-panel__eyebrow">Disparo manual</p>
+                <h2>Seletor de campanhas</h2>
+              </div>
+            </div>
+
+            <div className="ads-form">
+              <label>
+                <span>Campanha para exibicao imediata</span>
+                <select
+                  className="ads-select"
+                  value={selectedCampaignId || ""}
+                  onChange={(event) =>
+                    setSelectedCampaignId(event.target.value ? Number(event.target.value) : null)
+                  }
+                >
+                  <option value="">Selecione uma campanha</option>
+                  {campaigns.map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>
+                      {campaign.nome}
+                      {!campaign.mediaUrl ? " - sem midia principal" : campaign.isActive ? "" : " - inativa"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="ads-quick-trigger-card">
+                <strong>{selectedCampaign?.nome || "Nenhuma campanha selecionada"}</strong>
+                <p>
+                  {selectedCampaign
+                    ? selectedCampaign.mediaUrl
+                      ? selectedCampaign.isActive
+                        ? "Pronta para disparo manual na fullscreen."
+                        : "Ative a campanha antes de disparar."
+                      : "Envie uma midia principal para liberar a exibicao."
+                    : "Escolha uma campanha para acionar rapidamente quando houver varias cadastradas."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="ads-button ads-button--primary"
+                onClick={() => selectedCampaign && void triggerCampaign(selectedCampaign)}
+                disabled={
+                  saving ||
+                  !selectedCampaign ||
+                  !selectedCampaign.isActive ||
+                  !selectedCampaign.mediaUrl ||
+                  !selectedCampaign.mediaType
+                }
+              >
+                Exibir campanha selecionada
               </button>
             </div>
           </article>
@@ -978,71 +1293,10 @@ export function AdvertisingControlPage() {
             <div className="ads-campaign-list">
               {campaigns.map((campaign) => {
                 const audioDraft = campaignAudioDrafts[campaign.id] || getCampaignAudioDraft(campaign);
-                const mainPreview = assetToPreview({
-                  name: getAssetFileName({
-                    name: campaign.nome,
-                    path: campaign.mediaPath || campaign.mediaUrl,
-                    publicUrl: campaign.mediaUrl,
-                    mediaType: campaign.mediaType,
-                    mimeType: null,
-                    size: null,
-                    createdAt: null,
-                    updatedAt: null,
-                  }),
-                  path: campaign.mediaPath || campaign.mediaUrl,
-                  publicUrl: campaign.mediaUrl,
-                  mediaType: campaign.mediaType,
-                  mimeType: null,
-                  size: null,
-                  createdAt: null,
-                  updatedAt: null,
-                });
-                const entryPreview = campaign.transitionEntryMediaUrl
-                  ? assetToPreview({
-                      name: getAssetFileName({
-                        name: campaign.nome,
-                        path:
-                          campaign.transitionEntryMediaPath || campaign.transitionEntryMediaUrl,
-                        publicUrl: campaign.transitionEntryMediaUrl,
-                        mediaType: campaign.transitionEntryMediaType || "image",
-                        mimeType: null,
-                        size: null,
-                        createdAt: null,
-                        updatedAt: null,
-                      }),
-                      path:
-                        campaign.transitionEntryMediaPath || campaign.transitionEntryMediaUrl,
-                      publicUrl: campaign.transitionEntryMediaUrl,
-                      mediaType: campaign.transitionEntryMediaType || "image",
-                      mimeType: null,
-                      size: null,
-                      createdAt: null,
-                      updatedAt: null,
-                    })
-                  : null;
-                const exitPreview = campaign.transitionExitMediaUrl
-                  ? assetToPreview({
-                      name: getAssetFileName({
-                        name: campaign.nome,
-                        path:
-                          campaign.transitionExitMediaPath || campaign.transitionExitMediaUrl,
-                        publicUrl: campaign.transitionExitMediaUrl,
-                        mediaType: campaign.transitionExitMediaType || "image",
-                        mimeType: null,
-                        size: null,
-                        createdAt: null,
-                        updatedAt: null,
-                      }),
-                      path:
-                        campaign.transitionExitMediaPath || campaign.transitionExitMediaUrl,
-                      publicUrl: campaign.transitionExitMediaUrl,
-                      mediaType: campaign.transitionExitMediaType || "image",
-                      mimeType: null,
-                      size: null,
-                      createdAt: null,
-                      updatedAt: null,
-                    })
-                  : null;
+                const savedAssets = (["main", "entry", "exit"] as CampaignAssetSlot[]).map((slot) => ({
+                  slot,
+                  preview: getCampaignSlotAsset(campaign, slot),
+                }));
 
                 return (
                   <article key={campaign.id} className="ads-campaign-card">
@@ -1066,110 +1320,84 @@ export function AdvertisingControlPage() {
                     </div>
 
                     <div className="ads-campaign-card__assets">
-                      <div className="ads-simple-asset">
-                        <span>Midia principal</span>
-                        <div className="ads-simple-asset__preview">
-                          {renderAssetPreview(mainPreview, campaign.nome)}
-                        </div>
-                        <div className="ads-audio-controls">
-                          <label className="ads-audio-controls__toggle">
-                            <input
-                              type="checkbox"
-                              checked={!audioDraft.mainMuted}
-                              onChange={(event) =>
-                                updateCampaignAudioDraft(campaign.id, "main", {
-                                  muted: !event.target.checked,
-                                })
-                              }
-                            />
-                            <span>{audioDraft.mainMuted ? "Mutado" : "Com audio"}</span>
-                          </label>
-                          <label className="ads-audio-controls__range">
-                            <span>Volume {volumeUnitToPercent(audioDraft.mainVolume)}%</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={volumeUnitToPercent(audioDraft.mainVolume)}
-                              onChange={(event) =>
-                                updateCampaignAudioDraft(campaign.id, "main", {
-                                  volume: volumePercentToUnit(Number(event.target.value)),
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-                      </div>
+                      {savedAssets.map(({ slot, preview }) => {
+                        const slotMuted = slot === "main"
+                          ? audioDraft.mainMuted
+                          : slot === "entry"
+                            ? audioDraft.entryMuted
+                            : audioDraft.exitMuted;
+                        const slotVolume = slot === "main"
+                          ? audioDraft.mainVolume
+                          : slot === "entry"
+                            ? audioDraft.entryVolume
+                            : audioDraft.exitVolume;
 
-                      <div className="ads-simple-asset">
-                        <span>Entrada</span>
-                        <div className="ads-simple-asset__preview">
-                          {renderAssetPreview(entryPreview, `${campaign.nome} entrada`)}
-                        </div>
-                        <div className="ads-audio-controls">
-                          <label className="ads-audio-controls__toggle">
-                            <input
-                              type="checkbox"
-                              checked={!audioDraft.entryMuted}
-                              onChange={(event) =>
-                                updateCampaignAudioDraft(campaign.id, "entry", {
-                                  muted: !event.target.checked,
-                                })
-                              }
-                            />
-                            <span>{audioDraft.entryMuted ? "Mutado" : "Com audio"}</span>
-                          </label>
-                          <label className="ads-audio-controls__range">
-                            <span>Volume {volumeUnitToPercent(audioDraft.entryVolume)}%</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={volumeUnitToPercent(audioDraft.entryVolume)}
-                              onChange={(event) =>
-                                updateCampaignAudioDraft(campaign.id, "entry", {
-                                  volume: volumePercentToUnit(Number(event.target.value)),
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className="ads-simple-asset">
-                        <span>Saida</span>
-                        <div className="ads-simple-asset__preview">
-                          {renderAssetPreview(exitPreview, `${campaign.nome} saida`)}
-                        </div>
-                        <div className="ads-audio-controls">
-                          <label className="ads-audio-controls__toggle">
-                            <input
-                              type="checkbox"
-                              checked={!audioDraft.exitMuted}
-                              onChange={(event) =>
-                                updateCampaignAudioDraft(campaign.id, "exit", {
-                                  muted: !event.target.checked,
-                                })
-                              }
-                            />
-                            <span>{audioDraft.exitMuted ? "Mutado" : "Com audio"}</span>
-                          </label>
-                          <label className="ads-audio-controls__range">
-                            <span>Volume {volumeUnitToPercent(audioDraft.exitVolume)}%</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={volumeUnitToPercent(audioDraft.exitVolume)}
-                              onChange={(event) =>
-                                updateCampaignAudioDraft(campaign.id, "exit", {
-                                  volume: volumePercentToUnit(Number(event.target.value)),
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-                      </div>
+                        return (
+                          <div key={`${campaign.id}-${slot}`} className="ads-simple-asset">
+                            <span>{slot === "main" ? "Midia principal" : slot === "entry" ? "Entrada" : "Saida"}</span>
+                            <div className="ads-simple-asset__preview">
+                              {renderAssetPreview(
+                                preview,
+                                slot === "main" ? campaign.nome : `${campaign.nome} ${slot}`
+                              )}
+                            </div>
+                            <div className="ads-audio-controls">
+                              <label className="ads-audio-controls__toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={!slotMuted}
+                                  onChange={(event) =>
+                                    updateCampaignAudioDraft(campaign.id, slot, {
+                                      muted: !event.target.checked,
+                                    })
+                                  }
+                                />
+                                <span>{slotMuted ? "Mutado" : "Com audio"}</span>
+                              </label>
+                              <label className="ads-audio-controls__range">
+                                <span>Volume {volumeUnitToPercent(slotVolume)}%</span>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  value={volumeUnitToPercent(slotVolume)}
+                                  onChange={(event) =>
+                                    updateCampaignAudioDraft(campaign.id, slot, {
+                                      volume: volumePercentToUnit(Number(event.target.value)),
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <div className="ads-asset-inline-actions">
+                              <label className="ads-button ads-button--ghost ads-upload-button">
+                                <input
+                                  type="file"
+                                  accept="video/mp4,video/webm,image/gif,image/svg+xml,image/png,image/jpeg,image/webp"
+                                  onChange={(event) => {
+                                    void replaceCampaignAsset(campaign, slot, event.target.files?.[0] || null);
+                                    event.target.value = "";
+                                  }}
+                                  disabled={saving || uploadingExistingAssetKey === `${campaign.id}:${slot}`}
+                                />
+                                {uploadingExistingAssetKey === `${campaign.id}:${slot}`
+                                  ? "Enviando..."
+                                  : preview
+                                    ? "Substituir"
+                                    : "Enviar"}
+                              </label>
+                              <button
+                                type="button"
+                                className="ads-button ads-button--ghost"
+                                onClick={() => void removeCampaignAsset(campaign, slot)}
+                                disabled={!preview || saving || Boolean(uploadingExistingAssetKey)}
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <div className="ads-campaign-card__actions">
@@ -1185,7 +1413,7 @@ export function AdvertisingControlPage() {
                         type="button"
                         className="ads-button ads-button--primary"
                         onClick={() => void triggerCampaign(campaign)}
-                        disabled={saving || !campaign.isActive}
+                        disabled={saving || !campaign.isActive || !campaign.mediaUrl || !campaign.mediaType}
                       >
                         Exibir agora
                       </button>

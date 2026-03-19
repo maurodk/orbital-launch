@@ -819,17 +819,32 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
 
   const rawMediaType = hasOwn("mediaType") ? body.mediaType : body.media_type;
   if (!partial || hasOwn("mediaType") || hasOwn("media_type")) {
-    payload.media_type = normalizePropagandaMediaType(rawMediaType);
+    if (rawMediaType == null || String(rawMediaType).trim() === "") {
+      if (!partial) {
+        const error = new Error("Tipo da mídia é obrigatório.");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      payload.media_type = null;
+    } else {
+      payload.media_type = normalizePropagandaMediaType(rawMediaType);
+    }
   }
 
   const mediaUrl = hasOwn("mediaUrl") ? body.mediaUrl : body.media_url;
   if (!partial || hasOwn("mediaUrl") || hasOwn("media_url")) {
-    if (!mediaUrl || !String(mediaUrl).trim()) {
-      const error = new Error("URL da mídia é obrigatória.");
-      error.statusCode = 400;
-      throw error;
+    if (mediaUrl == null || String(mediaUrl).trim() === "") {
+      if (!partial) {
+        const error = new Error("URL da mídia é obrigatória.");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      payload.media_url = null;
+    } else {
+      payload.media_url = String(mediaUrl).trim();
     }
-    payload.media_url = String(mediaUrl).trim();
   }
 
   const mediaPath = hasOwn("mediaPath") ? body.mediaPath : body.media_path;
