@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "builds": [{ "src": "backend/server.js", "use": "@vercel/node" }],
+  "builds": [{ "src": "deploy-docker/backend/server.cjs", "use": "@vercel/node" }],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/server.js"
+      "destination": "/deploy-docker/backend/server.cjs"
     },
     {
       "source": "/mobile",

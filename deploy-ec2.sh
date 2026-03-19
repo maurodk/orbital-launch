@@ -47,17 +47,17 @@ fi
 
 # Passo 6: Instalar dependências do backend
 echo -e "${YELLOW}[6/8]${NC} Instalando dependências..."
-cd backend
+cd deploy-docker/backend
 npm install
 
 # Passo 7: Testar se o servidor inicia
 echo -e "${YELLOW}[7/8]${NC} Testando servidor..."
-timeout 5 node server.js || true
+timeout 5 node server.cjs || true
 echo -e "${GREEN}✓ Servidor testado com sucesso${NC}"
 
 # Passo 8: Iniciar com PM2
 echo -e "${YELLOW}[8/8]${NC} Iniciando servidor com PM2..."
-pm2 start server.js --name "simulador-backend"
+pm2 start server.cjs --name "simulador-backend"
 pm2 startup
 pm2 save
 
@@ -77,7 +77,7 @@ echo "  pm2 stop simulador-backend    - Parar servidor"
 echo "  pm2 delete simulador-backend  - Remover servidor"
 echo ""
 echo -e "${YELLOW}⚠️  IMPORTANTE:${NC}"
-echo "  1. Copie o arquivo .env para ~/projects/telao-digital/backend/"
+echo "  1. Copie o arquivo .env para ~/projects/telao-digital/deploy-docker/backend/"
 echo "  2. Copie o arquivo credentials.json para o mesmo diretório"
 echo "  3. Configure o Nginx (veja o guia)"
 echo ""
