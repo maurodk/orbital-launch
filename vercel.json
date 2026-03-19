@@ -7,12 +7,28 @@
       "destination": "/deploy-docker/backend/server.cjs"
     },
     {
+      "source": "/assets/(.*)",
+      "destination": "/deploy-docker/backend/server.cjs"
+    },
+    {
+      "source": "/v.ico",
+      "destination": "/deploy-docker/backend/server.cjs"
+    },
+    {
       "source": "/mobile",
       "destination": "/frontend/index.html"
     },
     {
       "source": "/fullscreen",
-      "destination": "/frontend/index.html"
+      "destination": "/deploy-docker/backend/server.cjs"
+    },
+    {
+      "source": "/fullscreen/current",
+      "destination": "/deploy-docker/backend/server.cjs"
+    },
+    {
+      "source": "/fullscreen-legacy",
+      "destination": "/deploy-docker/backend/server.cjs"
     },
     {
       "source": "/fullscreen-cvcrm",

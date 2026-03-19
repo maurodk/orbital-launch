@@ -91,11 +91,12 @@ switch ($ACTION.ToLower()) {
             Write-Host "$YELLOW⚠ Arquivo credentials.json não encontrado em .\deploy-docker\backend\credentials.json$RESET"
         }
         
-        Write-Step "4/3" "Reiniciando servidor..."
-        ssh $SSH_OPTS $SSH_URL "pm2 restart simulador-backend"
+        Write-Step "4/4" "Gerando build e reiniciando servidor..."
+        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/frontend && npm install && npm run build && cd ~/projects/telao-digital/deploy-docker/backend && npm install && pm2 restart simulador-backend"
         
         Write-Header "✓ Deploy Concluído!"
         Write-Host "Seu backend está rodando em: $GREEN http://$EC2_IP:3000 $RESET"
+        Write-Host "Fullscreen React: $GREEN http://$EC2_IP:3000/fullscreen $RESET"
     }
     
     "upload-env" {
@@ -136,7 +137,7 @@ switch ($ACTION.ToLower()) {
     
     "restart" {
         Write-Step "1/1" "Reiniciando servidor..."
-        ssh $SSH_OPTS $SSH_URL "pm2 restart simulador-backend"
+        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/frontend && npm run build && pm2 restart simulador-backend"
         Write-Host "$GREEN✓ Servidor reiniciado$RESET"
     }
     
@@ -147,11 +148,13 @@ switch ($ACTION.ToLower()) {
     }
     
     "pull" {
-        Write-Step "1/2" "Atualizando código..."
+        Write-Step "1/3" "Atualizando código..."
         ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital && git pull origin main"
-        Write-Step "2/2" "Reinstalando dependências..."
+        Write-Step "2/3" "Gerando build do frontend..."
+        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/frontend && npm install && npm run build"
+        Write-Step "3/3" "Reinstalando backend e reiniciando servidor..."
         ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/deploy-docker/backend && npm install && pm2 restart simulador-backend"
-        Write-Host "$GREEN✓ Código atualizado e servidor reiniciado$RESET"
+        Write-Host "$GREEN✓ Código atualizado, build gerado e servidor reiniciado$RESET"
     }
     
     default {

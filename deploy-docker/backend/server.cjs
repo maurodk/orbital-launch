@@ -176,14 +176,60 @@ redis.on("connect", () => console.log("[REDIS] Conectado com sucesso"));
 // Inicializa o Express App
 const app = express();
 
-// Serve static frontend files (fullscreen pages) when available
+function findExistingPath(candidates) {
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate);
+    } catch (error) {
+      return false;
+    }
+  }) || null;
+}
+
+function resolveLegacyFullscreenPath() {
+  return findExistingPath([
+    path.resolve(__dirname, "../public/fullscreen.html"),
+    path.resolve(__dirname, "../../frontend/public/fullscreen.html"),
+    path.resolve(process.cwd(), "frontend", "public", "fullscreen.html"),
+    path.resolve(process.cwd(), "public", "fullscreen.html"),
+  ]);
+}
+
+function resolveFrontendDistDir() {
+  return findExistingPath([
+    path.resolve(__dirname, "../../frontend/dist"),
+    path.resolve(process.cwd(), "frontend", "dist"),
+  ]);
+}
+
+function resolveFrontendReactIndexPath() {
+  const distDir = resolveFrontendDistDir();
+  if (!distDir) {
+    return null;
+  }
+
+  return path.join(distDir, "index.html");
+}
+
+const legacyFullscreenPath = resolveLegacyFullscreenPath();
+const frontendDistDir = resolveFrontendDistDir();
+const frontendReactIndexPath = resolveFrontendReactIndexPath();
+
+// Serve static frontend files when available
 try {
-  const staticDir = path.join(__dirname, '..', '..', 'frontend', 'public');
-  if (fs.existsSync(staticDir)) {
-    app.use('/', express.static(staticDir));
-    console.log(`[STATIC] Servindo arquivos estáticos de: ${staticDir}`);
+  const legacyStaticDir = path.join(__dirname, '..', '..', 'frontend', 'public');
+  if (fs.existsSync(legacyStaticDir)) {
+    app.use('/', express.static(legacyStaticDir));
+    console.log(`[STATIC] Servindo arquivos estáticos legados de: ${legacyStaticDir}`);
   } else {
-    console.warn(`[STATIC] Diretório estático não encontrado em: ${staticDir}`);
+    console.warn(`[STATIC] Diretório estático legado não encontrado em: ${legacyStaticDir}`);
+  }
+
+  if (frontendDistDir) {
+    app.use('/', express.static(frontendDistDir));
+    console.log(`[STATIC] Servindo build React de: ${frontendDistDir}`);
+  } else {
+    console.warn('[STATIC] Build React não encontrado em frontend/dist. Rotas React públicas dependerão de um novo build.');
   }
 } catch (e) {
   console.warn('[STATIC] Falha ao configurar arquivos estáticos:', e && e.message ? e.message : e);
@@ -3096,31 +3142,28 @@ app.get("/api/events", (req, res) => {
   });
 });
 
-// Serve a página fullscreen estática (procura caminhos possíveis entre ambientes)
-app.get("/fullscreen", (req, res) => {
-  const p = require("path");
-  const fs = require("fs");
-
-  const candidates = [
-    p.resolve(__dirname, "../public/fullscreen.html"),
-    p.resolve(__dirname, "../../frontend/public/fullscreen.html"),
-    p.resolve(process.cwd(), "frontend", "public", "fullscreen.html"),
-    p.resolve(process.cwd(), "public", "fullscreen.html"),
-  ];
-
-  const found = candidates.find((c) => {
-    try {
-      return fs.existsSync(c);
-    } catch (e) {
-      return false;
-    }
-  });
-
-  if (found) {
-    return res.sendFile(found);
+function sendReactFullscreen(req, res) {
+  if (!frontendReactIndexPath) {
+    return res.status(404).send(
+      "Build React não encontrado no servidor. Gere frontend/dist antes de acessar a fullscreen React."
+    );
   }
 
-  console.error("/fullscreen: nenhum arquivo fullscreen.html encontrado. Candidates:", candidates);
+  return res.sendFile(frontendReactIndexPath);
+}
+
+// Serve a página fullscreen React
+app.get("/fullscreen", (req, res) => {
+  return sendReactFullscreen(req, res);
+});
+
+// Mantém a versão HTML legada disponível em rota explícita
+app.get("/fullscreen-legacy", (req, res) => {
+  if (legacyFullscreenPath) {
+    return res.sendFile(legacyFullscreenPath);
+  }
+
+  console.error("/fullscreen-legacy: nenhum arquivo fullscreen.html encontrado.");
   return res.status(404).send(
     "Fullscreen não encontrado no servidor. Verifique configuração de caminhos (procure em frontend/public/fullscreen.html)."
   );
