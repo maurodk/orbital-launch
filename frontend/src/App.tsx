@@ -7,6 +7,7 @@ import { CVCrmMappingPage } from "./pages/CVCrmMappingPage"; // Importa a nova p
 import { Diretoria } from "./pages/Diretoria";
 import { FullscreenPage } from "./pages/FullscreenPage"; // Nova página fullscreen React
 import { PaymentHistoryPage } from "./pages/PaymentHistoryPage"; // Nova página de histórico de pagamentos
+import { AdvertisingControlPage } from "./pages/AdvertisingControlPage";
 import { Login } from "../components/Login"; // Login pode ser uma rota separada também
 
 import "./App.css";
@@ -19,6 +20,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/map-cvcrm" element={<CVCrmMappingPage />} />
       <Route path="/diretoria" element={<Diretoria />} />
+      <Route path="/propagandas" element={<AdvertisingControlPage />} />
       <Route path="/fullscreen" element={<FullscreenPage />} />
       <Route path="/pagamentos" element={<PaymentHistoryPage />} />
       <Route path="/mobile" element={<MobilePage />} />

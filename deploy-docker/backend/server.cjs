@@ -14,6 +14,7 @@ const XLSX = require("xlsx");
 const { spawn } = require("child_process");
 const Redis = require("ioredis");
 const fs = require("fs");
+const { randomUUID } = require("crypto");
 
 // Garante que as variáveis de ambiente sejam carregadas primeiro.
 require("dotenv").config();
@@ -418,6 +419,544 @@ function supabaseUnitToArray(unitData) {
 }
 
 // =================================================================
+// PROPAGANDA PROGRAMADA - HELPERS E SCHEDULER
+// =================================================================
+const PROPAGANDA_SCOPE = "global";
+const PROPAGANDA_BUCKET = "propagandas";
+const PROPAGANDA_MEDIA_TYPES = new Set(["image", "gif", "svg", "mp4"]);
+const PROPAGANDA_TRANSITION_STYLE = "architectural-curtain";
+let propagandaSchedulerBusy = false;
+
+function assertSupabaseReady() {
+  if (!supabase) {
+    const error = new Error("Supabase não configurado");
+    error.statusCode = 503;
+    throw error;
+  }
+}
+
+function parsePositiveInteger(value, fieldName) {
+  if (value == null || value === "") return null;
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    const error = new Error(`${fieldName} deve ser um inteiro positivo.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return parsed;
+}
+
+function normalizePropagandaMediaType(value) {
+  const normalized = String(value || "image").trim().toLowerCase();
+  if (!PROPAGANDA_MEDIA_TYPES.has(normalized)) {
+    const error = new Error("Tipo de mídia inválido.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return normalized;
+}
+
+function inferPropagandaMediaType(filename, mimeType) {
+  const normalizedMime = String(mimeType || "").toLowerCase();
+  const ext = path.extname(String(filename || "")).toLowerCase();
+
+  if (normalizedMime === "video/mp4" || ext === ".mp4") return "mp4";
+  if (normalizedMime === "image/gif" || ext === ".gif") return "gif";
+  if (normalizedMime === "image/svg+xml" || ext === ".svg") return "svg";
+  return "image";
+}
+
+function sanitizeStorageObjectName(filename) {
+  const baseName = sanitizeFilename(filename || "arquivo");
+  return baseName.replace(/\s+/g, "-").replace(/-+/g, "-");
+}
+
+function getPropagandaPublicUrl(assetPath) {
+  const publicUrlData = supabase.storage
+    .from(PROPAGANDA_BUCKET)
+    .getPublicUrl(assetPath);
+  return publicUrlData.data?.publicUrl || null;
+}
+
+async function listPropagandaMediaAssets() {
+  assertSupabaseReady();
+
+  const { data, error } = await supabase.storage
+    .from(PROPAGANDA_BUCKET)
+    .list("", {
+      limit: 200,
+      offset: 0,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || [])
+    .filter((item) => item && item.name)
+    .map((item) => {
+      const publicUrlData = supabase.storage
+        .from(PROPAGANDA_BUCKET)
+        .getPublicUrl(item.name);
+      const mimeType =
+        item.metadata && typeof item.metadata === "object"
+          ? item.metadata.mimetype || item.metadata.contentType || null
+          : null;
+
+      return {
+        name: item.name,
+        path: item.name,
+        publicUrl: publicUrlData.data?.publicUrl || null,
+        mediaType: inferPropagandaMediaType(item.name, mimeType),
+        mimeType,
+        size:
+          item.metadata && typeof item.metadata === "object"
+            ? Number(item.metadata.size || 0) || null
+            : null,
+        createdAt: item.created_at || null,
+        updatedAt: item.updated_at || null,
+      };
+    })
+    .filter((item) => item.publicUrl);
+}
+
+async function renamePropagandaMediaAsset(oldPath, newName) {
+  assertSupabaseReady();
+
+  const sourcePath = String(oldPath || "").trim();
+  const sanitizedName = sanitizeStorageObjectName(newName);
+
+  if (!sourcePath) {
+    const error = new Error("Mídia de origem não informada.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!sanitizedName) {
+    const error = new Error("Novo nome inválido.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const ext = path.extname(sourcePath);
+  const targetPath = sanitizedName.toLowerCase().endsWith(ext.toLowerCase())
+    ? sanitizedName
+    : `${sanitizedName}${ext}`;
+
+  const { error: moveError } = await supabase.storage
+    .from(PROPAGANDA_BUCKET)
+    .move(sourcePath, targetPath);
+
+  if (moveError) {
+    throw moveError;
+  }
+
+  const newPublicUrl = getPropagandaPublicUrl(targetPath);
+  const oldPublicUrl = getPropagandaPublicUrl(sourcePath);
+
+  await supabase
+    .from("propaganda_campaigns")
+    .update({ media_path: targetPath, media_url: newPublicUrl, updated_at: new Date().toISOString() })
+    .eq("media_path", sourcePath);
+
+  await supabase
+    .from("propaganda_campaigns")
+    .update({
+      transition_media_path: targetPath,
+      transition_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("transition_media_path", sourcePath);
+
+  await supabase
+    .from("propaganda_runtime")
+    .update({
+      active_media_path: targetPath,
+      active_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("active_media_path", sourcePath);
+
+  await supabase
+    .from("propaganda_runtime")
+    .update({
+      active_transition_media_path: targetPath,
+      active_transition_media_url: newPublicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("active_transition_media_path", sourcePath);
+
+  return {
+    oldPath: sourcePath,
+    oldPublicUrl,
+    path: targetPath,
+    publicUrl: newPublicUrl,
+    mediaType: inferPropagandaMediaType(targetPath, null),
+  };
+}
+
+async function deletePropagandaMediaAsset(assetPath) {
+  assertSupabaseReady();
+
+  const normalizedPath = String(assetPath || "").trim();
+  if (!normalizedPath) {
+    const error = new Error("Mídia não informada para exclusão.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { data: campaignsUsingMain } = await supabase
+    .from("propaganda_campaigns")
+    .select("id,nome")
+    .eq("media_path", normalizedPath);
+
+  const { data: campaignsUsingTransition } = await supabase
+    .from("propaganda_campaigns")
+    .select("id,nome")
+    .eq("transition_media_path", normalizedPath);
+
+  const inUse = [...(campaignsUsingMain || []), ...(campaignsUsingTransition || [])];
+  if (inUse.length > 0) {
+    const error = new Error(
+      `A mídia está em uso nas campanhas: ${inUse.map((item) => item.nome).join(", ")}`
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { error: removeError } = await supabase.storage
+    .from(PROPAGANDA_BUCKET)
+    .remove([normalizedPath]);
+
+  if (removeError) {
+    throw removeError;
+  }
+
+  return { path: normalizedPath };
+}
+
+function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
+  const payload = {};
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(body, key);
+
+  const nome = body.nome;
+  if (!partial || hasOwn("nome")) {
+    if (!nome || !String(nome).trim()) {
+      const error = new Error("Nome da campanha é obrigatório.");
+      error.statusCode = 400;
+      throw error;
+    }
+    payload.nome = String(nome).trim();
+  }
+
+  const descricao = hasOwn("descricao") ? body.descricao : undefined;
+  if (!partial || hasOwn("descricao")) {
+    payload.descricao = descricao ? String(descricao).trim() : null;
+  }
+
+  const rawMediaType = hasOwn("mediaType") ? body.mediaType : body.media_type;
+  if (!partial || hasOwn("mediaType") || hasOwn("media_type")) {
+    payload.media_type = normalizePropagandaMediaType(rawMediaType);
+  }
+
+  const mediaUrl = hasOwn("mediaUrl") ? body.mediaUrl : body.media_url;
+  if (!partial || hasOwn("mediaUrl") || hasOwn("media_url")) {
+    if (!mediaUrl || !String(mediaUrl).trim()) {
+      const error = new Error("URL da mídia é obrigatória.");
+      error.statusCode = 400;
+      throw error;
+    }
+    payload.media_url = String(mediaUrl).trim();
+  }
+
+  const mediaPath = hasOwn("mediaPath") ? body.mediaPath : body.media_path;
+  if (!partial || hasOwn("mediaPath") || hasOwn("media_path")) {
+    payload.media_path = mediaPath ? String(mediaPath).trim() : null;
+  }
+
+  const durationValue = hasOwn("durationSeconds")
+    ? body.durationSeconds
+    : body.duration_seconds;
+  if (!partial || hasOwn("durationSeconds") || hasOwn("duration_seconds")) {
+    payload.duration_seconds = parsePositiveInteger(
+      durationValue,
+      "durationSeconds"
+    );
+  }
+
+  const transitionStyle = hasOwn("transitionStyle")
+    ? body.transitionStyle
+    : body.transition_style;
+  if (!partial || hasOwn("transitionStyle") || hasOwn("transition_style")) {
+    payload.transition_style = transitionStyle
+      ? String(transitionStyle).trim()
+      : PROPAGANDA_TRANSITION_STYLE;
+  }
+
+  const rawTransitionMediaType = hasOwn("transitionMediaType")
+    ? body.transitionMediaType
+    : body.transition_media_type;
+  if (
+    !partial ||
+    hasOwn("transitionMediaType") ||
+    hasOwn("transition_media_type")
+  ) {
+    payload.transition_media_type = rawTransitionMediaType
+      ? normalizePropagandaMediaType(rawTransitionMediaType)
+      : null;
+  }
+
+  const transitionMediaUrl = hasOwn("transitionMediaUrl")
+    ? body.transitionMediaUrl
+    : body.transition_media_url;
+  if (
+    !partial ||
+    hasOwn("transitionMediaUrl") ||
+    hasOwn("transition_media_url")
+  ) {
+    payload.transition_media_url = transitionMediaUrl
+      ? String(transitionMediaUrl).trim()
+      : null;
+  }
+
+  const transitionMediaPath = hasOwn("transitionMediaPath")
+    ? body.transitionMediaPath
+    : body.transition_media_path;
+  if (
+    !partial ||
+    hasOwn("transitionMediaPath") ||
+    hasOwn("transition_media_path")
+  ) {
+    payload.transition_media_path = transitionMediaPath
+      ? String(transitionMediaPath).trim()
+      : null;
+  }
+
+  if (!partial || hasOwn("isActive") || hasOwn("is_active")) {
+    const isActive = hasOwn("isActive") ? body.isActive : body.is_active;
+    payload.is_active = Boolean(isActive);
+  }
+
+  payload.updated_at = new Date().toISOString();
+  return payload;
+}
+
+async function ensurePropagandaRuntimeRow() {
+  assertSupabaseReady();
+
+  const { data: existing, error } = await supabase
+    .from("propaganda_runtime")
+    .select("*")
+    .eq("scope", PROPAGANDA_SCOPE)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  const { data: created, error: insertError } = await supabase
+    .from("propaganda_runtime")
+    .insert({
+      scope: PROPAGANDA_SCOPE,
+      status: "idle",
+      active_transition_style: PROPAGANDA_TRANSITION_STYLE,
+      active_duration_seconds: 15,
+      created_at: now,
+      updated_at: now,
+    })
+    .select("*")
+    .single();
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  return created;
+}
+
+async function updatePropagandaRuntime(payload) {
+  assertSupabaseReady();
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("propaganda_runtime")
+    .upsert(
+      {
+        scope: PROPAGANDA_SCOPE,
+        updated_at: now,
+        ...payload,
+      },
+      { onConflict: "scope" }
+    )
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function getPropagandaRuntime() {
+  return ensurePropagandaRuntimeRow();
+}
+
+async function getPropagandaCampaignById(campaignId) {
+  assertSupabaseReady();
+
+  const id = parsePositiveInteger(campaignId, "campaignId");
+  const { data, error } = await supabase
+    .from("propaganda_campaigns")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function startPropagandaPlayback(campaign, triggerSource = "manual") {
+  const runtime = await getPropagandaRuntime();
+  const now = new Date();
+  const durationMs = Number(campaign.duration_seconds || 15) * 1000;
+  const endsAt = new Date(now.getTime() + durationMs);
+  const nextRunAt =
+    triggerSource === "scheduled" && runtime.schedule_enabled && runtime.interval_minutes
+      ? new Date(now.getTime() + Number(runtime.interval_minutes) * 60000).toISOString()
+      : runtime.next_run_at || null;
+
+  return updatePropagandaRuntime({
+    status: "playing",
+    active_campaign_id: campaign.id,
+    active_campaign_name: campaign.nome,
+    active_media_type: campaign.media_type,
+    active_media_url: campaign.media_url,
+    active_media_path: campaign.media_path || null,
+    active_transition_style:
+      campaign.transition_style || PROPAGANDA_TRANSITION_STYLE,
+    active_transition_media_type: campaign.transition_media_type || null,
+    active_transition_media_url: campaign.transition_media_url || null,
+    active_transition_media_path: campaign.transition_media_path || null,
+    active_duration_seconds: Number(campaign.duration_seconds || 15),
+    playback_token: randomUUID(),
+    trigger_source: triggerSource,
+    started_at: now.toISOString(),
+    ends_at: endsAt.toISOString(),
+    next_run_at: nextRunAt,
+  });
+}
+
+async function stopPropagandaPlayback(triggerSource = "manual-stop") {
+  const runtime = await getPropagandaRuntime();
+  return updatePropagandaRuntime({
+    status: "idle",
+    active_campaign_id: null,
+    active_campaign_name: null,
+    active_media_type: null,
+    active_media_url: null,
+    active_media_path: null,
+    active_transition_style:
+      runtime.active_transition_style || PROPAGANDA_TRANSITION_STYLE,
+    active_transition_media_type: null,
+    active_transition_media_url: null,
+    active_transition_media_path: null,
+    playback_token: randomUUID(),
+    trigger_source: triggerSource,
+    started_at: null,
+    ends_at: null,
+  });
+}
+
+async function syncPropagandaSchedulerTick() {
+  if (propagandaSchedulerBusy || !supabase) return;
+
+  propagandaSchedulerBusy = true;
+
+  try {
+    const runtime = await getPropagandaRuntime();
+    const now = Date.now();
+
+    if (
+      runtime.status === "playing" &&
+      runtime.ends_at &&
+      new Date(runtime.ends_at).getTime() <= now
+    ) {
+      await updatePropagandaRuntime({
+        status: "idle",
+        active_campaign_id: null,
+        active_campaign_name: null,
+        active_media_type: null,
+        active_media_url: null,
+        active_media_path: null,
+        active_transition_media_type: null,
+        active_transition_media_url: null,
+        active_transition_media_path: null,
+        trigger_source: "completed",
+        started_at: null,
+        ends_at: null,
+      });
+    }
+
+    if (
+      !runtime.schedule_enabled ||
+      !runtime.schedule_campaign_id ||
+      !runtime.interval_minutes
+    ) {
+      return;
+    }
+
+    if (!runtime.next_run_at) {
+      await updatePropagandaRuntime({
+        next_run_at: new Date(
+          now + Number(runtime.interval_minutes) * 60000
+        ).toISOString(),
+      });
+      return;
+    }
+
+    if (
+      runtime.status === "playing" ||
+      new Date(runtime.next_run_at).getTime() > now
+    ) {
+      return;
+    }
+
+    const campaign = await getPropagandaCampaignById(runtime.schedule_campaign_id);
+
+    if (!campaign || !campaign.is_active) {
+      await updatePropagandaRuntime({
+        next_run_at: new Date(
+          now + Number(runtime.interval_minutes) * 60000
+        ).toISOString(),
+        status: "idle",
+      });
+      return;
+    }
+
+    console.log(
+      `[PROPAGANDA] Disparo agendado executado para campanha '${campaign.nome}'`
+    );
+    await startPropagandaPlayback(campaign, "scheduled");
+  } catch (error) {
+    console.error("[PROPAGANDA] Erro no scheduler:", error);
+  } finally {
+    propagandaSchedulerBusy = false;
+  }
+}
+
+setInterval(syncPropagandaSchedulerTick, 15000);
+
+// =================================================================
 // 3. CONFIGURAÇÕES DE MIDDLEWARE
 // =================================================================
 
@@ -816,6 +1355,40 @@ const upload = multer({
       "Apenas imagens (jpeg, jpg, png, gif, webp), arquivos CSV e XLSX são permitidos";
     console.warn("[MULTER fileFilter] rejeitado:", file.originalname, ext, file.mimetype);
     cb(new Error(errMsg));
+  },
+});
+
+const propagandaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 150 * 1024 * 1024,
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mime = String(file.mimetype || "").toLowerCase();
+
+    const isAllowed =
+      ext === ".mp4" ||
+      ext === ".gif" ||
+      ext === ".svg" ||
+      ext === ".png" ||
+      ext === ".jpg" ||
+      ext === ".jpeg" ||
+      ext === ".webp" ||
+      mime === "video/mp4" ||
+      mime === "image/gif" ||
+      mime === "image/svg+xml" ||
+      mime === "image/png" ||
+      mime === "image/jpeg" ||
+      mime === "image/webp";
+
+    if (isAllowed) {
+      return cb(null, true);
+    }
+
+    return cb(
+      new Error("Tipo de arquivo inválido. Use MP4, GIF, SVG, PNG, JPG ou WEBP.")
+    );
   },
 });
 
@@ -4966,6 +5539,286 @@ app.get("/api/diretoria", async (req, res) => {
   } catch (error) {
     console.error("Erro no endpoint /api/diretoria:", error);
     res.status(500).json({ error: "Erro ao calcular dashboard da diretoria." });
+  }
+});
+
+app.get("/api/propaganda/campaigns", async (req, res) => {
+  try {
+    assertSupabaseReady();
+
+    const { data, error } = await supabase
+      .from("propaganda_campaigns")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ campaigns: data || [] });
+  } catch (error) {
+    console.error("Erro ao listar campanhas de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao listar campanhas de propaganda.",
+    });
+  }
+});
+
+app.get("/api/propaganda/media", async (req, res) => {
+  try {
+    const media = await listPropagandaMediaAssets();
+    res.json({ media });
+  } catch (error) {
+    console.error("Erro ao listar mídias de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao listar mídias de propaganda.",
+    });
+  }
+});
+
+app.put("/api/propaganda/media/rename", async (req, res) => {
+  try {
+    const result = await renamePropagandaMediaAsset(
+      req.body?.path,
+      req.body?.newName
+    );
+    res.json({ media: result });
+  } catch (error) {
+    console.error("Erro ao renomear mídia de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao renomear mídia.",
+    });
+  }
+});
+
+app.delete("/api/propaganda/media", async (req, res) => {
+  try {
+    const result = await deletePropagandaMediaAsset(req.body?.path);
+    res.json({ deleted: result });
+  } catch (error) {
+    console.error("Erro ao excluir mídia de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao excluir mídia.",
+    });
+  }
+});
+
+app.post(
+  "/api/propaganda/media/upload",
+  propagandaUpload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado." });
+      }
+
+      const result = await uploadFileToSupabaseStorage(
+        PROPAGANDA_BUCKET,
+        req.file,
+        "media_"
+      );
+
+      const media = {
+        name: result.filename,
+        path: result.filename,
+        publicUrl: result.publicUrl,
+        mediaType: inferPropagandaMediaType(req.file.originalname, req.file.mimetype),
+        mimeType: req.file.mimetype || null,
+        size: req.file.size || (req.file.buffer && req.file.buffer.length) || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return res.status(201).json({ media });
+    } catch (error) {
+      console.error("Erro ao fazer upload de mídia de propaganda:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Falha ao fazer upload da mídia.",
+      });
+    }
+  }
+);
+
+app.post("/api/propaganda/campaigns", async (req, res) => {
+  try {
+    assertSupabaseReady();
+
+    const payload = normalizePropagandaCampaignPayload(req.body || {});
+    payload.created_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("propaganda_campaigns")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({ campaign: data });
+  } catch (error) {
+    console.error("Erro ao criar campanha de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao criar campanha.",
+    });
+  }
+});
+
+app.put("/api/propaganda/campaigns/:id", async (req, res) => {
+  try {
+    assertSupabaseReady();
+
+    const campaignId = parsePositiveInteger(req.params.id, "campaignId");
+    const payload = normalizePropagandaCampaignPayload(req.body || {}, {
+      partial: true,
+    });
+
+    const { data, error } = await supabase
+      .from("propaganda_campaigns")
+      .update(payload)
+      .eq("id", campaignId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ campaign: data });
+  } catch (error) {
+    console.error("Erro ao atualizar campanha de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao atualizar campanha.",
+    });
+  }
+});
+
+app.get("/api/propaganda/runtime", async (req, res) => {
+  try {
+    const runtime = await getPropagandaRuntime();
+    res.json({ runtime });
+  } catch (error) {
+    console.error("Erro ao buscar runtime de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao carregar runtime de propaganda.",
+    });
+  }
+});
+
+app.put("/api/propaganda/runtime", async (req, res) => {
+  try {
+    const runtime = await getPropagandaRuntime();
+    const body = req.body || {};
+    const hasScheduleEnabled = Object.prototype.hasOwnProperty.call(
+      body,
+      "scheduleEnabled"
+    ) || Object.prototype.hasOwnProperty.call(body, "schedule_enabled");
+    const hasScheduleCampaignId = Object.prototype.hasOwnProperty.call(
+      body,
+      "scheduleCampaignId"
+    ) || Object.prototype.hasOwnProperty.call(body, "schedule_campaign_id");
+    const hasIntervalMinutes = Object.prototype.hasOwnProperty.call(
+      body,
+      "intervalMinutes"
+    ) || Object.prototype.hasOwnProperty.call(body, "interval_minutes");
+
+    const scheduleEnabled = hasScheduleEnabled
+      ? Boolean(
+          Object.prototype.hasOwnProperty.call(body, "scheduleEnabled")
+            ? body.scheduleEnabled
+            : body.schedule_enabled
+        )
+      : Boolean(runtime.schedule_enabled);
+    const scheduleCampaignId = hasScheduleCampaignId
+      ? parsePositiveInteger(
+          Object.prototype.hasOwnProperty.call(body, "scheduleCampaignId")
+            ? body.scheduleCampaignId
+            : body.schedule_campaign_id,
+          "scheduleCampaignId"
+        )
+      : runtime.schedule_campaign_id;
+    const intervalMinutes = hasIntervalMinutes
+      ? parsePositiveInteger(
+          Object.prototype.hasOwnProperty.call(body, "intervalMinutes")
+            ? body.intervalMinutes
+            : body.interval_minutes,
+          "intervalMinutes"
+        )
+      : runtime.interval_minutes;
+
+    if (scheduleEnabled && !scheduleCampaignId) {
+      const validationError = new Error(
+        "Selecione uma campanha para a agenda automática."
+      );
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+
+    if (scheduleEnabled && !intervalMinutes) {
+      const validationError = new Error(
+        "Defina um intervalo válido para a agenda automática."
+      );
+      validationError.statusCode = 400;
+      throw validationError;
+    }
+
+    const updatedRuntime = await updatePropagandaRuntime({
+      schedule_enabled: scheduleEnabled,
+      schedule_campaign_id: scheduleCampaignId || null,
+      interval_minutes: scheduleEnabled ? intervalMinutes : null,
+      next_run_at:
+        scheduleEnabled && intervalMinutes
+          ? new Date(Date.now() + intervalMinutes * 60000).toISOString()
+          : null,
+    });
+
+    res.json({ runtime: updatedRuntime });
+  } catch (error) {
+    console.error("Erro ao atualizar runtime de propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao atualizar runtime de propaganda.",
+    });
+  }
+});
+
+app.post("/api/propaganda/trigger", async (req, res) => {
+  try {
+    const campaignId = parsePositiveInteger(
+      req.body?.campaignId || req.body?.campaign_id,
+      "campaignId"
+    );
+    const campaign = await getPropagandaCampaignById(campaignId);
+
+    if (!campaign) {
+      return res.status(404).json({ error: "Campanha não encontrada." });
+    }
+
+    if (!campaign.is_active) {
+      return res.status(400).json({
+        error: "A campanha selecionada está inativa.",
+      });
+    }
+
+    const runtime = await startPropagandaPlayback(campaign, "manual");
+    res.json({ runtime, campaign });
+  } catch (error) {
+    console.error("Erro ao disparar propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao disparar propaganda.",
+    });
+  }
+});
+
+app.post("/api/propaganda/stop", async (req, res) => {
+  try {
+    const runtime = await stopPropagandaPlayback();
+    res.json({ runtime });
+  } catch (error) {
+    console.error("Erro ao parar propaganda:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Falha ao interromper propaganda.",
+    });
   }
 });
 

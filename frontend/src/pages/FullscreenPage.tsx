@@ -7,6 +7,11 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { BlockMappingOverlay } from "../../components/BlockMappingOverlay";
+import { FullscreenAdOverlay } from "../../components/FullscreenAdOverlay";
+import {
+  normalizePropagandaRuntime,
+  type PropagandaRuntime,
+} from "../types/propaganda";
 
 interface UnitData {
   etapa: string;
@@ -88,6 +93,9 @@ export function FullscreenPage() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [implantacaoId, setImplantacaoId] = useState<number | null>(null);
+  const [propagandaRuntime, setPropagandaRuntime] = useState<PropagandaRuntime | null>(
+    null
+  );
 
   // Estados para blocos vendidos
   const [blockMappings, setBlockMappings] = useState<BlockMapping[]>([]);
@@ -98,6 +106,7 @@ export function FullscreenPage() {
   const [isPanningTouch, setIsPanningTouch] = useState(false);
 
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const propagandaChannelRef = useRef<RealtimeChannel | null>(null);
   const autoRefreshRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -227,6 +236,28 @@ export function FullscreenPage() {
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
+
+  const loadPropagandaRuntime = useCallback(async () => {
+    try {
+      const { data: runtimeData, error: runtimeError } = await supabase
+        .from("propaganda_runtime")
+        .select("*")
+        .eq("scope", "global")
+        .maybeSingle();
+
+      if (runtimeError) {
+        throw runtimeError;
+      }
+
+      setPropagandaRuntime(
+        normalizePropagandaRuntime(
+          (runtimeData || null) as Record<string, unknown> | null
+        )
+      );
+    } catch (runtimeError) {
+      console.error("[Fullscreen] Erro ao carregar runtime de propaganda:", runtimeError);
+    }
+  }, []);
 
   // Carregar mapeamentos de blocos vendidos
   useEffect(() => {
@@ -501,6 +532,40 @@ export function FullscreenPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [implantacaoId]);
+
+  useEffect(() => {
+    loadPropagandaRuntime();
+
+    const channel = supabase
+      .channel("propaganda-runtime-fullscreen")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "propaganda_runtime",
+          filter: "scope=eq.global",
+        },
+        (payload) => {
+          console.log("[Fullscreen] Runtime de propaganda atualizado:", payload);
+          const nextRuntime = normalizePropagandaRuntime(
+            (payload.new || payload.old || null) as Record<string, unknown> | null
+          );
+          setPropagandaRuntime(nextRuntime);
+        }
+      )
+      .subscribe((status) => {
+        console.log("[Fullscreen] Status Realtime propaganda:", status);
+      });
+
+    propagandaChannelRef.current = channel;
+
+    return () => {
+      if (propagandaChannelRef.current) {
+        supabase.removeChannel(propagandaChannelRef.current);
+      }
+    };
+  }, [loadPropagandaRuntime]);
 
   // Initial load
   useEffect(() => {
@@ -782,6 +847,8 @@ export function FullscreenPage() {
           position: "relative",
         }}
       >
+      <FullscreenAdOverlay runtime={propagandaRuntime} />
+
       {/* Top Bar - OVERLAY (não soma altura) */}
       <div
         data-controls
