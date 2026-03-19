@@ -4,19 +4,7 @@
   z-index: 20000;
   overflow: hidden;
   pointer-events: auto;
-  background:
-    radial-gradient(circle at top, rgba(255, 187, 92, 0.22), transparent 30%),
-    radial-gradient(circle at bottom left, rgba(225, 76, 46, 0.2), transparent 32%),
-    linear-gradient(135deg, rgba(18, 16, 12, 0.98), rgba(4, 4, 4, 0.99));
-}
-
-.fs-ad-overlay__veil {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(115deg, rgba(255, 255, 255, 0.04), transparent 34%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.4));
-  backdrop-filter: blur(10px);
+  background: #000;
 }
 
 .fs-ad-overlay__panels {
@@ -52,26 +40,6 @@
   animation: fs-ad-panel-exit 900ms cubic-bezier(0.78, 0.05, 0.82, 0.37) forwards;
 }
 
-.fs-ad-overlay__hud {
-  position: absolute;
-  top: 4.5vh;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 20px;
-  border-radius: 999px;
-  background: rgba(23, 17, 10, 0.7);
-  border: 1px solid rgba(255, 224, 194, 0.18);
-  color: #fff4e2;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
-  letter-spacing: 0.04em;
-  opacity: 0;
-  transition: opacity 280ms ease, transform 280ms ease;
-  z-index: 4;
-}
-
 .fs-ad-overlay__transition-shell {
   position: absolute;
   inset: 0;
@@ -91,31 +59,13 @@
   object-fit: cover;
 }
 
-.fs-ad-overlay--content .fs-ad-overlay__hud,
-.fs-ad-overlay--outro .fs-ad-overlay__hud {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.fs-ad-overlay__tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  font-weight: 700;
-  background: linear-gradient(90deg, #ffaf5f, #d35400);
-  color: #220f03;
-}
-
 .fs-ad-overlay__media-shell {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4vw;
+  padding: 0;
   z-index: 2;
   opacity: 0;
   transition: opacity 240ms ease;
@@ -129,56 +79,38 @@
   opacity: 0.18;
 }
 
-.fs-ad-overlay__media-glow {
-  position: absolute;
-  width: min(70vw, 1100px);
-  height: min(70vw, 1100px);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 162, 95, 0.32), transparent 62%);
-  filter: blur(26px);
-  opacity: 0;
-  transition: opacity 400ms ease;
-}
-
 .fs-ad-overlay__media-frame {
   position: relative;
-  width: min(92vw, 1800px);
-  height: min(86vh, 1100px);
+  width: 100vw;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 32px;
+  border-radius: 0;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.66);
-  border: 1px solid rgba(255, 231, 204, 0.16);
-  box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.42),
-    inset 0 0 24px rgba(255, 250, 238, 0.08);
+  background: #000;
+  border: 0;
+  box-shadow: none;
   opacity: 0;
-  transform: scale(0.9) rotate(-1.2deg);
-  transition: opacity 420ms ease, transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: none;
+  transition: opacity 240ms ease;
 }
 
 .fs-ad-overlay--content .fs-ad-overlay__media-frame,
 .fs-ad-overlay--outro .fs-ad-overlay__media-frame {
   opacity: 1;
-  transform: scale(1) rotate(0deg);
-}
-
-.fs-ad-overlay--content .fs-ad-overlay__media-glow,
-.fs-ad-overlay--outro .fs-ad-overlay__media-glow {
-  opacity: 1;
+  transform: none;
 }
 
 .fs-ad-overlay__media-asset {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   background: #000;
 }
 
 .fs-ad-overlay__media-asset--video {
-  object-fit: contain;
+  object-fit: cover;
 }
 
 @keyframes fs-ad-panel-enter {
@@ -206,20 +138,9 @@
 }
 
 @media (max-width: 900px) {
-  .fs-ad-overlay__hud {
-    top: 3vh;
-    width: calc(100% - 28px);
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .fs-ad-overlay__media-shell {
-    padding: 70px 14px 14px;
-  }
-
   .fs-ad-overlay__media-frame {
     width: 100%;
-    height: calc(100vh - 110px);
-    border-radius: 22px;
+    height: 100%;
+    border-radius: 0;
   }
 }

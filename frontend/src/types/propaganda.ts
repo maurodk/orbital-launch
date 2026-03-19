@@ -8,17 +8,25 @@ export interface PropagandaCampaign {
   mediaType: PropagandaMediaType;
   mediaUrl: string;
   mediaPath: string | null;
+  mediaMuted: boolean;
+  mediaVolume: number;
   durationSeconds: number;
   transitionStyle: string;
   transitionMediaType: PropagandaMediaType | null;
   transitionMediaUrl: string | null;
   transitionMediaPath: string | null;
+  transitionMediaMuted: boolean;
+  transitionMediaVolume: number;
   transitionEntryMediaType: PropagandaMediaType | null;
   transitionEntryMediaUrl: string | null;
   transitionEntryMediaPath: string | null;
+  transitionEntryMuted: boolean;
+  transitionEntryVolume: number;
   transitionExitMediaType: PropagandaMediaType | null;
   transitionExitMediaUrl: string | null;
   transitionExitMediaPath: string | null;
+  transitionExitMuted: boolean;
+  transitionExitVolume: number;
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -33,16 +41,24 @@ export interface PropagandaRuntime {
   activeMediaType: PropagandaMediaType | null;
   activeMediaUrl: string | null;
   activeMediaPath: string | null;
+  activeMediaMuted: boolean;
+  activeMediaVolume: number;
   activeTransitionStyle: string;
   activeTransitionMediaType: PropagandaMediaType | null;
   activeTransitionMediaUrl: string | null;
   activeTransitionMediaPath: string | null;
+  activeTransitionMediaMuted: boolean;
+  activeTransitionMediaVolume: number;
   activeTransitionEntryMediaType: PropagandaMediaType | null;
   activeTransitionEntryMediaUrl: string | null;
   activeTransitionEntryMediaPath: string | null;
+  activeTransitionEntryMuted: boolean;
+  activeTransitionEntryVolume: number;
   activeTransitionExitMediaType: PropagandaMediaType | null;
   activeTransitionExitMediaUrl: string | null;
   activeTransitionExitMediaPath: string | null;
+  activeTransitionExitMuted: boolean;
+  activeTransitionExitVolume: number;
   activeDurationSeconds: number;
   playbackToken: string | null;
   triggerSource: string | null;
@@ -67,6 +83,23 @@ export interface PropagandaMediaAsset {
 }
 
 const DEFAULT_TRANSITION_STYLE = "architectural-curtain";
+
+function normalizeVolume(value: unknown, fallback = 1): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.min(1, parsed));
+}
+
+function normalizeMuted(value: unknown, fallback = false): boolean {
+  if (value == null) {
+    return fallback;
+  }
+
+  return Boolean(value);
+}
 
 export function normalizePropagandaMediaType(
   value: string | null | undefined
@@ -97,6 +130,8 @@ export function normalizePropagandaCampaign(
   const legacyTransitionPath = value.transition_media_path
     ? String(value.transition_media_path)
     : null;
+  const legacyTransitionMuted = normalizeMuted(value.transition_media_muted, false);
+  const legacyTransitionVolume = normalizeVolume(value.transition_media_volume, 1);
 
   return {
     id: Number(value.id || 0),
@@ -106,6 +141,8 @@ export function normalizePropagandaCampaign(
     mediaType: normalizePropagandaMediaType(value.media_type as string),
     mediaUrl: String(value.media_url || ""),
     mediaPath: value.media_path ? String(value.media_path) : null,
+    mediaMuted: normalizeMuted(value.media_muted, false),
+    mediaVolume: normalizeVolume(value.media_volume, 1),
     durationSeconds: Number(value.duration_seconds || 15),
     transitionStyle: String(
       value.transition_style || DEFAULT_TRANSITION_STYLE
@@ -113,6 +150,8 @@ export function normalizePropagandaCampaign(
     transitionMediaType: normalizedLegacyTransitionType,
     transitionMediaUrl: legacyTransitionUrl,
     transitionMediaPath: legacyTransitionPath,
+    transitionMediaMuted: legacyTransitionMuted,
+    transitionMediaVolume: legacyTransitionVolume,
     transitionEntryMediaType: normalizedEntryTransitionType,
     transitionEntryMediaUrl: value.transition_entry_media_url
       ? String(value.transition_entry_media_url)
@@ -120,6 +159,14 @@ export function normalizePropagandaCampaign(
     transitionEntryMediaPath: value.transition_entry_media_path
       ? String(value.transition_entry_media_path)
       : legacyTransitionPath,
+    transitionEntryMuted: normalizeMuted(
+      value.transition_entry_muted,
+      legacyTransitionMuted
+    ),
+    transitionEntryVolume: normalizeVolume(
+      value.transition_entry_volume,
+      legacyTransitionVolume
+    ),
     transitionExitMediaType: normalizedExitTransitionType,
     transitionExitMediaUrl: value.transition_exit_media_url
       ? String(value.transition_exit_media_url)
@@ -127,6 +174,14 @@ export function normalizePropagandaCampaign(
     transitionExitMediaPath: value.transition_exit_media_path
       ? String(value.transition_exit_media_path)
       : legacyTransitionPath,
+    transitionExitMuted: normalizeMuted(
+      value.transition_exit_muted,
+      legacyTransitionMuted
+    ),
+    transitionExitVolume: normalizeVolume(
+      value.transition_exit_volume,
+      legacyTransitionVolume
+    ),
     isActive: Boolean(value.is_active),
     createdAt: value.created_at ? String(value.created_at) : null,
     updatedAt: value.updated_at ? String(value.updated_at) : null,
@@ -153,6 +208,14 @@ export function normalizePropagandaRuntime(
   const legacyTransitionPath = value.active_transition_media_path
     ? String(value.active_transition_media_path)
     : null;
+  const legacyTransitionMuted = normalizeMuted(
+    value.active_transition_media_muted,
+    false
+  );
+  const legacyTransitionVolume = normalizeVolume(
+    value.active_transition_media_volume,
+    1
+  );
 
   const statusValue = String(value.status || "idle").toLowerCase();
   const status =
@@ -180,12 +243,16 @@ export function normalizePropagandaRuntime(
     activeMediaPath: value.active_media_path
       ? String(value.active_media_path)
       : null,
+    activeMediaMuted: normalizeMuted(value.active_media_muted, false),
+    activeMediaVolume: normalizeVolume(value.active_media_volume, 1),
     activeTransitionStyle: String(
       value.active_transition_style || DEFAULT_TRANSITION_STYLE
     ),
     activeTransitionMediaType: normalizedLegacyTransitionType,
     activeTransitionMediaUrl: legacyTransitionUrl,
     activeTransitionMediaPath: legacyTransitionPath,
+    activeTransitionMediaMuted: legacyTransitionMuted,
+    activeTransitionMediaVolume: legacyTransitionVolume,
     activeTransitionEntryMediaType: normalizedEntryTransitionType,
     activeTransitionEntryMediaUrl: value.active_transition_entry_media_url
       ? String(value.active_transition_entry_media_url)
@@ -193,6 +260,14 @@ export function normalizePropagandaRuntime(
     activeTransitionEntryMediaPath: value.active_transition_entry_media_path
       ? String(value.active_transition_entry_media_path)
       : legacyTransitionPath,
+    activeTransitionEntryMuted: normalizeMuted(
+      value.active_transition_entry_muted,
+      legacyTransitionMuted
+    ),
+    activeTransitionEntryVolume: normalizeVolume(
+      value.active_transition_entry_volume,
+      legacyTransitionVolume
+    ),
     activeTransitionExitMediaType: normalizedExitTransitionType,
     activeTransitionExitMediaUrl: value.active_transition_exit_media_url
       ? String(value.active_transition_exit_media_url)
@@ -200,6 +275,14 @@ export function normalizePropagandaRuntime(
     activeTransitionExitMediaPath: value.active_transition_exit_media_path
       ? String(value.active_transition_exit_media_path)
       : legacyTransitionPath,
+    activeTransitionExitMuted: normalizeMuted(
+      value.active_transition_exit_muted,
+      legacyTransitionMuted
+    ),
+    activeTransitionExitVolume: normalizeVolume(
+      value.active_transition_exit_volume,
+      legacyTransitionVolume
+    ),
     activeDurationSeconds: Number(value.active_duration_seconds || 15),
     playbackToken: value.playback_token ? String(value.playback_token) : null,
     triggerSource: value.trigger_source ? String(value.trigger_source) : null,

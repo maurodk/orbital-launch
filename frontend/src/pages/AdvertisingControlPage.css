@@ -486,6 +486,39 @@
   margin-top: 12px;
 }
 
+.ads-audio-controls {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ads-audio-controls--card {
+  margin-top: 14px;
+}
+
+.ads-audio-controls__toggle,
+.ads-audio-controls__range {
+  display: grid;
+  gap: 6px;
+  color: var(--ads-text);
+  font-size: 0.82rem;
+}
+
+.ads-audio-controls__toggle {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.ads-audio-controls__toggle input {
+  width: 16px;
+  height: 16px;
+}
+
+.ads-audio-controls__range input[type="range"] {
+  width: 100%;
+}
+
 .ads-upload-card__actions {
   gap: 10px;
   margin-top: 14px;

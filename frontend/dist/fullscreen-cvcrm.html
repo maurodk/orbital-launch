@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=yes"
+    />
+    <link rel="icon" type="image/x-icon" href="/v.ico" />
+    <title>Espelho de Implantação CVCRM - VCA</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: #111;
+        color: #fff;
+        overflow: hidden;
+      }
+
+      /* Otimizações para evitar piscar */
+      .floor-plan-wrapper.loading .floor-plan-image {
+        opacity: 0;
+        transition: opacity 0.15s ease-in;
+      }
+
+      .floor-plan-wrapper.loaded .floor-plan-image {
+        opacity: 0.9;
+        transition: opacity 0.2s ease-out;
+      }
+      .title {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .floor-plan-wrapper {
+        position: relative;
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #1a1a1a;
+        margin: 0;
+        padding: 0;
+      }
+      .floor-plan-container {
+        position: relative;
+        width: 100%;
+        transform-origin: center center;
+        transition: transform 0.3s ease;
+        cursor: grab;
+      }
+      .floor-plan-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        opacity: 0.9;
+        transition: all 0.3s ease;
+        will-change: opacity;
+        image-rendering: -webkit-optimize-contrast;
+      }
+      .unit-indicator {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        transition: transform 0.2s ease, background-color 0.3s ease;
+        cursor: help;
+        z-index: 11; /* Garante que os pontos fiquem acima da imagem */
+      }
+      .status-Disponível {
+        background: #6ad700;
+      }
+      .status-Reservada,
+      .status-VENDIDO,
+      .status-Bloqueada {
+        background: #d9534f;
+      }
+      .status-other {
+        background: #6c757d;
+      }
+      .dot-size-control {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 15px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 1001;
+        backdrop-filter: blur(5px);
+      }
+      .dot-size-control label {
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .zoom-controls {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .zoom-controls.visible {
+        opacity: 1;
+      }
+      .zoom-button {
+        background: rgba(0, 0, 0, 0.8);
+        border: 1px solid #555;
+        color: #fff;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: bold;
+        transition: all 0.2s ease;
+        backdrop-filter: blur(10px);
+      }
+      .zoom-button:hover {
+        background: rgba(0, 0, 0, 0.9);
+        border-color: #777;
+        transform: scale(1.05);
+      }
+      .zoom-button:active {
+        transform: scale(0.95);
+      }
+      .zoom-reset {
+        background: rgba(46, 213, 115, 0.2);
+        border-color: #2ed573;
+        font-size: 14px;
+      }
+      .zoom-reset:hover {
+        background: rgba(46, 213, 115, 0.3);
+      }
+      .floor-plan-container.dragging {
+        cursor: grabbing;
+      }
+      .floor-plan-container.zoomed {
+        cursor: grab;
+      }
+      .zoom-indicator {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid #333;
+        z-index: 1000;
+      }
+      .zoom-indicator.visible {
+        opacity: 1;
+      }
+      .zoom-instructions {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: #ccc;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid #333;
+        z-index: 1000;
+        text-align: center;
+        max-width: 300px;
+      }
+      .zoom-instructions.visible {
+        opacity: 1;
+      }
+      @media (max-width: 768px) {
+        .zoom-controls {
+          top: 20px;
+          right: 10px;
+        }
+        .zoom-button {
+          width: 36px;
+          height: 36px;
+          font-size: 16px;
+        }
+        .zoom-indicator {
+          top: 15px;
+          font-size: 12px;
+          padding: 6px 12px;
+        }
+        .zoom-instructions {
+          bottom: 15px;
+          font-size: 11px;
+          padding: 10px 15px;
+          max-width: 250px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="floor-plan-wrapper">
+      <!-- A imagem e os pontos serão inseridos aqui via script -->
+    </div>
+
+    <div class="dot-size-control">
+      <label for="dot-size-slider">Tamanho do Ponto</label>
+      <input type="range" id="dot-size-slider" min="8" max="40" value="16" />
+    </div>
+    <div id="toast-notification" class="toast-notification">
+      Tamanho do ponto salvo!
+    </div>
+
+    <!-- ... (o resto do body, incluindo o script) ... -->
+
+    <div class="zoom-controls" id="zoom-controls">
+      <button
+        class="zoom-button"
+        id="zoom-in"
+        title="Zoom In (+)"
+        data-action="zoom-in"
+      >
+        +
+      </button>
+      <button
+        class="zoom-button"
+        id="zoom-out"
+        title="Zoom Out (-)"
+        data-action="zoom-out"
+      >
+        −
+      </button>
+      <button
+        class="zoom-button zoom-reset"
+        id="zoom-reset"
+        title="Reset Zoom"
+        data-action="zoom-reset"
+      >
+        ⌂
+      </button>
+    </div>
+
+    <div class="zoom-indicator" id="zoom-indicator">
+      Zoom: <span id="zoom-level">100%</span>
+    </div>
+    <div class="zoom-instructions" id="zoom-instructions">
+      <div>
+        🖱️ <strong>Mouse:</strong> Scroll para zoom | Arrastar para mover
+      </div>
+      <div>
+        📱 <strong>Touch:</strong> Pinch para zoom | Toque e arraste para mover
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        // Cache de dados para evitar piscar
+        let cachedData = null;
+
+        // Tenta restaurar dados do sessionStorage ao carregar
+        try {
+          const savedData = sessionStorage.getItem("fullscreenCvcrmData");
+          if (savedData) {
+            cachedData = JSON.parse(savedData);
+            if (cachedData) {
+              setTimeout(() => {
+                console.log("Renderizando do cache para evitar piscar");
+                initialRender(cachedData);
+              }, 0);
+            }
+          }
+        } catch (e) {
+          console.log("Sem cache anterior disponível");
+        }
+
+        // URL da API no EC2
+        const API_URL = "https://apitelaodigital.suportevca.com.br";
+
+        const wrapper = document.getElementById("floor-plan-wrapper");
+        const zoomControls = document.getElementById("zoom-controls");
+        const zoomIndicator = document.getElementById("zoom-indicator");
+        const zoomLevel = document.getElementById("zoom-level");
+        const zoomInstructions = document.getElementById("zoom-instructions");
+        const dotSizeSlider = document.getElementById("dot-size-slider");
+        const toast = document.getElementById("toast-notification");
+
+        let currentZoom = 1;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let currentTranslate = { x: 0, y: 0 };
+        let container = null; // Referência ao floor-plan-container
+        let initialPinchDistance = 0;
+        let initialPinchZoom = 1;
+        let isPinching = false;
+
+        const urlParams = new URLSearchParams(location.search);
+        const implantacao = urlParams.get("implantacao");
+        const hideAvailable = urlParams.get("hideAvailable") === "true";
+
+        if (!implantacao) {
+          wrapper.innerHTML =
+            '<p style="padding:20px">Parâmetro "implantacao" não encontrado na URL.</p>';
+          return;
+        }
+
+        async function fetchData() {
+          try {
+            const url = `${API_URL}/api/public-data-cvcrm?implantacao=${encodeURIComponent(
+              implantacao
+            )}&hideAvailable=${hideAvailable}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              throw new Error(`Falha ao buscar dados: ${res.statusText}`);
+            }
+            const json = await res.json();
+
+            // Salva no cache para próximo refresh
+            cachedData = json;
+            try {
+              sessionStorage.setItem(
+                "fullscreenCvcrmData",
+                JSON.stringify(json)
+              );
+            } catch (e) {
+              console.warn("Não foi possível salvar no cache:", e);
+            }
+
+            return json;
+          } catch (e) {
+            console.error("Erro em fetchData:", e);
+            return { unidades: [], imageUrl: "", dotSize: 16 };
+          }
+        }
+
+        // --- FUNÇÃO RENDER ATUALIZADA ---
+        function initialRender(data) {
+          const { unidades, imageUrl, dotSize } = data;
+
+          // Marca como loading
+          wrapper.classList.add("loading");
+          wrapper.classList.remove("loaded");
+
+          wrapper.innerHTML = "";
+
+          window.currentDotSize = dotSize; // Armazena o dotSize globalmente
+
+          if (!imageUrl) {
+            wrapper.innerHTML =
+              '<p style="padding:20px">Imagem da planta não configurada.</p>';
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+            return;
+          }
+
+          dotSizeSlider.value = dotSize;
+
+          container = document.createElement("div");
+          container.className = "floor-plan-container";
+
+          const img = document.createElement("img");
+          img.className = "floor-plan-image";
+
+          // Otimização: Usa cache do navegador
+          const cachedImageUrl = sessionStorage.getItem(
+            "cvcrmFloorPlanImageUrl"
+          );
+          if (cachedImageUrl === imageUrl) {
+            img.src = imageUrl;
+          } else {
+            sessionStorage.setItem("cvcrmFloorPlanImageUrl", imageUrl);
+            img.src = imageUrl;
+          }
+
+          img.onload = () => {
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+
+            const aspectRatio = (img.naturalHeight / img.naturalWidth) * 100;
+            container.style.paddingBottom = `${aspectRatio}%`;
+
+            unidades.forEach((unit) => {
+              const { idunidade, unidade, situacao, coord_x, coord_y } = unit;
+              if (!coord_x || !coord_y) return;
+
+              const status = (situacao || "Disponível").toUpperCase();
+              const disponibilidade =
+                status === "DISPONIVEL" ? "Disponível" : status;
+
+              const indicator = document.createElement("div");
+              indicator.id = `unit-indicator-${idunidade}`;
+              indicator.className = `unit-indicator status-${disponibilidade}`;
+              indicator.style.left = `${coord_x}%`;
+              indicator.style.top = `${coord_y}%`;
+              indicator.style.width = `${dotSize}px`;
+              indicator.style.height = `${dotSize}px`;
+              indicator.title = `Unidade: ${unidade}\nStatus: ${situacao}`;
+              container.appendChild(indicator);
+            });
+
+            container.insertBefore(img, container.firstChild);
+            wrapper.appendChild(container);
+            setupZoomControls();
+          };
+
+          img.onerror = () => {
+            wrapper.innerHTML =
+              '<p style="padding:20px">Erro ao carregar a imagem da planta.</p>';
+          };
+
+          img.src = imageUrl; // Inicia o carregamento da imagem
+        }
+
+        // Função para atualizar o tamanho de todos os pontos
+        function updateAllDotSizes(newSize) {
+          const indicators = document.querySelectorAll(".unit-indicator");
+          indicators.forEach((indicator) => {
+            indicator.style.width = `${newSize}px`;
+            indicator.style.height = `${newSize}px`;
+          });
+          window.currentDotSize = newSize; // Atualiza o valor global
+        }
+
+        async function initialLoad() {
+          const data = await fetchData();
+          initialRender(data);
+        }
+
+        // Função que SÓ atualiza os status das unidades, sem recriar o DOM
+        async function updateUnits() {
+          const data = await fetchData();
+          if (!container || !data.unidades) return;
+
+          data.unidades.forEach((unit) => {
+            const { idunidade, situacao } = unit;
+            const indicator = document.getElementById(
+              `unit-indicator-${idunidade}`
+            );
+            if (indicator) {
+              const status = (situacao || "Disponível").toUpperCase();
+              const disponibilidade =
+                status === "DISPONIVEL" ? "Disponível" : status;
+
+              // Remove classes de status antigas e adiciona a nova
+              indicator.className = "unit-indicator"; // Reseta
+              indicator.classList.add(`status-${disponibilidade}`);
+            }
+          });
+        }
+
+        // As outras funções JavaScript permanecem as mesmas
+        function updateZoomDisplay() {
+          zoomLevel.textContent = Math.round(currentZoom * 100) + "%";
+          const visible = currentZoom > 1;
+          zoomIndicator.classList.toggle("visible", visible);
+          zoomControls.classList.toggle("visible", visible);
+          zoomInstructions.classList.toggle("visible", visible);
+        }
+        function applyTransform() {
+          if (!container) return;
+          container.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentZoom})`;
+          container.classList.toggle("zoomed", currentZoom > 1);
+        }
+        function zoomIn() {
+          currentZoom = Math.min(currentZoom * 1.2, 5);
+          updateZoomDisplay();
+          applyTransform();
+        }
+        function zoomOut() {
+          currentZoom = Math.max(currentZoom / 1.2, 1);
+          clampTranslation();
+          updateZoomDisplay();
+          applyTransform();
+        }
+        function resetZoom() {
+          currentZoom = 1;
+          currentTranslate = { x: 0, y: 0 };
+          updateZoomDisplay();
+          applyTransform();
+        }
+
+        function clampTranslation() {
+          if (!wrapper) return;
+          const viewportWidth = wrapper.clientWidth;
+          const viewportHeight = wrapper.clientHeight;
+          const maxTranslateX = (viewportWidth * (currentZoom - 1)) / 2;
+          const maxTranslateY = (viewportHeight * (currentZoom - 1)) / 2;
+          currentTranslate.x = Math.max(
+            -maxTranslateX,
+            Math.min(maxTranslateX, currentTranslate.x)
+          );
+          currentTranslate.y = Math.max(
+            -maxTranslateY,
+            Math.min(maxTranslateY, currentTranslate.y)
+          );
+        }
+        function getTouchDistance(touches) {
+          const dx = touches[0].clientX - touches[1].clientX;
+          const dy = touches[0].clientY - touches[1].clientY;
+          return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function handleWheel(e) {
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? 0.9 : 1.1;
+          const oldZoom = currentZoom;
+          currentZoom = Math.max(1, Math.min(5, currentZoom * delta));
+          if (currentZoom < oldZoom) {
+            clampTranslation();
+          }
+          updateZoomDisplay();
+          applyTransform();
+        }
+        function handleMouseDown(e) {
+          if (currentZoom <= 1 || e.button !== 0) return;
+          isDragging = true;
+          dragStart = {
+            x: e.clientX - currentTranslate.x,
+            y: e.clientY - currentTranslate.y,
+          };
+          if (container) container.classList.add("dragging");
+          e.preventDefault();
+        }
+        function handleMouseMove(e) {
+          if (!isDragging || currentZoom <= 1) return;
+          let newTranslateX = e.clientX - dragStart.x;
+          let newTranslateY = e.clientY - dragStart.y;
+          currentTranslate.x = newTranslateX;
+          currentTranslate.y = newTranslateY;
+          clampTranslation();
+          applyTransform();
+        }
+        function handleMouseUp() {
+          isDragging = false;
+          if (container) container.classList.remove("dragging");
+        }
+        function handleTouchStart(e) {
+          if (e.touches.length === 2) {
+            e.preventDefault();
+            isPinching = true;
+            initialPinchDistance = getTouchDistance(e.touches);
+            initialPinchZoom = currentZoom;
+          } else if (e.touches.length === 1 && currentZoom > 1) {
+            isDragging = true;
+            dragStart = {
+              x: e.touches[0].clientX - currentTranslate.x,
+              y: e.touches[0].clientY - currentTranslate.y,
+            };
+            if (container) container.classList.add("dragging");
+          }
+        }
+        function handleTouchMove(e) {
+          if (e.touches.length === 2 && isPinching) {
+            e.preventDefault();
+            const currentDistance = getTouchDistance(e.touches);
+            const scale = currentDistance / initialPinchDistance;
+            const oldZoom = currentZoom;
+            currentZoom = Math.max(1, Math.min(5, initialPinchZoom * scale));
+            if (currentZoom < oldZoom) {
+              clampTranslation();
+            }
+            updateZoomDisplay();
+            applyTransform();
+          } else if (e.touches.length === 1 && isDragging && currentZoom > 1) {
+            e.preventDefault();
+            currentTranslate.x = e.touches[0].clientX - dragStart.x;
+            currentTranslate.y = e.touches[0].clientY - dragStart.y;
+            clampTranslation();
+            applyTransform();
+          }
+        }
+        function handleTouchEnd(e) {
+          if (e.touches.length < 2) isPinching = false;
+          if (e.touches.length < 1) {
+            isDragging = false;
+            if (container) container.classList.remove("dragging");
+          } else if (isPinching === false) {
+            isDragging = true;
+            dragStart = {
+              x: e.touches[0].clientX - currentTranslate.x,
+              y: e.touches[0].clientY - currentTranslate.y,
+            };
+          }
+        }
+        function setupZoomControls() {
+          document.getElementById("zoom-in").addEventListener("click", zoomIn);
+          document
+            .getElementById("zoom-out")
+            .addEventListener("click", zoomOut);
+          document
+            .getElementById("zoom-reset")
+            .addEventListener("click", resetZoom);
+          wrapper.addEventListener("wheel", handleWheel, { passive: false });
+          wrapper.addEventListener("mousedown", handleMouseDown);
+          document.addEventListener("mousemove", handleMouseMove);
+          document.addEventListener("mouseup", handleMouseUp);
+          wrapper.addEventListener("touchstart", handleTouchStart, {
+            passive: false,
+          });
+          document.addEventListener("touchmove", handleTouchMove, {
+            passive: false,
+          });
+          document.addEventListener("touchend", handleTouchEnd);
+          setTimeout(() => {
+            if (currentZoom <= 1) {
+              zoomControls.classList.add("visible");
+              setTimeout(() => zoomControls.classList.remove("visible"), 5000);
+            }
+          }, 3000);
+        }
+
+        // Nova função para atualizar uma única unidade
+        function updateSingleUnit(unitData) {
+          // unitData é um objeto CvcrmUnit
+          const currentContainer = document.querySelector(
+            ".floor-plan-container"
+          );
+          if (!currentContainer) return;
+
+          const { idunidade, unidade, situacao, coord_x, coord_y } = unitData;
+
+          const unitId = `unit-indicator-${idunidade}`;
+          let indicator = document.getElementById(unitId);
+
+          const status = (situacao || "Disponível").toUpperCase();
+          const disponibilidade =
+            status === "DISPONIVEL" ? "Disponível" : status;
+
+          if (!coord_x || !coord_y) {
+            if (indicator) indicator.remove();
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            currentContainer.appendChild(indicator);
+          }
+
+          indicator.className = `unit-indicator status-${disponibilidade}`;
+          indicator.style.left = `${coord_x}%`;
+          indicator.style.top = `${coord_y}%`;
+          indicator.title = `Unidade: ${unidade}\nStatus: ${situacao}`; // Correção aqui
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+
+          console.log(
+            `[FULLSCREEN CVCRM] Unidade ${unidade} atualizada para status: ${situacao}`
+          );
+        }
+
+        // Carga inicial
+        initialLoad();
+
+        // Recarrega os dados a cada 30 segundos
+        setInterval(updateUnits, 30000);
+
+        // Função para salvar o tamanho do ponto no backend
+        async function saveDotSize(newSize) {
+          try {
+            const res = await fetch(`${API_URL}/api/update-dot-size`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                implantacaoName: implantacao,
+                newSize: newSize,
+              }),
+            });
+            if (res.ok) {
+              showToast();
+            } else {
+              console.error("Falha ao salvar o tamanho do ponto.");
+            }
+          } catch (error) {
+            console.error("Erro de rede ao salvar o tamanho do ponto:", error);
+          }
+        }
+
+        function showToast() {
+          toast.classList.add("show");
+          setTimeout(() => toast.classList.remove("show"), 2000);
+        }
+
+        // Event listener para o controle de tamanho do ponto
+        dotSizeSlider.addEventListener("input", (event) => {
+          updateAllDotSizes(event.target.value);
+        });
+        dotSizeSlider.addEventListener("change", (event) => {
+          saveDotSize(event.target.value);
+        });
+      })();
+    </script>
+  </body>
+</html>

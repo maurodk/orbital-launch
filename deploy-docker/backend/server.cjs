@@ -494,6 +494,29 @@ function parsePositiveInteger(value, fieldName) {
   return parsed;
 }
 
+function parsePropagandaVolume(value, fieldName) {
+  if (value == null || value === "") return null;
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    const error = new Error(`${fieldName} deve ser um número entre 0 e 1.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return parsed;
+}
+
+function resolveBooleanField(body, keys, fallback = false) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      return Boolean(body[key]);
+    }
+  }
+
+  return fallback;
+}
+
 function normalizePropagandaMediaType(value) {
   const normalized = String(value || "image").trim().toLowerCase();
   if (!PROPAGANDA_MEDIA_TYPES.has(normalized)) {
@@ -814,6 +837,20 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
     payload.media_path = mediaPath ? String(mediaPath).trim() : null;
   }
 
+  if (!partial || hasOwn("mediaMuted") || hasOwn("media_muted")) {
+    payload.media_muted = resolveBooleanField(body, ["mediaMuted", "media_muted"], false);
+  }
+
+  if (!partial || hasOwn("mediaVolume") || hasOwn("media_volume")) {
+    payload.media_volume = parsePropagandaVolume(
+      hasOwn("mediaVolume") ? body.mediaVolume : body.media_volume,
+      "mediaVolume"
+    );
+    if (payload.media_volume == null) {
+      payload.media_volume = 1;
+    }
+  }
+
   const storageFolder = hasOwn("storageFolder")
     ? body.storageFolder
     : body.storage_folder;
@@ -881,6 +918,47 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
       : null;
   }
 
+  if (
+    !partial ||
+    hasOwn("transitionMuted") ||
+    hasOwn("transition_muted") ||
+    hasOwn("transitionMediaMuted") ||
+    hasOwn("transition_media_muted")
+  ) {
+    payload.transition_media_muted = resolveBooleanField(
+      body,
+      [
+        "transitionMuted",
+        "transition_muted",
+        "transitionMediaMuted",
+        "transition_media_muted",
+      ],
+      false
+    );
+  }
+
+  if (
+    !partial ||
+    hasOwn("transitionVolume") ||
+    hasOwn("transition_volume") ||
+    hasOwn("transitionMediaVolume") ||
+    hasOwn("transition_media_volume")
+  ) {
+    payload.transition_media_volume = parsePropagandaVolume(
+      hasOwn("transitionVolume")
+        ? body.transitionVolume
+        : hasOwn("transition_volume")
+          ? body.transition_volume
+          : hasOwn("transitionMediaVolume")
+            ? body.transitionMediaVolume
+            : body.transition_media_volume,
+      "transitionVolume"
+    );
+    if (payload.transition_media_volume == null) {
+      payload.transition_media_volume = 1;
+    }
+  }
+
   const rawTransitionEntryMediaType = hasOwn("transitionEntryMediaType")
     ? body.transitionEntryMediaType
     : body.transition_entry_media_type;
@@ -920,6 +998,34 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
       : null;
   }
 
+  if (
+    !partial ||
+    hasOwn("transitionEntryMuted") ||
+    hasOwn("transition_entry_muted")
+  ) {
+    payload.transition_entry_muted = resolveBooleanField(
+      body,
+      ["transitionEntryMuted", "transition_entry_muted"],
+      payload.transition_media_muted ?? false
+    );
+  }
+
+  if (
+    !partial ||
+    hasOwn("transitionEntryVolume") ||
+    hasOwn("transition_entry_volume")
+  ) {
+    payload.transition_entry_volume = parsePropagandaVolume(
+      hasOwn("transitionEntryVolume")
+        ? body.transitionEntryVolume
+        : body.transition_entry_volume,
+      "transitionEntryVolume"
+    );
+    if (payload.transition_entry_volume == null) {
+      payload.transition_entry_volume = payload.transition_media_volume ?? 1;
+    }
+  }
+
   const rawTransitionExitMediaType = hasOwn("transitionExitMediaType")
     ? body.transitionExitMediaType
     : body.transition_exit_media_type;
@@ -957,6 +1063,34 @@ function normalizePropagandaCampaignPayload(body, { partial = false } = {}) {
     payload.transition_exit_media_path = transitionExitMediaPath
       ? String(transitionExitMediaPath).trim()
       : null;
+  }
+
+  if (
+    !partial ||
+    hasOwn("transitionExitMuted") ||
+    hasOwn("transition_exit_muted")
+  ) {
+    payload.transition_exit_muted = resolveBooleanField(
+      body,
+      ["transitionExitMuted", "transition_exit_muted"],
+      payload.transition_media_muted ?? false
+    );
+  }
+
+  if (
+    !partial ||
+    hasOwn("transitionExitVolume") ||
+    hasOwn("transition_exit_volume")
+  ) {
+    payload.transition_exit_volume = parsePropagandaVolume(
+      hasOwn("transitionExitVolume")
+        ? body.transitionExitVolume
+        : body.transition_exit_volume,
+      "transitionExitVolume"
+    );
+    if (payload.transition_exit_volume == null) {
+      payload.transition_exit_volume = payload.transition_media_volume ?? 1;
+    }
   }
 
   if (!partial || hasOwn("isActive") || hasOwn("is_active")) {
@@ -1066,24 +1200,36 @@ async function startPropagandaPlayback(campaign, triggerSource = "manual") {
     active_media_type: campaign.media_type,
     active_media_url: campaign.media_url,
     active_media_path: campaign.media_path || null,
+    active_media_muted: Boolean(campaign.media_muted),
+    active_media_volume: Number(campaign.media_volume ?? 1),
     active_storage_folder: campaign.storage_folder || null,
     active_transition_style:
       campaign.transition_style || PROPAGANDA_TRANSITION_STYLE,
     active_transition_media_type: campaign.transition_media_type || null,
     active_transition_media_url: campaign.transition_media_url || null,
     active_transition_media_path: campaign.transition_media_path || null,
+    active_transition_media_muted: Boolean(campaign.transition_media_muted),
+    active_transition_media_volume: Number(campaign.transition_media_volume ?? 1),
     active_transition_entry_media_type:
       campaign.transition_entry_media_type || campaign.transition_media_type || null,
     active_transition_entry_media_url:
       campaign.transition_entry_media_url || campaign.transition_media_url || null,
     active_transition_entry_media_path:
       campaign.transition_entry_media_path || campaign.transition_media_path || null,
+    active_transition_entry_muted:
+      Boolean(campaign.transition_entry_muted ?? campaign.transition_media_muted),
+    active_transition_entry_volume:
+      Number(campaign.transition_entry_volume ?? campaign.transition_media_volume ?? 1),
     active_transition_exit_media_type:
       campaign.transition_exit_media_type || campaign.transition_media_type || null,
     active_transition_exit_media_url:
       campaign.transition_exit_media_url || campaign.transition_media_url || null,
     active_transition_exit_media_path:
       campaign.transition_exit_media_path || campaign.transition_media_path || null,
+    active_transition_exit_muted:
+      Boolean(campaign.transition_exit_muted ?? campaign.transition_media_muted),
+    active_transition_exit_volume:
+      Number(campaign.transition_exit_volume ?? campaign.transition_media_volume ?? 1),
     active_duration_seconds: Number(campaign.duration_seconds || 15),
     playback_token: randomUUID(),
     trigger_source: triggerSource,
@@ -1102,18 +1248,26 @@ async function stopPropagandaPlayback(triggerSource = "manual-stop") {
     active_media_type: null,
     active_media_url: null,
     active_media_path: null,
+    active_media_muted: false,
+    active_media_volume: 1,
     active_storage_folder: null,
     active_transition_style:
       runtime.active_transition_style || PROPAGANDA_TRANSITION_STYLE,
     active_transition_media_type: null,
     active_transition_media_url: null,
     active_transition_media_path: null,
+    active_transition_media_muted: false,
+    active_transition_media_volume: 1,
     active_transition_entry_media_type: null,
     active_transition_entry_media_url: null,
     active_transition_entry_media_path: null,
+    active_transition_entry_muted: false,
+    active_transition_entry_volume: 1,
     active_transition_exit_media_type: null,
     active_transition_exit_media_url: null,
     active_transition_exit_media_path: null,
+    active_transition_exit_muted: false,
+    active_transition_exit_volume: 1,
     playback_token: randomUUID(),
     trigger_source: triggerSource,
     started_at: null,
@@ -1143,15 +1297,23 @@ async function syncPropagandaSchedulerTick() {
         active_media_type: null,
         active_media_url: null,
         active_media_path: null,
+        active_media_muted: false,
+        active_media_volume: 1,
         active_transition_media_type: null,
         active_transition_media_url: null,
         active_transition_media_path: null,
+        active_transition_media_muted: false,
+        active_transition_media_volume: 1,
         active_transition_entry_media_type: null,
         active_transition_entry_media_url: null,
         active_transition_entry_media_path: null,
+        active_transition_entry_muted: false,
+        active_transition_entry_volume: 1,
         active_transition_exit_media_type: null,
         active_transition_exit_media_url: null,
         active_transition_exit_media_path: null,
+        active_transition_exit_muted: false,
+        active_transition_exit_volume: 1,
         trigger_source: "completed",
         started_at: null,
         ends_at: null,

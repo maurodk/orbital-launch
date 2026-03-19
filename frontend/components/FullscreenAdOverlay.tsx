@@ -22,7 +22,9 @@ function renderMediaAsset(
   className: string,
   onEnded?: () => void,
   alt = "Propaganda",
-  loop = false
+  loop = false,
+  muted = false,
+  volume = 1
 ) {
   if (!mediaType || !mediaUrl) {
     return null;
@@ -34,11 +36,20 @@ function renderMediaAsset(
         className={className}
         src={mediaUrl}
         autoPlay
-        muted
+        muted={muted}
         loop={loop}
         playsInline
         preload="auto"
         onEnded={onEnded}
+        ref={(node) => {
+          if (!node) return;
+          node.muted = muted;
+          node.volume = Math.max(0, Math.min(1, volume));
+          const playPromise = node.play();
+          if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch(() => undefined);
+          }
+        }}
       />
     );
   }
@@ -52,6 +63,7 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
     null
   );
   const lastTokenRef = useRef<string | null>(null);
+  const completedTokenRef = useRef<string | null>(null);
   const outroRequestedRef = useRef(false);
   const timeoutsRef = useRef<number[]>([]);
 
@@ -61,11 +73,12 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
   }, []);
 
   const finishPlayback = useCallback(() => {
+    completedTokenRef.current = displayRuntime?.playbackToken || lastTokenRef.current;
     clearTimers();
     setPhase("hidden");
     setDisplayRuntime(null);
     outroRequestedRef.current = false;
-  }, [clearTimers]);
+  }, [clearTimers, displayRuntime]);
 
   const advanceToContent = useCallback(() => {
     setPhase("content");
@@ -92,11 +105,15 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
       return;
     }
 
-    if (runtime.playbackToken === lastTokenRef.current && displayRuntime) {
+    if (
+      runtime.playbackToken === completedTokenRef.current ||
+      runtime.playbackToken === lastTokenRef.current
+    ) {
       return;
     }
 
     lastTokenRef.current = runtime.playbackToken;
+    completedTokenRef.current = null;
     outroRequestedRef.current = false;
     clearTimers();
     setDisplayRuntime(runtime);
@@ -187,7 +204,9 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         "fs-ad-overlay__media-asset fs-ad-overlay__media-asset--video",
         startOutro,
         displayRuntime?.activeCampaignName || "Propaganda",
-        false
+        false,
+        displayRuntime?.activeMediaMuted ?? false,
+        displayRuntime?.activeMediaVolume ?? 1
       ),
     [displayRuntime, startOutro]
   );
@@ -200,7 +219,9 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         "fs-ad-overlay__transition-asset",
         advanceToContent,
         `${displayRuntime?.activeCampaignName || "Propaganda"} transição de entrada`,
-        false
+        false,
+        displayRuntime?.activeTransitionEntryMuted ?? false,
+        displayRuntime?.activeTransitionEntryVolume ?? 1
       ),
     [advanceToContent, displayRuntime]
   );
@@ -213,7 +234,9 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         "fs-ad-overlay__transition-asset",
         finishPlayback,
         `${displayRuntime?.activeCampaignName || "Propaganda"} transição de saída`,
-        false
+        false,
+        displayRuntime?.activeTransitionExitMuted ?? false,
+        displayRuntime?.activeTransitionExitVolume ?? 1
       ),
     [displayRuntime, finishPlayback]
   );
@@ -226,7 +249,6 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
 
   return (
     <div className={`fs-ad-overlay fs-ad-overlay--${phase}`}>
-      <div className="fs-ad-overlay__veil" />
       {phaseTransitionNode ? (
         <div className={`fs-ad-overlay__transition-shell fs-ad-overlay__transition-shell--${phase}`}>
           {phaseTransitionNode}
@@ -243,13 +265,7 @@ export function FullscreenAdOverlay({ runtime }: FullscreenAdOverlayProps) {
         </div>
       ) : null}
 
-      <div className="fs-ad-overlay__hud">
-        <span className="fs-ad-overlay__tag">Propaganda Programada</span>
-        <strong>{displayRuntime.activeCampaignName || "Peça institucional"}</strong>
-      </div>
-
       <div className={`fs-ad-overlay__media-shell fs-ad-overlay__media-shell--${phase}`}>
-        <div className="fs-ad-overlay__media-glow" aria-hidden="true" />
         <div className="fs-ad-overlay__media-frame">{mediaNode}</div>
       </div>
     </div>

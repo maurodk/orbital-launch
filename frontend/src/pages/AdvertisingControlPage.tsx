@@ -32,8 +32,23 @@ interface CampaignDraft {
   isActive: boolean;
   storageFolder: string;
   mainAsset: SelectedCampaignAsset | null;
+  mainMuted: boolean;
+  mainVolume: number;
   entryAsset: SelectedCampaignAsset | null;
+  entryMuted: boolean;
+  entryVolume: number;
   exitAsset: SelectedCampaignAsset | null;
+  exitMuted: boolean;
+  exitVolume: number;
+}
+
+interface CampaignAudioDraft {
+  mainMuted: boolean;
+  mainVolume: number;
+  entryMuted: boolean;
+  entryVolume: number;
+  exitMuted: boolean;
+  exitVolume: number;
 }
 
 const emptyDraft: CampaignDraft = {
@@ -42,8 +57,14 @@ const emptyDraft: CampaignDraft = {
   isActive: true,
   storageFolder: "",
   mainAsset: null,
+  mainMuted: false,
+  mainVolume: 1,
   entryAsset: null,
+  entryMuted: false,
+  entryVolume: 1,
   exitAsset: null,
+  exitMuted: false,
+  exitVolume: 1,
 };
 
 function slugifyCampaignName(value: string): string {
@@ -193,6 +214,55 @@ async function calculateCampaignDurationSeconds(input: {
   return Math.max(1, Math.ceil(entryDuration + mainDuration + exitDuration));
 }
 
+function clampVolume(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(0, Math.min(1, value));
+}
+
+function volumePercentToUnit(value: number): number {
+  return clampVolume(value / 100);
+}
+
+function volumeUnitToPercent(value: number): number {
+  return Math.round(clampVolume(value) * 100);
+}
+
+function getCampaignAudioDraft(campaign: PropagandaCampaign): CampaignAudioDraft {
+  return {
+    mainMuted: campaign.mediaMuted,
+    mainVolume: campaign.mediaVolume,
+    entryMuted: campaign.transitionEntryMuted,
+    entryVolume: campaign.transitionEntryVolume,
+    exitMuted: campaign.transitionExitMuted,
+    exitVolume: campaign.transitionExitVolume,
+  };
+}
+
+function getDraftAudioValues(draft: CampaignDraft, slot: CampaignAssetSlot) {
+  if (slot === "main") {
+    return { muted: draft.mainMuted, volume: draft.mainVolume };
+  }
+
+  if (slot === "entry") {
+    return { muted: draft.entryMuted, volume: draft.entryVolume };
+  }
+
+  return { muted: draft.exitMuted, volume: draft.exitVolume };
+}
+
+function buildCampaignAudioPayload(audio: CampaignAudioDraft): Record<string, unknown> {
+  return {
+    mediaMuted: audio.mainMuted,
+    mediaVolume: clampVolume(audio.mainVolume),
+    transitionMediaMuted: audio.entryMuted,
+    transitionMediaVolume: clampVolume(audio.entryVolume),
+    transitionEntryMuted: audio.entryMuted,
+    transitionEntryVolume: clampVolume(audio.entryVolume),
+    transitionExitMuted: audio.exitMuted,
+    transitionExitVolume: clampVolume(audio.exitVolume),
+  };
+}
+
 function renderAssetPreview(asset: PropagandaMediaAsset | null, alt: string) {
   if (!asset) {
     return <div className="ads-simple-asset__empty">Nenhum arquivo enviado</div>;
@@ -226,6 +296,7 @@ export function AdvertisingControlPage() {
   );
   const [cleaningDraft, setCleaningDraft] = useState(false);
   const [estimatedDurationSeconds, setEstimatedDurationSeconds] = useState(0);
+  const [campaignAudioDrafts, setCampaignAudioDrafts] = useState<Record<number, CampaignAudioDraft>>({});
 
   useEffect(() => {
     const auth = localStorage.getItem("diretoriaAuth");
@@ -274,6 +345,16 @@ export function AdvertisingControlPage() {
     if (!isAuthenticated) return;
     void loadData();
   }, [isAuthenticated, loadData]);
+
+  useEffect(() => {
+    setCampaignAudioDrafts((current) => {
+      const next: Record<number, CampaignAudioDraft> = {};
+      campaigns.forEach((campaign) => {
+        next[campaign.id] = current[campaign.id] || getCampaignAudioDraft(campaign);
+      });
+      return next;
+    });
+  }, [campaigns]);
 
   const activeCampaign = useMemo(() => {
     if (!runtime?.activeCampaignId) return null;
@@ -503,17 +584,25 @@ export function AdvertisingControlPage() {
         mediaType: draft.mainAsset.mediaType,
         mediaUrl: draft.mainAsset.publicUrl,
         mediaPath: draft.mainAsset.path,
+        mediaMuted: draft.mainMuted,
+        mediaVolume: clampVolume(draft.mainVolume),
         durationSeconds: calculatedDurationSeconds,
         transitionStyle: DEFAULT_TRANSITION_STYLE,
         transitionMediaType: draft.entryAsset.mediaType,
         transitionMediaUrl: draft.entryAsset.publicUrl,
         transitionMediaPath: draft.entryAsset.path,
+        transitionMediaMuted: draft.entryMuted,
+        transitionMediaVolume: clampVolume(draft.entryVolume),
         transitionEntryMediaType: draft.entryAsset.mediaType,
         transitionEntryMediaUrl: draft.entryAsset.publicUrl,
         transitionEntryMediaPath: draft.entryAsset.path,
+        transitionEntryMuted: draft.entryMuted,
+        transitionEntryVolume: clampVolume(draft.entryVolume),
         transitionExitMediaType: draft.exitAsset.mediaType,
         transitionExitMediaUrl: draft.exitAsset.publicUrl,
         transitionExitMediaPath: draft.exitAsset.path,
+        transitionExitMuted: draft.exitMuted,
+        transitionExitVolume: clampVolume(draft.exitVolume),
         isActive: draft.isActive,
       });
 
@@ -553,6 +642,70 @@ export function AdvertisingControlPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const updateDraftAudio = (slot: CampaignAssetSlot, changes: Partial<{ muted: boolean; volume: number }>) => {
+    setDraft((current) => {
+      if (slot === "main") {
+        return {
+          ...current,
+          mainMuted: changes.muted ?? current.mainMuted,
+          mainVolume: changes.volume != null ? clampVolume(changes.volume) : current.mainVolume,
+        };
+      }
+
+      if (slot === "entry") {
+        return {
+          ...current,
+          entryMuted: changes.muted ?? current.entryMuted,
+          entryVolume: changes.volume != null ? clampVolume(changes.volume) : current.entryVolume,
+        };
+      }
+
+      return {
+        ...current,
+        exitMuted: changes.muted ?? current.exitMuted,
+        exitVolume: changes.volume != null ? clampVolume(changes.volume) : current.exitVolume,
+      };
+    });
+  };
+
+  const updateCampaignAudioDraft = (
+    campaignId: number,
+    slot: CampaignAssetSlot,
+    changes: Partial<{ muted: boolean; volume: number }>
+  ) => {
+    setCampaignAudioDrafts((current) => {
+      const existing = current[campaignId];
+      if (!existing) {
+        return current;
+      }
+
+      const next = { ...existing };
+      if (slot === "main") {
+        next.mainMuted = changes.muted ?? next.mainMuted;
+        next.mainVolume = changes.volume != null ? clampVolume(changes.volume) : next.mainVolume;
+      } else if (slot === "entry") {
+        next.entryMuted = changes.muted ?? next.entryMuted;
+        next.entryVolume = changes.volume != null ? clampVolume(changes.volume) : next.entryVolume;
+      } else {
+        next.exitMuted = changes.muted ?? next.exitMuted;
+        next.exitVolume = changes.volume != null ? clampVolume(changes.volume) : next.exitVolume;
+      }
+
+      return {
+        ...current,
+        [campaignId]: next,
+      };
+    });
+  };
+
+  const saveCampaignAudio = async (campaign: PropagandaCampaign) => {
+    const audioDraft = campaignAudioDrafts[campaign.id];
+    if (!audioDraft) return;
+
+    await updateCampaign(campaign.id, buildCampaignAudioPayload(audioDraft));
+    setFeedback(`Audio da campanha ${campaign.nome} atualizado.`);
   };
 
   const triggerCampaign = async (campaign: PropagandaCampaign) => {
@@ -824,6 +977,7 @@ export function AdvertisingControlPage() {
           ) : (
             <div className="ads-campaign-list">
               {campaigns.map((campaign) => {
+                const audioDraft = campaignAudioDrafts[campaign.id] || getCampaignAudioDraft(campaign);
                 const mainPreview = assetToPreview({
                   name: getAssetFileName({
                     name: campaign.nome,
@@ -917,12 +1071,68 @@ export function AdvertisingControlPage() {
                         <div className="ads-simple-asset__preview">
                           {renderAssetPreview(mainPreview, campaign.nome)}
                         </div>
+                        <div className="ads-audio-controls">
+                          <label className="ads-audio-controls__toggle">
+                            <input
+                              type="checkbox"
+                              checked={!audioDraft.mainMuted}
+                              onChange={(event) =>
+                                updateCampaignAudioDraft(campaign.id, "main", {
+                                  muted: !event.target.checked,
+                                })
+                              }
+                            />
+                            <span>{audioDraft.mainMuted ? "Mutado" : "Com audio"}</span>
+                          </label>
+                          <label className="ads-audio-controls__range">
+                            <span>Volume {volumeUnitToPercent(audioDraft.mainVolume)}%</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={volumeUnitToPercent(audioDraft.mainVolume)}
+                              onChange={(event) =>
+                                updateCampaignAudioDraft(campaign.id, "main", {
+                                  volume: volumePercentToUnit(Number(event.target.value)),
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="ads-simple-asset">
                         <span>Entrada</span>
                         <div className="ads-simple-asset__preview">
                           {renderAssetPreview(entryPreview, `${campaign.nome} entrada`)}
+                        </div>
+                        <div className="ads-audio-controls">
+                          <label className="ads-audio-controls__toggle">
+                            <input
+                              type="checkbox"
+                              checked={!audioDraft.entryMuted}
+                              onChange={(event) =>
+                                updateCampaignAudioDraft(campaign.id, "entry", {
+                                  muted: !event.target.checked,
+                                })
+                              }
+                            />
+                            <span>{audioDraft.entryMuted ? "Mutado" : "Com audio"}</span>
+                          </label>
+                          <label className="ads-audio-controls__range">
+                            <span>Volume {volumeUnitToPercent(audioDraft.entryVolume)}%</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={volumeUnitToPercent(audioDraft.entryVolume)}
+                              onChange={(event) =>
+                                updateCampaignAudioDraft(campaign.id, "entry", {
+                                  volume: volumePercentToUnit(Number(event.target.value)),
+                                })
+                              }
+                            />
+                          </label>
                         </div>
                       </div>
 
@@ -931,10 +1141,46 @@ export function AdvertisingControlPage() {
                         <div className="ads-simple-asset__preview">
                           {renderAssetPreview(exitPreview, `${campaign.nome} saida`)}
                         </div>
+                        <div className="ads-audio-controls">
+                          <label className="ads-audio-controls__toggle">
+                            <input
+                              type="checkbox"
+                              checked={!audioDraft.exitMuted}
+                              onChange={(event) =>
+                                updateCampaignAudioDraft(campaign.id, "exit", {
+                                  muted: !event.target.checked,
+                                })
+                              }
+                            />
+                            <span>{audioDraft.exitMuted ? "Mutado" : "Com audio"}</span>
+                          </label>
+                          <label className="ads-audio-controls__range">
+                            <span>Volume {volumeUnitToPercent(audioDraft.exitVolume)}%</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={volumeUnitToPercent(audioDraft.exitVolume)}
+                              onChange={(event) =>
+                                updateCampaignAudioDraft(campaign.id, "exit", {
+                                  volume: volumePercentToUnit(Number(event.target.value)),
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
                       </div>
                     </div>
 
                     <div className="ads-campaign-card__actions">
+                      <button
+                        type="button"
+                        className="ads-button ads-button--ghost"
+                        onClick={() => void saveCampaignAudio(campaign)}
+                        disabled={saving}
+                      >
+                        Salvar audio
+                      </button>
                       <button
                         type="button"
                         className="ads-button ads-button--primary"
@@ -1051,7 +1297,9 @@ export function AdvertisingControlPage() {
                       ["main", draft.mainAsset],
                       ["entry", draft.entryAsset],
                       ["exit", draft.exitAsset],
-                    ] as [CampaignAssetSlot, SelectedCampaignAsset | null][]).map(([slot, asset]) => (
+                    ] as [CampaignAssetSlot, SelectedCampaignAsset | null][]).map(([slot, asset]) => {
+                        const audioValues = getDraftAudioValues(draft, slot);
+                        return (
                       <article key={slot} className="ads-upload-card">
                         <div className="ads-upload-card__head">
                           <div>
@@ -1072,6 +1320,33 @@ export function AdvertisingControlPage() {
                               ? "Bucket > campanha > Midias"
                               : "Bucket > campanha > Transicoes"}
                           </p>
+                        </div>
+
+                        <div className="ads-audio-controls ads-audio-controls--card">
+                          <label className="ads-audio-controls__toggle">
+                            <input
+                              type="checkbox"
+                              checked={!audioValues.muted}
+                              onChange={(event) =>
+                                updateDraftAudio(slot, { muted: !event.target.checked })
+                              }
+                            />
+                            <span>{audioValues.muted ? "Mutado" : "Com audio"}</span>
+                          </label>
+                          <label className="ads-audio-controls__range">
+                            <span>Volume {volumeUnitToPercent(audioValues.volume)}%</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={volumeUnitToPercent(audioValues.volume)}
+                              onChange={(event) =>
+                                updateDraftAudio(slot, {
+                                  volume: volumePercentToUnit(Number(event.target.value)),
+                                })
+                              }
+                            />
+                          </label>
                         </div>
 
                         <div className="ads-upload-card__actions">
@@ -1101,7 +1376,9 @@ export function AdvertisingControlPage() {
                           </button>
                         </div>
                       </article>
-                    ))}
+                        );
+                      }
+                    )}
                   </div>
                 </section>
               </div>

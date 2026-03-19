@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=yes"
+    />
+    <link rel="icon" type="image/x-icon" href="/v.ico" />
+    <title>Telao Digital - VCA</title>
+    <style>
+      :root {
+        --color-disponivel: #6ad700;
+        --color-Reservada: #d9534f;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: #221f25;
+        color: #fff;
+      }
+
+      /* Otimizações para evitar piscar no refresh */
+      .floor-plan-wrapper.loading {
+        background: #1a1a1a;
+      }
+
+      .floor-plan-wrapper.loading .floor-plan-image {
+        opacity: 0;
+        transition: opacity 0.15s ease-in;
+      }
+
+      .floor-plan-wrapper.loaded .floor-plan-image {
+        opacity: 0.9;
+        transition: opacity 0.2s ease-out;
+      }
+      .topbar {
+        padding: 10px 16px;
+        background: #0b0b0b;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border-bottom: 1px solid #333;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .topbar.hidden {
+        opacity: 0;
+        transform: translateY(-100%);
+        pointer-events: none;
+      }
+      .title {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .logo {
+        height: 30px;
+      }
+      .floor-plan-wrapper {
+        position: relative;
+        width: 100%;
+        height: calc(100vh - 51px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #1a1a1a;
+        transition: height 0.3s ease;
+      }
+      .floor-plan-wrapper.fullscreen {
+        height: 100vh;
+      }
+      .floor-plan-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .floor-plan-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        opacity: 0.9;
+        will-change: opacity;
+        image-rendering: -webkit-optimize-contrast;
+      }
+      .unit-indicator {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+        transition: transform 0.2s ease, background-color 0.3s ease;
+        cursor: help;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .unit-indicator .letra {
+        font-size: 6px;
+        font-weight: bold;
+        color: white;
+        text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+      }
+
+      .status-Reservada {
+        background: var(--color-Reservada);
+      }
+      .status-Disponível {
+        background: var(--color-disponivel);
+      }
+      .status-Bloqueada {
+        background: var(--color-Reservada);
+      }
+      .status-other {
+        background: #6c757d;
+      }
+      /* Esconder unidades disponíveis quando toggle ativado */
+      .hide-disponivel .status-Disponível {
+        display: none !important;
+      }
+      .small {
+        font-size: 14px;
+        color: #ccc;
+      }
+      .fullscreen-button {
+        background: #333;
+        border: 1px solid #555;
+        color: #fff;
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .fullscreen-button:hover {
+        background: #444;
+      }
+      .dot-size-control {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        padding: 12px 18px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 9999;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-width: 200px;
+        max-width: 250px;
+        pointer-events: auto;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .dot-size-control.hidden {
+        opacity: 0;
+        transform: translateY(20px);
+        pointer-events: none;
+      }
+      .dot-size-control label {
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        color: #fff;
+        text-align: center;
+      }
+      .dot-size-control input[type="range"] {
+        width: 100%;
+        cursor: pointer;
+      }
+      .dot-size-value {
+        text-align: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: #6ad700;
+        margin-top: 2px;
+      }
+      .dot-color-control {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        padding: 12px 18px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 9999;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-width: 220px;
+        max-width: 280px;
+        pointer-events: auto;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .dot-color-control.hidden {
+        opacity: 0;
+        transform: translateY(20px);
+        pointer-events: none;
+      }
+
+      /* Responsividade para mobile */
+      @media (max-width: 768px) {
+        .topbar {
+          flex-wrap: wrap;
+          padding: 8px 12px;
+          gap: 12px;
+        }
+        .title {
+          font-size: 14px;
+        }
+        .logo {
+          height: 24px;
+        }
+        .small {
+          font-size: 12px;
+        }
+        .fullscreen-button {
+          width: 32px;
+          height: 32px;
+        }
+
+        /* Controles em telas menores */
+        .dot-size-control,
+        .dot-color-control {
+          bottom: 10px;
+          padding: 10px 14px;
+          min-width: 160px;
+          max-width: 200px;
+        }
+        .dot-size-control {
+          right: 10px;
+        }
+        .dot-color-control {
+          left: 10px;
+        }
+        .dot-size-control label,
+        .dot-color-control h3 {
+          font-size: 11px;
+        }
+        .dot-size-value {
+          font-size: 12px;
+        }
+        .color-option label {
+          font-size: 11px;
+        }
+        .color-option input[type="color"] {
+          width: 40px;
+          height: 25px;
+        }
+        .toggle-option label {
+          font-size: 11px;
+        }
+      }
+
+      /* Para telas muito pequenas (mobile portrait) */
+      @media (max-width: 480px) {
+        .topbar {
+          padding: 6px 10px;
+          gap: 8px;
+        }
+        .title {
+          font-size: 12px;
+        }
+        .logo {
+          height: 20px;
+        }
+
+        /* Empilha controles verticalmente em telas muito pequenas */
+        .dot-color-control {
+          bottom: auto;
+          top: 60px;
+          left: 10px;
+        }
+        .dot-size-control {
+          bottom: 10px;
+          right: 10px;
+        }
+      }
+      .dot-color-control h3 {
+        margin: 0 0 8px 0;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        color: #fff;
+      }
+      .color-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: space-between;
+      }
+      .color-option label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #fff;
+        flex: 1;
+      }
+      .color-option input[type="color"] {
+        width: 50px;
+        height: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        cursor: pointer;
+        background: transparent;
+      }
+      .color-option input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 2px;
+      }
+      .color-option input[type="color"]::-webkit-color-swatch {
+        border: none;
+        border-radius: 3px;
+      }
+      .toggle-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .toggle-option label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+      }
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #555;
+        transition: 0.3s;
+        border-radius: 24px;
+      }
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      .toggle-switch input:checked + .toggle-slider {
+        background-color: #6ad700;
+      }
+      .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+      }
+      .toast-notification {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        background-color: #28a745;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+        pointer-events: none;
+      }
+      .toast-notification.show {
+        opacity: 1;
+      }
+      .legacy-ad-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 30000;
+        overflow: hidden;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 220ms ease, visibility 220ms ease;
+        background:
+          radial-gradient(circle at top, rgba(255, 187, 92, 0.22), transparent 30%),
+          radial-gradient(circle at bottom left, rgba(225, 76, 46, 0.2), transparent 32%),
+          linear-gradient(135deg, rgba(18, 16, 12, 0.98), rgba(4, 4, 4, 0.99));
+      }
+      .legacy-ad-overlay.is-visible {
+        opacity: 1;
+        visibility: visible;
+      }
+      .legacy-ad-overlay__veil {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(115deg, rgba(255, 255, 255, 0.04), transparent 34%),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.4));
+        backdrop-filter: blur(10px);
+      }
+      .legacy-ad-overlay__panels {
+        position: absolute;
+        inset: -10% -6%;
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1.2vw;
+      }
+      .legacy-ad-overlay__panel {
+        background:
+          linear-gradient(180deg, rgba(255, 199, 133, 0.95), rgba(102, 43, 10, 0.9)),
+          linear-gradient(120deg, rgba(255, 255, 255, 0.18), transparent 40%);
+        border: 1px solid rgba(255, 244, 223, 0.25);
+        box-shadow:
+          0 0 24px rgba(255, 145, 77, 0.25),
+          inset 0 0 18px rgba(255, 255, 255, 0.16);
+        opacity: 0;
+        transform: translateY(-120%) skewX(-12deg);
+      }
+      .legacy-ad-overlay.is-intro .legacy-ad-overlay__panel {
+        animation: legacy-ad-panel-enter 900ms cubic-bezier(0.2, 0.85, 0.15, 1) forwards;
+      }
+      .legacy-ad-overlay.is-content .legacy-ad-overlay__panel {
+        opacity: 0.16;
+        transform: translateY(-115%) skewX(-12deg);
+      }
+      .legacy-ad-overlay.is-outro .legacy-ad-overlay__panel {
+        animation: legacy-ad-panel-exit 900ms cubic-bezier(0.78, 0.05, 0.82, 0.37) forwards;
+      }
+      .legacy-ad-overlay__transition {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        opacity: 0;
+        transition: opacity 220ms ease;
+      }
+      .legacy-ad-overlay.is-intro .legacy-ad-overlay__transition,
+      .legacy-ad-overlay.is-outro .legacy-ad-overlay__transition {
+        opacity: 1;
+      }
+      .legacy-ad-overlay__transition img,
+      .legacy-ad-overlay__transition video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .legacy-ad-overlay__hud {
+        position: absolute;
+        top: 4.5vh;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 20px;
+        border-radius: 999px;
+        background: rgba(23, 17, 10, 0.7);
+        border: 1px solid rgba(255, 224, 194, 0.18);
+        color: #fff4e2;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+        letter-spacing: 0.04em;
+        opacity: 0;
+        z-index: 4;
+        transition: opacity 280ms ease, transform 280ms ease;
+      }
+      .legacy-ad-overlay.is-content .legacy-ad-overlay__hud,
+      .legacy-ad-overlay.is-outro .legacy-ad-overlay__hud {
+        opacity: 1;
+      }
+      .legacy-ad-overlay__tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #ffaf5f, #d35400);
+        color: #220f03;
+      }
+      .legacy-ad-overlay__media-shell {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4vw;
+        z-index: 2;
+        opacity: 0;
+        transition: opacity 240ms ease;
+      }
+      .legacy-ad-overlay.is-content .legacy-ad-overlay__media-shell {
+        opacity: 1;
+      }
+      .legacy-ad-overlay.is-outro .legacy-ad-overlay__media-shell {
+        opacity: 0.18;
+      }
+      .legacy-ad-overlay__media-glow {
+        position: absolute;
+        width: min(70vw, 1100px);
+        height: min(70vw, 1100px);
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 162, 95, 0.32), transparent 62%);
+        filter: blur(26px);
+        opacity: 0;
+        transition: opacity 400ms ease;
+      }
+      .legacy-ad-overlay.is-content .legacy-ad-overlay__media-glow,
+      .legacy-ad-overlay.is-outro .legacy-ad-overlay__media-glow {
+        opacity: 1;
+      }
+      .legacy-ad-overlay__media-frame {
+        position: relative;
+        width: min(92vw, 1800px);
+        height: min(86vh, 1100px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 32px;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.66);
+        border: 1px solid rgba(255, 231, 204, 0.16);
+        box-shadow:
+          0 30px 80px rgba(0, 0, 0, 0.42),
+          inset 0 0 24px rgba(255, 250, 238, 0.08);
+        opacity: 0;
+        transform: scale(0.9) rotate(-1.2deg);
+        transition: opacity 420ms ease, transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .legacy-ad-overlay.is-content .legacy-ad-overlay__media-frame,
+      .legacy-ad-overlay.is-outro .legacy-ad-overlay__media-frame {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+      .legacy-ad-overlay__media-slot {
+        width: 100%;
+        height: 100%;
+      }
+      .legacy-ad-overlay__media-slot img,
+      .legacy-ad-overlay__media-slot video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #000;
+      }
+      @keyframes legacy-ad-panel-enter {
+        0% {
+          opacity: 0;
+          transform: translateY(-120%) skewX(-12deg);
+        }
+        100% {
+          opacity: 0.96;
+          transform: translateY(0) skewX(-12deg);
+        }
+      }
+      @keyframes legacy-ad-panel-exit {
+        0% {
+          opacity: 0.16;
+          transform: translateY(-115%) skewX(-12deg);
+        }
+        100% {
+          opacity: 0.95;
+          transform: translateY(0) skewX(-12deg);
+        }
+      }
+      @media (max-width: 900px) {
+        .legacy-ad-overlay__hud {
+          top: 3vh;
+          width: calc(100% - 28px);
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+        .legacy-ad-overlay__media-shell {
+          padding: 70px 14px 14px;
+        }
+        .legacy-ad-overlay__media-frame {
+          width: 100%;
+          height: calc(100vh - 110px);
+          border-radius: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="title" id="empreendimento-title">Espelho de Implantação</div>
+      <div id="implantacaoName" class="small"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label for="layer-select" class="small" style="margin-left:8px">Camada</label>
+        <select id="layer-select" style="background:#0b0b0b;color:#fff;border:1px solid #333;padding:6px;border-radius:6px">
+          <option value="primary">Primária</option>
+          <option value="additional">Adicional</option>
+        </select>
+      </div>
+      <div style="flex: 1"></div>
+      <div id="debug-mode" style="margin-right:12px; font-size:13px; color:#fff; background:rgba(0,0,0,0.35); padding:6px 10px; border-radius:6px;">modo: ---</div>
+      <button
+        id="fullscreen-btn"
+        class="fullscreen-button"
+        title="Ativar Tela Cheia"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+          ></path>
+        </svg>
+      </button>
+      <button
+        id="refresh-btn"
+        class="fullscreen-button"
+        title="Atualizar dados"
+        style="margin-left: 8px"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path
+            d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+          ></path>
+        </svg>
+      </button>
+      <div id="status" class="small">Conectando...</div>
+    </div>
+
+    <div id="floor-plan-wrapper"></div>
+
+    <!-- Controles fixos fora do wrapper -->
+    <div class="dot-size-control">
+      <label for="dot-size-slider">Tamanho dos Pontos</label>
+      <input
+        type="range"
+        id="dot-size-slider"
+        min="4"
+        max="40"
+        value="16"
+        step="1"
+      />
+      <div class="dot-size-value"><span id="dot-size-value">16</span> px</div>
+    </div>
+
+    <div class="dot-color-control">
+      <h3>Cores dos Pontos</h3>
+      <div class="color-option">
+        <label for="color-disponivel">Disponível</label>
+        <input type="color" id="color-disponivel" value="#6ad700" />
+      </div>
+      <div class="color-option">
+        <label for="color-Reservada">Reservada</label>
+        <input type="color" id="color-Reservada" value="#d9534f" />
+      </div>
+      <div class="toggle-option">
+        <label for="hide-disponivel">Esconder Disponíveis</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="hide-disponivel" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div id="toast-notification" class="toast-notification">
+      Tamanho do ponto salvo!
+    </div>
+
+    <script>
+      (function () {
+        // Cache de dados para evitar piscar
+        let cachedData = null;
+        let lastImageUrl = null;
+
+        // Tenta restaurar dados do sessionStorage ao carregar
+        try {
+          const savedData = sessionStorage.getItem("fullscreenData");
+          if (savedData) {
+            cachedData = JSON.parse(savedData);
+            // Renderiza imediatamente o cache para evitar tela em branco
+            if (cachedData) {
+              setTimeout(() => renderFromCache(), 0);
+            }
+          }
+        } catch (e) {
+          console.log("Sem cache anterior disponível");
+        }
+
+        function renderFromCache() {
+          if (cachedData) {
+            console.log("Renderizando do cache para evitar piscar");
+            render(cachedData);
+          }
+        }
+
+        // Detecta automaticamente se está em desenvolvimento ou produção
+        const API_URL =
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1"
+            ? "http://localhost:3000"
+            : "https://apitelaodigital.suportevca.com.br";
+
+        const wrapper = document.getElementById("floor-plan-wrapper");
+        const statusEl = document.getElementById("status");
+        const implantacaoNameEl = document.getElementById("implantacaoName");
+        const empreendimentoTitleEl = document.getElementById(
+          "empreendimento-title"
+        );
+        const dotSizeSlider = document.getElementById("dot-size-slider");
+        const dotSizeValueEl = document.getElementById("dot-size-value");
+        const toast = document.getElementById("toast-notification");
+        const fullscreenBtn = document.getElementById("fullscreen-btn");
+        const refreshBtn = document.getElementById("refresh-btn");
+
+        const AD_INTRO_DURATION_MS = 1200;
+        const AD_OUTRO_DURATION_MS = 1100;
+        const AD_RUNTIME_POLL_MS = 1500;
+
+        const adOverlay = document.createElement("div");
+        adOverlay.className = "legacy-ad-overlay";
+        adOverlay.innerHTML = `
+          <div class="legacy-ad-overlay__veil"></div>
+          <div class="legacy-ad-overlay__panels" aria-hidden="true">
+            <span class="legacy-ad-overlay__panel" style="animation-delay:0ms"></span>
+            <span class="legacy-ad-overlay__panel" style="animation-delay:90ms"></span>
+            <span class="legacy-ad-overlay__panel" style="animation-delay:180ms"></span>
+            <span class="legacy-ad-overlay__panel" style="animation-delay:270ms"></span>
+            <span class="legacy-ad-overlay__panel" style="animation-delay:360ms"></span>
+            <span class="legacy-ad-overlay__panel" style="animation-delay:450ms"></span>
+          </div>
+          <div class="legacy-ad-overlay__transition"></div>
+          <div class="legacy-ad-overlay__hud">
+            <span class="legacy-ad-overlay__tag">Propaganda</span>
+            <strong class="legacy-ad-overlay__title">Campanha ativa</strong>
+          </div>
+          <div class="legacy-ad-overlay__media-shell">
+            <div class="legacy-ad-overlay__media-glow" aria-hidden="true"></div>
+            <div class="legacy-ad-overlay__media-frame">
+              <div class="legacy-ad-overlay__media-slot"></div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(adOverlay);
+
+        const adTitleEl = adOverlay.querySelector(".legacy-ad-overlay__title");
+        const adTransitionEl = adOverlay.querySelector(".legacy-ad-overlay__transition");
+        const adMediaSlotEl = adOverlay.querySelector(".legacy-ad-overlay__media-slot");
+
+        const adState = {
+          currentPhase: "hidden",
+          displayRuntime: null,
+          lastToken: null,
+          outroRequested: false,
+          pollIntervalId: null,
+          timers: [],
+        };
+
+        function clearAdTimers() {
+          adState.timers.forEach((timerId) => clearTimeout(timerId));
+          adState.timers = [];
+        }
+
+        function normalizeAdMediaType(value) {
+          const normalized = String(value || "").trim().toLowerCase();
+          if (normalized === "mp4") return "mp4";
+          if (normalized === "gif") return "gif";
+          if (normalized === "svg") return "svg";
+          return normalized ? "image" : null;
+        }
+
+        function normalizeAdRuntime(rawRuntime) {
+          if (!rawRuntime || typeof rawRuntime !== "object") {
+            return null;
+          }
+
+          const legacyTransitionType = normalizeAdMediaType(rawRuntime.active_transition_media_type);
+          const legacyTransitionUrl = rawRuntime.active_transition_media_url
+            ? String(rawRuntime.active_transition_media_url)
+            : null;
+
+          return {
+            status: String(rawRuntime.status || "idle").toLowerCase(),
+            activeCampaignName: rawRuntime.active_campaign_name
+              ? String(rawRuntime.active_campaign_name)
+              : null,
+            activeMediaType: normalizeAdMediaType(rawRuntime.active_media_type),
+            activeMediaUrl: rawRuntime.active_media_url
+              ? String(rawRuntime.active_media_url)
+              : null,
+            activeTransitionEntryMediaType:
+              normalizeAdMediaType(rawRuntime.active_transition_entry_media_type) || legacyTransitionType,
+            activeTransitionEntryMediaUrl: rawRuntime.active_transition_entry_media_url
+              ? String(rawRuntime.active_transition_entry_media_url)
+              : legacyTransitionUrl,
+            activeTransitionExitMediaType:
+              normalizeAdMediaType(rawRuntime.active_transition_exit_media_type) || legacyTransitionType,
+            activeTransitionExitMediaUrl: rawRuntime.active_transition_exit_media_url
+              ? String(rawRuntime.active_transition_exit_media_url)
+              : legacyTransitionUrl,
+            activeDurationSeconds: Number(rawRuntime.active_duration_seconds || 15),
+            playbackToken: rawRuntime.playback_token
+              ? String(rawRuntime.playback_token)
+              : null,
+            endsAt: rawRuntime.ends_at ? String(rawRuntime.ends_at) : null,
+          };
+        }
+
+        function isAdRuntimePlaying(runtime) {
+          return !!(
+            runtime &&
+            runtime.status === "playing" &&
+            runtime.playbackToken &&
+            runtime.activeMediaUrl &&
+            runtime.activeMediaType
+          );
+        }
+
+        function createAdMediaNode(mediaType, mediaUrl, options) {
+          if (!mediaType || !mediaUrl) {
+            return null;
+          }
+
+          const config = options || {};
+          if (mediaType === "mp4") {
+            const video = document.createElement("video");
+            video.src = mediaUrl;
+            video.autoplay = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = "auto";
+            video.loop = config.loop !== false;
+            if (typeof config.onEnded === "function") {
+              video.addEventListener("ended", config.onEnded, { once: true });
+            }
+            return video;
+          }
+
+          const image = document.createElement("img");
+          image.src = mediaUrl;
+          image.alt = config.alt || "Propaganda";
+          return image;
+        }
+
+        function setAdPhase(phase) {
+          adState.currentPhase = phase;
+          adOverlay.classList.remove("is-intro", "is-content", "is-outro", "is-visible");
+          if (phase === "hidden") {
+            return;
+          }
+          adOverlay.classList.add("is-visible", `is-${phase}`);
+        }
+
+        function setAdTransitionAsset(mediaType, mediaUrl) {
+          adTransitionEl.innerHTML = "";
+          const transitionNode = createAdMediaNode(mediaType, mediaUrl, {
+            alt: "Transição de propaganda",
+            loop: false,
+          });
+          if (transitionNode) {
+            adTransitionEl.appendChild(transitionNode);
+          }
+        }
+
+        function renderAdMedia(runtime) {
+          adMediaSlotEl.innerHTML = "";
+          const mediaNode = createAdMediaNode(runtime.activeMediaType, runtime.activeMediaUrl, {
+            alt: runtime.activeCampaignName || "Propaganda",
+            loop: true,
+          });
+          if (mediaNode) {
+            adMediaSlotEl.appendChild(mediaNode);
+          }
+        }
+
+        function hideAdOverlay() {
+          clearAdTimers();
+          adState.displayRuntime = null;
+          adState.outroRequested = false;
+          setAdPhase("hidden");
+          adTransitionEl.innerHTML = "";
+          adMediaSlotEl.innerHTML = "";
+        }
+
+        function startAdOutro() {
+          if (!adState.displayRuntime || adState.outroRequested) {
+            return;
+          }
+
+          adState.outroRequested = true;
+          setAdTransitionAsset(
+            adState.displayRuntime.activeTransitionExitMediaType,
+            adState.displayRuntime.activeTransitionExitMediaUrl
+          );
+          setAdPhase("outro");
+
+          const hideTimerId = setTimeout(() => {
+            hideAdOverlay();
+          }, AD_OUTRO_DURATION_MS);
+          adState.timers.push(hideTimerId);
+        }
+
+        function startAdPlayback(runtime) {
+          clearAdTimers();
+          adState.displayRuntime = runtime;
+          adState.lastToken = runtime.playbackToken;
+          adState.outroRequested = false;
+
+          adTitleEl.textContent = runtime.activeCampaignName || "Propaganda ativa";
+          renderAdMedia(runtime);
+          setAdTransitionAsset(
+            runtime.activeTransitionEntryMediaType,
+            runtime.activeTransitionEntryMediaUrl
+          );
+          setAdPhase("intro");
+
+          const introTimerId = setTimeout(() => {
+            if (!adState.displayRuntime) {
+              return;
+            }
+            setAdPhase("content");
+          }, AD_INTRO_DURATION_MS);
+          adState.timers.push(introTimerId);
+
+          const endsAtMs = runtime.endsAt
+            ? new Date(runtime.endsAt).getTime()
+            : Date.now() + runtime.activeDurationSeconds * 1000;
+          const outroDelay = Math.max(endsAtMs - Date.now() - AD_OUTRO_DURATION_MS, 0);
+          const outroTimerId = setTimeout(() => {
+            startAdOutro();
+          }, outroDelay);
+          adState.timers.push(outroTimerId);
+        }
+
+        async function syncPropagandaRuntime() {
+          try {
+            const res = await fetch(`${API_URL}/api/propaganda/runtime`, {
+              cache: "no-store",
+            });
+
+            if (!res.ok) {
+              return;
+            }
+
+            const json = await res.json();
+            const runtime = normalizeAdRuntime(json && json.runtime ? json.runtime : null);
+
+            if (!isAdRuntimePlaying(runtime)) {
+              if (adState.currentPhase !== "hidden") {
+                startAdOutro();
+              }
+              return;
+            }
+
+            const shouldRestart =
+              runtime.playbackToken !== adState.lastToken || adState.currentPhase === "hidden";
+
+            if (shouldRestart) {
+              startAdPlayback(runtime);
+            }
+          } catch (error) {
+            console.warn("[PROPAGANDA_FULLSCREEN] Falha ao sincronizar runtime:", error);
+          }
+        }
+
+        syncPropagandaRuntime();
+        adState.pollIntervalId = setInterval(syncPropagandaRuntime, AD_RUNTIME_POLL_MS);
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) {
+            syncPropagandaRuntime();
+          }
+        });
+
+        const urlParams = new URLSearchParams(location.search);
+        const implantacao = urlParams.get("implantacao");
+        // Novo: suporta abrir implantação adicional via param 'implantacao_ad' ou 'adicional=true' quando imageUrlAdicional existe
+        const implantacaoAdParam = urlParams.get("implantacao_ad");
+        // inicializa a flag a partir do query param, mas permite mudança via UI
+        let adicionalFlag = (urlParams.get("adicional") || "").toLowerCase() === "true";
+
+        if (!implantacao) {
+          wrapper.innerHTML =
+            '<p style="padding:20px">Parâmetro "implantacao" não encontrado na URL.</p>';
+          statusEl.textContent = "Erro";
+          return;
+        }
+
+        implantacaoNameEl.textContent = implantacao;
+        empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
+
+        // Layer select control (permite alternar entre primária e adicional dinamicamente)
+        try {
+          const layerSelect = document.getElementById('layer-select');
+          if (layerSelect) {
+            layerSelect.value = adicionalFlag ? 'additional' : 'primary';
+            layerSelect.addEventListener('change', () => {
+              adicionalFlag = layerSelect.value === 'additional';
+              const hideAvailable = hideDisponivelToggle?.checked ? 'true' : 'false';
+              // atualiza preferência global para SSE/polling;
+              // reloadAndRender ajustará window.preferAltCoordsForPrimary conforme necessário
+              reloadAndRender(hideAvailable).catch((e) => console.error('Erro ao recarregar após mudança de camada', e));
+            });
+          }
+        } catch (e) {
+          console.warn('Erro ao criar controle de camada:', e);
+        }
+
+        // Refresh inteligente que preserva o estado de fullscreen
+        function smartRefresh() {
+          const wasFullscreen = !!document.fullscreenElement;
+          const hideAvailable = hideDisponivelToggle?.checked
+            ? "true"
+            : "false";
+
+          reloadAndRender(hideAvailable).then(() => {
+            if (wasFullscreen) {
+              // Mantém em fullscreen após refresh
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {
+                  console.error("Erro ao reativar fullscreen:", err);
+                });
+              }
+            }
+          });
+        }
+
+        // Auto-refresh a cada 30 segundos para sincronizar dados
+        let autoRefreshInterval = setInterval(() => {
+          console.log("Auto-refresh executado");
+          const hideAvailable = hideDisponivelToggle?.checked
+            ? "true"
+            : "false";
+          reloadAndRender(hideAvailable);
+        }, 30000); // 30 segundos
+
+        // Polling global contínuo mais lento (verifica todas as unidades a cada 5 segundos)
+        // Isso garante que mudanças que não geraram SSE sejam capturadas
+        let globalPollingInterval = setInterval(async () => {
+          try {
+            const hideAvailable = hideDisponivelToggle?.checked
+              ? "true"
+              : "false";
+            const data = await fetchData(hideAvailable);
+
+            // Verifica apenas unidades mapeadas
+            const rows =
+              data.unidades.length > 0 &&
+              data.unidades[0][0]?.toString().toLowerCase().includes("etapa")
+                ? data.unidades.slice(1)
+                : data.unidades;
+
+            rows.forEach((u, index) => {
+              const rowIndex = index + 2;
+              const coordX = u[12];
+              const coordY = u[13];
+              const status = (u[11] || "Disponível").toString();
+
+              if (!coordX || !coordY) return;
+
+              const unitIndex = index;
+              const unitId = `unit-indicator-${unitIndex}`;
+              const indicator = document.getElementById(unitId);
+
+              // Se o status mudou, atualiza
+              if (indicator) {
+                const currentStatus = indicator.className.replace(
+                  "unit-indicator status-",
+                  ""
+                );
+                if (currentStatus !== status) {
+                  console.log(
+                    `[GLOBAL-POLL] Status mudou na linha ${rowIndex}: ${currentStatus} → ${status}`
+                  );
+                  // Atualiza imediatamente
+                  indicator.className = `unit-indicator status-${status}`;
+                }
+              }
+            });
+          } catch (e) {
+            console.error("[GLOBAL-POLL] Erro:", e);
+          }
+        }, 5000); // A cada 5 segundos
+
+        async function fetchData(hideAvailable = "false") {
+          try {
+            const url = `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
+              implantacao
+            )}&hideAvailable=${hideAvailable}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              // Tratamento especial para 404: implantação não encontrada
+              if (res.status === 404) {
+                try {
+                  const body = await res.json().catch(() => ({}));
+                  console.warn(`public-data 404: ${body.error || body.message || 'Planilha não encontrada'}`);
+                } catch (e) {
+                  console.warn('public-data 404: planilha não encontrada');
+                }
+                // Retorna payload vazio para evitar quebrar a UI durante apresentação
+                return { unidades: [], imageUrl: "", dotSize: 16 };
+              }
+              // Outros erros: devolve objeto vazio e registra aviso conciso
+              console.warn(`Falha ao buscar dados (status ${res.status})`);
+              return { unidades: [], imageUrl: "", dotSize: 16 };
+            }
+            const json = await res.json();
+
+            // Salva no cache para próximo refresh
+            cachedData = json;
+            try {
+              sessionStorage.setItem("fullscreenData", JSON.stringify(json));
+            } catch (e) {
+              // Ignora erro de quota excedida
+              console.warn("Não foi possível salvar no cache:", e);
+            }
+
+            return json;
+          } catch (e) {
+            // Evita spam de erros no console durante apresentação; log resumido
+            console.warn("Erro em fetchData:", e && e.message ? e.message : e);
+            statusEl.textContent = "Erro ao carregar dados.";
+            return { unidades: [], imageUrl: "", dotSize: 16 };
+          }
+        }
+
+        // Busca dados de outra implantação (quando implantacao_ad é fornecida)
+        async function fetchOtherImplantacao(name, hideAvailable = "false") {
+          try {
+            const url = `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
+              name
+            )}&hideAvailable=${hideAvailable}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Falha ao buscar dados: ${res.statusText}`);
+            return await res.json();
+          } catch (e) {
+            console.error("Erro em fetchOtherImplantacao:", e);
+            return null;
+          }
+        }
+
+        function render(data) {
+          // Suporta objeto combinado { primary, secondary } ou o formato antigo único
+            let primary = data.primary || data;
+            let secondary = data.secondary || null;
+            const { unidades, imageUrl, dotSize } = primary;
+
+          // Marca como loading
+          wrapper.classList.add("loading");
+          wrapper.classList.remove("loaded");
+
+          wrapper.innerHTML = "";
+
+          window.currentDotSize = dotSize;
+          dotSizeSlider.value = dotSize;
+
+          // Atualiza o valor exibido inicial
+          if (dotSizeValueEl) {
+            dotSizeValueEl.textContent = dotSize;
+          }
+
+          if (!imageUrl) {
+            wrapper.innerHTML =
+              '<p style="padding:20px">Imagem da planta não configurada.</p>';
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+            return;
+          }
+
+          const container = document.createElement("div");
+          container.className = "floor-plan-container";
+
+          const img = document.createElement("img");
+
+          // Otimização: Usa cache do navegador e preload
+          const cachedImageUrl = sessionStorage.getItem("floorPlanImageUrl");
+          if (cachedImageUrl === imageUrl && img.complete) {
+            // Imagem já está em cache, carrega instantaneamente
+            img.src = imageUrl;
+          } else {
+            // Primeira carga ou imagem diferente
+            sessionStorage.setItem("floorPlanImageUrl", imageUrl);
+            img.src = imageUrl;
+          }
+
+          img.className = "floor-plan-image";
+
+          // Remove loading state quando imagem carregar
+          img.onload = () => {
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+          };
+
+          img.onerror = () => {
+            wrapper.classList.remove("loading");
+            wrapper.classList.add("loaded");
+          };
+
+          container.appendChild(img);
+
+          // Se houver secondary (overlay ou outra implantação), cria imagem adicional
+          if (secondary && secondary.imageUrl) {
+            const imgAd = document.createElement("img");
+            imgAd.className = "floor-plan-image additional";
+            imgAd.style.position = "absolute";
+            imgAd.style.top = 0;
+            imgAd.style.left = 0;
+            imgAd.style.opacity = 0.9;
+            imgAd.style.pointerEvents = "none";
+            // Preload
+            imgAd.src = secondary.imageUrl;
+            container.appendChild(imgAd);
+          }
+
+          // Atualiza painel de debug — indicamos se secondary é da mesma implantação
+          try {
+            const debugEl = document.getElementById('debug-mode');
+            const secondaryIsSameImplant = !!(secondary && !implantacaoAdParam);
+            if (debugEl) debugEl.textContent = secondaryIsSameImplant ? (adicionalFlag ? 'camada: Adicional' : 'camada: Primária') : (adicionalFlag ? 'camada: Adicional (overlay)' : 'camada: Primária');
+            // Flags globais para uso por SSE/polling
+            window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__ = secondaryIsSameImplant;
+            window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = false; // removido: não usamos mais O:P como primário
+          } catch (e) {}
+
+          wrapper.appendChild(container);
+
+          const rows =
+            unidades.length > 0 &&
+            unidades[0][0]?.toString().toLowerCase().includes("etapa")
+              ? unidades.slice(1)
+              : unidades;
+
+          // Render unidades da implantação principal
+          // NOTA: agora sempre usamos as colunas M:N (índices 12 e 13) para coordenadas
+          // Para suportar filtro por ownership (implantacao_ref / col Q índice 16)
+          // aplicamos a lógica de camada independentemente de existir `secondary`.
+          // Valores esperados para `implantacao_ref`:
+          // - unidade primária: implantacao (ou vazio/null para legacy)
+          // - unidade adicional: implantacao + '+adicional'
+          const primaryOwner = implantacao;
+          const additionalOwner = implantacao + "+adicional";
+
+          rows.forEach((u, index) => {
+            const coordX = u[12];
+            const coordY = u[13];
+            const letra = u[18];
+            const status = (u[11] || "Disponível").toString();
+            const owner = (u[16] || "").toString();
+
+            // Se não há coords, pula
+            if (!coordX && coordX !== 0) return;
+            if (!coordY && coordY !== 0) return;
+
+            // Normaliza owner e owners esperados para comparação mais tolerante
+            const ownerNorm = (owner || "").toString().trim();
+            const primaryOwnerNorm = (primaryOwner || "").toString().trim();
+            const additionalOwnerNorm = (additionalOwner || "").toString().trim();
+
+            // Decide se deve renderizar com base no owner e na camada ativa
+            if (adicionalFlag) {
+              const isAdditional =
+                ownerNorm === additionalOwnerNorm ||
+                ownerNorm.endsWith("+adicional") ||
+                ownerNorm.toLowerCase().includes("adicional");
+              if (!isAdditional) return;
+            } else {
+              if (ownerNorm) {
+                const isAdditional =
+                  ownerNorm.toLowerCase().includes("adicional") ||
+                  ownerNorm.includes("+adicional");
+                if (isAdditional) return;
+                if (!ownerNorm.includes(primaryOwnerNorm)) return;
+              }
+            }
+
+            const indicator = document.createElement("div");
+            const unitIndex = index;
+            indicator.id = adicionalFlag ? `unit-indicator-ad-${unitIndex}` : `unit-indicator-${unitIndex}`;
+            indicator.className = `unit-indicator status-${status}` + (adicionalFlag ? " additional-indicator" : "");
+            indicator.style.left = `${coordX}%`;
+            indicator.style.top = `${coordY}%`;
+            indicator.style.width = `${dotSize}px`;
+            indicator.style.height = `${dotSize}px`;
+            indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
+
+            if (letra) {
+              const letraSpan = document.createElement("span");
+              letraSpan.className = "letra";
+              letraSpan.textContent = letra;
+              letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+              indicator.appendChild(letraSpan);
+            }
+
+            container.appendChild(indicator);
+          });
+
+          // Render unidades da implantação adicional (overlay de outra implantação)
+          // Para o caso em que `implantacao_ad` foi fornecida (outra implantação),
+          // renderizamos o overlay normalmente usando as colunas M:N da secondary.
+          // Se secondary é a mesma implantação (imageUrlAdicional), já separamos
+          // as camadas via `implantacao_ref` acima — portanto pulamos o overlay.
+          if (secondary && secondary.unidades && implantacaoAdParam) {
+            const rowsAd =
+              secondary.unidades.length > 0 &&
+              secondary.unidades[0][0]?.toString().toLowerCase().includes("etapa")
+                ? secondary.unidades.slice(1)
+                : secondary.unidades;
+
+            rowsAd.forEach((u, index) => {
+              const coordX = u[12];
+              const coordY = u[13];
+              const letra = u[18];
+              const status = (u[11] || "Disponível").toString();
+
+              if (!coordX && coordX !== 0) return;
+              if (!coordY && coordY !== 0) return;
+
+              const indicator = document.createElement("div");
+              const unitIndex = index;
+              indicator.id = `unit-indicator-ad-${unitIndex}`;
+              indicator.className = `unit-indicator status-${status} additional-indicator`;
+              indicator.style.left = `${coordX}%`;
+              indicator.style.top = `${coordY}%`;
+              indicator.style.width = `${dotSize}px`;
+              indicator.style.height = `${dotSize}px`;
+              indicator.title = `Unidade: ${u[2]}\nStatus: ${status}`;
+
+              if (letra) {
+                const letraSpan = document.createElement("span");
+                letraSpan.className = "letra";
+                letraSpan.textContent = letra;
+                letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+                indicator.appendChild(letraSpan);
+              }
+
+              container.appendChild(indicator);
+            });
+          }
+        }
+
+        async function reloadAndRender(hideAvailable = "false") {
+          statusEl.textContent = "Atualizando...";
+          const primary = await fetchData(hideAvailable);
+
+          // Tenta obter dados secundários: pode ser outra aba (implantacao_ad) ou imagem adicional da mesma implantação
+          let secondary = null;
+          if (implantacaoAdParam) {
+            secondary = await fetchOtherImplantacao(implantacaoAdParam, hideAvailable);
+          } else if (adicionalFlag && primary && primary.imageUrlAdicional) {
+            secondary = {
+              unidades: primary.unidades,
+              imageUrl: primary.imageUrlAdicional,
+              dotSize: primary.dotSize,
+              sigla: primary.sigla,
+            };
+          }
+
+          // Define flag global para que SSE/polling atualizem a camada correta
+          window.preferAltCoordsForPrimary = adicionalFlag && secondary && !implantacaoAdParam;
+          render({ primary, secondary });
+          statusEl.textContent = "Conectado";
+        }
+
+        let es;
+        let esSecondary;
+        // preferência para usar coords alternativas (O:P) como camada principal
+        // quando `adicional=true` e secondary vem da mesma implantação
+        let preferAltCoordsForPrimary = false;
+        let pollingIntervals = new Map(); // Armazena intervalos de polling por unidade
+
+        // Polling agressivo para uma unidade específica
+        function startUnitPolling(rowIndex, duration = 10000) {
+          // Remove polling anterior se existir
+          if (pollingIntervals.has(rowIndex)) {
+            clearInterval(pollingIntervals.get(rowIndex));
+          }
+
+          console.log(
+            `[POLLING] Iniciando polling agressivo para linha ${rowIndex} por ${duration}ms`
+          );
+
+          // Polling a cada 500ms (muito rápido)
+          const intervalId = setInterval(async () => {
+            try {
+              const res = await fetch(
+                `${API_URL}/api/fast-poll-unit?implantacao=${encodeURIComponent(
+                  implantacao
+                )}&rowIndex=${rowIndex}`
+              );
+
+              if (!res.ok) return;
+
+              const data = await res.json();
+              console.log(
+                `[POLLING] Resposta da linha ${rowIndex} (fonte: ${data.source}):`,
+                data.status
+              );
+
+              // Atualiza a unidade com os dados mais recentes
+              updateSingleUnitFromPoll(data, rowIndex);
+            } catch (e) {
+              console.error(
+                `[POLLING] Erro ao verificar linha ${rowIndex}:`,
+                e
+              );
+            }
+          }, 500);
+
+          pollingIntervals.set(rowIndex, intervalId);
+
+          // Para o polling após a duração especificada
+          setTimeout(() => {
+            clearInterval(intervalId);
+            pollingIntervals.delete(rowIndex);
+            console.log(`[POLLING] Polling finalizado para linha ${rowIndex}`);
+          }, duration);
+        }
+
+        // Atualiza unidade com dados do polling
+        function updateSingleUnitFromPoll(pollData, rowIndex) {
+          const container = document.querySelector(".floor-plan-container");
+          if (!container) return;
+
+          const unitIndex = rowIndex - 2;
+          const unitId = `unit-indicator-${unitIndex}`;
+          let indicator = document.getElementById(unitId);
+
+          const useAltAsPrimary = (typeof preferAltCoordsForPrimary !== 'undefined' && preferAltCoordsForPrimary) || window.preferAltCoordsForPrimary;
+          const coordX = useAltAsPrimary && pollData.coordXAd ? pollData.coordXAd : pollData.coordX;
+          const coordY = useAltAsPrimary && pollData.coordYAd ? pollData.coordYAd : pollData.coordY;
+          console.log('[POLL] updateSingleUnitFromPoll row=', rowIndex, 'useAltAsPrimary=', useAltAsPrimary, 'pollData=', pollData, 'chosen=', { coordX, coordY });
+          const status = pollData.status || "Disponível";
+
+          if (!coordX || !coordY) {
+            if (indicator) {
+              indicator.remove();
+            }
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            indicator.className = "unit-indicator";
+            container.appendChild(indicator);
+          }
+
+          // Atualiza status
+          indicator.className = `unit-indicator status-${status}`;
+          indicator.style.left = `${coordX}%`;
+          indicator.style.top = `${coordY}%`;
+          indicator.title = `Unidade: ${pollData.unitName}\nStatus: ${status}\nFonte: ${pollData.source}`;
+
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+
+          console.log(
+            `[POLLING] Unidade ${pollData.unitName} atualizada para status: ${status} (fonte: ${pollData.source})`
+          );
+        }
+
+        // Atualiza unidade na camada adicional (usa coords O/P ou M/N dependendo do source)
+        function updateSingleUnitAd(unitData, rowIndex, useAltCoords) {
+          const container = document.querySelector(".floor-plan-container");
+          if (!container) return;
+
+          const unitIndex = rowIndex - 2;
+          const unitId = `unit-indicator-ad-${unitIndex}`;
+          let indicator = document.getElementById(unitId);
+          // Determine if payload explicitly provides coords (defined) or is absent (undefined)
+          const hasCoordXProp = (useAltCoords ? (unitData.length > 14) : (unitData.length > 12)) && typeof (useAltCoords ? unitData[14] : unitData[12]) !== 'undefined';
+          const hasCoordYProp = (useAltCoords ? (unitData.length > 15) : (unitData.length > 13)) && typeof (useAltCoords ? unitData[15] : unitData[13]) !== 'undefined';
+
+          const payloadCoordX = useAltCoords ? unitData[14] : unitData[12];
+          const payloadCoordY = useAltCoords ? unitData[15] : unitData[13];
+          const letra = unitData[18];
+          const status = (unitData[11] || "Disponível").toString();
+
+          // If payload explicitly clears coords (empty string/null), remove indicator.
+          if ((hasCoordXProp && (payloadCoordX === "" || payloadCoordX === null)) || (hasCoordYProp && (payloadCoordY === "" || payloadCoordY === null))) {
+            if (indicator) indicator.remove();
+            return;
+          }
+
+          // Determine final coords: payload if present, otherwise keep existing DOM coords
+          let coordX = payloadCoordX;
+          let coordY = payloadCoordY;
+          if ((!hasCoordXProp || coordX === undefined || coordX === null || coordX === "") && indicator && indicator.style.left) {
+            coordX = parseFloat(indicator.style.left || "0");
+          }
+          if ((!hasCoordYProp || coordY === undefined || coordY === null || coordY === "") && indicator && indicator.style.top) {
+            coordY = parseFloat(indicator.style.top || "0");
+          }
+
+          if ((!coordX && coordX !== 0) || (!coordY && coordY !== 0)) {
+            // No coords available to render and no existing indicator
+            if (indicator) indicator.remove();
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            indicator.className = "unit-indicator additional-indicator";
+            container.appendChild(indicator);
+          }
+
+          indicator.className = `unit-indicator status-${status} additional-indicator`;
+          indicator.style.left = `${coordX}%`;
+          indicator.style.top = `${coordY}%`;
+          indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}\nFonte: adicional`;
+
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+        }
+
+        function connectSse() {
+          if (es) {
+            try {
+              es.close();
+            } catch (e) {}
+          }
+          if (esSecondary) {
+            try {
+              esSecondary.close();
+            } catch (e) {}
+          }
+
+          // Attach token (if present) as query param because EventSource cannot set headers
+          const _token =
+            localStorage.getItem("token") || window.__READ_ONLY_TOKEN__;
+          const tokenQuery = _token
+            ? `&token=${encodeURIComponent(_token)}`
+            : "";
+          es = new EventSource(
+            `${API_URL}/api/events?implantacao=${encodeURIComponent(
+              implantacao
+            )}${tokenQuery}`
+          );
+
+          let reconnectAttempts = 0;
+          let consecutivePollingFailures = 0;
+          const MAX_RECONNECT_ATTEMPTS = 5;
+          const MAX_POLLING_FAILURES = 3;
+
+          es.onopen = () => {
+            statusEl.textContent = "Conectado em tempo real";
+            reconnectAttempts = 0;
+            consecutivePollingFailures = 0;
+          };
+
+          es.onerror = async () => {
+            statusEl.textContent = "Erro na conexão. Tentando reconectar...";
+
+            // If offline, just wait for 'online' event
+            if (typeof navigator !== "undefined" && !navigator.onLine) {
+              console.warn(
+                "[SSE] Cliente offline, aguardando reconexão de rede"
+              );
+              return;
+            }
+
+            reconnectAttempts++;
+
+            // polling fallback to validate data layer
+            try {
+              // Para a página fullscreen pública usamos o endpoint não autenticado
+              // `/api/public-data` no polling-fallback para evitar 401s quando
+              // não houver token disponível.
+              const resUnits = await fetch(
+                `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
+                  implantacao
+                )}`
+              );
+
+              if (resUnits.status === 401 || resUnits.status === 404) {
+                // Auth issues (401) or missing sheet (404) are not considered
+                // an instability of SSE; do not increment failure counter.
+                console.warn(
+                  `[SSE] Polling-fallback: status ${resUnits.status} received (skipping reload counter)`
+                );
+              } else if (!resUnits.ok) {
+                throw new Error("Polling fallback failed");
+              } else {
+                consecutivePollingFailures = 0;
+              }
+            } catch (err) {
+              console.error("[SSE] Polling-fallback falhou:", err);
+              consecutivePollingFailures++;
+            }
+
+            if (
+              reconnectAttempts >= MAX_RECONNECT_ATTEMPTS &&
+              consecutivePollingFailures >= MAX_POLLING_FAILURES
+            ) {
+              console.error("[SSE] Falha persistente — acionando hard refresh");
+              try {
+                window.location.reload();
+              } catch (e) {
+                console.error("Reload failed", e);
+              }
+              return;
+            }
+
+            const delay = Math.min(
+              2000 * Math.pow(2, reconnectAttempts - 1),
+              30000
+            );
+            setTimeout(() => {
+              connectSse();
+            }, delay);
+          };
+
+          es.addEventListener("unitUpdated", async (ev) => {
+            try {
+              const { unitData, rowIndex } = JSON.parse(ev.data);
+              console.log("Evento 'unit-updated' recebido:", {
+                unitData,
+                rowIndex,
+              });
+
+              // Decide se devemos respeitar implantacao_ref (owner) para escolher a camada.
+              // Usamos a flag de camada atual (`adicionalFlag`) ou a indicação global de secondary mesma implantação.
+              const secondarySame = !!window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__;
+              const respectOwner = (typeof adicionalFlag !== 'undefined' && adicionalFlag) || secondarySame;
+              if (respectOwner) {
+                const owner = (unitData[16] || "").toString();
+                const primaryOwner = implantacao;
+                const additionalOwner = implantacao + "+adicional";
+
+                if (owner === additionalOwner) {
+                  updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
+                  try {
+                    const primaryId = `unit-indicator-${rowIndex - 2}`;
+                    const el = document.getElementById(primaryId);
+                    if (el) el.remove();
+                  } catch (e) {}
+                } else {
+                  updateSingleUnit(unitData, rowIndex);
+                  try {
+                    const adId = `unit-indicator-ad-${rowIndex - 2}`;
+                    const el = document.getElementById(adId);
+                    if (el) el.remove();
+                  } catch (e) {}
+                }
+              } else {
+                // Comportamento legado/fallback: atualiza primary e, se tiver coords adicionais, também atualiza ad
+                updateSingleUnit(unitData, rowIndex);
+                try {
+                  const coordXAd = unitData[14];
+                  const coordYAd = unitData[15];
+                  if (coordXAd && coordYAd) {
+                    updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/true);
+                  }
+                } catch (e) {}
+              }
+
+              // DISPARA polling agressivo para garantir sincronização em tempo real
+              startUnitPolling(rowIndex, 10000);
+            } catch (e) {
+              console.error("Erro ao processar evento SSE:", e);
+            }
+          });
+
+          // Se implantacao_ad diferente for fornecida, abre segunda conexão SSE
+          if (implantacaoAdParam) {
+            esSecondary = new EventSource(
+              `${API_URL}/api/events?implantacao=${encodeURIComponent(
+                implantacaoAdParam
+              )}${tokenQuery}`
+            );
+
+            esSecondary.onopen = () => {
+              console.log("SSE secundário conectado para:", implantacaoAdParam);
+            };
+
+            esSecondary.onerror = (err) => {
+              console.warn("SSE secundário erro:", err);
+            };
+
+            esSecondary.addEventListener("unitUpdated", (ev) => {
+              try {
+                const { unitData, rowIndex } = JSON.parse(ev.data);
+                console.log('[SSE-secondary] unitUpdated received:', { unitData, rowIndex });
+                // Atualiza camada adicional (usar coords primários do outro sheet)
+                updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
+              } catch (e) {
+                console.error("Erro no SSE secundário:", e);
+              }
+            });
+          }
+
+          // network events
+          window.addEventListener("online", () => {
+            console.info("[SSE] Network online — tentando reconectar");
+            reconnectAttempts = 0;
+            connectSse();
+          });
+        }
+
+        function updateSingleUnit(unitData, rowIndex) {
+          const container = document.querySelector(".floor-plan-container");
+          if (!container) return;
+
+          const unitIndex = rowIndex - 2;
+          const unitId = `unit-indicator-${unitIndex}`;
+          let indicator = document.getElementById(unitId);
+          // Merge-aware update: only overwrite coords if provided in payload.
+          const hasCoordXProp = unitData.length > 12 && typeof unitData[12] !== 'undefined';
+          const hasCoordYProp = unitData.length > 13 && typeof unitData[13] !== 'undefined';
+          const payloadCoordX = unitData[12];
+          const payloadCoordY = unitData[13];
+          const letra = unitData[18];
+          const status = (unitData[11] || "Disponível").toString();
+
+          // If payload explicitly clears coords, remove indicator.
+          if ((hasCoordXProp && (payloadCoordX === "" || payloadCoordX === null)) || (hasCoordYProp && (payloadCoordY === "" || payloadCoordY === null))) {
+            if (indicator) {
+              indicator.remove();
+            }
+            return;
+          }
+
+          // Determine final coords: prefer payload when provided, otherwise reuse existing DOM coords
+          let coordX = payloadCoordX;
+          let coordY = payloadCoordY;
+          if ((!hasCoordXProp || coordX === undefined || coordX === null || coordX === "") && indicator && indicator.style.left) {
+            coordX = parseFloat(indicator.style.left || "0");
+          }
+          if ((!hasCoordYProp || coordY === undefined || coordY === null || coordY === "") && indicator && indicator.style.top) {
+            coordY = parseFloat(indicator.style.top || "0");
+          }
+
+          if ((!coordX && coordX !== 0) || (!coordY && coordY !== 0)) {
+            if (indicator) {
+              indicator.remove();
+            }
+            return;
+          }
+
+          if (!indicator) {
+            indicator = document.createElement("div");
+            indicator.id = unitId;
+            indicator.className = "unit-indicator";
+            container.appendChild(indicator);
+          }
+
+          indicator.className = `unit-indicator status-${status}`;
+          indicator.style.left = `${coordX}%`;
+          indicator.style.top = `${coordY}%`;
+          indicator.title = `Unidade: ${unitData[2]}\nStatus: ${status}`;
+
+          const dotSize = window.currentDotSize || 16;
+          indicator.style.width = `${dotSize}px`;
+          indicator.style.height = `${dotSize}px`;
+
+          indicator.innerHTML = "";
+          if (letra) {
+            const letraSpan = document.createElement("span");
+            letraSpan.className = "letra";
+            letraSpan.textContent = letra;
+            letraSpan.style.fontSize = `${Math.max(dotSize * 0.25, 6)}px`;
+            indicator.appendChild(letraSpan);
+          }
+
+          console.log(
+            `[FULLSCREEN] Unidade ${unitData[2]} atualizada para status: ${status}`
+          );
+        }
+
+        function updateAllDotSizes(newSize) {
+          const indicators = document.querySelectorAll(".unit-indicator");
+          indicators.forEach((indicator) => {
+            indicator.style.width = `${newSize}px`;
+            indicator.style.height = `${newSize}px`;
+            const letraSpan = indicator.querySelector(".letra");
+            if (letraSpan) {
+              letraSpan.style.fontSize = `${Math.max(newSize * 0.25, 6)}px`;
+            }
+          });
+          window.currentDotSize = newSize;
+
+          // Atualiza o valor exibido
+          if (dotSizeValueEl) {
+            dotSizeValueEl.textContent = newSize;
+          }
+        }
+
+        async function saveDotSize(newSize) {
+          try {
+            const res = await fetch(`${API_URL}/api/update-dot-size`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                implantacaoName: implantacao,
+                newSize: newSize,
+              }),
+            });
+            const contentType = res.headers.get('content-type') || '';
+            let body = null;
+            if (contentType.includes('application/json')) {
+              body = await res.json();
+            } else {
+              body = await res.text();
+            }
+            if (res.ok) {
+              console.log('Salvar dot size sucesso:', body);
+              showToast();
+            } else {
+              console.error('Falha ao salvar o tamanho do ponto:', res.status, body);
+            }
+          } catch (error) {
+            console.error("Erro de rede ao salvar o tamanho do ponto:", error);
+          }
+        }
+
+        function showToast(message = "Tamanho do ponto salvo!") {
+          toast.textContent = message;
+          toast.classList.add("show");
+          setTimeout(() => toast.classList.remove("show"), 2000);
+        }
+
+        reloadAndRender(urlParams.get("hideAvailable") || "false");
+        connectSse();
+
+        fullscreenBtn.addEventListener("click", () => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((err) => {
+              alert(
+                `Erro ao tentar ativar tela cheia: ${err.message} (${err.name})`
+              );
+            });
+          } else {
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            }
+          }
+        });
+
+        // Botão de refresh manual
+        refreshBtn.addEventListener("click", () => {
+          smartRefresh();
+          showToast("Dados atualizados!");
+        });
+
+        const topbar = document.querySelector(".topbar");
+        const dotSizeControl = document.querySelector(".dot-size-control");
+        const dotColorControl = document.querySelector(".dot-color-control");
+        const colorDisponivelInput =
+          document.getElementById("color-disponivel");
+        const colorReservadaInput = document.getElementById("color-Reservada");
+        let isFullscreenMode = false;
+        let hideHeaderTimeout = null;
+
+        function showTopbar() {
+          topbar.classList.remove("hidden");
+          dotSizeControl.classList.remove("hidden");
+          dotColorControl.classList.remove("hidden");
+          wrapper.classList.remove("fullscreen");
+
+          // Cancela timeout anterior se existir
+          if (hideHeaderTimeout) {
+            clearTimeout(hideHeaderTimeout);
+          }
+
+          // Se estiver em modo fullscreen, agenda o ocultamento automático
+          if (isFullscreenMode) {
+            hideHeaderTimeout = setTimeout(() => {
+              hideTopbar();
+            }, 3000); // 3 segundos de inatividade
+          }
+        }
+
+        function hideTopbar() {
+          topbar.classList.add("hidden");
+          dotSizeControl.classList.add("hidden");
+          dotColorControl.classList.add("hidden");
+          wrapper.classList.add("fullscreen");
+
+          // Cancela qualquer timeout pendente
+          if (hideHeaderTimeout) {
+            clearTimeout(hideHeaderTimeout);
+            hideHeaderTimeout = null;
+          }
+        }
+
+        function enableFullscreenMode() {
+          isFullscreenMode = true;
+          hideTopbar();
+        }
+
+        function disableFullscreenMode() {
+          isFullscreenMode = false;
+          showTopbar();
+
+          // Cancela timeout ao sair do fullscreen
+          if (hideHeaderTimeout) {
+            clearTimeout(hideHeaderTimeout);
+            hideHeaderTimeout = null;
+          }
+        }
+
+        function showHeaderOnInteraction() {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
+        }
+
+        document.addEventListener("mousemove", showHeaderOnInteraction);
+        document.addEventListener("mousedown", showHeaderOnInteraction);
+        document.addEventListener("keydown", showHeaderOnInteraction);
+        document.addEventListener("touchstart", showHeaderOnInteraction);
+        document.addEventListener("touchmove", showHeaderOnInteraction);
+
+        topbar.addEventListener("mouseenter", () => {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
+        });
+
+        // Mantém visível quando interage com o controle
+        dotSizeControl.addEventListener("mouseenter", () => {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
+        });
+
+        dotColorControl.addEventListener("mouseenter", () => {
+          if (isFullscreenMode) {
+            showTopbar();
+          }
+        });
+
+        // Controles de cor
+        function updateColors() {
+          const disponivelColor = colorDisponivelInput.value;
+          const ReservadaColor = colorReservadaInput.value;
+
+          // Atualiza variáveis CSS
+          document.documentElement.style.setProperty(
+            "--color-disponivel",
+            disponivelColor
+          );
+          document.documentElement.style.setProperty(
+            "--color-Reservada",
+            ReservadaColor
+          );
+
+          // Salva no localStorage
+          localStorage.setItem("dot-color-disponivel", disponivelColor);
+          localStorage.setItem("dot-color-Reservada", ReservadaColor);
+        }
+
+        // Carrega cores salvas do localStorage
+        function loadSavedColors() {
+          const savedDisponivel = localStorage.getItem("dot-color-disponivel");
+          const savedReservada = localStorage.getItem("dot-color-Reservada");
+
+          if (savedDisponivel) {
+            colorDisponivelInput.value = savedDisponivel;
+            document.documentElement.style.setProperty(
+              "--color-disponivel",
+              savedDisponivel
+            );
+          }
+
+          if (savedReservada) {
+            colorReservadaInput.value = savedReservada;
+            document.documentElement.style.setProperty(
+              "--color-Reservada",
+              savedReservada
+            );
+          }
+        }
+
+        // Carrega cores ao iniciar
+        loadSavedColors();
+
+        colorDisponivelInput.addEventListener("input", updateColors);
+        colorReservadaInput.addEventListener("input", updateColors);
+
+        // Toggle para esconder disponíveis
+        const hideDisponivelToggle = document.getElementById("hide-disponivel");
+
+        function updateHideDisponivel() {
+          const isHidden = hideDisponivelToggle.checked;
+
+          if (isHidden) {
+            wrapper.classList.add("hide-disponivel");
+          } else {
+            wrapper.classList.remove("hide-disponivel");
+          }
+
+          // Salva no localStorage
+          localStorage.setItem("hide-disponivel", isHidden);
+        }
+
+        // Carrega estado salvo do toggle
+        function loadHideDisponivelState() {
+          const savedState = localStorage.getItem("hide-disponivel");
+          if (savedState === "true") {
+            hideDisponivelToggle.checked = true;
+            wrapper.classList.add("hide-disponivel");
+          }
+        }
+
+        // Carrega estado ao iniciar
+        loadHideDisponivelState();
+
+        hideDisponivelToggle.addEventListener("change", updateHideDisponivel);
+
+        // Detecta quando entra/sai do fullscreen do navegador
+        document.addEventListener("fullscreenchange", () => {
+          if (document.fullscreenElement) {
+            enableFullscreenMode();
+          } else {
+            disableFullscreenMode();
+          }
+        });
+
+        disableFullscreenMode();
+
+        dotSizeSlider.addEventListener("input", (event) => {
+          updateAllDotSizes(event.target.value);
+        });
+
+        dotSizeSlider.addEventListener("change", (event) => {
+          saveDotSize(event.target.value);
+        });
+
+        // Limpa todos os intervalos quando a página for fechada
+        window.addEventListener("beforeunload", () => {
+          if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+          if (globalPollingInterval) clearInterval(globalPollingInterval);
+          pollingIntervals.forEach((intervalId) => clearInterval(intervalId));
+          if (es) es.close();
+          if (adState.pollIntervalId) clearInterval(adState.pollIntervalId);
+          clearAdTimers();
+        });
+      })();
+    </script>
+  </body>
+</html>
