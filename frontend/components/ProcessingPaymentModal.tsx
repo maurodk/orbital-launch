@@ -14,20 +14,20 @@ interface ProcessingPaymentModalProps {
   };
 }
 
+const PAYMENT_STEPS = [
+  "Iniciando processamento...",
+  "Salvando dados de pagamento...",
+  "Gerando plano de pagamento...",
+  "Criando parcelas...",
+  "Finalizando processo...",
+];
+
 export function ProcessingPaymentModal({
   show,
   paymentState,
 }: ProcessingPaymentModalProps) {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
-
-  const steps = [
-    "Iniciando processamento...",
-    "Salvando dados de pagamento...",
-    "Gerando plano de pagamento...",
-    "Criando parcelas...",
-    "Finalizando processo...",
-  ];
 
   useEffect(() => {
     if (!show) {
@@ -50,7 +50,7 @@ export function ProcessingPaymentModal({
 
     const stepInterval = setInterval(() => {
       setCurrentStep((prev) => {
-        if (prev >= steps.length - 1) return prev;
+        if (prev >= PAYMENT_STEPS.length - 1) return prev;
         return prev + 1;
       });
     }, 1000);
@@ -110,7 +110,7 @@ export function ProcessingPaymentModal({
 
         <div className="current-step">
           <p className="step-text">
-            {paymentState?.currentStep || steps[currentStep]}
+            {paymentState?.currentStep || PAYMENT_STEPS[currentStep]}
           </p>
         </div>
 

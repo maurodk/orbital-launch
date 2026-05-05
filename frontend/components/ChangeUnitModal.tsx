@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import Select, { type SingleValue } from "react-select";
-import { customSelectStyles } from "../styles/selectStyles";
+import { createCustomSelectStyles } from "../styles/selectStyles";
 
 interface AvailableUnit {
   unit: string[];
@@ -47,6 +47,8 @@ export function ChangeUnitModal({
     }));
   }, [availableUnits]);
 
+  const selectStyles = useMemo(() => createCustomSelectStyles<UnitOption>(), []);
+
   const handleSelectChange = (selectedOption: SingleValue<UnitOption>) => {
     setSelectedUnit(selectedOption);
     setError("");
@@ -63,9 +65,12 @@ export function ChangeUnitModal({
     try {
       await onConfirm(selectedUnit.value);
       onClose(); // Fecha o modal em caso de sucesso
-    } catch (e: any) {
-      // 'any' é aceitável aqui para capturar qualquer tipo de erro.
-      setError(e.message || "Ocorreu um erro ao tentar trocar a unidade.");
+    } catch (e: unknown) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Ocorreu um erro ao tentar trocar a unidade."
+      );
     } finally {
       setIsChanging(false);
     }
@@ -97,7 +102,7 @@ export function ChangeUnitModal({
             value={selectedUnit}
             onChange={handleSelectChange}
             placeholder="Buscar unidade Disponível..."
-            styles={customSelectStyles}
+            styles={selectStyles}
             isClearable
             noOptionsMessage={() => "Nenhuma unidade Disponível encontrada."}
           />

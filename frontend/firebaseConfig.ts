@@ -1,21 +1,16 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth"; // <-- ADICIONE ESTA LINHA
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getAuth } from "firebase/auth";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyDhQ_9FcpFbqCI8-W7tfZOxcUnB2nnAG2w",
-  authDomain: "espelho-digital-vca.firebaseapp.com",
-  projectId: "espelho-digital-vca",
-  storageBucket: "espelho-digital-vca.appspot.com", // CORRIGIDO: O seu tinha .firebasestorage.app
-  messagingSenderId: "178826599356",
-  appId: "1:178826599356:web:e818a2115ebc34c5bba9b9",
-  measurementId: "G-75WPWV0E94",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app); // <-- ADICIONE ESTA LINHA
+
+export const auth = getAuth(app);

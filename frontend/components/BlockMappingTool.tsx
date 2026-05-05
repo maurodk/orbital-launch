@@ -1,5 +1,5 @@
 // components/BlockMappingTool.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../src/supabaseClient";
 import "./BlockMappingOverlay.css";
 
@@ -45,13 +45,7 @@ export function BlockMappingTool({
     ? `${implantacaoName}+adicional`
     : implantacaoName;
 
-  useEffect(() => {
-    if (isActive) {
-      loadExistingMappings();
-    }
-  }, [isActive, implantacaoId, currentLayerRef]);
-
-  const loadExistingMappings = async () => {
+  const loadExistingMappings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("blocos_mapping")
@@ -64,7 +58,13 @@ export function BlockMappingTool({
     } catch (error) {
       console.error("Erro ao carregar mapeamentos de blocos:", error);
     }
-  };
+  }, [implantacaoId, currentLayerRef, onMappingsChange]);
+
+  useEffect(() => {
+    if (isActive) {
+      loadExistingMappings();
+    }
+  }, [isActive, loadExistingMappings]);
 
   /* Função para salvar mapeamento (será usada quando implementar funcionalidade de desenho interativo)
   const handleSaveMapping = async (mapping: BlockMapping) => {

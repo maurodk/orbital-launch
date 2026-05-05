@@ -1,6 +1,6 @@
 // src/components/VerifyingModal.tsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import "./VerifyingModal.css";
 
 interface VerifyingModalProps {
@@ -20,13 +20,13 @@ export function VerifyingModal({
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
 
-  const steps = [
+  const steps = useMemo(() => [
     "Iniciando processo de reserva...",
     "Verificando disponibilidade...",
     "Criando reserva temporária...",
     "Confirmando reserva...",
     "Finalizando processo...",
-  ];
+  ], []);
 
   useEffect(() => {
     if (!show) {
@@ -53,7 +53,7 @@ export function VerifyingModal({
       clearInterval(interval);
       clearInterval(stepInterval);
     };
-  }, [show]);
+  }, [show, steps.length]);
 
   if (!show) {
     return null;

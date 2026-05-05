@@ -15,8 +15,12 @@ export function Login() {
     try {
       const { error: signInError } = await auth.signInWithEmailAndPassword(email, password);
       if (signInError) throw signInError;
-    } catch (err: any) {
-      setError(err.message || "Falha no login. Verifique seu e-mail e senha.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha no login. Verifique seu e-mail e senha."
+      );
       console.error(err);
     } finally {
       setLoading(false);

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Select from "react-select";
-import { customSelectStyles } from "../styles/selectStyles";
+import { createCustomSelectStyles } from "../styles/selectStyles";
 import "./ReservationModal.css";
 
 interface OptionType {
@@ -67,6 +67,8 @@ export function ReservationModal({
     },
     [clientes]
   );
+
+  const selectStyles = useMemo(() => createCustomSelectStyles<OptionType>(), []);
 
   if (!show || !unitData) {
     return null;
@@ -164,7 +166,7 @@ export function ReservationModal({
                     value={selectedClient}
                     onChange={(opt) => setSelectedClient(opt as OptionType | null)}
                     placeholder="Digite para buscar um cliente..."
-                    styles={customSelectStyles}
+                    styles={selectStyles}
                     isClearable
                     noOptionsMessage={() => "Nenhum cliente encontrado"}
                   />

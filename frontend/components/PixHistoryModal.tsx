@@ -52,7 +52,7 @@ export function PixHistoryModal({
     }
 
     const idPreCadastro = unitData[6];
-    let clienteNome = unitData[7] || "";
+    const clienteNome = unitData[7] || "";
 
     if (idPreCadastro) {
       (async () => {

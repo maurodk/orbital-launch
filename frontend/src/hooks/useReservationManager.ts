@@ -1,6 +1,11 @@
 import { useState, useCallback, useRef } from "react";
 import axios from "axios";
 
+interface ApiErrorPayload {
+  error?: string;
+  code?: string;
+}
+
 interface ReservationState {
   isReserving: boolean;
   reservationToken: string | null;
@@ -18,11 +23,11 @@ interface ReservationManager {
   confirmReservation: (
     implantacao: string,
     rowIndex: number,
-    data: any,
+    data: unknown,
     clientName: string,
     unitName: string,
     reservationToken: string,
-    pagamento?: any
+    pagamento?: unknown
   ) => Promise<boolean>;
   cancelTempReservation: (
     implantacao: string,
@@ -99,24 +104,27 @@ export function useReservationManager(apiUrl: string): ReservationManager {
         }
 
         return { success: false };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const axiosError = axios.isAxiosError<ApiErrorPayload>(error)
+          ? error
+          : null;
         console.error(
           `Erro ao criar reserva temporária (tentativa ${retryCount + 1}):`,
           error
         );
 
         // Se é um erro de conflito (409) ou não é um erro de rede, não tenta novamente
-        if (error.response?.status === 409 || error.response?.status === 400) {
+        if (axiosError?.response?.status === 409 || axiosError?.response?.status === 400) {
           let errorMessage = "Erro ao criar reserva temporária.";
-          if (error.response?.data?.error) {
-            errorMessage = error.response.data.error;
+          if (axiosError.response?.data?.error) {
+            errorMessage = axiosError.response.data.error;
           }
 
           // Mensagens mais amigáveis para códigos específicos
-          if (error.response?.data?.code === "UNIT_BEING_RESERVED") {
+          if (axiosError.response?.data?.code === "UNIT_BEING_RESERVED") {
             errorMessage =
               "Esta unidade já está sendo reservada por outro usuário. Tente novamente em alguns segundos.";
-          } else if (error.response?.data?.code === "UNIT_NOT_AVAILABLE") {
+          } else if (axiosError.response?.data?.code === "UNIT_NOT_AVAILABLE") {
             errorMessage = "Esta unidade não está mais disponível.";
           }
 
@@ -146,8 +154,8 @@ export function useReservationManager(apiUrl: string): ReservationManager {
         // Se esgotou as tentativas
         let errorMessage =
           "Erro ao criar reserva temporária após múltiplas tentativas.";
-        if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
+        if (axiosError?.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
         }
 
         setReservationState((prev) => ({
@@ -166,11 +174,11 @@ export function useReservationManager(apiUrl: string): ReservationManager {
     async (
       implantacao: string,
       rowIndex: number,
-      data: any,
+      data: unknown,
       clientName: string,
       unitName: string,
       reservationToken: string,
-      pagamento?: any,
+      pagamento?: unknown,
       retryCount = 0
     ): Promise<boolean> => {
       const maxRetries = 3;
@@ -210,7 +218,10 @@ export function useReservationManager(apiUrl: string): ReservationManager {
         }
 
         return false;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const axiosError = axios.isAxiosError<ApiErrorPayload>(error)
+          ? error
+          : null;
         console.error(
           `Erro ao confirmar reserva (tentativa ${retryCount + 1}):`,
           error
@@ -218,13 +229,13 @@ export function useReservationManager(apiUrl: string): ReservationManager {
 
         // Se é um erro de conflito (409) ou não é um erro de rede, não tenta novamente
         if (
-          error.response?.status === 409 ||
-          error.response?.status === 400 ||
-          error.response?.status === 403
+          axiosError?.response?.status === 409 ||
+          axiosError?.response?.status === 400 ||
+          axiosError?.response?.status === 403
         ) {
           let errorMessage = "Erro ao confirmar reserva.";
-          if (error.response?.data?.error) {
-            errorMessage = error.response.data.error;
+          if (axiosError.response?.data?.error) {
+            errorMessage = axiosError.response.data.error;
           }
 
           setReservationState((prev) => ({
@@ -256,8 +267,8 @@ export function useReservationManager(apiUrl: string): ReservationManager {
         // Se esgotou as tentativas
         let errorMessage =
           "Erro ao confirmar reserva após múltiplas tentativas.";
-        if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
+        if (axiosError?.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
         }
 
         setReservationState((prev) => ({
@@ -297,7 +308,7 @@ export function useReservationManager(apiUrl: string): ReservationManager {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Erro ao cancelar reserva temporária:", error);
         // Mesmo com erro, limpa o estado local
         setReservationState({

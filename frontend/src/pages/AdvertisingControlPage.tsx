@@ -739,7 +739,7 @@ export function AdvertisingControlPage() {
     }
   };
 
-  const updateCampaign = async (campaignId: number, payload: Record<string, unknown>) => {
+  const updateCampaign = useCallback(async (campaignId: number, payload: Record<string, unknown>) => {
     try {
       setSaving(true);
       setError(null);
@@ -759,7 +759,7 @@ export function AdvertisingControlPage() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [loadData]);
 
   const updateDraftAudio = (slot: CampaignAssetSlot, changes: Partial<{ muted: boolean; volume: number }>) => {
     setDraft((current) => {
@@ -901,7 +901,7 @@ export function AdvertisingControlPage() {
         setUploadingExistingAssetKey(null);
       }
     },
-    []
+    [updateCampaign]
   );
 
   const removeCampaignAsset = useCallback(

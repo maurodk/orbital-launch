@@ -358,7 +358,7 @@ export function FullscreenPage() {
             isFetchingRef.current = false;
             return;
           }
-          throw new Error(`Implantação \"${implantacao}\" não encontrada no banco de dados`);
+          throw new Error(`Implantação "${implantacao}" não encontrada no banco de dados`);
         }
 
         // Se encontrou múltiplas, logar e pegar a primeira (TORRE 1 vem antes de TORRE 2 em ordem alfabética)

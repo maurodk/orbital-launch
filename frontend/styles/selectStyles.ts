@@ -1,13 +1,7 @@
 // src/styles/selectStyles.ts
 import { type StylesConfig } from "react-select";
 
-// Definimos o tipo Option aqui, já que ele é usado pelos estilos
-interface OptionType {
-  value: any; // 'any' é aceitável aqui, pois o estilo é genérico
-  label: string;
-}
-
-export const customSelectStyles: StylesConfig<OptionType, false> = {
+export const createCustomSelectStyles = <OptionType,>(): StylesConfig<OptionType, false> => ({
   control: (provided) => ({
     ...provided,
     backgroundColor: "#2a2a2a",
@@ -43,4 +37,4 @@ export const customSelectStyles: StylesConfig<OptionType, false> = {
     ...provided,
     color: "#B0B0B0",
   }),
-};
+});
