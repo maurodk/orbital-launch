@@ -1,9 +1,10 @@
-// frontend/src/components/PixModal.tsx
+﻿// frontend/src/components/PixModal.tsx
 
 import { useState, useEffect, useMemo } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import axios from "axios";
 import { supabase } from "../src/supabaseClient";
+import { apiUrl } from "../src/config/api";
 import "./PixModal.css";
 import "./ReservationModal.css";
 
@@ -58,13 +59,7 @@ export function PixModal({
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [currentPixId, setCurrentPixId] = useState<string | null>(null);
 
-  // ALTERAÇÃO: Apontar para o nosso próprio backend que atuará como proxy
-  const AWS_API_URL =
-    import.meta.env.VITE_AWS_API_URL || "http://34.204.204.81:3000";
-  const LOCALHOST_API_URL =
-    import.meta.env.VITE_LOCALHOST_API_URL || "http://localhost:3001";
-  const apiUrl =
-    process.env.NODE_ENV === "development" ? LOCALHOST_API_URL : AWS_API_URL;
+  // ALTERAÇÃƒO: Apontar para o nosso próprio backend que atuará como proxy
   const PIX_API_URL = `${apiUrl}/api/santander/gerapix`;
   const BOTMAKER_TOKEN = import.meta.env.VITE_BOTMAKER_TOKEN || "";
 
@@ -258,7 +253,7 @@ export function PixModal({
 
 
 
-  // NOVO: Função para voltar à tela de geração de um novo PIX
+  // NOVO: Função para voltar Ã  tela de geração de um novo PIX
   const handleShowFormAgain = () => {
     setShowQr(false);
     setPayload(null);
@@ -555,7 +550,7 @@ export function PixModal({
               onMouseOver={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)"; }}
               onMouseOut={(e) => { e.currentTarget.style.background = "none"; }}
             >
-              <span style={{ marginRight: "8px" }}>📤</span> Reenviar Notificação
+              <span style={{ marginRight: "8px" }}>ðŸ“¤</span> Reenviar Notificação
             </button>
 
             {!showPending && (
@@ -590,7 +585,7 @@ export function PixModal({
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h3 style={{ margin: 0, color: "#eaeaea", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ color: "#3b82f6" }}>📤</span> Reenviar PIX
+                <span style={{ color: "#3b82f6" }}>ðŸ“¤</span> Reenviar PIX
               </h3>
               <button 
                 onClick={() => setIsResendModalOpen(false)} 
@@ -668,7 +663,7 @@ export function PixModal({
                 borderRadius: "6px", 
                 background: resendSuccess ? "rgba(106, 215, 0, 0.1)" : "rgba(239, 68, 68, 0.1)",
                 border: `1px solid ${resendSuccess ? "rgba(106, 215, 0, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
-                color: resendSuccess ? "#6ad700" : "#ef4444", 
+                color: resendSuccess ? "#2563eb" : "#ef4444", 
                 textAlign: "center", 
                 fontSize: "14px"
               }}>

@@ -11,6 +11,8 @@ $GREEN = "`e[32m"
 $YELLOW = "`e[33m"
 $RED = "`e[31m"
 $RESET = "`e[0m"
+$REPO_NAME = "orbital-launch"
+$REPO_PATH = "/home/ubuntu/projects/$REPO_NAME"
 
 function Write-Header {
     param([string]$Message)
@@ -77,7 +79,7 @@ switch ($ACTION.ToLower()) {
         
         Write-Step "2/3" "Upload do arquivo .env..."
         if (Test-Path ".\.env") {
-            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\.env" "${SSH_URL}:/home/ubuntu/projects/telao-digital/deploy-docker/backend/.env"
+            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\.env" "${SSH_URL}:${REPO_PATH}/deploy-docker/backend/.env"
             Write-Host "$GREEN✓ .env enviado com sucesso$RESET"
         } else {
             Write-Host "$YELLOW⚠ Arquivo .env não encontrado em .\.env$RESET"
@@ -85,14 +87,14 @@ switch ($ACTION.ToLower()) {
         
         Write-Step "3/3" "Upload do credentials.json..."
         if (Test-Path ".\deploy-docker\backend\credentials.json") {
-            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\deploy-docker\backend\credentials.json" "${SSH_URL}:/home/ubuntu/projects/telao-digital/deploy-docker/backend/"
+            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\deploy-docker\backend\credentials.json" "${SSH_URL}:${REPO_PATH}/deploy-docker/backend/"
             Write-Host "$GREEN✓ credentials.json enviado com sucesso$RESET"
         } else {
             Write-Host "$YELLOW⚠ Arquivo credentials.json não encontrado em .\deploy-docker\backend\credentials.json$RESET"
         }
         
         Write-Step "4/4" "Gerando build e reiniciando servidor..."
-        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/frontend && npm install && npm run build && cd ~/projects/telao-digital/deploy-docker/backend && npm install && pm2 restart simulador-backend"
+        ssh $SSH_OPTS $SSH_URL "cd $REPO_PATH/frontend && npm install && npm run build && cd $REPO_PATH/deploy-docker/backend && npm install && pm2 restart simulador-backend"
         
         Write-Header "✓ Deploy Concluído!"
         Write-Host "Seu backend está rodando em: $GREEN http://$EC2_IP:3000 $RESET"
@@ -102,7 +104,7 @@ switch ($ACTION.ToLower()) {
     "upload-env" {
         Write-Step "1/1" "Upload do arquivo .env..."
         if (Test-Path ".\.env") {
-            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\.env" "${SSH_URL}:/home/ubuntu/projects/telao-digital/deploy-docker/backend/.env"
+            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\.env" "${SSH_URL}:${REPO_PATH}/deploy-docker/backend/.env"
             Write-Host "$GREEN✓ .env enviado com sucesso$RESET"
             ssh $SSH_OPTS $SSH_URL "pm2 restart simulador-backend"
             Write-Host "$GREEN✓ Servidor reiniciado$RESET"
@@ -115,7 +117,7 @@ switch ($ACTION.ToLower()) {
     "upload-creds" {
         Write-Step "1/1" "Upload do credentials.json..."
         if (Test-Path ".\deploy-docker\backend\credentials.json") {
-            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\deploy-docker\backend\credentials.json" "${SSH_URL}:/home/ubuntu/projects/telao-digital/deploy-docker/backend/"
+            scp -i $KEY_PATH -o StrictHostKeyChecking=no ".\deploy-docker\backend\credentials.json" "${SSH_URL}:${REPO_PATH}/deploy-docker/backend/"
             Write-Host "$GREEN✓ credentials.json enviado com sucesso$RESET"
             ssh $SSH_OPTS $SSH_URL "pm2 restart simulador-backend"
             Write-Host "$GREEN✓ Servidor reiniciado$RESET"
@@ -137,7 +139,7 @@ switch ($ACTION.ToLower()) {
     
     "restart" {
         Write-Step "1/1" "Reiniciando servidor..."
-        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/frontend && npm run build && pm2 restart simulador-backend"
+        ssh $SSH_OPTS $SSH_URL "cd $REPO_PATH/frontend && npm run build && pm2 restart simulador-backend"
         Write-Host "$GREEN✓ Servidor reiniciado$RESET"
     }
     
@@ -149,11 +151,11 @@ switch ($ACTION.ToLower()) {
     
     "pull" {
         Write-Step "1/3" "Atualizando código..."
-        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital && git pull origin main"
+        ssh $SSH_OPTS $SSH_URL "cd $REPO_PATH && git pull origin main"
         Write-Step "2/3" "Gerando build do frontend..."
-        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/frontend && npm install && npm run build"
+        ssh $SSH_OPTS $SSH_URL "cd $REPO_PATH/frontend && npm install && npm run build"
         Write-Step "3/3" "Reinstalando backend e reiniciando servidor..."
-        ssh $SSH_OPTS $SSH_URL "cd ~/projects/telao-digital/deploy-docker/backend && npm install && pm2 restart simulador-backend"
+        ssh $SSH_OPTS $SSH_URL "cd $REPO_PATH/deploy-docker/backend && npm install && pm2 restart simulador-backend"
         Write-Host "$GREEN✓ Código atualizado, build gerado e servidor reiniciado$RESET"
     }
     

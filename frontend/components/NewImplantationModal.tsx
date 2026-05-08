@@ -1,4 +1,4 @@
-// frontend/components/NewImplantationModal.tsx
+﻿// frontend/components/NewImplantationModal.tsx
 
 import { useState } from "react";
 import axios from "axios";
@@ -50,7 +50,6 @@ export function NewImplantationModal({
   const [endereco, setEndereco] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
-  const [cvcrmId, setCvcrmId] = useState("");
   const [imagemFile, setImagemFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [imagemAdicionalFile, setImagemAdicionalFile] = useState<File | null>(null);
@@ -138,13 +137,12 @@ export function NewImplantationModal({
 
     setIsLoading(true);
 
-    console.log("🚀 [FRONTEND] Iniciando criação de empreendimento");
-    console.log("📋 [FRONTEND] Dados do formulário:", {
+    console.log("ðŸš€ [FRONTEND] Iniciando criação de empreendimento");
+    console.log("ðŸ“‹ [FRONTEND] Dados do formulário:", {
       nome,
       endereco,
       cidade,
       estado,
-      cvcrm_id: cvcrmId,
       hasImagem: !!imagemFile,
       hasLogo: !!logoFile,
     });
@@ -155,9 +153,6 @@ export function NewImplantationModal({
       formData.append("endereco", endereco.trim());
       formData.append("cidade", cidade.trim());
       formData.append("estado", estado);
-      if (cvcrmId.trim()) {
-        formData.append("cvcrm_id", cvcrmId.trim());
-      }
       if (imagemFile) {
         formData.append("imagem", imagemFile);
       }
@@ -168,18 +163,18 @@ export function NewImplantationModal({
         formData.append("logo", logoFile);
       }
 
-      console.log("📦 [FRONTEND] FormData preparado");
+      console.log("ðŸ“¦ [FRONTEND] FormData preparado");
 
       const token = localStorage.getItem("token");
-      console.log("🔑 [FRONTEND] Token existe?", !!token);
+      console.log("ðŸ”‘ [FRONTEND] Token existe?", !!token);
 
       if (!token) {
-        console.error("❌ [FRONTEND] Token não encontrado!");
+        console.error("Erro: [FRONTEND] Token não encontrado!");
         throw new Error("Token de autenticação não encontrado");
       }
 
       console.log(
-        "📡 [FRONTEND] Enviando requisição para:",
+        "ðŸ“¡ [FRONTEND] Enviando requisição para:",
         `${apiUrl}/api/implantacoes`
       );
 
@@ -194,14 +189,13 @@ export function NewImplantationModal({
         }
       );
 
-      console.log("✅ [FRONTEND] Resposta recebida:", response.data);
+      console.log("OK [FRONTEND] Resposta recebida:", response.data);
 
       // Limpar formulário
       setNome("");
       setEndereco("");
       setCidade("");
       setEstado("");
-      setCvcrmId("");
       setImagemFile(null);
       setImagemAdicionalFile(null);
       setLogoFile(null);
@@ -212,10 +206,10 @@ export function NewImplantationModal({
       onSuccess();
       onClose();
     } catch (err) {
-      console.error("❌ [FRONTEND] Erro ao criar empreendimento");
+      console.error("Erro: [FRONTEND] Erro ao criar empreendimento");
 
       if (axios.isAxiosError(err)) {
-        console.error("📊 [FRONTEND] Detalhes do erro Axios:", {
+        console.error("ðŸ“Š [FRONTEND] Detalhes do erro Axios:", {
           message: err.message,
           code: err.code,
           status: err.response?.status,
@@ -228,7 +222,7 @@ export function NewImplantationModal({
           },
         });
       } else {
-        console.error("📊 [FRONTEND] Erro não-Axios:", err);
+        console.error("ðŸ“Š [FRONTEND] Erro não-Axios:", err);
       }
 
       const error = err as { response?: { data?: { error?: string } } };
@@ -262,7 +256,7 @@ export function NewImplantationModal({
       <div
         style={{
           backgroundColor: "#1e1e1e",
-          border: "2px solid #6ad700",
+          border: "2px solid #2563eb",
           padding: "30px",
           borderRadius: "8px",
           maxWidth: "900px",
@@ -565,32 +559,6 @@ export function NewImplantationModal({
                 </div>
               </div>
 
-              <div style={{ marginBottom: "15px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "5px",
-                    fontWeight: "bold",
-                    color: "#eaeaea",
-                  }}
-                >
-                  ID no CVCRM (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={cvcrmId}
-                  onChange={(e) => setCvcrmId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    borderRadius: "4px",
-                    border: "1px solid #2a2a2a",
-                    backgroundColor: "#2a2a2a",
-                    color: "#eaeaea",
-                  }}
-                />
-              </div>
-
               <div style={{ marginBottom: "20px" }}>
                 <label
                   style={{
@@ -618,7 +586,7 @@ export function NewImplantationModal({
                 {imagemFile && (
                   <small
                     style={{
-                      color: "#6ad700",
+                      color: "#2563eb",
                       marginTop: "5px",
                       display: "block",
                     }}
@@ -655,7 +623,7 @@ export function NewImplantationModal({
                 {logoFile && (
                   <small
                     style={{
-                      color: "#6ad700",
+                      color: "#2563eb",
                       marginTop: "5px",
                       display: "block",
                     }}
@@ -709,7 +677,7 @@ export function NewImplantationModal({
                     padding: "10px 20px",
                     borderRadius: "4px",
                     border: "none",
-                    backgroundColor: "#6ad700",
+                    backgroundColor: "#2563eb",
                     color: "#121212",
                     cursor: isLoading ? "not-allowed" : "pointer",
                     fontWeight: "bold",

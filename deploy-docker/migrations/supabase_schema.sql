@@ -140,7 +140,7 @@ left join public.implantacoes i on i.id = u.implantacao_id;
 
 -- 12) Notes
 -- - After running this, review and remove permissive policies (public_read_*) and create stricter RLS rules that match your auth method.
--- - If you keep Firebase Auth and backend as gatekeeper, you can set Supabase RLS to allow only the service_role to write (service_role bypasses RLS) and restrict anon to read only if desired.
+-- - If you keep the backend as gatekeeper, you can set Supabase RLS to allow only the service_role to write (service_role bypasses RLS) and restrict anon to read only if desired.
 -- - To enable realtime subscriptions for specific tables, you can use the Supabase UI to toggle "realtime" or create publications if necessary.
 
 -- End of file

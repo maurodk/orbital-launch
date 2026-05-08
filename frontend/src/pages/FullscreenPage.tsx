@@ -1,4 +1,4 @@
-// src/pages/FullscreenPage.tsx
+﻿// src/pages/FullscreenPage.tsx
 // Página pública de visualização fullscreen das unidades com suporte a camadas primária/adicional
 // Dados são buscados 100% do Supabase com Realtime para atualizações instantâneas
 
@@ -104,7 +104,7 @@ export function FullscreenPage() {
     return saved ? parseInt(saved, 10) : 16;
   });
   const [colorDisponivel, setColorDisponivel] = useState(
-    localStorage.getItem("dot-color-disponivel") || "#6ad700"
+    localStorage.getItem("dot-color-disponivel") || "#2563eb"
   );
   const [colorReservada, setColorReservada] = useState(
     localStorage.getItem("dot-color-Reservada") || "#d9534f"
@@ -971,7 +971,7 @@ export function FullscreenPage() {
           }}
           title="Atualizar dados"
         >
-          🔄
+          ðŸ”„
         </button>
 
         {/* Fullscreen Button */}
@@ -991,7 +991,7 @@ export function FullscreenPage() {
           }}
           title="Tela cheia"
         >
-          ⛶
+          â›¶
         </button>
       </div>
 
@@ -1181,7 +1181,7 @@ export function FullscreenPage() {
             textAlign: "center",
             fontSize: 14,
             fontWeight: 700,
-            color: "#6ad700",
+            color: "#2563eb",
           }}
         >
           {dotSize}px
@@ -1207,7 +1207,7 @@ export function FullscreenPage() {
                 cursor: "pointer",
               }}
             >
-              −
+              âˆ’
             </button>
             <button
               onClick={resetZoom}

@@ -1,4 +1,4 @@
-// frontend/components/PaymentHistoryView.tsx
+﻿// frontend/components/PaymentHistoryView.tsx
 
 import { useState, useEffect, useMemo } from "react";
 import { 
@@ -324,7 +324,7 @@ export function PaymentHistoryView() {
           bottom: 0;
           width: 100vw;
           height: 100vh;
-          background: url('/backgroundblack.png') center/cover no-repeat, linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+          background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
           color: #eaeaea;
           overflow: hidden;
           display: flex;
@@ -356,7 +356,7 @@ export function PaymentHistoryView() {
         }
 
         .payment-history-header h1 {
-          color: #6ad700;
+          color: #2563eb;
           font-size: 28px;
           margin: 0;
           font-weight: 700;
@@ -433,13 +433,13 @@ export function PaymentHistoryView() {
           left: 50%;
           width: 0;
           height: 3px;
-          background: #6ad700;
+          background: #2563eb;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           transform: translateX(-50%);
         }
 
         .tab-button:hover {
-          color: #6ad700;
+          color: #2563eb;
           transform: translateY(-2px);
         }
 
@@ -448,7 +448,7 @@ export function PaymentHistoryView() {
         }
 
         .tab-button.active {
-          color: #6ad700;
+          color: #2563eb;
         }
 
         .tab-button.active::before {
@@ -481,7 +481,7 @@ export function PaymentHistoryView() {
           left: 14px;
           top: 50%;
           transform: translateY(-50%);
-          color: #6ad700;
+          color: #2563eb;
           z-index: 2;
           transition: all 0.3s ease;
         }
@@ -503,7 +503,7 @@ export function PaymentHistoryView() {
 
         .search-input:focus {
           outline: none;
-          border-color: #6ad700;
+          border-color: #2563eb;
           box-shadow: 0 0 0 4px rgba(106, 215, 0, 0.15);
           transform: translateY(-2px);
         }
@@ -556,15 +556,15 @@ export function PaymentHistoryView() {
         }
 
         .filter-button:hover {
-          border-color: #6ad700;
+          border-color: #2563eb;
           transform: translateY(-2px);
           box-shadow: 0 4px 15px rgba(106, 215, 0, 0.3);
         }
 
         .filter-button.active {
-          background: linear-gradient(135deg, #6ad700 0%, #58b300 100%);
+          background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
           color: #0d0d0d;
-          border-color: #6ad700;
+          border-color: #2563eb;
           font-weight: bold;
           transform: scale(1.05);
           box-shadow: 0 4px 20px rgba(106, 215, 0, 0.4);
@@ -597,7 +597,7 @@ export function PaymentHistoryView() {
 
         .payment-table th {
           background: rgba(30, 30, 30, 0.95);
-          color: #6ad700;
+          color: #2563eb;
           padding: 16px 12px;
           text-align: left;
           font-weight: 700;
@@ -730,7 +730,7 @@ export function PaymentHistoryView() {
           left: 0;
           right: 0;
           height: 3px;
-          background: linear-gradient(90deg, #6ad700 0%, #58b300 100%);
+          background: linear-gradient(90deg, #2563eb 0%, #1e40af 100%);
           transform: scaleX(0);
           transition: transform 0.3s ease;
         }
@@ -757,7 +757,7 @@ export function PaymentHistoryView() {
         .stat-value {
           font-size: 32px;
           font-weight: 800;
-          color: #6ad700;
+          color: #2563eb;
           text-shadow: 0 2px 10px rgba(106, 215, 0, 0.3);
           transition: all 0.3s ease;
         }
@@ -927,7 +927,7 @@ export function PaymentHistoryView() {
       `}</style>
 
       <div className="payment-history-header">
-        <FiDollarSign size={32} color="#6ad700" />
+        <FiDollarSign size={32} color="#2563eb" />
         <h1>Histórico de Pagamentos</h1>
       </div>
 

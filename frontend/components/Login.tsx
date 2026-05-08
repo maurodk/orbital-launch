@@ -35,9 +35,11 @@ export function Login() {
       <div className="login-container">
         <div className="login-card">
           <div className="login-header">
-            <img src="/logo.png" alt="Logo VCA" className="login-logo" />
-            <h1 className="login-title">Espelho Digital</h1>
-            <p className="login-subtitle">Sistema de Implantação Humanizada</p>
+            <div className="login-logo-mark" aria-hidden="true">
+              OL
+            </div>
+            <h1 className="login-title">Orbital Launch</h1>
+            <p className="login-subtitle">Operação enterprise de implantações</p>
           </div>
           <form onSubmit={handleLogin} className="login-form">
             <div className="input-group">

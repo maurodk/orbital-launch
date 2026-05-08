@@ -10,12 +10,9 @@ import {
   type PropagandaMediaType,
   type PropagandaRuntime,
 } from "../types/propaganda";
+import { apiUrl } from "../config/api";
 import "./AdvertisingControlPage.css";
 
-const AWS_API_URL =
-  import.meta.env.VITE_AWS_API_URL ||
-  "https://apitelaodigital.suportevca.com.br";
-const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 const DEFAULT_TRANSITION_STYLE = "architectural-curtain";
 const DEFAULT_MAIN_MEDIA_DURATION_SECONDS = 8;
 const DEFAULT_TRANSITION_DURATION_SECONDS = 1.2;

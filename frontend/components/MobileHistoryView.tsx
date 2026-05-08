@@ -1,4 +1,4 @@
-// frontend/components/MobileHistoryView.tsx — Histórico mobile com cards
+﻿// frontend/components/MobileHistoryView.tsx â€” Histórico mobile com cards
 
 import { useState, useMemo } from "react";
 import { FiSearch } from "react-icons/fi";
@@ -54,7 +54,7 @@ export function MobileHistoryView({ history }: MobileHistoryViewProps) {
       <div className="mobile-content">
         {filteredHistory.length === 0 ? (
           <div className="mobile-empty-state">
-            <span className="mobile-empty-icon">📋</span>
+            <span className="mobile-empty-icon">ðŸ“‹</span>
             <span className="mobile-empty-text">
               Nenhum registro de histórico encontrado
             </span>
@@ -64,7 +64,7 @@ export function MobileHistoryView({ history }: MobileHistoryViewProps) {
             {filteredHistory.map((entry, index) => {
               const date = entry[1] || "";
               const unitName = entry[2]?.includes("->")
-                ? entry[2].replace(/\s*->\s*/g, " → ")
+                ? entry[2].replace(/\s*->\s*/g, " -> ")
                 : entry[2] || "";
               const action = entry[3] || "";
               const client = entry[4] || "";
@@ -92,15 +92,7 @@ export function MobileHistoryView({ history }: MobileHistoryViewProps) {
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <img
-                          src="/cvcrm.ico"
-                          alt="cvcrm"
-                          className="mobile-history-cvcrm-link"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display =
-                              "none";
-                          }}
-                        />
+                        <span className="mobile-history-reservation-link">Abrir reserva</span>
                       </a>
                     )}
                   </div>

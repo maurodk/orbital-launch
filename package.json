@@ -1,5 +1,5 @@
 {
-  "name": "simulador_implantacao",
+  "name": "orbital-launch",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -16,8 +16,6 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
-    "firebase": "^12.1.0",
-    "firebase-admin": "^13.4.0",
     "flyctl": "^1.2.4",
     "googleapis": "^154.0.0",
     "react-to-print": "^3.1.1"

@@ -1,21 +1,15 @@
-// src/components/MappingSidebar.tsx
-
-// <<< CORREÇÃO 1: Adicionar 'useMemo' à lista de imports do React >>>
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiChevronDown, FiChevronUp, FiPlusCircle } from "react-icons/fi";
 
-// Interface para um único item de unidade com seu índice original
 interface UnitItem {
   unidade: string[];
   originalIndex: number;
 }
 
-// Interface para o objeto de unidades agrupadas
 interface GroupedUnits {
   [blockName: string]: UnitItem[];
 }
 
-// Interface de props do componente
 interface MappingSidebarProps {
   unidades: string[][];
   onSelectUnit: (index: number) => void;
@@ -28,6 +22,7 @@ interface MappingSidebarProps {
   activeLayer?: "primary" | "additional";
   implantacaoPrimary?: string;
   implantacaoAdditional?: string;
+  contentHeight?: number | null;
 }
 
 export function MappingSidebar({
@@ -42,47 +37,53 @@ export function MappingSidebar({
   activeLayer = "primary",
   implantacaoPrimary = "",
   implantacaoAdditional = "",
+  contentHeight = null,
 }: MappingSidebarProps) {
-  // Owners disponíveis no escopo do componente para reuso
   const primaryOwner = implantacaoPrimary || "";
-  const additionalOwner = implantacaoAdditional || (implantacaoPrimary ? implantacaoPrimary + "+adicional" : "");
-  // Agrupamento de unidades
+  const additionalOwner =
+    implantacaoAdditional ||
+    (implantacaoPrimary ? `${implantacaoPrimary}+adicional` : "");
+
   const groupedUnits = useMemo<GroupedUnits>(() => {
-      return unidades.reduce((acc, unidade, index) => {
-      // Filter by implantacao_ref (col Q index 16) based on active layer context
+    return unidades.reduce((acc, unidade, index) => {
       const ownerImplantacao = (unidade[16] || "").toString();
-      const currentImplantacao = activeLayer === "additional" ? (implantacaoAdditional || implantacaoPrimary || "") : (implantacaoPrimary || "");
-      if (currentImplantacao && ownerImplantacao && ownerImplantacao !== currentImplantacao) {
-        return acc; // skip units owned by other implantation
+      const currentImplantacao =
+        activeLayer === "additional"
+          ? implantacaoAdditional || implantacaoPrimary || ""
+          : implantacaoPrimary || "";
+
+      if (
+        currentImplantacao &&
+        ownerImplantacao &&
+        ownerImplantacao !== currentImplantacao
+      ) {
+        return acc;
       }
 
-      const blockName = unidade[3] || "Sem Bloco"; // Coluna D - bloco
+      const blockName = unidade[3] || "Sem Bloco";
       if (!acc[blockName]) {
         acc[blockName] = [];
       }
+
       acc[blockName].push({ unidade, originalIndex: index });
       return acc;
     }, {} as GroupedUnits);
   }, [unidades, activeLayer, implantacaoPrimary, implantacaoAdditional]);
 
-  const [openGroups, setOpenGroups] = useState<string[]>(
-    Object.keys(groupedUnits)
-  );
-
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [localDotSize, setLocalDotSize] = useState(dotSize);
 
   useEffect(() => {
     setLocalDotSize(dotSize);
   }, [dotSize]);
 
-  // Debounce para auto-save do tamanho do ponto
   useEffect(() => {
     const timer = setTimeout(() => {
       if (localDotSize !== dotSize) {
         onDotSizeChange(localDotSize);
         onSaveDotSize();
       }
-    }, 500); // Salva 500ms após parar de ajustar
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [localDotSize, dotSize, onDotSizeChange, onSaveDotSize]);
@@ -90,7 +91,7 @@ export function MappingSidebar({
   const handleDotSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newSize = parseInt(e.target.value, 10);
     setLocalDotSize(newSize);
-    onDotSizeChange(newSize); // Atualiza visualmente em tempo real
+    onDotSizeChange(newSize);
   };
 
   const handleIncreaseDotSize = () => {
@@ -112,13 +113,38 @@ export function MappingSidebar({
   const handleToggleGroup = (blockName: string) => {
     setOpenGroups((prev) =>
       prev.includes(blockName)
-        ? prev.filter((b) => b !== blockName)
+        ? prev.filter((name) => name !== blockName)
         : [...prev, blockName]
     );
   };
 
+  const isUnitMappedForActiveLayer = (unidade: string[]) => {
+    const coordX = unidade[12];
+    const coordY = unidade[13];
+    const hasCoords =
+      typeof coordX !== "undefined" &&
+      coordX !== null &&
+      coordX.toString().trim() !== "" &&
+      typeof coordY !== "undefined" &&
+      coordY !== null &&
+      coordY.toString().trim() !== "";
+
+    const owner = (unidade[16] || "").toString();
+
+    if (activeLayer === "additional") {
+      return hasCoords && owner === additionalOwner;
+    }
+
+    return hasCoords && (!owner || owner === primaryOwner);
+  };
+
+  const sidebarStyle =
+    contentHeight && contentHeight > 0
+      ? { height: `${contentHeight}px`, maxHeight: `${contentHeight}px` }
+      : undefined;
+
   return (
-    <aside className="mapping-sidebar">
+    <aside className="mapping-sidebar" style={sidebarStyle}>
       <h3 className="sidebar-title">Unidades para Mapear</h3>
 
       <div className="sidebar-controls">
@@ -171,10 +197,16 @@ export function MappingSidebar({
       </div>
 
       <div className="unit-groups-container">
-        {/* <<< CORREÇÃO 2: Adicionar o tipo correto para Object.entries >>> */}
         {(Object.entries(groupedUnits) as [string, UnitItem[]][]).map(
           ([blockName, unitItems]) => {
             const isOpen = openGroups.includes(blockName);
+            const mappedCount = unitItems.filter(({ unidade }) =>
+              isUnitMappedForActiveLayer(unidade)
+            ).length;
+            const totalCount = unitItems.length;
+            const isFullyMapped = totalCount > 0 && mappedCount === totalCount;
+            const isPartiallyMapped = mappedCount > 0 && mappedCount < totalCount;
+
             return (
               <div key={blockName} className="unit-group">
                 <button
@@ -183,33 +215,30 @@ export function MappingSidebar({
                 >
                   <div className="group-header-title">
                     <strong>{blockName}</strong>
-                    <span>{unitItems.length} UNIDADES</span>
+                    <span>{totalCount} UNIDADES</span>
                   </div>
-                  {isOpen ? <FiChevronUp /> : <FiChevronDown />}
+                  <div className="group-header-meta">
+                    <span
+                      className={`group-mapping-badge ${
+                        isFullyMapped
+                          ? "complete"
+                          : isPartiallyMapped
+                            ? "partial"
+                            : "pending"
+                      }`}
+                    >
+                      {isFullyMapped ? "100%" : `${mappedCount}/${totalCount}`}
+                    </span>
+                    {isOpen ? <FiChevronUp /> : <FiChevronDown />}
+                  </div>
                 </button>
 
                 {isOpen && (
                   <div className="group-content">
                     {unitItems.map(({ unidade, originalIndex }) => {
-                        // Sempre considera as colunas primárias M:N (12/13) como fonte
-                        const coordX = unidade[12];
-                        const coordY = unidade[13];
-                        const hasCoords = (typeof coordX !== 'undefined' && coordX !== null && coordX.toString().trim() !== "") && (typeof coordY !== 'undefined' && coordY !== null && coordY.toString().trim() !== "");
-
-                        // Determina se está mapeada para a camada ativa com base em implantacao_ref
-                        const isAdLayer = activeLayer === "additional";
-                        const owner = (unidade[16] || "").toString();
-                        let isMapped = false;
-                        if (isAdLayer) {
-                          // Mapeada na camada adicional quando owner === additionalOwner
-                          isMapped = hasCoords && owner === additionalOwner;
-                        } else {
-                          // Mapeada na camada primária quando owner é vazio ou igual ao primaryOwner
-                          isMapped = hasCoords && (!owner || owner === primaryOwner);
-                        }
+                      const isMapped = isUnitMappedForActiveLayer(unidade);
                       const isSelected = originalIndex === selectedUnitIndex;
-                      // Normaliza o status: minúscula + remove acentos para classe CSS
-                      const rawStatus = unidade[11] || "Disponível"; // Coluna L - situacao
+                      const rawStatus = unidade[11] || "Disponível";
                       const status = rawStatus
                         .toLowerCase()
                         .normalize("NFD")
@@ -220,11 +249,8 @@ export function MappingSidebar({
                         <div
                           key={originalIndex}
                           data-mapped={isMapped}
-                          className={`unit-item ${
-                            isSelected ? "selected" : ""
-                          }`}
+                          className={`unit-item ${isSelected ? "selected" : ""}`}
                         >
-                          {/* <<< MUDANÇA 2: Adiciona a classe de status ao span >>> */}
                           <span className={`unit-status ${status}`} />
                           <span className="unit-name">{unidade[2]}</span>
                           {!isMapped && (

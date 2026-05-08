@@ -1,4 +1,4 @@
-/* BlockMappingOverlay.css */
+﻿/* BlockMappingOverlay.css */
 
 .block-sold-overlay {
   position: absolute;
@@ -280,13 +280,13 @@
 
 .block-mapping-sidebar .sidebar-input:focus {
   outline: none;
-  border-color: var(--accent-green, #6ad700);
+  border-color: var(--accent-green, #2563eb);
 }
 
 .block-all-mapped-msg {
   margin-top: 10px;
   font-size: 13px;
-  color: var(--accent-green, #6ad700);
+  color: var(--accent-green, #2563eb);
   font-weight: 500;
 }
 

@@ -1,4 +1,4 @@
-/* frontend/src/components/PixModal.css */
+﻿/* frontend/src/components/PixModal.css */
 
 .pix-modal-content .form-group small {
   font-size: 0.8rem;
@@ -30,7 +30,7 @@
 
 .pix-modal-content .valor-input:focus {
   outline: none;
-  border-color: var(--accent-green);
+  border-color: var(--color-primary);
 }
 
 .pix-modal-content .contato-input {
@@ -46,13 +46,13 @@
 }
 .pix-modal-content .contato-input:focus {
   outline: none;
-  border-color: var(--accent-green);
+  border-color: var(--color-primary);
 }
 
 /* Informações do cliente */
 .info-cliente {
   background-color: var(--bg-dark-secondary);
-  border: 2px solid var(--accent-green);
+  border: 1px solid var(--color-primary);
   border-radius: 8px;
   padding: 15px;
   margin-bottom: 20px;
@@ -65,7 +65,7 @@
 }
 
 .info-cliente strong {
-  color: var(--accent-green);
+  color: var(--color-accent);
   margin-right: 8px;
 }
 
@@ -166,7 +166,7 @@
   border-color: var(--accent-green);
 }
 
-/* --- ANIMAÇÃO DE PAGAMENTO CONFIRMADO --- */
+/* --- ANIMAÇÃƒO DE PAGAMENTO CONFIRMADO --- */
 
 .payment-success-animation {
   text-align: center;
@@ -196,7 +196,7 @@
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-green), #4caf50);
+  background: linear-gradient(135deg, var(--accent-green), #1d4ed8);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -205,7 +205,7 @@
 }
 
 .check-icon::after {
-  content: "✓";
+  content: "OK";
   font-size: 36px;
   font-weight: bold;
   color: white;

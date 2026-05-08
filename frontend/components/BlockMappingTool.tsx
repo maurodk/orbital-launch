@@ -1,4 +1,4 @@
-// components/BlockMappingTool.tsx
+﻿// components/BlockMappingTool.tsx
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../src/supabaseClient";
 import "./BlockMappingOverlay.css";
@@ -131,7 +131,7 @@ export function BlockMappingTool({
 
   return (
     <aside className="mapping-sidebar block-mapping-sidebar">
-      <h3 className="sidebar-title">🎯 Mapear Blocos</h3>
+      <h3 className="sidebar-title">ðŸŽ¯ Mapear Blocos</h3>
 
       <div className="sidebar-controls">
         <div className="form-group">
@@ -153,13 +153,13 @@ export function BlockMappingTool({
 
         {unmappedBlocks.length === 0 && (
           <p className="block-all-mapped-msg">
-            ✅ Todos os blocos já foram mapeados!
+            OK Todos os blocos já foram mapeados!
           </p>
         )}
 
         {selectedBlock && (
           <div className="block-instructions">
-            <p className="block-instructions-title">📐 Instruções:</p>
+            <p className="block-instructions-title">ðŸ“ Instruções:</p>
             <ol className="block-instructions-list">
               <li>Clique e arraste no mapa para desenhar um retângulo</li>
               <li>O mapeamento salva automaticamente ao soltar</li>
@@ -210,7 +210,7 @@ export function BlockMappingTool({
                 const mapping = existingMappings.find(m => m.nome_bloco === block);
                 return (
                   <div key={block} className="unit-item" data-mapped="true">
-                    <span className="unit-status" style={{ background: "var(--accent-green, #6ad700)" }} />
+                    <span className="unit-status" style={{ background: "var(--accent-green, #2563eb)" }} />
                     <span className="unit-name">{block}</span>
                     <button
                       className="select-unit-button block-remove-btn"
@@ -218,7 +218,7 @@ export function BlockMappingTool({
                       title="Remover mapeamento"
                       style={{ color: "#ef4444" }}
                     >
-                      ✕
+                      ×
                     </button>
                   </div>
                 );

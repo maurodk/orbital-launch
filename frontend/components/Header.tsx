@@ -16,9 +16,9 @@ export function Header({
         top: 0,
         left: 0,
         right: 0,
-        backgroundColor: "#1e1e1e",
-        boxShadow: "0 2px 8px rgba(106, 215, 0, 0.3)",
-        borderBottom: "2px solid #6ad700",
+        backgroundColor: "var(--surface-panel, #172225)",
+        boxShadow: "0 10px 30px rgba(0, 0, 0, 0.24)",
+        borderBottom: "1px solid var(--border-subtle, rgba(255,255,255,0.09))",
         zIndex: 9998,
         padding: "8px 16px",
         display: "flex",
@@ -33,8 +33,7 @@ export function Header({
         style={{
           height: "32px",
           width: "auto",
-          filter:
-            "drop-shadow(0 0 20px rgba(106, 215, 0, 0.6)) drop-shadow(0 0 40px rgba(106, 215, 0, 0.4))",
+          filter: "drop-shadow(0 6px 14px rgba(0, 0, 0, 0.28))",
         }}
       />
       <div
@@ -42,7 +41,7 @@ export function Header({
           width: "2px",
           height: "40px",
           background:
-            "linear-gradient(to bottom, transparent, #6ad700, transparent)",
+            "linear-gradient(to bottom, transparent, var(--color-accent, #d99a26), transparent)",
           flexShrink: 0,
         }}
       />
@@ -51,7 +50,7 @@ export function Header({
           margin: 0,
           fontSize: "20px",
           fontWeight: "bold",
-          color: "#eaeaea",
+          color: "var(--text-primary, #eef5f6)",
           flex: 1,
         }}
       >

@@ -3,7 +3,6 @@
 import { Routes, Route } from "react-router-dom";
 import { MainPage } from "./pages/MainPage"; // Importa a página principal refatorada
 import { MobilePage } from "./pages/MobilePage"; // Layout mobile-first dedicado
-import { CVCrmMappingPage } from "./pages/CVCrmMappingPage"; // Importa a nova página
 import { Diretoria } from "./pages/Diretoria";
 import { FullscreenPage } from "./pages/FullscreenPage"; // Nova página fullscreen React
 import { PaymentHistoryPage } from "./pages/PaymentHistoryPage"; // Nova página de histórico de pagamentos
@@ -18,7 +17,6 @@ function App() {
     <Routes>
       <Route path="/" element={<MainPage />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/map-cvcrm" element={<CVCrmMappingPage />} />
       <Route path="/diretoria" element={<Diretoria />} />
       <Route path="/propagandas" element={<AdvertisingControlPage />} />
       <Route path="/fullscreen" element={<FullscreenPage />} />

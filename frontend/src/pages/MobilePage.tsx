@@ -40,12 +40,8 @@ import { FullNameModal } from "../../components/FullNameModal";
 import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 import { useTokenRefresh } from "../hooks/useTokenRefresh";
+import { apiUrl } from "../config/api";
 import "./MobilePage.css";
-
-const AWS_API_URL =
-  import.meta.env.VITE_AWS_API_URL ||
-  "https://apitelaodigital.suportevca.com.br";
-const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
 interface Implantation {
   id?: string;

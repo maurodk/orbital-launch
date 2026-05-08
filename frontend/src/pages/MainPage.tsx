@@ -1,4 +1,4 @@
-// src/pages/MainPage.tsx
+﻿// src/pages/MainPage.tsx
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
@@ -16,9 +16,7 @@ import { ReservationList } from "../../components/ReservationList";
 import { CancelModal } from "../../components/CancelModal";
 import { BlockModal } from "../../components/BlockModal";
 import { MappingSidebar } from "../../components/MappingSidebar";
-import { ImplantationSwitcher } from "../../components/ImplantationSwitcher";
-import { Header } from "../../components/Header";
-import { HamburgerMenu } from "../../components/HamburgerMenu";
+import { EnterpriseSidebar } from "../../components/EnterpriseSidebar";
 import { BlockMappingTool } from "../../components/BlockMappingTool";
 import { NewImplantationModal } from "../../components/NewImplantationModal";
 import { EditImplantationModal } from "../../components/EditImplantationModalWithTabs";
@@ -49,13 +47,9 @@ import { FullNameModal } from "../../components/FullNameModal";
 import "../../components/PixModal.css";
 import { useReservationManager } from "../hooks/useReservationManager";
 import { useTokenRefresh } from "../hooks/useTokenRefresh";
+import { apiUrl } from "../config/api";
 
-const AWS_API_URL =
-  import.meta.env.VITE_AWS_API_URL ||
-  "https://apitelaodigital.suportevca.com.br";
 
-// SEMPRE usa AWS (backend está na EC2)
-const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
 export interface AppConfig {
   implantacaoAtual?: string;
@@ -79,14 +73,13 @@ type ImplantationUpdatePayload = {
   endereco?: string;
   cidade?: string;
   estado?: string;
-  cvcrm_id?: string;
   planosConfig?: { habilitado: boolean; planos: string[] } | null;
 };
 
 // Função para gerar sigla a partir do nome
 const gerarSigla = (nome: string): string => {
   if (!nome) return "";
-  // Gera um acrônimo pegando a primeira letra de cada palavra.
+  // Gera um acrÃ´nimo pegando a primeira letra de cada palavra.
   return nome
     .split(" ")
     .map((palavra) => palavra.charAt(0))
@@ -181,6 +174,7 @@ export function MainPage() {
   const [dotSize, setDotSize] = useState<number>(16);
   const [hideAvailable, setHideAvailable] = useState<boolean>(false);
   const [unitLetter, setUnitLetter] = useState<string>("");
+  const [mappingSidebarHeight, setMappingSidebarHeight] = useState<number | null>(null);
   const [reservationModalState, setReservationModalState] = useState({
     isOpen: false,
     mode: "select" as "select" | "manual",
@@ -256,6 +250,7 @@ export function MainPage() {
     null
   );
   const printComponentRef = useRef<HTMLDivElement>(null);
+  const floorPlanShellRef = useRef<HTMLDivElement | null>(null);
   const [history, setHistory] = useState<string[][]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedUnitForHistory, setSelectedUnitForHistory] = useState<
@@ -305,7 +300,6 @@ export function MainPage() {
         id: string;
         cidade: string;
         estado: string;
-        cvcrm_id?: string;
       })
     | null
   >(null);
@@ -388,6 +382,37 @@ export function MainPage() {
       handlePrint();
     }
   }, [termoParaImprimir, handlePrint]);
+
+  useEffect(() => {
+    if (view !== "map" || !imageUrl || window.innerWidth <= 768) {
+      setMappingSidebarHeight(null);
+      return;
+    }
+
+    const shell = floorPlanShellRef.current;
+    if (!shell) {
+      setMappingSidebarHeight(null);
+      return;
+    }
+
+    const updateHeight = () => {
+      setMappingSidebarHeight(shell.getBoundingClientRect().height || null);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    observer.observe(shell);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [view, imageUrl, activeLayer, selectedImplantationName]);
 
   const fetchHistory = async (implantacaoName: string) => {
     if (!implantacaoName) return;
@@ -1193,7 +1218,7 @@ export function MainPage() {
           consecutivePollingFailures >= MAX_POLLING_FAILURES
         ) {
           console.error(
-            "SSE instável e polling-fallback falhando — acionando hard refresh"
+            "SSE instável e polling-fallback falhando â€” acionando hard refresh"
           );
           // Controlled hard refresh: preserve sessionStorage if possible
           try {
@@ -1256,7 +1281,7 @@ export function MainPage() {
 
               if (typeof pagamentos_status !== "undefined") merged[20] = pagamentos_status;
               
-              // COMPARAÇÃO: Evitar re-render se dados são idênticos
+              // COMPARAÇÃƒO: Evitar re-render se dados são idênticos
               if (JSON.stringify(existing) === JSON.stringify(merged)) {
                 console.log(`[SSE] Sem mudanças na unidade ${idx} - skip re-render`);
                 return currentUnidades;
@@ -1283,7 +1308,7 @@ export function MainPage() {
                 if (idx >= 0 && idx < copy.length) {
                   const row = Array.isArray(copy[idx]) ? copy[idx].slice() : copy[idx];
                   
-                  // COMPARAÇÃO: Evitar re-render se status não mudou
+                  // COMPARAÇÃƒO: Evitar re-render se status não mudou
                   if (row[20] === pagamentos_status) {
                     return currentUnidades;
                   }
@@ -1307,7 +1332,7 @@ export function MainPage() {
                     
                     const row = Array.isArray(copy[i]) ? copy[i].slice() : copy[i];
                     
-                    // COMPARAÇÃO: Evitar re-render se status não mudou
+                    // COMPARAÇÃƒO: Evitar re-render se status não mudou
                     if (row[20] === pagamentos_status) {
                       return currentUnidades;
                     }
@@ -1502,7 +1527,7 @@ export function MainPage() {
       setUnidadesCount(countResponse.data.count || 0);
       setUnidadesConfigured(countResponse.data.configured || false);
     } catch (error) {
-      console.error("❌ Erro ao trocar implantação:", error);
+      console.error("Erro: Erro ao trocar implantação:", error);
       setError("Falha ao carregar dados da nova implantação.");
     } finally {
       setSwitching(false);
@@ -1724,7 +1749,7 @@ export function MainPage() {
     const unidade = unit[2]; // Coluna C - Nome da unidade
 
     try {
-      // Busca se existe PIX pendente — usa dados da própria unidade (cliente / id_pre_cadastro)
+      // Busca se existe PIX pendente â€” usa dados da própria unidade (cliente / id_pre_cadastro)
       const clienteParam = (unit[7] || "").toString(); // Coluna H - cliente
       const idPreCadastroParam = (unit[6] || "").toString(); // Coluna G - id_pre_cadastro
       const response = await axios.get(
@@ -2451,7 +2476,7 @@ export function MainPage() {
         throw new Error(pixError.message || "Erro ao salvar PIX no banco de dados.");
       }
 
-      // Não fecha o modal — o PixModal exibirá o QR Code automaticamente
+      // Não fecha o modal â€” o PixModal exibirá o QR Code automaticamente
       console.log('[handleConfirmPixData] PIX salvo com sucesso. QR Code será exibido no modal.');
     } catch (error: unknown) {
       console.error("Erro ao salvar PIX:", error);
@@ -2540,7 +2565,23 @@ export function MainPage() {
   };
 
   if (error) {
-    return <p style={{ color: "#d9534f", textAlign: "center" }}>{error}</p>;
+    return (
+      <div className="enterprise-system-state">
+        <div className="enterprise-empty-kicker">API indisponivel</div>
+        <h1>Nao foi possivel carregar a operacao</h1>
+        <p>{error}</p>
+        <p className="enterprise-system-hint">
+          Verifique se o backend Docker esta rodando em http://localhost:3000.
+        </p>
+        <button
+          type="button"
+          className="enterprise-button primary"
+          onClick={() => window.location.reload()}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
   }
 
   if (authLoading) {
@@ -2564,16 +2605,17 @@ export function MainPage() {
   return (
     <HelmetProvider>
       <Helmet>
-        <title>Implantação Digital - VCA CONSTRUTORA</title>
+        <title>Orbital Launch</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Helmet>
 
-      <div className={`page-wrapper ${isMappingMode || isBlockMappingMode ? "sidebar-visible" : ""}`}>
-        {/* Header - fixo apenas quando não estiver no mapa visual */}
-        <Header title="Lançamento - Espelho Digital" isFixed={view !== "map"} />
-
-        {/* Menu Hamburger flutuante */}
-        <HamburgerMenu
+      <div className={`page-wrapper enterprise-shell ${isMappingMode || isBlockMappingMode ? "sidebar-visible" : ""}`}>
+        <EnterpriseSidebar
+          activeView={view}
+          userDisplayName={userDisplayName}
+          implantacoes={implantacoes}
+          selectedImplantationName={selectedImplantationName}
+          onImplantationChange={handleImplantationChange}
           onNewImplantationClick={handleOpenNewImplantation}
           onMapViewClick={() => setView("map")}
           onListViewClick={() => {
@@ -2586,10 +2628,12 @@ export function MainPage() {
           }}
           onBlockMappingClick={() => setIsBlockMappingMode(!isBlockMappingMode)}
           onPaymentHistoryClick={handleNavigateToPayments}
+          onDiretoriaClick={() => navigate("/diretoria")}
+          onAdvertisingClick={() => navigate("/propagandas")}
           onLogout={handleLogout}
         />
 
-        <div className={`app-container ${view === "list" ? "list-view" : ""}`}>
+        <div className={`app-container enterprise-workspace ${view === "list" ? "list-view" : ""}`}>
           {isMappingMode && (
             <MappingSidebar
               unidades={unidades}
@@ -2603,6 +2647,7 @@ export function MainPage() {
               unitLetter={unitLetter}
               onLetterChange={setUnitLetter}
               activeLayer={activeLayer}
+              contentHeight={mappingSidebarHeight}
             />
           )}
           {isBlockMappingMode && currentImplantation && (
@@ -2623,8 +2668,95 @@ export function MainPage() {
               <div className="loading-spinner"></div>
             </div>
           )}
-          <div>
+          <div className="enterprise-main-shell">
             <main className="main-content">
+              <section className="enterprise-implantation-panel">
+                <div className="enterprise-implantation-heading">
+                  <div>
+                    <span className="enterprise-empty-kicker">
+                      {view === "map" ? "Mapa" : view === "list" ? "Lista" : "Histórico"}
+                    </span>
+                    <h1>{selectedImplantationName || "Nenhuma implantação selecionada"}</h1>
+                    <p>
+                      {userDisplayName ? `Olá, ${userDisplayName}.` : "Painel operacional"}{" "}
+                      {selectedImplantationName
+                        ? "Acompanhe a implantação ativa e seus próximos passos."
+                        : "Selecione ou crie uma implantação para iniciar a operação."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="enterprise-icon-button"
+                    onClick={handleOpenEditImplantation}
+                    disabled={!currentImplantation}
+                    title="Configurar implantação"
+                    aria-label="Configurar implantação"
+                  >
+                    <Settings size={20} />
+                  </button>
+                </div>
+
+                {selectedImplantationName && (
+                  <div className="enterprise-status-row">
+                    <div className={`enterprise-status-card ${unidadesConfigured ? "ready" : "attention"}`}>
+                      <strong>{unidadesConfigured ? "Unidades configuradas" : "Sem unidades"}</strong>
+                      <span>
+                        {unidadesConfigured
+                          ? `${unidadesCount} unidades importadas`
+                          : "Importe ou configure as unidades"}
+                      </span>
+                    </div>
+                    <div className={`enterprise-status-card ${clientesConfigured ? "ready" : "attention"}`}>
+                      <strong>{clientesConfigured ? "Clientes importados" : "Sem clientes"}</strong>
+                      <span>
+                        {clientesConfigured
+                          ? `${clientesCount} clientes aptos`
+                          : "Importe a base de clientes aptos"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {view === "map" && (
+                  <div className="enterprise-map-controls">
+                    <button
+                      type="button"
+                      className={`toggle-mapping-button ${isMappingMode ? "active" : ""}`}
+                      onClick={() => setIsMappingMode(!isMappingMode)}
+                    >
+                      Modo mapeamento
+                    </button>
+                    <div className="layer-toggle-group">
+                      <button
+                        type="button"
+                        className={`layer-toggle ${activeLayer === "primary" ? "active" : ""}`}
+                        onClick={() => setActiveLayer("primary")}
+                      >
+                        Principal
+                      </button>
+                      <button
+                        type="button"
+                        className={`layer-toggle ${activeLayer === "additional" ? "active" : ""}`}
+                        onClick={() => setActiveLayer("additional")}
+                      >
+                        Adicional
+                      </button>
+                    </div>
+                    <div className="filter-checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        id="hide-available-toggle-enterprise"
+                        checked={hideAvailable}
+                        onChange={(e) => setHideAvailable(e.target.checked)}
+                      />
+                      <label htmlFor="hide-available-toggle-enterprise">
+                        Ocultar disponíveis
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </section>
+
               {/* Nova organização dos controles */}
               <div
                 style={{
@@ -2690,7 +2822,7 @@ export function MainPage() {
                           onChange={(e) => setHideAvailable(e.target.checked)}
                         />
                         <label htmlFor="hide-available-toggle">
-                          Ocultar Disponíveis
+                          Ocultar disponíveis
                         </label>
                       </div>
                     </>
@@ -2720,11 +2852,6 @@ export function MainPage() {
                             Olá, <strong>{userDisplayName}</strong>
                           </div>
                         )}
-                        <ImplantationSwitcher
-                          implantacoes={implantacoes}
-                          selected={selectedImplantationName}
-                          onChange={handleImplantationChange}
-                        />
                       </div>
 
                       {/* Direita: Indicadores */}
@@ -2746,12 +2873,12 @@ export function MainPage() {
                               borderRadius: "4px",
                               fontSize: "11px",
                               textAlign: "center",
-                              border: "1px solid #6ad700",
+                              border: "1px solid #2563eb",
                               lineHeight: "1.3",
                             }}
                           >
                             <div
-                              style={{ fontWeight: "bold", color: "#6ad700" }}
+                              style={{ fontWeight: "bold", color: "#2563eb" }}
                             >
                               Unidades configuradas
                             </div>
@@ -2777,7 +2904,7 @@ export function MainPage() {
                             <div
                               style={{ fontWeight: "bold", color: "#ffa500" }}
                             >
-                              ⚠️ Sem unidades
+                              Atenção: Sem unidades
                             </div>
                           </div>
                         )}
@@ -2790,12 +2917,12 @@ export function MainPage() {
                               borderRadius: "4px",
                               fontSize: "11px",
                               textAlign: "center",
-                              border: "1px solid #6ad700",
+                              border: "1px solid #2563eb",
                               lineHeight: "1.3",
                             }}
                           >
                             <div
-                              style={{ fontWeight: "bold", color: "#6ad700" }}
+                              style={{ fontWeight: "bold", color: "#2563eb" }}
                             >
                               Clientes Aptos
                             </div>
@@ -2821,7 +2948,7 @@ export function MainPage() {
                             <div
                               style={{ fontWeight: "bold", color: "#ffa500" }}
                             >
-                              ⚠️ Sem clientes
+                              Atenção: Sem clientes
                             </div>
                           </div>
                         )}
@@ -2844,13 +2971,6 @@ export function MainPage() {
                         Olá, <strong>{userDisplayName}</strong>
                       </div>
                     )}
-                    {view === "map" && (
-                      <ImplantationSwitcher
-                        implantacoes={implantacoes}
-                        selected={selectedImplantationName}
-                        onChange={handleImplantationChange}
-                      />
-                    )}
                     {unidadesConfigured && (
                       <div
                         style={{
@@ -2860,11 +2980,11 @@ export function MainPage() {
                           borderRadius: "4px",
                           fontSize: "12px",
                           textAlign: "center",
-                          border: "1px solid #6ad700",
+                          border: "1px solid #2563eb",
                           lineHeight: "1.4",
                         }}
                       >
-                        <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                        <div style={{ fontWeight: "bold", color: "#2563eb" }}>
                           Unidades configuradas
                         </div>
                         <div>
@@ -2886,7 +3006,7 @@ export function MainPage() {
                         }}
                       >
                         <div style={{ fontWeight: "bold", color: "#ffa500" }}>
-                          ⚠️ Sem unidades
+                          Atenção: Sem unidades
                         </div>
                         <div style={{ fontSize: "11px" }}>
                           Importe as unidades via configurações
@@ -2902,11 +3022,11 @@ export function MainPage() {
                           borderRadius: "4px",
                           fontSize: "12px",
                           textAlign: "center",
-                          border: "1px solid #6ad700",
+                          border: "1px solid #2563eb",
                           lineHeight: "1.4",
                         }}
                       >
-                        <div style={{ fontWeight: "bold", color: "#6ad700" }}>
+                        <div style={{ fontWeight: "bold", color: "#2563eb" }}>
                           Clientes importados
                         </div>
                         <div>
@@ -2928,7 +3048,7 @@ export function MainPage() {
                         }}
                       >
                         <div style={{ fontWeight: "bold", color: "#ffa500" }}>
-                          ⚠️ Sem clientes
+                          Atenção: Sem clientes
                         </div>
                         <div style={{ fontSize: "11px" }}>
                           Importe os clientes via configurações
@@ -2940,7 +3060,7 @@ export function MainPage() {
                       style={{
                         padding: "8px 12px",
                         backgroundColor: "transparent",
-                        color: "#6ad700",
+                        color: "#2563eb",
                         border: "none",
                         borderRadius: "4px",
                         cursor: "pointer",
@@ -3019,41 +3139,126 @@ export function MainPage() {
               </div>
               <div className="top-controls"></div>
               <div className="view-content">
-                {view === "map" && imageUrl && window.innerWidth > 768 && (
-                  <FloorPlan
-                    imageUrl={imageUrl}
-                    activeLayer={activeLayer}
-                    additionalImageUrl={
-                      // safely access potential alternate image URL fields
-                      (() => {
-                        if (!currentImplantation) return "";
-                        const c = currentImplantation as unknown as Record<string, unknown>;
-                        return (
-                          (c["imagem_url_adicional"] as string | undefined) ||
-                          (c["imagemUrlAdicional"] as string | undefined) ||
-                          ""
-                        );
-                      })()
-                    }
-                    unidades={filteredUnidadesForMap}
-                    isMappingMode={isMappingMode}
-                    unitToMapIndex={unitToMapIndex}
-                    onUnitClick={handleFloorPlanUnitClick}
-                    onMapClick={handleMapClickAndSaveCoords}
-                    dotSize={dotSize}
-                    hideAvailable={hideAvailable}
-                    unitLetter={unitLetter}
-                    implantacaoPrimary={selectedImplantationName}
-                    implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
-                    blockMappings={blockMappings}
-                    blockStats={blockStats}
-                    isBlockMappingMode={isBlockMappingMode}
-                    selectedBlockToMap={selectedBlockToMap}
-                    onRectangleComplete={handleRectangleComplete}
-                    onBlockMappingPaste={handleBlockMappingPaste}
-                  />
+                {implantacoes.length === 0 && (
+                  <section className="enterprise-empty-state">
+                    <div className="enterprise-empty-kicker">Primeiro passo</div>
+                    <h2>Nenhuma implantação cadastrada</h2>
+                    <p>
+                      Crie a primeira implantação para liberar o mapa, a lista
+                      de reservas, o histórico e as configurações comerciais.
+                    </p>
+                    <div className="enterprise-empty-actions">
+                      <button
+                        type="button"
+                        className="enterprise-button primary"
+                        onClick={handleOpenNewImplantation}
+                      >
+                        Criar implantação
+                      </button>
+                      <button
+                        type="button"
+                        className="enterprise-button secondary"
+                        onClick={() => window.location.reload()}
+                      >
+                        Tentar novamente
+                      </button>
+                    </div>
+                  </section>
                 )}
-                {view === "list" && (
+                {implantacoes.length > 0 &&
+                  selectedImplantationName &&
+                  (!unidadesConfigured || !clientesConfigured) && (
+                    <section className="enterprise-readiness-panel">
+                      <div>
+                        <span className="enterprise-empty-kicker">
+                          Configuração pendente
+                        </span>
+                        <h2>{selectedImplantationName}</h2>
+                        <p>
+                          Complete os dados base para que a operacao fique
+                          pronta para reservas e acompanhamento.
+                        </p>
+                      </div>
+                      <div className="enterprise-checklist">
+                        <div className={unidadesConfigured ? "done" : "pending"}>
+                          <strong>Unidades</strong>
+                          <span>
+                            {unidadesConfigured
+                              ? `${unidadesCount} unidades importadas`
+                              : "Importe ou configure as unidades"}
+                          </span>
+                        </div>
+                        <div className={clientesConfigured ? "done" : "pending"}>
+                          <strong>Clientes</strong>
+                          <span>
+                            {clientesConfigured
+                              ? `${clientesCount} clientes importados`
+                              : "Importe a base de clientes aptos"}
+                          </span>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+                {view === "map" &&
+                  implantacoes.length > 0 &&
+                  selectedImplantationName &&
+                  !imageUrl && (
+                    <section className="enterprise-empty-state compact">
+                      <div className="enterprise-empty-kicker">Mapa visual</div>
+                      <h2>Imagem da implantação não configurada</h2>
+                      <p>
+                        Adicione a imagem do empreendimento nas configurações
+                        para iniciar o mapeamento visual das unidades.
+                      </p>
+                      <button
+                        type="button"
+                        className="enterprise-button primary"
+                        onClick={handleOpenEditImplantation}
+                      >
+                        Abrir configurações
+                      </button>
+                    </section>
+                  )}
+                {view === "map" &&
+                  implantacoes.length > 0 &&
+                  imageUrl &&
+                  window.innerWidth > 768 && (
+                  <div ref={floorPlanShellRef}>
+                    <FloorPlan
+                      imageUrl={imageUrl}
+                      activeLayer={activeLayer}
+                      additionalImageUrl={
+                        // safely access potential alternate image URL fields
+                        (() => {
+                          if (!currentImplantation) return "";
+                          const c = currentImplantation as unknown as Record<string, unknown>;
+                          return (
+                            (c["imagem_url_adicional"] as string | undefined) ||
+                            (c["imagemUrlAdicional"] as string | undefined) ||
+                            ""
+                          );
+                        })()
+                      }
+                      unidades={filteredUnidadesForMap}
+                      isMappingMode={isMappingMode}
+                      unitToMapIndex={unitToMapIndex}
+                      onUnitClick={handleFloorPlanUnitClick}
+                      onMapClick={handleMapClickAndSaveCoords}
+                      dotSize={dotSize}
+                      hideAvailable={hideAvailable}
+                      unitLetter={unitLetter}
+                      implantacaoPrimary={selectedImplantationName}
+                      implantacaoAdditional={selectedImplantationName ? `${selectedImplantationName}+adicional` : ""}
+                      blockMappings={blockMappings}
+                      blockStats={blockStats}
+                      isBlockMappingMode={isBlockMappingMode}
+                      selectedBlockToMap={selectedBlockToMap}
+                      onRectangleComplete={handleRectangleComplete}
+                      onBlockMappingPaste={handleBlockMappingPaste}
+                    />
+                  </div>
+                )}
+                {view === "list" && implantacoes.length > 0 && (
                   <ReservationList
                     unidades={filteredUnidades}
                     onUnitClick={handleUnitClick}
@@ -3075,7 +3280,9 @@ export function MainPage() {
                     onBulkBlock={handleBulkBlock}
                   />
                 )}
-                {view === "history" && <HistoryView history={history} />}
+                {view === "history" && implantacoes.length > 0 && (
+                  <HistoryView history={history} />
+                )}
               </div>
               <ReservationModal
                 show={reservationModalState.isOpen}

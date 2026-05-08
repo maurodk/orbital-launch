@@ -1,4 +1,4 @@
-// frontend/components/HistoryView.tsx
+﻿// frontend/components/HistoryView.tsx
 
 import { useState, useMemo } from "react";
 import { FiSearch } from "react-icons/fi";
@@ -63,7 +63,7 @@ export function HistoryView({ history }: HistoryViewProps) {
 
                   // Formata a unidade se for troca (substitui -> por seta bonita)
                   const unidadeFormatted = entry[2]?.includes("->")
-                    ? entry[2].replace(/\s*->\s*/g, " → ")
+                    ? entry[2].replace(/\s*->\s*/g, " -> ")
                     : entry[2];
 
                   return (
@@ -82,7 +82,7 @@ export function HistoryView({ history }: HistoryViewProps) {
                         {/* Se existir reserva_url na coluna H (índice 7), mostra ícone linkado */}
                         {entry[7] && (
                           <a href={entry[7]} target="_blank" rel="noreferrer">
-                            <img src="/cvcrm.ico" alt="cvcrm" style={{ width: 16, height: 16, marginLeft: 6 }} onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+                            <span style={{ marginLeft: 6 }}>Abrir reserva</span>
                           </a>
                         )}
                       </td>

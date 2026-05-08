@@ -1,6 +1,20 @@
-version: '3.8'
-
 services:
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: telao_frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+      - VITE_SUPABASE_URL=${SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - VITE_BOTMAKER_TOKEN=${VITE_BOTMAKER_TOKEN:-}
+    depends_on:
+      - backend
+
   # Banco de dados em memória para a fila (Redis)
   redis:
     image: redis:alpine
@@ -31,7 +45,7 @@ services:
       - CVCRM_PASSWORD=${CVCRM_PASSWORD_1}
       - SCREENSHOT_DIR=/app/screenshots
       - CHROME_HEADLESS=true
-      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
+      - BACKEND_INTERNAL_URL=http://backend:3000
       - INTERNAL_NOTIFY_SECRET=${INTERNAL_NOTIFY_SECRET}
       - WORKER_NAME=telao_worker1
     env_file:
@@ -54,7 +68,7 @@ services:
       - CVCRM_PASSWORD=${CVCRM_PASSWORD_2}
       - SCREENSHOT_DIR=/app/screenshots
       - CHROME_HEADLESS=true
-      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
+      - BACKEND_INTERNAL_URL=http://backend:3000
       - INTERNAL_NOTIFY_SECRET=${INTERNAL_NOTIFY_SECRET}
       - WORKER_NAME=telao_worker2
     env_file:
@@ -71,8 +85,9 @@ services:
     container_name: telao_backend
     restart: always
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
+      - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - SCREENSHOT_DIR=/app/screenshots

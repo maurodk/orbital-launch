@@ -1,4 +1,4 @@
-// frontend/src/components/UnitHistoryModal.tsx
+﻿// frontend/src/components/UnitHistoryModal.tsx
 
 import { useEffect, useMemo, useState } from "react";
 import { FiSearch } from "react-icons/fi";
@@ -174,7 +174,7 @@ export function UnitHistoryModal({
                       </span>
                       {entry[7] && (
                         <a href={entry[7]} target="_blank" rel="noreferrer">
-                          <img src="/cvcrm.ico" alt="cvcrm" style={{ width: 16, height: 16, marginLeft: 6 }} onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
+                          <span style={{ marginLeft: 6 }}>Abrir reserva</span>
                         </a>
                       )}
                     </td>

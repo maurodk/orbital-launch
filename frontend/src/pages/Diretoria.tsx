@@ -3,6 +3,7 @@ import axios from "axios";
 import { supabase } from "../supabaseClient";
 import { Helmet, HelmetProvider } from "@dr.pogodin/react-helmet";
 import { PasswordModal } from "../../components/PasswordModal";
+import { apiUrl } from "../config/api";
 import "./Diretoria.css";
 
 interface DiretoriaData {
@@ -18,11 +19,6 @@ interface DiretoriaData {
   unidadesReservadasPorImobiliaria?: Record<string, number>;
   unidadesReservadasPorCorretor?: Record<string, number>;
 }
-
-const AWS_API_URL =
-  import.meta.env.VITE_AWS_API_URL ||
-  "https://apitelaodigital.suportevca.com.br";
-const apiUrl = import.meta.env.DEV ? "http://localhost:3000" : AWS_API_URL;
 
 export function Diretoria() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

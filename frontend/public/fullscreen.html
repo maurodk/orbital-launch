@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
@@ -10,7 +10,7 @@
     <title>Telao Digital - VCA</title>
     <style>
       :root {
-        --color-disponivel: #6ad700;
+        --color-disponivel: #2563eb;
         --color-Reservada: #d9534f;
       }
 
@@ -30,7 +30,7 @@
         pointer-events: none;
       }
 
-      /* Otimizações para evitar piscar no refresh */
+      /* OtimizaÃ§Ãµes para evitar piscar no refresh */
       .floor-plan-wrapper.loading {
         background: #1a1a1a;
       }
@@ -122,7 +122,7 @@
       .status-Reservada {
         background: var(--color-Reservada);
       }
-      .status-Disponível {
+      .status-DisponÃ­vel {
         background: var(--color-disponivel);
       }
       .status-Bloqueada {
@@ -131,8 +131,8 @@
       .status-other {
         background: #6c757d;
       }
-      /* Esconder unidades disponíveis quando toggle ativado */
-      .hide-disponivel .status-Disponível {
+      /* Esconder unidades disponÃ­veis quando toggle ativado */
+      .hide-disponivel .status-DisponÃ­vel {
         display: none !important;
       }
       .small {
@@ -220,7 +220,7 @@
         text-align: center;
         font-size: 14px;
         font-weight: 700;
-        color: #6ad700;
+        color: #2563eb;
         margin-top: 2px;
       }
       .dot-color-control {
@@ -405,7 +405,7 @@
         border-radius: 50%;
       }
       .toggle-switch input:checked + .toggle-slider {
-        background-color: #6ad700;
+        background-color: #2563eb;
       }
       .toggle-switch input:checked + .toggle-slider:before {
         transform: translateX(20px);
@@ -562,12 +562,12 @@
   </head>
   <body>
     <div class="topbar">
-      <div class="title" id="empreendimento-title">Espelho de Implantação</div>
+      <div class="title" id="empreendimento-title">Espelho de ImplantaÃ§Ã£o</div>
       <div id="implantacaoName" class="small"></div>
       <div class="topbar__field">
         <label for="layer-select" class="small" style="margin-left:8px">Camada</label>
         <select id="layer-select" class="topbar__select">
-          <option value="primary">Primária</option>
+          <option value="primary">PrimÃ¡ria</option>
           <option value="additional">Adicional</option>
         </select>
       </div>
@@ -638,15 +638,15 @@
     <div class="dot-color-control">
       <h3>Cores dos Pontos</h3>
       <div class="color-option">
-        <label for="color-disponivel">Disponível</label>
-        <input type="color" id="color-disponivel" value="#6ad700" />
+        <label for="color-disponivel">DisponÃ­vel</label>
+        <input type="color" id="color-disponivel" value="#2563eb" />
       </div>
       <div class="color-option">
         <label for="color-Reservada">Reservada</label>
         <input type="color" id="color-Reservada" value="#d9534f" />
       </div>
       <div class="toggle-option">
-        <label for="hide-disponivel">Esconder Disponíveis</label>
+        <label for="hide-disponivel">Esconder DisponÃ­veis</label>
         <label class="toggle-switch">
           <input type="checkbox" id="hide-disponivel" />
           <span class="toggle-slider"></span>
@@ -675,7 +675,7 @@
             }
           }
         } catch (e) {
-          console.log("Sem cache anterior disponível");
+          console.log("Sem cache anterior disponÃ­vel");
         }
 
         function renderFromCache() {
@@ -685,12 +685,13 @@
           }
         }
 
-        // Detecta automaticamente se está em desenvolvimento ou produção
+        // Detecta automaticamente se estÃ¡ em desenvolvimento ou produÃ§Ã£o
         const API_URL =
-          window.location.hostname === "localhost" ||
+          window.TELAO_API_URL ||
+          (window.location.hostname === "localhost" ||
           window.location.hostname === "127.0.0.1"
             ? "http://localhost:3000"
-            : "https://apitelaodigital.suportevca.com.br";
+            : window.location.origin);
 
         const wrapper = document.getElementById("floor-plan-wrapper");
         const statusEl = document.getElementById("status");
@@ -955,7 +956,7 @@
           adTransitionEl.innerHTML = "";
           adOverlay.classList.remove("has-transition-asset");
           const transitionNode = createAdMediaNode(mediaType, mediaUrl, {
-            alt: "Transição de propaganda",
+            alt: "TransiÃ§Ã£o de propaganda",
             loop: false,
             muted: options && Object.prototype.hasOwnProperty.call(options, "muted")
               ? options.muted
@@ -1123,14 +1124,14 @@
 
         const urlParams = new URLSearchParams(location.search);
         const implantacao = urlParams.get("implantacao");
-        // Novo: suporta abrir implantação adicional via param 'implantacao_ad' ou 'adicional=true' quando imageUrlAdicional existe
+        // Novo: suporta abrir implantaÃ§Ã£o adicional via param 'implantacao_ad' ou 'adicional=true' quando imageUrlAdicional existe
         const implantacaoAdParam = urlParams.get("implantacao_ad");
-        // inicializa a flag a partir do query param, mas permite mudança via UI
+        // inicializa a flag a partir do query param, mas permite mudanÃ§a via UI
         let adicionalFlag = (urlParams.get("adicional") || "").toLowerCase() === "true";
 
         if (!implantacao) {
           wrapper.innerHTML =
-            '<p style="padding:20px">Parâmetro "implantacao" não encontrado na URL.</p>';
+            '<p style="padding:20px">ParÃ¢metro "implantacao" nÃ£o encontrado na URL.</p>';
           statusEl.textContent = "Erro";
           return;
         }
@@ -1138,7 +1139,7 @@
         implantacaoNameEl.textContent = implantacao;
         empreendimentoTitleEl.textContent = `Espelho - ${implantacao}`;
 
-        // Layer select control (permite alternar entre primária e adicional dinamicamente)
+        // Layer select control (permite alternar entre primÃ¡ria e adicional dinamicamente)
         try {
           const layerSelect = document.getElementById('layer-select');
           if (layerSelect) {
@@ -1146,9 +1147,9 @@
             layerSelect.addEventListener('change', () => {
               adicionalFlag = layerSelect.value === 'additional';
               const hideAvailable = hideDisponivelToggle?.checked ? 'true' : 'false';
-              // atualiza preferência global para SSE/polling;
-              // reloadAndRender ajustará window.preferAltCoordsForPrimary conforme necessário
-              reloadAndRender(hideAvailable).catch((e) => console.error('Erro ao recarregar após mudança de camada', e));
+              // atualiza preferÃªncia global para SSE/polling;
+              // reloadAndRender ajustarÃ¡ window.preferAltCoordsForPrimary conforme necessÃ¡rio
+              reloadAndRender(hideAvailable).catch((e) => console.error('Erro ao recarregar apÃ³s mudanÃ§a de camada', e));
             });
           }
         } catch (e) {
@@ -1164,7 +1165,7 @@
 
           reloadAndRender(hideAvailable).then(() => {
             if (wasFullscreen) {
-              // Mantém em fullscreen após refresh
+              // MantÃ©m em fullscreen apÃ³s refresh
               if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch((err) => {
                   console.error("Erro ao reativar fullscreen:", err);
@@ -1182,8 +1183,8 @@
           reloadAndRender(hideAvailable);
         }, 30000); // 30 segundos
 
-        // Polling global contínuo mais lento (verifica todas as unidades a cada 5 segundos)
-        // Isso garante que mudanças que não geraram SSE sejam capturadas
+        // Polling global contÃ­nuo mais lento (verifica todas as unidades a cada 5 segundos)
+        // Isso garante que mudanÃ§as que nÃ£o geraram SSE sejam capturadas
         let globalPollingInterval = setInterval(async () => {
           try {
             const hideAvailable = hideDisponivelToggle?.checked
@@ -1202,7 +1203,7 @@
               const rowIndex = index + 2;
               const coordX = u[12];
               const coordY = u[13];
-              const status = (u[11] || "Disponível").toString();
+              const status = (u[11] || "DisponÃ­vel").toString();
 
               if (!coordX || !coordY) return;
 
@@ -1218,7 +1219,7 @@
                 );
                 if (currentStatus !== status) {
                   console.log(
-                    `[GLOBAL-POLL] Status mudou na linha ${rowIndex}: ${currentStatus} → ${status}`
+                    `[GLOBAL-POLL] Status mudou na linha ${rowIndex}: ${currentStatus} â†’ ${status}`
                   );
                   // Atualiza imediatamente
                   indicator.className = `unit-indicator status-${status}`;
@@ -1237,15 +1238,15 @@
             )}&hideAvailable=${hideAvailable}`;
             const res = await fetch(url);
             if (!res.ok) {
-              // Tratamento especial para 404: implantação não encontrada
+              // Tratamento especial para 404: implantaÃ§Ã£o nÃ£o encontrada
               if (res.status === 404) {
                 try {
                   const body = await res.json().catch(() => ({}));
-                  console.warn(`public-data 404: ${body.error || body.message || 'Planilha não encontrada'}`);
+                  console.warn(`public-data 404: ${body.error || body.message || 'Planilha nÃ£o encontrada'}`);
                 } catch (e) {
-                  console.warn('public-data 404: planilha não encontrada');
+                  console.warn('public-data 404: planilha nÃ£o encontrada');
                 }
-                // Retorna payload vazio para evitar quebrar a UI durante apresentação
+                // Retorna payload vazio para evitar quebrar a UI durante apresentaÃ§Ã£o
                 return { unidades: [], imageUrl: "", dotSize: 16 };
               }
               // Outros erros: devolve objeto vazio e registra aviso conciso
@@ -1254,25 +1255,25 @@
             }
             const json = await res.json();
 
-            // Salva no cache para próximo refresh
+            // Salva no cache para prÃ³ximo refresh
             cachedData = json;
             try {
               sessionStorage.setItem("fullscreenData", JSON.stringify(json));
             } catch (e) {
               // Ignora erro de quota excedida
-              console.warn("Não foi possível salvar no cache:", e);
+              console.warn("NÃ£o foi possÃ­vel salvar no cache:", e);
             }
 
             return json;
           } catch (e) {
-            // Evita spam de erros no console durante apresentação; log resumido
+            // Evita spam de erros no console durante apresentaÃ§Ã£o; log resumido
             console.warn("Erro em fetchData:", e && e.message ? e.message : e);
             statusEl.textContent = "Erro ao carregar dados.";
             return { unidades: [], imageUrl: "", dotSize: 16 };
           }
         }
 
-        // Busca dados de outra implantação (quando implantacao_ad é fornecida)
+        // Busca dados de outra implantaÃ§Ã£o (quando implantacao_ad Ã© fornecida)
         async function fetchOtherImplantacao(name, hideAvailable = "false") {
           try {
             const url = `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
@@ -1319,7 +1320,7 @@
         }
 
         function render(data) {
-          // Suporta objeto combinado { primary, secondary } ou o formato antigo único
+          // Suporta objeto combinado { primary, secondary } ou o formato antigo Ãºnico
             let primary = data.primary || data;
             let secondary = data.secondary || null;
             const { unidades, imageUrl, dotSize } = primary;
@@ -1340,7 +1341,7 @@
 
           if (!imageUrl) {
             wrapper.innerHTML =
-              '<p style="padding:20px">Imagem da planta não configurada.</p>';
+              '<p style="padding:20px">Imagem da planta nÃ£o configurada.</p>';
             wrapper.classList.remove("loading");
             wrapper.classList.add("loaded");
             return;
@@ -1351,10 +1352,10 @@
 
           const img = document.createElement("img");
 
-          // Otimização: Usa cache do navegador e preload
+          // OtimizaÃ§Ã£o: Usa cache do navegador e preload
           const cachedImageUrl = sessionStorage.getItem("floorPlanImageUrl");
           if (cachedImageUrl === imageUrl && img.complete) {
-            // Imagem já está em cache, carrega instantaneamente
+            // Imagem jÃ¡ estÃ¡ em cache, carrega instantaneamente
             img.src = imageUrl;
           } else {
             // Primeira carga ou imagem diferente
@@ -1377,7 +1378,7 @@
 
           container.appendChild(img);
 
-          // Se houver secondary (overlay ou outra implantação), cria imagem adicional
+          // Se houver secondary (overlay ou outra implantaÃ§Ã£o), cria imagem adicional
           if (secondary && secondary.imageUrl) {
             const imgAd = document.createElement("img");
             imgAd.className = "floor-plan-image additional";
@@ -1391,14 +1392,14 @@
             container.appendChild(imgAd);
           }
 
-          // Atualiza painel de debug — indicamos se secondary é da mesma implantação
+          // Atualiza painel de debug â€” indicamos se secondary Ã© da mesma implantaÃ§Ã£o
           try {
             const debugEl = document.getElementById('debug-mode');
             const secondaryIsSameImplant = !!(secondary && !implantacaoAdParam);
-            if (debugEl) debugEl.textContent = secondaryIsSameImplant ? (adicionalFlag ? 'camada: Adicional' : 'camada: Primária') : (adicionalFlag ? 'camada: Adicional (overlay)' : 'camada: Primária');
+            if (debugEl) debugEl.textContent = secondaryIsSameImplant ? (adicionalFlag ? 'camada: Adicional' : 'camada: PrimÃ¡ria') : (adicionalFlag ? 'camada: Adicional (overlay)' : 'camada: PrimÃ¡ria');
             // Flags globais para uso por SSE/polling
             window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__ = secondaryIsSameImplant;
-            window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = false; // removido: não usamos mais O:P como primário
+            window.__FULLSCREEN_USE_ALT_AS_PRIMARY__ = false; // removido: nÃ£o usamos mais O:P como primÃ¡rio
           } catch (e) {}
 
           wrapper.appendChild(container);
@@ -1409,12 +1410,12 @@
               ? unidades.slice(1)
               : unidades;
 
-          // Render unidades da implantação principal
-          // NOTA: agora sempre usamos as colunas M:N (índices 12 e 13) para coordenadas
-          // Para suportar filtro por ownership (implantacao_ref / col Q índice 16)
-          // aplicamos a lógica de camada independentemente de existir `secondary`.
+          // Render unidades da implantaÃ§Ã£o principal
+          // NOTA: agora sempre usamos as colunas M:N (Ã­ndices 12 e 13) para coordenadas
+          // Para suportar filtro por ownership (implantacao_ref / col Q Ã­ndice 16)
+          // aplicamos a lÃ³gica de camada independentemente de existir `secondary`.
           // Valores esperados para `implantacao_ref`:
-          // - unidade primária: implantacao (ou vazio/null para legacy)
+          // - unidade primÃ¡ria: implantacao (ou vazio/null para legacy)
           // - unidade adicional: implantacao + '+adicional'
           const primaryOwner = implantacao;
           const additionalOwner = implantacao + "+adicional";
@@ -1461,9 +1462,9 @@
             const coordX = u[12];
             const coordY = u[13];
             const letra = u[18];
-            const status = (u[11] || "Disponível").toString();
+            const status = (u[11] || "DisponÃ­vel").toString();
 
-            // Se não há coords, pula
+            // Se nÃ£o hÃ¡ coords, pula
             if (!coordX && coordX !== 0) return;
             if (!coordY && coordY !== 0) return;
 
@@ -1488,11 +1489,11 @@
             container.appendChild(indicator);
           });
 
-          // Render unidades da implantação adicional (overlay de outra implantação)
-          // Para o caso em que `implantacao_ad` foi fornecida (outra implantação),
+          // Render unidades da implantaÃ§Ã£o adicional (overlay de outra implantaÃ§Ã£o)
+          // Para o caso em que `implantacao_ad` foi fornecida (outra implantaÃ§Ã£o),
           // renderizamos o overlay normalmente usando as colunas M:N da secondary.
-          // Se secondary é a mesma implantação (imageUrlAdicional), já separamos
-          // as camadas via `implantacao_ref` acima — portanto pulamos o overlay.
+          // Se secondary Ã© a mesma implantaÃ§Ã£o (imageUrlAdicional), jÃ¡ separamos
+          // as camadas via `implantacao_ref` acima â€” portanto pulamos o overlay.
           if (secondary && secondary.unidades && implantacaoAdParam) {
             const rowsAd =
               secondary.unidades.length > 0 &&
@@ -1504,7 +1505,7 @@
               const coordX = u[12];
               const coordY = u[13];
               const letra = u[18];
-              const status = (u[11] || "Disponível").toString();
+              const status = (u[11] || "DisponÃ­vel").toString();
 
               if (!coordX && coordX !== 0) return;
               if (!coordY && coordY !== 0) return;
@@ -1536,7 +1537,7 @@
           statusEl.textContent = "Atualizando...";
           const primary = await fetchData(hideAvailable);
 
-          // Tenta obter dados secundários: pode ser outra aba (implantacao_ad) ou imagem adicional da mesma implantação
+          // Tenta obter dados secundÃ¡rios: pode ser outra aba (implantacao_ad) ou imagem adicional da mesma implantaÃ§Ã£o
           let secondary = null;
           if (implantacaoAdParam) {
             secondary = await fetchOtherImplantacao(implantacaoAdParam, hideAvailable);
@@ -1561,12 +1562,12 @@
         let sseReconnectAttempts = 0;
         let sseConsecutivePollingFailures = 0;
         let hasBoundOnlineReconnect = false;
-        // preferência para usar coords alternativas (O:P) como camada principal
-        // quando `adicional=true` e secondary vem da mesma implantação
+        // preferÃªncia para usar coords alternativas (O:P) como camada principal
+        // quando `adicional=true` e secondary vem da mesma implantaÃ§Ã£o
         let preferAltCoordsForPrimary = false;
         let pollingIntervals = new Map(); // Armazena intervalos de polling por unidade
 
-        // Polling agressivo para uma unidade específica
+        // Polling agressivo para uma unidade especÃ­fica
         function startUnitPolling(rowIndex, duration = 10000) {
           // Remove polling anterior se existir
           if (pollingIntervals.has(rowIndex)) {
@@ -1577,7 +1578,7 @@
             `[POLLING] Iniciando polling agressivo para linha ${rowIndex} por ${duration}ms`
           );
 
-          // Polling a cada 500ms (muito rápido)
+          // Polling a cada 500ms (muito rÃ¡pido)
           const intervalId = setInterval(async () => {
             try {
               const res = await fetch(
@@ -1606,7 +1607,7 @@
 
           pollingIntervals.set(rowIndex, intervalId);
 
-          // Para o polling após a duração especificada
+          // Para o polling apÃ³s a duraÃ§Ã£o especificada
           setTimeout(() => {
             clearInterval(intervalId);
             pollingIntervals.delete(rowIndex);
@@ -1627,7 +1628,7 @@
           const coordX = useAltAsPrimary && pollData.coordXAd ? pollData.coordXAd : pollData.coordX;
           const coordY = useAltAsPrimary && pollData.coordYAd ? pollData.coordYAd : pollData.coordY;
           console.log('[POLL] updateSingleUnitFromPoll row=', rowIndex, 'useAltAsPrimary=', useAltAsPrimary, 'pollData=', pollData, 'chosen=', { coordX, coordY });
-          const status = pollData.status || "Disponível";
+          const status = pollData.status || "DisponÃ­vel";
 
           if (!coordX || !coordY) {
             if (indicator) {
@@ -1673,7 +1674,7 @@
           const payloadCoordX = useAltCoords ? unitData[14] : unitData[12];
           const payloadCoordY = useAltCoords ? unitData[15] : unitData[13];
           const letra = unitData[18];
-          const status = (unitData[11] || "Disponível").toString();
+          const status = (unitData[11] || "DisponÃ­vel").toString();
 
           // If payload explicitly clears coords (empty string/null), remove indicator.
           if ((hasCoordXProp && (payloadCoordX === "" || payloadCoordX === null)) || (hasCoordYProp && (payloadCoordY === "" || payloadCoordY === null))) {
@@ -1766,9 +1767,9 @@
 
             // polling fallback to validate data layer
             try {
-              // Para a página fullscreen pública usamos o endpoint não autenticado
+              // Para a pÃ¡gina fullscreen pÃºblica usamos o endpoint nÃ£o autenticado
               // `/api/public-data` no polling-fallback para evitar 401s quando
-              // não houver token disponível.
+              // nÃ£o houver token disponÃ­vel.
               const resUnits = await fetch(
                 `${API_URL}/api/public-data?implantacao=${encodeURIComponent(
                   implantacao
@@ -1792,7 +1793,7 @@
               sseReconnectAttempts >= MAX_RECONNECT_ATTEMPTS &&
               sseConsecutivePollingFailures >= MAX_POLLING_FAILURES
             ) {
-              statusEl.textContent = "Tempo real indisponível. Mantendo atualização automática.";
+              statusEl.textContent = "Tempo real indisponÃ­vel. Mantendo atualizaÃ§Ã£o automÃ¡tica.";
               return;
             }
 
@@ -1826,7 +1827,7 @@
             try {
               const { unitData, rowIndex } = JSON.parse(ev.data);
               // Decide se devemos respeitar implantacao_ref (owner) para escolher a camada.
-              // Usamos a flag de camada atual (`adicionalFlag`) ou a indicação global de secondary mesma implantação.
+              // Usamos a flag de camada atual (`adicionalFlag`) ou a indicaÃ§Ã£o global de secondary mesma implantaÃ§Ã£o.
               const secondarySame = !!window.__FULLSCREEN_SECONDARY_SAME_IMPLANT__;
               const respectOwner = (typeof adicionalFlag !== 'undefined' && adicionalFlag) || secondarySame;
               if (respectOwner) {
@@ -1850,7 +1851,7 @@
                   } catch (e) {}
                 }
               } else {
-                // Comportamento legado/fallback: atualiza primary e, se tiver coords adicionais, também atualiza ad
+                // Comportamento legado/fallback: atualiza primary e, se tiver coords adicionais, tambÃ©m atualiza ad
                 updateSingleUnit(unitData, rowIndex);
                 try {
                   const coordXAd = unitData[14];
@@ -1861,14 +1862,14 @@
                 } catch (e) {}
               }
 
-              // DISPARA polling agressivo para garantir sincronização em tempo real
+              // DISPARA polling agressivo para garantir sincronizaÃ§Ã£o em tempo real
               startUnitPolling(rowIndex, 10000);
             } catch (e) {
               console.error("Erro ao processar evento SSE:", e);
             }
           });
 
-          // Se implantacao_ad diferente for fornecida, abre segunda conexão SSE
+          // Se implantacao_ad diferente for fornecida, abre segunda conexÃ£o SSE
           if (implantacaoAdParam) {
             esSecondary = new EventSource(
               `${API_URL}/api/events?implantacao=${encodeURIComponent(
@@ -1887,10 +1888,10 @@
             esSecondary.addEventListener("unitUpdated", (ev) => {
               try {
                 const { unitData, rowIndex } = JSON.parse(ev.data);
-                // Atualiza camada adicional (usar coords primários do outro sheet)
+                // Atualiza camada adicional (usar coords primÃ¡rios do outro sheet)
                 updateSingleUnitAd(unitData, rowIndex, /*useAltCoords=*/false);
               } catch (e) {
-                console.error("Erro no SSE secundário:", e);
+                console.error("Erro no SSE secundÃ¡rio:", e);
               }
             });
           }
@@ -1919,7 +1920,7 @@
           const payloadCoordX = unitData[12];
           const payloadCoordY = unitData[13];
           const letra = unitData[18];
-          const status = (unitData[11] || "Disponível").toString();
+          const status = (unitData[11] || "DisponÃ­vel").toString();
 
           // If payload explicitly clears coords, remove indicator.
           if ((hasCoordXProp && (payloadCoordX === "" || payloadCoordX === null)) || (hasCoordYProp && (payloadCoordY === "" || payloadCoordY === null))) {
@@ -2046,7 +2047,7 @@
           }
         });
 
-        // Botão de refresh manual
+        // BotÃ£o de refresh manual
         refreshBtn.addEventListener("click", () => {
           smartRefresh();
           showToast("Dados atualizados!");
@@ -2073,7 +2074,7 @@
             clearTimeout(hideHeaderTimeout);
           }
 
-          // Se estiver em modo fullscreen, agenda o ocultamento automático
+          // Se estiver em modo fullscreen, agenda o ocultamento automÃ¡tico
           if (isFullscreenMode) {
             hideHeaderTimeout = setTimeout(() => {
               hideTopbar();
@@ -2128,7 +2129,7 @@
           }
         });
 
-        // Mantém visível quando interage com o controle
+        // MantÃ©m visÃ­vel quando interage com o controle
         dotSizeControl.addEventListener("mouseenter", () => {
           if (isFullscreenMode) {
             showTopbar();
@@ -2146,7 +2147,7 @@
           const disponivelColor = colorDisponivelInput.value;
           const ReservadaColor = colorReservadaInput.value;
 
-          // Atualiza variáveis CSS
+          // Atualiza variÃ¡veis CSS
           document.documentElement.style.setProperty(
             "--color-disponivel",
             disponivelColor
@@ -2189,7 +2190,7 @@
         colorDisponivelInput.addEventListener("input", updateColors);
         colorReservadaInput.addEventListener("input", updateColors);
 
-        // Toggle para esconder disponíveis
+        // Toggle para esconder disponÃ­veis
         const hideDisponivelToggle = document.getElementById("hide-disponivel");
 
         function updateHideDisponivel() {
@@ -2238,7 +2239,7 @@
           saveDotSize(event.target.value);
         });
 
-        // Limpa todos os intervalos quando a página for fechada
+        // Limpa todos os intervalos quando a pÃ¡gina for fechada
         window.addEventListener("beforeunload", () => {
           if (autoRefreshInterval) clearInterval(autoRefreshInterval);
           if (globalPollingInterval) clearInterval(globalPollingInterval);

@@ -5,6 +5,9 @@
 
 set -e
 
+REPO_NAME="orbital-launch"
+REPO_URL="https://github.com/ti-vca-construtora/orbital-launch.git"
+
 echo "🚀 Iniciando setup da aplicacao no EC2..."
 
 # Cores para output
@@ -36,13 +39,13 @@ echo -e "${YELLOW}[5/10]${NC} Clonando repositório..."
 mkdir -p ~/projects
 cd ~/projects
 
-if [ -d "telao-digital" ]; then
+if [ -d "$REPO_NAME" ]; then
     echo "Repositório já existe, atualizando..."
-    cd telao-digital
+    cd "$REPO_NAME"
     git pull origin main
 else
-    git clone https://github.com/ti-vca-construtora/telao-digital.git
-    cd telao-digital
+    git clone "$REPO_URL"
+    cd "$REPO_NAME"
 fi
 
 # Passo 6: Instalar dependências do backend
@@ -52,7 +55,7 @@ npm install
 
 # Passo 7: Gerar build do frontend React
 echo -e "${YELLOW}[7/10]${NC} Instalando dependências do frontend..."
-cd ~/projects/telao-digital/frontend
+cd ~/projects/$REPO_NAME/frontend
 npm install
 
 echo -e "${YELLOW}[8/10]${NC} Gerando build do frontend..."
@@ -60,7 +63,7 @@ npm run build
 
 # Passo 9: Testar se o servidor inicia
 echo -e "${YELLOW}[9/10]${NC} Testando servidor..."
-cd ~/projects/telao-digital/deploy-docker/backend
+cd ~/projects/$REPO_NAME/deploy-docker/backend
 timeout 5 node server.cjs || true
 echo -e "${GREEN}✓ Servidor testado com sucesso${NC}"
 
@@ -87,7 +90,7 @@ echo "  pm2 stop simulador-backend    - Parar servidor"
 echo "  pm2 delete simulador-backend  - Remover servidor"
 echo ""
 echo -e "${YELLOW}⚠️  IMPORTANTE:${NC}"
-echo "  1. Copie o arquivo .env para ~/projects/telao-digital/deploy-docker/backend/"
+echo "  1. Copie o arquivo .env para ~/projects/$REPO_NAME/deploy-docker/backend/"
 echo "  2. Copie o arquivo credentials.json para o mesmo diretório"
 echo "  3. Confirme que frontend/dist foi gerado no servidor"
 echo "  4. Configure o Nginx (veja o guia)"

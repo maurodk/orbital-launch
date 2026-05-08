@@ -1,4 +1,4 @@
-// frontend/components/HamburgerMenu.tsx
+﻿// frontend/components/HamburgerMenu.tsx
 
 import { useState } from "react";
 import { LogOut, DollarSign, Target } from "lucide-react";
@@ -45,7 +45,7 @@ export function HamburgerMenu({
           height: "36px",
           border: "none",
           backgroundColor: "transparent",
-          color: "#6ad700",
+          color: "#2563eb",
           cursor: "pointer",
           display: "flex",
           flexDirection: "column",
@@ -61,7 +61,7 @@ export function HamburgerMenu({
           style={{
             width: "20px",
             height: "2px",
-            backgroundColor: "#6ad700",
+            backgroundColor: "#2563eb",
             borderRadius: "2px",
             transition: "all 0.3s ease",
             transform: isOpen ? "rotate(45deg) translate(4px, 4px)" : "none",
@@ -71,7 +71,7 @@ export function HamburgerMenu({
           style={{
             width: "20px",
             height: "2px",
-            backgroundColor: "#6ad700",
+            backgroundColor: "#2563eb",
             borderRadius: "2px",
             transition: "all 0.3s ease",
             opacity: isOpen ? 0 : 1,
@@ -81,7 +81,7 @@ export function HamburgerMenu({
           style={{
             width: "20px",
             height: "2px",
-            backgroundColor: "#6ad700",
+            backgroundColor: "#2563eb",
             borderRadius: "2px",
             transition: "all 0.3s ease",
             transform: isOpen ? "rotate(-45deg) translate(4px, -4px)" : "none",
@@ -98,7 +98,7 @@ export function HamburgerMenu({
             right: 0,
             backgroundColor: "#1e1e1e",
             borderRadius: "8px",
-            border: "1px solid #6ad700",
+            border: "1px solid #2563eb",
             boxShadow: "0 4px 12px rgba(106, 215, 0, 0.3)",
             minWidth: "200px",
             overflow: "hidden",
@@ -130,7 +130,7 @@ export function HamburgerMenu({
               textAlign: "left",
               cursor: "pointer",
               fontSize: "14px",
-              color: "#6ad700",
+              color: "#2563eb",
               fontWeight: "bold",
               transition: "background-color 0.2s ease",
             }}

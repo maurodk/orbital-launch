@@ -15,7 +15,6 @@
     "@supabase/supabase-js": "^2.80.0",
     "@types/qrcode.react": "^1.0.5",
     "axios": "^1.11.0",
-    "firebase": "^12.1.0",
     "helmet": "^8.1.0",
     "lucide-react": "^0.554.0",
     "qrcode.react": "^4.2.0",
@@ -24,6 +23,7 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.9.2",
     "react-select": "^5.10.2",
+    "react-to-print": "^3.3.0",
     "react-zoom-pan-pinch": "^3.7.0"
   },
   "devDependencies": {

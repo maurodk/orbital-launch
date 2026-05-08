@@ -1,4 +1,4 @@
-// frontend/components/EditImplantationModalWithTabs.tsx
+﻿// frontend/components/EditImplantationModalWithTabs.tsx
 
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -15,7 +15,6 @@ type ImplantationUpdatePayload = {
   endereco?: string;
   cidade?: string;
   estado?: string;
-  cvcrm_id?: string;
   planosConfig?: PlanosConfig | null;
 };
 
@@ -25,7 +24,6 @@ interface Implantation {
   endereco?: string;
   cidade?: string;
   estado?: string;
-  cvcrm_id?: string;
   url?: string;
   logo_url?: string;
   imagem_url_adicional?: string;
@@ -97,7 +95,6 @@ export function EditImplantationModal({
   const [endereco, setEndereco] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
-  const [cvcrmId, setCvcrmId] = useState("");
   const [imagemFile, setImagemFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [imagemAdicionalFile, setImagemAdicionalFile] = useState<File | null>(null);
@@ -131,7 +128,6 @@ export function EditImplantationModal({
       setEndereco(implantation.endereco || "");
       setCidade(implantation.cidade || "");
       setEstado(implantation.estado || "");
-      setCvcrmId(implantation.cvcrm_id || "");
       setCurrentImageUrl(implantation.url || "");
       setCurrentLogoUrl(implantation.logo_url || "");
       // suportar campos alternativos que possam conter a imagem adicional
@@ -276,7 +272,7 @@ export function EditImplantationModal({
         throw errUnknown;
       }
 
-      alert(`✅ ${response?.data?.message}`);
+      alert(`OK ${response?.data?.message}`);
       setUnidadesFile(null);
       const fileInput = document.getElementById(
         "unidades-import-input"
@@ -329,7 +325,7 @@ export function EditImplantationModal({
         }
       );
 
-      alert(`✅ ${response?.data?.message}`);
+      alert(`OK ${response?.data?.message}`);
       setDisponibilidadeFile(null);
       const fileInput = document.getElementById(
         "disponibilidade-import-input"
@@ -390,7 +386,7 @@ export function EditImplantationModal({
         throw errUnknown;
       }
 
-      alert(`✅ ${response?.data?.message}`);
+      alert(`OK ${response?.data?.message}`);
       setClientesFile(null);
       const fileInput = document.getElementById(
         "clientes-import-input"
@@ -436,9 +432,6 @@ export function EditImplantationModal({
       formData.append("endereco", implantation.endereco || "");
       formData.append("cidade", implantation.cidade || "");
       formData.append("estado", implantation.estado || "");
-      if (implantation.cvcrm_id) {
-        formData.append("cvcrm_id", implantation.cvcrm_id);
-      }
       formData.append("planos_config", JSON.stringify(planosConfig));
 
       await axios.put(`${apiUrl}/api/implantacoes/${implantation.id}`, formData, {
@@ -503,9 +496,6 @@ export function EditImplantationModal({
       formData.append("endereco", endereco.trim());
       formData.append("cidade", cidade.trim());
       formData.append("estado", estado);
-      if (cvcrmId.trim()) {
-        formData.append("cvcrm_id", cvcrmId.trim());
-      }
       if (imagemFile) {
         formData.append("imagem", imagemFile);
       }
@@ -580,7 +570,7 @@ export function EditImplantationModal({
       <div
         style={{
           backgroundColor: "#1e1e1e",
-          border: "2px solid #6ad700",
+          border: "2px solid #2563eb",
           padding: "30px",
           borderRadius: "8px",
           maxWidth: "900px",
@@ -609,10 +599,10 @@ export function EditImplantationModal({
               border: "none",
               borderBottom:
                 activeTab === "edit"
-                  ? "3px solid #6ad700"
+                  ? "3px solid #2563eb"
                   : "3px solid transparent",
               backgroundColor: "transparent",
-              color: activeTab === "edit" ? "#6ad700" : "#b0b0b0",
+              color: activeTab === "edit" ? "#2563eb" : "#b0b0b0",
               cursor: "pointer",
               fontWeight: "bold",
               transition: "all 0.2s",
@@ -627,10 +617,10 @@ export function EditImplantationModal({
               border: "none",
               borderBottom:
                 activeTab === "import"
-                  ? "3px solid #6ad700"
+                  ? "3px solid #2563eb"
                   : "3px solid transparent",
               backgroundColor: "transparent",
-              color: activeTab === "import" ? "#6ad700" : "#b0b0b0",
+              color: activeTab === "import" ? "#2563eb" : "#b0b0b0",
               cursor: "pointer",
               fontWeight: "bold",
               transition: "all 0.2s",
@@ -645,10 +635,10 @@ export function EditImplantationModal({
               border: "none",
               borderBottom:
                 activeTab === "planos"
-                  ? "3px solid #6ad700"
+                  ? "3px solid #2563eb"
                   : "3px solid transparent",
               backgroundColor: "transparent",
-              color: activeTab === "planos" ? "#6ad700" : "#b0b0b0",
+              color: activeTab === "planos" ? "#2563eb" : "#b0b0b0",
               cursor: "pointer",
               fontWeight: "bold",
               transition: "all 0.2s",
@@ -929,32 +919,6 @@ export function EditImplantationModal({
                   </div>
                 </div>
 
-                <div style={{ marginBottom: "15px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "5px",
-                      fontWeight: "bold",
-                      color: "#eaeaea",
-                    }}
-                  >
-                    ID no CVCRM (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={cvcrmId}
-                    onChange={(e) => setCvcrmId(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      borderRadius: "4px",
-                      border: "1px solid #2a2a2a",
-                      backgroundColor: "#2a2a2a",
-                      color: "#eaeaea",
-                    }}
-                  />
-                </div>
-
                 <div style={{ marginBottom: "20px" }}>
                   <label
                     style={{
@@ -982,7 +946,7 @@ export function EditImplantationModal({
                   {imagemFile && (
                     <small
                       style={{
-                        color: "#6ad700",
+                        color: "#2563eb",
                         marginTop: "5px",
                         display: "block",
                       }}
@@ -1019,7 +983,7 @@ export function EditImplantationModal({
                   {logoFile && (
                     <small
                       style={{
-                        color: "#6ad700",
+                        color: "#2563eb",
                         marginTop: "5px",
                         display: "block",
                       }}
@@ -1056,7 +1020,7 @@ export function EditImplantationModal({
                   {imagemAdicionalFile && (
                     <small
                       style={{
-                        color: "#6ad700",
+                        color: "#2563eb",
                         marginTop: "5px",
                         display: "block",
                       }}
@@ -1110,7 +1074,7 @@ export function EditImplantationModal({
                       padding: "10px 20px",
                       borderRadius: "4px",
                       border: "none",
-                      backgroundColor: "#6ad700",
+                      backgroundColor: "#2563eb",
                       color: "#121212",
                       cursor: isLoading ? "not-allowed" : "pointer",
                       fontWeight: "bold",
@@ -1136,8 +1100,8 @@ export function EditImplantationModal({
                 border: "1px solid #2a2a2a",
               }}
             >
-              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}>
-                📊 Importar Unidades (XLSX)
+              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#2563eb" }}>
+                ðŸ“Š Importar Unidades (XLSX)
               </h3>
               <p
                 style={{
@@ -1155,7 +1119,7 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                ⚠️ A importação irá <strong>sobrescrever</strong> todas as unidades atuais desta implantação.
+                Atenção: A importação irá <strong>sobrescrever</strong> todas as unidades atuais desta implantação.
               </p>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
@@ -1182,7 +1146,7 @@ export function EditImplantationModal({
                     padding: "8px 16px",
                     borderRadius: "4px",
                     border: "none",
-                    backgroundColor: !unidadesFile || isImportingUnidades ? "#444" : "#6ad700",
+                    backgroundColor: !unidadesFile || isImportingUnidades ? "#444" : "#2563eb",
                     color: !unidadesFile || isImportingUnidades ? "#888" : "#121212",
                     cursor: !unidadesFile || isImportingUnidades ? "not-allowed" : "pointer",
                     fontWeight: "bold",
@@ -1193,8 +1157,8 @@ export function EditImplantationModal({
                 </button>
               </div>
               {unidadesFile && !isImportingUnidades && (
-                <small style={{ color: "#6ad700", marginTop: "8px", display: "block" }}>
-                  ✓ {unidadesFile.name}
+                <small style={{ color: "#2563eb", marginTop: "8px", display: "block" }}>
+                  OK {unidadesFile.name}
                 </small>
               )}
             </div>
@@ -1208,8 +1172,8 @@ export function EditImplantationModal({
                 border: "1px solid #2a2a2a",
               }}
             >
-              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}>
-                🔄 Atualizar Disponibilidade das Unidades (XLSX)
+              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#2563eb" }}>
+                ðŸ”„ Atualizar Disponibilidade das Unidades (XLSX)
               </h3>
               <p
                 style={{
@@ -1254,7 +1218,7 @@ export function EditImplantationModal({
                     padding: "8px 16px",
                     borderRadius: "4px",
                     border: "none",
-                    backgroundColor: !disponibilidadeFile || isUpdatingDisponibilidade ? "#444" : "#6ad700",
+                    backgroundColor: !disponibilidadeFile || isUpdatingDisponibilidade ? "#444" : "#2563eb",
                     color: !disponibilidadeFile || isUpdatingDisponibilidade ? "#888" : "#121212",
                     cursor: !disponibilidadeFile || isUpdatingDisponibilidade ? "not-allowed" : "pointer",
                     fontWeight: "bold",
@@ -1265,8 +1229,8 @@ export function EditImplantationModal({
                 </button>
               </div>
               {disponibilidadeFile && !isUpdatingDisponibilidade && (
-                <small style={{ color: "#6ad700", marginTop: "8px", display: "block" }}>
-                  ✓ {disponibilidadeFile.name}
+                <small style={{ color: "#2563eb", marginTop: "8px", display: "block" }}>
+                  OK {disponibilidadeFile.name}
                 </small>
               )}
             </div>
@@ -1279,8 +1243,8 @@ export function EditImplantationModal({
                 border: "1px solid #2a2a2a",
               }}
             >
-              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#6ad700" }}>
-                👥 Importar Clientes Aptos (XLSX)
+              <h3 style={{ marginTop: 0, marginBottom: "10px", color: "#2563eb" }}>
+                ðŸ‘¥ Importar Clientes Aptos (XLSX)
               </h3>
               <p
                 style={{
@@ -1298,7 +1262,7 @@ export function EditImplantationModal({
                   marginBottom: "15px",
                 }}
               >
-                ⚠️ A importação irá <strong>sobrescrever</strong> todos os clientes aptos atuais.
+                Atenção: A importação irá <strong>sobrescrever</strong> todos os clientes aptos atuais.
               </p>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
@@ -1325,7 +1289,7 @@ export function EditImplantationModal({
                     padding: "8px 16px",
                     borderRadius: "4px",
                     border: "none",
-                    backgroundColor: !clientesFile || isImportingClientes ? "#444" : "#6ad700",
+                    backgroundColor: !clientesFile || isImportingClientes ? "#444" : "#2563eb",
                     color: !clientesFile || isImportingClientes ? "#888" : "#121212",
                     cursor: !clientesFile || isImportingClientes ? "not-allowed" : "pointer",
                     fontWeight: "bold",
@@ -1336,8 +1300,8 @@ export function EditImplantationModal({
                 </button>
               </div>
               {clientesFile && !isImportingClientes && (
-                <small style={{ color: "#6ad700", marginTop: "8px", display: "block" }}>
-                  ✓ {clientesFile.name}
+                <small style={{ color: "#2563eb", marginTop: "8px", display: "block" }}>
+                  OK {clientesFile.name}
                 </small>
               )}
             </div>
@@ -1406,7 +1370,7 @@ export function EditImplantationModal({
                   style={{
                     width: "20px",
                     height: "20px",
-                    accentColor: "#6ad700",
+                    accentColor: "#2563eb",
                     cursor: "pointer",
                   }}
                 />
@@ -1442,7 +1406,7 @@ export function EditImplantationModal({
                   style={{
                     marginTop: 0,
                     marginBottom: "15px",
-                    color: "#6ad700",
+                    color: "#2563eb",
                     fontSize: "15px",
                   }}
                 >
@@ -1474,11 +1438,11 @@ export function EditImplantationModal({
                         gap: "10px",
                         padding: "12px 16px",
                         backgroundColor: planosSelecionados.includes(plano.id)
-                          ? "rgba(106, 215, 0, 0.1)"
+                          ? "rgba(37, 99, 235, 0.12)"
                           : "#2a2a2a",
                         borderRadius: "6px",
                         border: planosSelecionados.includes(plano.id)
-                          ? "1px solid #6ad700"
+                          ? "1px solid #2563eb"
                           : "1px solid #333",
                         cursor: "pointer",
                         transition: "all 0.2s",
@@ -1491,7 +1455,7 @@ export function EditImplantationModal({
                         style={{
                           width: "18px",
                           height: "18px",
-                          accentColor: "#6ad700",
+                          accentColor: "#2563eb",
                           cursor: "pointer",
                         }}
                       />
@@ -1519,7 +1483,7 @@ export function EditImplantationModal({
                       marginBottom: 0,
                     }}
                   >
-                    ⚠️ Selecione pelo menos um plano de pagamento.
+                    Atenção: Selecione pelo menos um plano de pagamento.
                   </p>
                 )}
               </div>
@@ -1543,15 +1507,15 @@ export function EditImplantationModal({
             {planosSaved && (
               <div
                 style={{
-                  backgroundColor: "rgba(106, 215, 0, 0.1)",
-                  color: "#6ad700",
+                  backgroundColor: "rgba(37, 99, 235, 0.12)",
+                  color: "#2563eb",
                   padding: "10px",
                   borderRadius: "4px",
-                  border: "1px solid #6ad700",
+                  border: "1px solid #2563eb",
                   marginBottom: "15px",
                 }}
               >
-                ✅ Configuração de planos salva com sucesso!
+                OK Configuração de planos salva com sucesso!
               </div>
             )}
 
@@ -1592,7 +1556,7 @@ export function EditImplantationModal({
                     isSavingPlanos ||
                     (planosHabilitado && planosSelecionados.length === 0)
                       ? "#444"
-                      : "#6ad700",
+                      : "#2563eb",
                   color:
                     isSavingPlanos ||
                     (planosHabilitado && planosSelecionados.length === 0)
